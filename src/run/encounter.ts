@@ -24,7 +24,8 @@
 // The resolver-seam pattern — no combat-loop involvement. No RNG, no Phaser.
 
 import { clampTierToCard } from '../engine/types';
-import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/types';
+import type { BoardPiece, CombatantSetup, EnemyDef, EnemyGrowthMilestone, SkillDef, SkillTier } from '../engine/types';
+import { boardAffinities, cardType, IDENTITY_THRESHOLD } from '../engine/combat/typeIdentity';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
@@ -37,11 +38,13 @@ import {
   applyLevelAllocation,
   applyPlayerLevelAllocation,
   DEFAULT_PROFILE,
+  LEVEL_STAT_COST,
   monsterLevelPL,
   PL_PER_LEVEL,
   scaleMonsterToLevel,
   totalLevelPL,
   type Allocation,
+  type LevelStat,
   type StatProfile,
 } from './leveling';
 
@@ -422,6 +425,10 @@ export interface EncounterUnit {
   title: EnemyTitle;
   /** Tier-steps applied across the deck (after clamping to the ceiling). */
   rank: number;
+  /** Pre-growth recipe rank; never the resolved/display rank above. */
+  baseRank: number;
+  /** Normalized growth schedule level; packs use their clamped effective level. */
+  growthLevel: number;
   enemyId: string;
   /** Modifier ids applied (validated against MODIFIER_PRESETS). The DEEP-RUN
    * escalation stack only — an elite affix is NOT in here, it has its own
@@ -462,15 +469,26 @@ export const PACK_SIZE: Record<PackVariant, number> = { solo: 1, pair: 2, trio: 
 
 /**
  * VARIANT MIX — rolled via a single `rng.int(100)` compared against these
- * weights in fixed (solo, pair, trio) order (must sum to 100). v1 mix: mostly
- * solo, packs as a minority flavor so "one strong foe" stays the default read
- * of a fight node. BOSS nodes never roll a variant at all (always `'solo'`,
- * see `rollEncounter`) — packs are a non-boss fight-column texture only.
+ * weights in fixed (solo, pair, trio) order (must sum to 100). Mostly solo,
+ * packs as a minority flavor so "one strong foe" stays the default read of a
+ * fight node. BOSS nodes never roll a variant at all (always `'solo'`, see
+ * `rollEncounter`) — packs are a non-boss fight-column texture only.
+ *
+ * `solo + 2*pair + 3*trio = 140` is an INVARIANT this mix must preserve, not
+ * a coincidence: `PRICE.aoeTargetsNum/Den` (`src/engine/balance.ts`) derives
+ * straight from these weights as `1/5*1 + 4/5*(solo*1 + pair*2 + trio*3)/100`
+ * (1/5 boss, 4/5 non-boss — `BOSS_EVERY` = 5's cadence), so ANY weights on
+ * that line reproduce the same 33/25 = 1.32x AoE price with zero re-pricing
+ * of shipped content — it is the free lever for retuning pack FREQUENCY.
+ * 2026-09-07 (user: "pack should be more common if you are in a team fight")
+ * moved the point from {70, 20, 10} to {64, 32, 4}: pack share once viable
+ * rises from ~30% to ~36% steady-state, trios stay a rare texture (4%), and
+ * `PRICE.aoeTargetsNum/Den` does not move.
  */
 export const PACK_VARIANT_WEIGHTS: Record<PackVariant, number> = {
-  solo: 70,
-  pair: 20,
-  trio: 10,
+  solo: 64,
+  pair: 32,
+  trio: 4,
 };
 
 /**
@@ -550,26 +568,21 @@ export function capPackTitle(title: EnemyTitle): EnemyTitle {
 // WHAT THIS BUYS. The board term's coefficient drops from −0.615 to −1/K of
 // a budget that no longer shrank, so member level tracks the node's level
 // again (seed 4242: wave 21 LV2 -> LV6, wave 47 LV1 -> LV10, wave 61 LV11 ->
-// LV22), and `packThreatDeci` lands on `soloThreatDeci` to within one member
-// level of integer rounding — the tight invariant `tests/run/packFights.test.ts`
-// now pins, and the reason a HARD column option can no longer be materially
-// weaker than its own EASY one.
+// LV22). The current growth-aware solve spends the greatest affordable integer
+// member level; the next level can include a card milestone or tier step as
+// well as stats. `tests/run/packFights.test.ts` prices that entire next step.
 //
 // IF THE POOL CANNOT AFFORD LEVEL 1 for every member, the caller MUST fall
 // back to a solo encounter — a pack is never shipped over the node's budget
 // (see `rollEncounter` in runState.ts). That floor is what keeps early packs
 // out on its own: two Bronze boards already out-cost a low node's whole
-// threat, so pairs only become affordable around node level 11 and trios
-// around 21, with `MIN_PACK_FIGHT_NUMBER` as the explicit backstop for
-// fight 1.
+// threat. `MIN_PACK_FIGHT_NUMBER` remains the explicit backstop for fight 1.
 //
-// TWO SOLVES, AND WHY. `REFERENCE_ENEMY_DECK_SIZE` prices a board generically
-// — without knowing which enemy id a member will roll — as the WORST CASE
-// (largest) base card count across the roster, derived live from `enemies`
-// rather than hand-typed. `resolvePackMemberLevel` uses it, so it stays a pure
-// function of (level, title, size, modifiers) that a preview or a test can ask
-// without a roll, and because it prices the LARGEST possible board it can only
-// ever UNDER-state a member's level, never ship a pack over budget.
+// TWO SOLVES, AND WHY. `resolvePackMemberLevel` prices the largest exact
+// eligible-enemy cost at each candidate member level before enemy IDs are
+// drawn. It resolves the same fitting milestones and board-for-stat exchange
+// as runtime. `REFERENCE_ENEMY_DECK_SIZE` remains the node's solo-budget
+// reference, while the pack hedge comes from real eligible enemy definitions.
 //
 // That conservatism has a cost, and it was measured: the roster runs 23
 // two-card enemies against 36 three-card ones, and the DIAMOND escalation
@@ -608,6 +621,142 @@ function deckThreatDeci(deckSize: number, rank: number): number {
   return deci;
 }
 
+// ---------------------------------------------------------------------------
+// ENEMY GROWTH BY LEVEL (2026-09-08 design, `docs/superpowers/specs/
+// 2026-09-08-enemy-growth-content-threat-design.md`) — every 2 levels an enemy
+// spends one growth STEP: resolve the next authored milestone's first valid
+// family-matched candidate from `EnemyDef.growth` (widening the board via the existing
+// `nextFreeSlot`/`boardSize` rule `buildEnemyEncounter` already applies for
+// title filler), or — once that list is exhausted, or for the many enemies
+// that author none at all ("this thing only gets sharper" is a legal answer)
+// — tier up a card via the SAME `assignRankTiers` round-robin the title's own
+// `rank` dial already drives. Adds always precede tier-ups (Q2). Nothing
+// here reaches the combat loop: this is a pure function of (enemy, level)
+// resolved entirely in this run-layer module, same resolver-seam pattern as
+// the title/rank/affix dials above it.
+//
+// PRICING (Q5: REPLACE, not stack — balance-designer's accepted rule,
+// 2026-09-06). Growth is bought OUT OF the level's own stat PL, never added
+// free: `scaleMonsterToLevel` (leveling.ts) shrinks the stat share by
+// `growthBoardDeci`, floored at 0. Working the algebra through
+// (`max(0, rawStat-growthBoard) + growthBoard + baselineBoard`) collapses to
+// one clean identity — a level's total spend is
+//
+//     baselineBoard + max(rawStatDeci, growthBoardDeci)
+//
+// i.e. growth is a FLOOR beneath the stat curve, not a surcharge on top of
+// it: below the floor the body pays exactly what growth costs (its stat
+// share numerically vanishes as the ledger's positive book-keeping — 0 real
+// stat spent — but the level itself is left alone, since growth is keyed to
+// `growthLevel`); above the floor (typically by ~L38) growth is free — the level's
+// own stat budget already exceeded it, so the curve is BYTE-IDENTICAL to the
+// pre-growth model.
+//
+// TWO PRICES, FLAT AND LINEAR: `GROWTH_ADD_STEP_DECI` (a full Bronze card
+// budget — growth mints a real board slot, same price any other Bronze card
+// audits to) and `GROWTH_TIER_STEP_DECI` (`deckThreatDeci`'s OWN uniform +50
+// spacing between adjacent `TIER_BUDGET_DECI` tiers — DERIVED, not chosen:
+// `deckThreatDeci(deckSize, rank)` is provably `deckSize * 100 + rank * 50`
+// for any `rank <= maxRankFor(deckSize)`, since every tier step costs exactly
+// 50 deci regardless of which card takes it, so pricing growth's tier-ups
+// flat at that same 50 is EXACT, not an approximation, as long as no card's
+// own 3-step ceiling is hit — beyond that, real steps go free, which can only
+// make the true cost LESS than this flat estimate, the same safe-conservative
+// direction `REFERENCE_ENEMY_DECK_SIZE` already banks on).
+//
+// GENERIC_GROWTH_CARDS is the enemy-id-unknown worst case for the PRE-DRAW
+// solo ledger. Known-enemy pricing uses the same fitting prefix as runtime;
+// only unknown enemy IDs retain the conservative generic estimate.
+// Packs resolve and price the actual eligible boards at their member level.
+// ---------------------------------------------------------------------------
+
+/** A full Bronze card budget — the PL price of one growth ADD step (a new
+ * board slot). See the rationale block above. */
+export const GROWTH_ADD_STEP_DECI = TIER_BUDGET_DECI.bronze;
+
+/** `deckThreatDeci`'s own uniform tier spacing — the PL price of one growth
+ * TIER-UP step, once the enemy's own growth list is exhausted. DERIVED, not
+ * chosen: see the rationale block above. */
+export const GROWTH_TIER_STEP_DECI = TIER_BUDGET_DECI.silver - TIER_BUDGET_DECI.bronze;
+
+/** The conservative, enemy-id-unknown growth-list length the PRE-DRAW PL
+ * ledger prices against. See the rationale block above. */
+export const GENERIC_GROWTH_CARDS = 3;
+
+/** Growth steps earned by `level`: one every 2 levels, level 1 is the
+ * authored baseline (Q1). No cap — growth self-caps (adds stop once the
+ * enemy's own list is exhausted; tier-ups stop at Diamond via `maxRankFor`). */
+export function growthStepsAt(level: number): number {
+  return Math.floor(clampLevel(level) / 2);
+}
+
+/**
+ * How `growthStepsAt(level)` steps split between ADDS (bounded by the
+ * enemy's own growth-list length) and TIER-UPS (the remainder, once the list
+ * is exhausted) — adds always precede tier-ups (Q2), so this is pure
+ * arithmetic, not a step-by-step walk: the first `min(steps, growthListLength)`
+ * steps are adds, whatever is left over is tier-ups.
+ *
+ * TIER-UPS SELF-CAP (Q1: "rank stops at Diamond"), and this is where PRICING
+ * has to know it: `baseDeckSize` (the deck BEFORE growth's own adds — title's
+ * own board) and `existingRank` (the title's own `preset.rank`, already
+ * spent) fix the SAME `maxRankFor` ceiling `assignRankTiers` enforces on the
+ * real board. This helper remains the generic, enemy-unknown estimate;
+ * known enemies use resolveGrowthBoard so physical slot fit is also exact.
+ */
+function growthSplit(
+  level: number,
+  growthListLength: number,
+  baseDeckSize: number = REFERENCE_ENEMY_DECK_SIZE,
+  existingRank: number = 0,
+): { addSteps: number; tierSteps: number } {
+  const steps = growthStepsAt(level);
+  const addSteps = Math.min(steps, Math.max(0, Math.floor(growthListLength)));
+  const deckSizeAfterAdds = baseDeckSize + addSteps;
+  const tierHeadroom = Math.max(0, maxRankFor(deckSizeAfterAdds) - Math.max(0, existingRank));
+  const tierSteps = Math.min(steps - addSteps, tierHeadroom);
+  return { addSteps, tierSteps };
+}
+
+/**
+ * The board-PL (deci) growth's own escalation costs at `level`, for a growth
+ * list of `growthListLength` cards (defaults to the conservative
+ * `GENERIC_GROWTH_CARDS` — see the rationale block above), against a deck
+ * that already carries `baseDeckSize` cards and `existingRank` tier-steps
+ * (the title's own board, BEFORE growth's own adds/tier-ups land — defaults
+ * match a bare Bronze body with no title rank, i.e. growth's own worst-case
+ * headroom). Flat and linear (no `deckThreatDeci` round-robin call needed —
+ * see the block above) UNTIL the `maxRankFor` ceiling caps it (see
+ * `growthSplit`'s doc comment for why the cap matters here specifically).
+ * Used both by the pre-draw PL ledger (generic estimate) and by
+ * `buildEnemyEncounter` (the exact per-enemy bill, fed to
+ * `scaleMonsterToLevel`'s stat-budget subtraction).
+ */
+export function growthBoardDeltaDeci(
+  level: number,
+  growthListLength: number = GENERIC_GROWTH_CARDS,
+  baseDeckSize: number = REFERENCE_ENEMY_DECK_SIZE,
+  existingRank: number = 0,
+  forceTier?: SkillTier,
+): number {
+  const { addSteps, tierSteps } = growthSplit(level, growthListLength, baseDeckSize, existingRank);
+  // A `forceTier` modifier (e.g. DIAMOND-POWERED) stamps EVERY card — growth's
+  // own adds included — to the same forced tier regardless of rank
+  // (`buildEnemyEncounter`'s post-rank override), so a TIER-UP step buys
+  // nothing real once one is active: it is FREE, not `GROWTH_TIER_STEP_DECI`.
+  // An ADD step still mints a real board slot, which the override then
+  // stamps at the forced tier's OWN (pricier) rate rather than Bronze's.
+  // Without this, growth's flat pricing double-counts under `diamond` (it
+  // already prices every OTHER card's tier via `deckSize * TIER_BUDGET_DECI
+  // [forceTier]` — see `memberDeckDeci`/`rosterDeckDeci`) and, worse,
+  // `resolveEncounterForEnemy` would still subtract a phantom tier-up cost
+  // from the body's stat share for a tier-up the board never actually needed
+  // to buy — measured: this alone made every multi-member pack unaffordable
+  // for the entire back half of the ladder (`diamond` unlocks ~fight 35).
+  if (forceTier) return addSteps * TIER_BUDGET_DECI[forceTier];
+  return addSteps * GROWTH_ADD_STEP_DECI + tierSteps * GROWTH_TIER_STEP_DECI;
+}
+
 /** The `forceTier` modifier in `modifierIds` (if any) — `buildEnemyEncounter`
  * applies AT MOST one (`.find`, first match wins); mirrored here so the
  * budget model prices the SAME override it actually ships. */
@@ -644,19 +793,30 @@ function modifierBonusDeci(modifierIds: readonly string[]): number {
  * (exactly as `buildEnemyEncounter` installs them), so today's one-card
  * affixes against Elite's one filler slot add ZERO here — the substitution is
  * free by construction, not by an assumption. Anything an affix names PAST
- * that allowance grows the deck and is priced as the extra cards it is. */
+ * that allowance grows the deck and is priced as the extra cards it is.
+ *
+ * `growthLevel` (2026-09-06, defaults to 1 — `growthStepsAt(1) === 0`, so
+ * omitting it is BYTE-IDENTICAL to before growth existed) additively bills
+ * growth's own board escalation at the conservative `GENERIC_GROWTH_CARDS`
+ * estimate (this function never knows which enemy id will be drawn — see the
+ * ENEMY GROWTH BY LEVEL rationale block above). This is the roster's REAL,
+ * list-price board estimate for unknown enemy IDs; `soloThreatDeci` does NOT thread a
+ * `growthLevel` through here — it prices growth separately, as a floor
+ * beneath the stat curve rather than a board surcharge (see its own doc
+ * comment). */
 function memberDeckDeci(
   title: EnemyTitle,
   modifierIds: readonly string[] = [],
   affixId: string | null = null,
   fightNumber?: number,
+  growthLevel: number = 1,
 ): number {
   const preset = titlePresetFor(title, fightNumber);
   const affixCards = affixCardsFor(affixId).length;
   const deckSize = REFERENCE_ENEMY_DECK_SIZE + Math.max(preset.extraCards, affixCards);
   const forceTier = forceTierFor(modifierIds);
-  if (forceTier) return deckSize * TIER_BUDGET_DECI[forceTier];
-  return deckThreatDeci(deckSize, preset.rank);
+  const board = forceTier ? deckSize * TIER_BUDGET_DECI[forceTier] : deckThreatDeci(deckSize, preset.rank);
+  return board + growthBoardDeltaDeci(growthLevel, GENERIC_GROWTH_CARDS, deckSize, preset.rank, forceTier);
 }
 
 /**
@@ -673,6 +833,14 @@ function memberDeckDeci(
  * `fightNumber` selects the depth-ramped title package (`titlePresetFor`) —
  * pass the node's fight number to price what the ladder actually ships at
  * that rung; omit it for the flat reference package.
+ *
+ * GROWTH (2026-09-06, Q5: REPLACE) folds in as `max(rawStatDeci,
+ * growthBoardDeltaDeci(level))` rather than a third additive term — see the
+ * ENEMY GROWTH BY LEVEL rationale block above for the algebra that collapses
+ * `scaleMonsterToLevel`'s stat-share subtraction into exactly this identity.
+ * `memberDeckDeci` is deliberately called WITHOUT a `growthLevel` here (its
+ * default omits growth) so growth is billed exactly once, as the floor
+ * beneath the stat term, not also as a board surcharge.
  */
 export function soloThreatDeci(
   level: number,
@@ -681,9 +849,19 @@ export function soloThreatDeci(
   affixId: string | null = null,
   fightNumber?: number,
 ): number {
-  return levelStatDeci(level, title, fightNumber)
+  const rawStatDeci = levelStatDeci(level, title, fightNumber);
+  // The SAME deckSize/rank/forceTier `memberDeckDeci` would use for this
+  // title — needed so growth's own tier-up cap (`growthSplit`) sees the real
+  // headroom, and so a `diamond`-style override correctly makes growth's own
+  // tier-ups free (see `growthBoardDeltaDeci`'s doc comment).
+  const preset = titlePresetFor(title, fightNumber);
+  const affixCards = affixCardsFor(affixId).length;
+  const deckSize = REFERENCE_ENEMY_DECK_SIZE + Math.max(preset.extraCards, affixCards);
+  const forceTier = forceTierFor(modifierIds);
+  const growthDeci = growthBoardDeltaDeci(level, GENERIC_GROWTH_CARDS, deckSize, preset.rank, forceTier);
+  return memberDeckDeci(title, modifierIds, affixId, fightNumber)
     + modifierBonusDeci(modifierIds)
-    + memberDeckDeci(title, modifierIds, affixId, fightNumber);
+    + Math.max(rawStatDeci, growthDeci);
 }
 
 /**
@@ -698,6 +876,20 @@ function levelStatDeci(level: number, title: EnemyTitle, fightNumber?: number): 
   return Math.max(0, monsterLevelPL(clampLevel(level) + titlePresetFor(title, fightNumber).levelDelta)) * 10;
 }
 
+/** Buy the greatest integer level on the exact growth/stat cost staircase. */
+function solveMemberLevel(budgetDeci: number, k: number, title: EnemyTitle, costAt: (level: number) => number): number | null {
+  if (costAt(1) > budgetDeci) return null;
+  let low = 1;
+  // Even a free board cannot spend more than the entire budget on stats.
+  let high = Math.max(1, 1 + Math.floor(budgetDeci / k / (PL_PER_LEVEL * 10)) - TITLE_PRESETS[title].levelDelta);
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (costAt(middle) <= budgetDeci) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+
 /**
  * THE ACTION-ECONOMY PREMIUM, ITEMISED. What a `size`-member roster costs
  * before a single point of stats is bought: `size` boards at list price plus
@@ -708,14 +900,21 @@ function levelStatDeci(level: number, title: EnemyTitle, fightNumber?: number): 
  * the whole price of that, in the same currency as everything else, replacing
  * the 2026-08-04 percentage tax that charged for them a second time (see the
  * rationale block above).
+ *
+ * Growth is resolved against the eligible enemy catalog, including deterministic
+ * candidate fit and forced tiers. The largest actual board is the pre-draw hedge.
  */
 export function packRosterCostDeci(
   size: number,
   memberTitle: EnemyTitle,
   modifierIds: readonly string[] = [],
+  growthLevel: number = 1,
+  eligibleEnemyIds: readonly string[] = Object.keys(enemies),
 ): number {
   const k = Math.max(1, Math.floor(size));
-  return k * (memberDeckDeci(memberTitle, modifierIds, null) + modifierBonusDeci(modifierIds));
+  let board = 0;
+  for (const id of eligibleEnemyIds) board = Math.max(board, rosterDeckDeci([id], memberTitle, modifierIds, growthLevel));
+  return k * (board + modifierBonusDeci(modifierIds));
 }
 
 /**
@@ -724,15 +923,47 @@ export function packRosterCostDeci(
  * `packThreatDeci(...) === soloThreatDeci(node)`. Exported because it is the
  * only honest way to check the solve: it re-prices the resolved roster from
  * its own resolved level rather than re-running the solver's arithmetic.
+ *
+ * Each eligible board exchanges its growth cost for stats through the same
+ * pricing identity as runtime; the maximum is a conservative pre-draw hedge.
  */
 export function packThreatDeci(
   memberLevel: number,
   size: number,
   memberTitle: EnemyTitle,
   modifierIds: readonly string[] = [],
+  growthLevel: number = clampLevel(memberLevel + TITLE_PRESETS[memberTitle].levelDelta),
+  eligibleEnemyIds: readonly string[] = Object.keys(enemies),
 ): number {
   const k = Math.max(1, Math.floor(size));
-  return k * levelStatDeci(memberLevel, memberTitle) + packRosterCostDeci(k, memberTitle, modifierIds);
+  let worst = 0;
+  for (const id of eligibleEnemyIds) {
+    worst = Math.max(worst, enemyThreatDeci(id, memberLevel, memberTitle, modifierIds, growthLevel));
+  }
+  return k * worst;
+}
+
+/** No-milestone boards with identical tier sequences have identical prices at
+ * every growth level. Price one representative; authored milestone boards keep
+ * their own candidate/slot resolution. Local to each solve, so catalog changes
+ * cannot leave a stale global price cache. */
+function distinctPackPricingIds(enemyIds: readonly string[], title: EnemyTitle): string[] {
+  const result: string[] = [];
+  const seenIds = new Set<string>();
+  const seenTierSequences = new Set<string>();
+  for (const id of enemyIds) {
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+    const enemy = enemies[id];
+    // Mob's negative stat spend depends on each enemy's profile and stat floors.
+    if (title !== 'mob' && enemy && !enemy.growth?.length) {
+      const tiers = enemy.pieces.map((p) => `${skillBook[p.skillId]!.tier}:${p.tier ?? ''}`).join(',');
+      if (seenTierSequences.has(tiers)) continue;
+      seenTierSequences.add(tiers);
+    }
+    result.push(id);
+  }
+  return result;
 }
 
 /**
@@ -767,6 +998,9 @@ export function packThreatDeci(
  * `fightNumber` ramps the NODE's budget only (`titlePresetFor` on the node's
  * elite/boss title). The members' own cost is untouched by it: they are
  * mob/normal (`capPackTitle`), which never ramp.
+ *
+ * The node's solo budget retains its existing growth floor. The members' costs
+ * use exact eligible growth boards at each candidate effective level.
  */
 export function resolvePackMemberLevel(
   level: number,
@@ -775,43 +1009,167 @@ export function resolvePackMemberLevel(
   modifierIds: readonly string[] = [],
   affixId: string | null = null,
   fightNumber?: number,
+  eligibleEnemyIds: readonly string[] = Object.keys(enemies),
 ): number | null {
   const k = Math.max(1, Math.floor(size));
   if (k <= 1) return clampLevel(level);
   const memberTitle = capPackTitle(title);
   // The BUDGET is what a SOLO foe at this node would cost, affix included.
   const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId, fightNumber);
-  // The ROSTER's fixed cost: k boards + k modifier auto-spends, list price.
-  const statPoolDeci = budgetDeci - packRosterCostDeci(k, memberTitle, modifierIds);
-  if (statPoolDeci < 0) return null;
-  const memberStatDeci = Math.floor(statPoolDeci / k);
-  const memberLevel = 1 + Math.floor(memberStatDeci / (PL_PER_LEVEL * 10));
-  return memberLevel >= 1 ? memberLevel : null;
+  const eligible = distinctPackPricingIds(eligibleEnemyIds, memberTitle);
+  if (eligible.length === 0) return null;
+  return solveMemberLevel(budgetDeci, k, memberTitle, (memberLevel) =>
+    packThreatDeci(memberLevel, k, memberTitle, modifierIds,
+      clampLevel(memberLevel + TITLE_PRESETS[memberTitle].levelDelta), eligible));
 }
 
-/**
- * The board-threat PL (deci) the enemies in `enemyIds` ACTUALLY ship at
- * `title` — the same sum `memberDeckDeci` estimates, but over each enemy's own
- * authored deck size instead of `REFERENCE_ENEMY_DECK_SIZE`. Every authored
- * enemy card is Bronze at the floor (`tests/data` holds that), so the rank
- * distribution and any `forceTier` override price exactly as
- * `buildEnemyEncounter` stamps them. An unknown id falls back to the generic
- * worst case, so a bad id can never under-price a roster.
- */
+/** A deterministic rejection recorded while trying one milestone candidate. */
+export type EnemyGrowthRejectionReason = 'unknown' | 'wrong-family' | 'duplicate'
+  | 'does-not-fit' | 'does-not-complete-affinity' | 'family-not-present';
+
+export interface EnemyGrowthRejection {
+  readonly skillId: string;
+  readonly reason: EnemyGrowthRejectionReason;
+}
+
+/** Invalid authored growth must fail with the full deterministic candidate trace. */
+export class EnemyGrowthResolutionError extends Error {
+  override readonly name = 'EnemyGrowthResolutionError';
+
+  constructor(
+    readonly enemyId: string,
+    readonly milestoneIndex: number,
+    readonly growthLevel: number,
+    readonly occupiedSlots: number,
+    readonly rejections: readonly EnemyGrowthRejection[],
+  ) {
+    super(`${enemyId}: growth milestone ${milestoneIndex}, level ${growthLevel}, occupied ${occupiedSlots}: `
+      + (rejections.length ? rejections.map((r) => `${r.skillId}: ${r.reason}`).join('; ') : 'no candidates'));
+  }
+}
+
+/** Resolve every earned milestone for both runtime assembly and exact pricing. */
+function resolveGrowthBoard(
+  enemyId: string, before: BoardPiece[], authored: BoardPiece[], milestones: readonly EnemyGrowthMilestone[], level: number, requestedRank: number, forceTier?: SkillTier,
+): { pieces: BoardPiece[]; baseRank: number; rankSteps: number; costDeci: number } {
+  const pieces = before.map((piece) => ({ ...piece }));
+  // Intent follows authored cards plus prior growth; transient title/affix cards
+  // still occupy `pieces` for the actual duplicate and physical-fit checks.
+  const intentSkills = authored.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => s !== undefined);
+  const steps = growthStepsAt(level);
+  let slot = nextFreeSlot(pieces);
+  let added = 0;
+  while (added < steps && added < milestones.length) {
+    const milestone = milestones[added]!;
+    const family = milestone.family;
+    const matchesFamily = (skill: SkillDef): boolean => {
+      const type = cardType(skill);
+      return type?.kind === family.kind && type.type === family.type;
+    };
+    const familyCount = intentSkills.filter(matchesFamily).length;
+    const beforeAffinity = boardAffinities(intentSkills)[family.kind];
+    const rejections: EnemyGrowthRejection[] = [];
+    let selected: SkillDef | undefined;
+    for (let i = 0; i < milestone.candidates.length; i += 1) {
+      const candidate = milestone.candidates[i]!;
+      const skill = skillBook[candidate.skillId];
+      let reason: EnemyGrowthRejectionReason | undefined;
+      if (!skill) reason = 'unknown';
+      else if (!matchesFamily(skill)) reason = 'wrong-family';
+      else if (candidate.allowDuplicate !== true && pieces.some((p) => p.skillId === candidate.skillId)) reason = 'duplicate';
+      else if (slot + skill.size > HERO_BOARD_SLOTS) reason = 'does-not-fit';
+      else if (milestone.purpose === 'complete-affinity' && (
+        familyCount !== IDENTITY_THRESHOLD - 1 || beforeAffinity === family.type
+        || boardAffinities([...intentSkills, skill])[family.kind] !== family.type
+      )) reason = 'does-not-complete-affinity';
+      else if (milestone.purpose === 'reinforce-family' && familyCount === 0) reason = 'family-not-present';
+      if (reason) rejections.push({ skillId: candidate.skillId, reason });
+      else { selected = skill; break; }
+    }
+    if (!selected) {
+      const occupiedSlots = pieces.reduce((sum, p) => sum + (skillBook[p.skillId]?.size ?? 1), 0);
+      throw new EnemyGrowthResolutionError(enemyId, added, level, occupiedSlots, rejections);
+    }
+    pieces.push({ skillId: selected.id, slot });
+    intentSkills.push(selected);
+    slot += selected.size;
+    added += 1;
+  }
+  const ceiling = maxRankFor(pieces.length);
+  const baseRank = Math.max(0, Math.min(requestedRank, ceiling));
+  const rankSteps = Math.max(0, Math.min(steps - added, ceiling - baseRank));
+  const costDeci = forceTier ? added * TIER_BUDGET_DECI[forceTier]
+    : added * GROWTH_ADD_STEP_DECI + rankSteps * GROWTH_TIER_STEP_DECI;
+  return { pieces, baseRank, rankSteps, costDeci };
+}
+
+/** Shared authored board assembly for runtime and exact pack pricing. */
+function authoredGrowth(
+  enemy: EnemyDef,
+  title: EnemyTitle,
+  modifierIds: readonly string[],
+  growthLevel: number,
+  affixId: string | null = null,
+  fightNumber?: number,
+  rankOverride?: number,
+): ReturnType<typeof resolveGrowthBoard> {
+  const preset = titlePresetFor(title, fightNumber);
+  const affixCards = affixCardsFor(affixId);
+  const before = addExtraCards(addNamedCards(enemy.pieces, affixCards), poolFor(enemy), Math.max(0, preset.extraCards - affixCards.length));
+  return resolveGrowthBoard(enemy.id, before, enemy.pieces, enemy.growth ?? [], growthLevel, rankOverride ?? preset.rank, forceTierFor(modifierIds));
+}
+
+function enemyBoardPrice(
+  enemyId: string, title: EnemyTitle, modifierIds: readonly string[], growthLevel: number,
+  affixId: string | null = null, fightNumber?: number,
+): { board: number; growth: number } {
+  const enemy = enemies[enemyId];
+  if (!enemy) {
+    const preset = titlePresetFor(title, fightNumber);
+    const deckSize = REFERENCE_ENEMY_DECK_SIZE + Math.max(preset.extraCards, affixCardsFor(affixId).length);
+    return {
+      board: memberDeckDeci(title, modifierIds, affixId, fightNumber, growthLevel),
+      growth: growthBoardDeltaDeci(growthLevel, GENERIC_GROWTH_CARDS, deckSize, preset.rank, forceTierFor(modifierIds)),
+    };
+  }
+  const resolved = authoredGrowth(enemy, title, modifierIds, growthLevel, affixId, fightNumber);
+  const forceTier = forceTierFor(modifierIds);
+  const pieces = assignRankTiers(resolved.pieces, resolved.baseRank + resolved.rankSteps);
+  const board = pieces.reduce((sum, p) => sum + TIER_BUDGET_DECI[forceTier ?? p.tier ?? skillBook[p.skillId]!.tier], 0);
+  return { board, growth: resolved.costDeci };
+}
+
+/** Exact board price after title, affix, fitting growth, rank, and forced tiers. */
 export function rosterDeckDeci(
   enemyIds: readonly string[],
   title: EnemyTitle,
   modifierIds: readonly string[] = [],
+  growthLevel: number = 1,
+  affixId: string | null = null,
+  fightNumber?: number,
 ): number {
-  const preset = TITLE_PRESETS[title];
-  const forceTier = forceTierFor(modifierIds);
   let deci = 0;
   for (let i = 0; i < enemyIds.length; i++) {
-    const enemy = enemies[enemyIds[i]!];
-    const deckSize = (enemy?.pieces.length ?? REFERENCE_ENEMY_DECK_SIZE) + preset.extraCards;
-    deci += forceTier ? deckSize * TIER_BUDGET_DECI[forceTier] : deckThreatDeci(deckSize, preset.rank);
+    deci += enemyBoardPrice(enemyIds[i]!, title, modifierIds, growthLevel, affixId, fightNumber).board;
   }
   return deci;
+}
+
+/** Growth replaces the positive stat budget; it is never charged twice. */
+function enemyThreatDeci(enemyId: string, level: number, title: EnemyTitle, modifierIds: readonly string[], growthLevel: number): number {
+  const price = enemyBoardPrice(enemyId, title, modifierIds, growthLevel);
+  const effectiveLevel = clampLevel(level) + TITLE_PRESETS[title].levelDelta;
+  let statDeci = Math.max(0, levelStatDeci(level, title) - price.growth);
+  const enemy = enemies[enemyId];
+  if (effectiveLevel < 1 && enemy) {
+    const scaled = scaleMonsterToLevel(enemy, effectiveLevel, price.growth).stats;
+    statDeci = 0;
+    for (const stat of Object.keys(LEVEL_STAT_COST) as LevelStat[]) {
+      const cost = LEVEL_STAT_COST[stat];
+      statDeci += (scaled[stat] - enemy.stats[stat]) * cost.pl * 10 / cost.gain;
+    }
+  }
+  return price.board + statDeci + modifierBonusDeci(modifierIds);
 }
 
 /**
@@ -826,6 +1184,9 @@ export function rosterDeckDeci(
  * already made from the generic solve. Since the actual boards can only be
  * SMALLER than the worst case, this can only raise the level, never lower it,
  * and never returns `null` where `resolvePackMemberLevel` did not.
+ *
+ * Each candidate member level resolves its own growth milestones and rank,
+ * and charges the remaining stat share after the board-for-stat exchange.
  */
 export function resolvePackRosterLevel(
   enemyIds: readonly string[],
@@ -839,13 +1200,12 @@ export function resolvePackRosterLevel(
   if (k <= 1) return clampLevel(level);
   const memberTitle = capPackTitle(title);
   const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId, fightNumber);
-  const statPoolDeci = budgetDeci
-    - rosterDeckDeci(enemyIds, memberTitle, modifierIds)
-    - k * modifierBonusDeci(modifierIds);
-  if (statPoolDeci < 0) return null;
-  const memberStatDeci = Math.floor(statPoolDeci / k);
-  const memberLevel = 1 + Math.floor(memberStatDeci / (PL_PER_LEVEL * 10));
-  return memberLevel >= 1 ? memberLevel : null;
+  return solveMemberLevel(budgetDeci, k, memberTitle, (memberLevel) => {
+    const growthLevel = clampLevel(memberLevel + TITLE_PRESETS[memberTitle].levelDelta);
+    let cost = 0;
+    for (const id of enemyIds) cost += enemyThreatDeci(id, memberLevel, memberTitle, modifierIds, growthLevel);
+    return cost;
+  });
 }
 
 /**
@@ -863,18 +1223,21 @@ export function resolvePackRosterLevel(
  * early ladder — but only because it was double-charging the roster's boards,
  * which is the bug that was fixed, not a design. On the honest ledger two
  * Bronze boards still out-cost a low node's whole threat, so a normal-titled
- * pair is unaffordable below node level 11 and a trio below 21. Wave 1
- * is 0% packs, by this constant and nothing else. If the early game should
- * stay solo for longer, THIS is the dial to move — not the ledger, which is
- * now the same at every depth.
+ * pair/trio stays unaffordable below whatever level `firstAffordable('normal',
+ * 2 | 3)` measures in `tests/run/packFights.test.ts` — that test is the
+ * current OWNER of the number (2026-09-07 measured: 6 / 18), not this
+ * comment, so a future re-price can't leave a stale digit here. Wave 1 is
+ * 0% packs, by this constant and nothing else. If the early game should stay
+ * solo for longer, THIS is the dial to move — not the ledger, which is now
+ * the same at every depth.
  *
  * (2026-09-02, title depth ramp) An elite-titled node used to be worth enough
  * for a pair from level 3, so packs began at fight 2 (8% of wave-2 nodes).
  * The ramped early elite/boss packages are worth less, so the budget floor
- * pushes the first packs back on its own: re-measured over the same 40 seeds,
- * the first pack rolls now land at wave 4's hard option (12.5% of those
- * nodes; 0% anywhere on waves 1-3). No change to this constant — the ramp
- * moved the ledger's own floor.
+ * pushes the first packs back on its own.
+ *
+ * Pack growth is now priced at each member's clamped effective level; the
+ * first affordable roll depends on the eligible boards and node title budget.
  */
 export const MIN_PACK_FIGHT_NUMBER = 2;
 
@@ -1009,13 +1372,26 @@ function resolveFoeDeck(deck: readonly FoeDeckCard[]): BoardPiece[] {
  * `TITLE_PRESETS` package, byte-identical to the pre-ramp behavior.
  *
  * `deck` (sandbox custom foe decks, see the CUSTOM FOE DECKS block above)
- * REPLACES the whole board pipeline — affix install, title filler and rank
- * stamping are skipped; the player-authored cards/tiers/gems ARE the board —
- * while the stat pipeline (level + title delta + modifier `bonusPL`) is
- * untouched. `forceTier` modifiers still trump explicit deck tiers, and
+ * REPLACES the whole board pipeline — affix install, title filler, GROWTH and
+ * rank stamping are all skipped; the player-authored cards/tiers/gems ARE the
+ * board — while the stat pipeline (level + title delta + modifier `bonusPL`)
+ * is untouched. `forceTier` modifiers still trump explicit deck tiers, and
  * `rank` echoes the deck's real tier-steps. `affix` and `deck` are mutually
  * exclusive (an affix is only a card installation, which a custom deck
  * replaces) — both at once throws. Omitted/null = byte-identical to before.
+ *
+ * `growthLevel` (2026-09-06, defaults to `level` — see the ENEMY GROWTH BY
+ * LEVEL block above) is the level `enemy.growth` resolves against: every 2
+ * levels one growth step fires, resolving the next authored milestone by
+ * trying its candidates in fixed order. The first valid fitting candidate is
+ * added at the next free slot, widening `boardSize` by the title-filler rule.
+ * If none qualifies, EnemyGrowthResolutionError is thrown; that milestone
+ * never disappears or becomes rank. After all authored milestones are earned,
+ * further steps instead ADD to `rank` (so growth's tier-ups ride
+ * the SAME round-robin `assignRankTiers` distribution as the title's own rank
+ * — the opener card improves first, same as everywhere else rank is spent).
+ * Solo/elite/boss callers pass node growth level explicitly. Packs pass their
+ * clamped effective member level. The custom deck path bypasses growth entirely.
  */
 export function buildEnemyEncounter(
   enemyId: string,
@@ -1026,11 +1402,35 @@ export function buildEnemyEncounter(
   affix: string | null = null,
   fightNumber?: number,
   deck?: readonly FoeDeckCard[] | null,
+  growthLevel: number = level,
 ): EncounterUnit {
   const enemy = enemies[enemyId];
   if (!enemy) {
     throw new Error(`buildEnemyEncounter: unknown enemy id "${enemyId}"`);
   }
+  return resolveEncounterForEnemy(enemy, level, title, rankOverride, modifiers, affix, fightNumber, deck, growthLevel);
+}
+
+/**
+ * The DEF-TAKING core of `buildEnemyEncounter` above — identical resolution,
+ * but over an `EnemyDef` object directly rather than an id looked up in the
+ * shipped `enemies` catalog. Exported for tooling and tests that need a
+ * SYNTHETIC/FIXTURE enemy (e.g. a growth-list probe) without adding one to
+ * `src/data/enemies.ts` — `buildEnemyEncounter` is unchanged for every one of
+ * its ~70 existing call sites, which all keep going through the id lookup.
+ */
+export function resolveEncounterForEnemy(
+  enemy: EnemyDef,
+  level: number,
+  title: EnemyTitle = 'normal',
+  rankOverride?: number,
+  modifiers: readonly string[] = [],
+  affix: string | null = null,
+  fightNumber?: number,
+  deck?: readonly FoeDeckCard[] | null,
+  growthLevel: number = level,
+): EncounterUnit {
+  const enemyId = enemy.id;
   const presets = modifiers.map((id) => {
     const preset = MODIFIER_PRESETS[id];
     if (!preset) throw new Error(`buildEnemyEncounter: unknown modifier id "${id}"`);
@@ -1039,7 +1439,27 @@ export function buildEnemyEncounter(
   const preset = titlePresetFor(title, fightNumber);
   const resolvedLevel = clampLevel(level);
   const effectiveLevel = resolvedLevel + preset.levelDelta;
-  const scaled = scaleMonsterToLevel(enemy, effectiveLevel);
+  // Computed EARLY (moved up from the modifier-tier-override step below) so
+  // growth's own pricing can see it — see `growthBoardDeltaDeci`'s doc
+  // comment for why a forced tier changes what a tier-up step is worth.
+  const forceTier = presets.map((m) => m.forceTier).find((t) => t !== undefined);
+
+  // GROWTH (2026-09-06) — the board composition is resolved FIRST (it only
+  // needs `enemy.pieces`, never the SCALED stats), so the STEPS growth
+  // actually SPENDS on this board — capped at the deck's own ceiling, exactly
+  // as the board itself is capped below — are known before pricing growth's
+  // stat cost. This matters once `growthStepsAt` exceeds what the board can
+  // ever absorb (`maxRankFor`): "rank stops at Diamond" (Q1) means growth
+  // becomes FREE past that point, not that it keeps billing the stat share
+  // for tier-ups the board has no room left to apply — a monster must not
+  // get poorer forever past its own tier ceiling. Skipped entirely for a
+  // custom deck (which already owns the whole board — see above).
+  const resolvedGrowthLevel = clampLevel(growthLevel);
+  const growth = deck == null
+    ? authoredGrowth(enemy, title, modifiers, resolvedGrowthLevel, affix, fightNumber, rankOverride)
+    : resolveGrowthBoard(enemyId, [], [], [], 1, 0, forceTier);
+  const { pieces: withGrowth, baseRank, rankSteps: growthRankSteps, costDeci: growthBoardDeci } = growth;
+  const scaled = scaleMonsterToLevel(enemy, effectiveLevel, growthBoardDeci);
 
   // Modifier stat bonuses — positive PL auto-spends through the same priced
   // economy as level scaling (never need the negative-spend clamp).
@@ -1053,32 +1473,25 @@ export function buildEnemyEncounter(
   let rank: number;
   let pieces: BoardPiece[];
   if (deck != null) {
-    // CUSTOM DECK — replaces the affix/filler/rank board pipeline entirely
-    // (see the CUSTOM FOE DECKS block above). `rank` is echoed from the FINAL
-    // pieces below so a forceTier trump is counted honestly too.
+    // CUSTOM DECK — replaces the affix/filler/growth/rank board pipeline
+    // entirely (see the CUSTOM FOE DECKS block above). `rank` is echoed from
+    // the FINAL pieces below so a forceTier trump is counted honestly too.
     if (affix) {
       throw new Error('buildEnemyEncounter: a custom deck already owns the board (affix and deck are mutually exclusive)');
     }
     pieces = resolveFoeDeck(deck);
     rank = 0;
   } else {
-    // AFFIX CARDS FIRST — they consume the title's filler allowance (see the
-    // doc comment above); `addExtraCards` then backfills whatever is left, and
-    // its own dedupe pass already sees the affix card because it reads the
-    // pieces it is handed.
-    const affixCards = affixCardsFor(affix);
-    const withAffix = addNamedCards(scaled.pieces, affixCards);
-    const fillerCount = Math.max(0, preset.extraCards - affixCards.length);
-    const withCards = addExtraCards(withAffix, poolFor(enemy), fillerCount);
-    rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
-    pieces = assignRankTiers(withCards, rank);
+    // The shared milestone result already bounds additions and Diamond headroom.
+    rank = baseRank + growthRankSteps;
+    pieces = assignRankTiers(withGrowth, rank);
   }
 
   // Modifier tier overrides (e.g. DIAMOND-POWERED) trump rank assignment —
   // and trump explicit custom-deck tiers too, consistent with "modifier tier
   // overrides trump rank assignment" (the prep UI already labels the rank
-  // stepper "MAXED BY <modifier>" for this case).
-  const forceTier = presets.map((m) => m.forceTier).find((t) => t !== undefined);
+  // stepper "MAXED BY <modifier>" for this case). `forceTier` itself was
+  // computed earlier (growth's own pricing needs to see it too).
   if (forceTier) {
     pieces = pieces.map((p) => ({ ...p, tier: forceTier }));
     if (forceTier === 'diamond') rank = maxRankFor(pieces.length);
@@ -1086,7 +1499,7 @@ export function buildEnemyEncounter(
   // The deck path's rank ECHOES the deck's real tier-steps (Σ tier-index above
   // each card's authored tier), computed from the final stamped pieces.
   if (deck != null) rank = deckRankEcho(pieces);
-  const boardSize = Math.max(enemy.boardSize, nextFreeSlot(pieces));
+  const boardSize = Math.min(HERO_BOARD_SLOTS, Math.max(enemy.boardSize, nextFreeSlot(pieces)));
 
   return {
     setup: { ...scaled, stats, pieces, boardSize },
@@ -1094,6 +1507,8 @@ export function buildEnemyEncounter(
     effectiveLevel,
     title,
     rank,
+    baseRank,
+    growthLevel: resolvedGrowthLevel,
     enemyId,
     modifiers: [...modifiers],
     affix: affix ?? null,

@@ -2,7 +2,7 @@ import { gemBook } from '../data/gems';
 import { skillBook } from '../data/skills';
 import { clampTierToCard } from '../engine/types';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
-import type { EnemyTitle, FoeDeckCard } from '../run/encounter';
+import type { EncounterUnit, EnemyTitle, FoeDeckCard } from '../run/encounter';
 import type { Allocation } from '../run/leveling';
 import type { CardOffer, GemOffer } from '../run/shop';
 
@@ -38,7 +38,12 @@ export interface EnemyFightConfig {
   enemyId: string;
   level: number;
   title: EnemyTitle;
+  /** Base recipe rank before growth, not the resolved encounter rank. */
   rank: number;
+  /** Growth schedule level; packs use clamped effective level, omitted defaults to level. */
+  growthLevel?: number;
+  /** Run ladder rung for depth-ramped elite/boss title packages. */
+  fightNumber?: number;
   modifiers: string[];
   /**
    * The ONE behavioural ELITE AFFIX this foe carries (`EncounterUnit.affix`),
@@ -99,6 +104,46 @@ export interface DemoState {
   /** Per-shop persisted shelf state (bought offers stay gone; REROLL replaces
    * the whole shelf). Empty until a shop is first browsed. */
   shopShelves: Record<string, ShopShelfState>;
+}
+
+/**
+ * The sandbox RANK stepper's one rule, shared by both Prep scenes so the bug
+ * shape (feeding the RESOLVED/grown rank back in as the next BASE rank) can
+ * only be wrong in one place. Takes the WHOLE resolved `encounter` (not a
+ * bare number) and reads `.baseRank` (pre-growth) itself — a caller cannot
+ * pass `encounter.rank` (post-growth) here even by mistake, since a `number`
+ * is not assignable where this signature requires the encounter object. The
+ * display still reads the resolved rank (`encounter.rank`); only the
+ * STEPPER's write-back reads `.baseRank`.
+ */
+export function nextFoeRank(encounter: Pick<EncounterUnit, 'baseRank'>, rankCap: number, delta: number): number {
+  return Math.max(0, Math.min(rankCap, encounter.baseRank + delta));
+}
+
+/**
+ * The sandbox RANK stepper's ONE label rule, shared by both Prep scenes.
+ * Three states can make the dial stop tracking the stepper 1:1, and each
+ * must say so rather than leave the player tapping a control that silently
+ * does nothing to the DISPLAYED number:
+ *  - a custom deck (the authored tiers ARE the tiers);
+ *  - a tier-forcing modifier (DIAMOND-POWERED stamps every card regardless
+ *    of rank);
+ *  - growth alone already filling the remaining headroom to `rankCap` —
+ *    `growthPinnedSteps` is `encounter.rank - encounter.baseRank` WHILE the
+ *    resolved rank sits at the cap, and 0 once the base itself reaches the
+ *    cap (at that point every rank point is the player's own, so the plain
+ *    MAX label is honest again). Pass 0 outside the pinned state.
+ */
+export function rankStepperLabel(
+  rankCap: number,
+  customDeck: boolean,
+  forcingModifierName: string | undefined,
+  growthPinnedSteps: number,
+): string {
+  if (customDeck) return 'RANK · CUSTOM DECK';
+  if (forcingModifierName) return `RANK · MAXED BY ${forcingModifierName}`;
+  if (growthPinnedSteps > 0) return `RANK · GROWN +${growthPinnedSteps} · MAX ${rankCap}`;
+  return `RANK · MAX ${rankCap}`;
 }
 
 /**

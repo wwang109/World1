@@ -991,6 +991,9 @@ export function dealDamage(
 function affinityOpen(caster: CombatantState, skill: SkillDef): boolean {
   const type = cardType(skill);
   if (type === undefined) return false;
+  if (caster.effectAffinities !== undefined) {
+    return caster.effectAffinities.some((active) => active.kind === type.kind && active.type === type.type);
+  }
   return type.kind === 'element'
     ? caster.elementAffinity === type.type
     : caster.weaponAffinity === type.type;
@@ -2215,7 +2218,7 @@ export function applyCast(
   cursor: { before: number; after: number },
   auraSources: AuraSource[] = [],
 ): void {
-  ctx.events.push({
+  const castEvent: Extract<CombatEvent, { kind: 'skillCast' }> = {
     turn: ctx.state.turn,
     kind: 'skillCast',
     side: caster.side,
@@ -2229,7 +2232,8 @@ export function applyCast(
     // Only surface `auras` when a board aura actually contributed; omit the key
     // entirely otherwise so un-aura'd casts stay byte-identical.
     ...(auraSources.length > 0 ? { auras: auraSources } : {}),
-  });
+  };
+  ctx.events.push(castEvent);
   /**
    * HAS THIS CAST BEEN CUT SHORT? The ONE stop condition of the effect loop, so
    * a future `Action` kind cannot miss it by forgetting its own guard.
@@ -2290,9 +2294,11 @@ export function applyCast(
   const gateOpen = affinityOpen(caster, skill);
   const hitCount = countDamageActions(skill.effects, (a) => a.affinity !== true || gateOpen);
   let hitIndex = 0;
+  const reachedActionKinds: Action['kind'][] = [];
   // Tag every effect this cast emits with its source card (for the per-card report).
   ctx.source = { side: caster.side, unit: caster.index, slot, skillId: skill.id };
   for (const action of skill.effects) {
+    if (action.affinity !== true || gateOpen) reachedActionKinds.push(action.kind);
     const splits = action.kind === 'damage' && !action.fromGem;
     const hit: HitSplit = splits ? { index: hitIndex++, count: hitCount } : SINGLE_HIT;
     // Fan out: offensive actions apply to EACH resolved target in ascending
@@ -2335,6 +2341,7 @@ export function applyCast(
     // remaining effect of the card. See `castCutShort`.
     if (castCutShort()) break;
   }
+  if (reachedActionKinds.length > 0) castEvent.actionKinds = reachedActionKinds;
   // A special is the card's last effect by another name, so it obeys the same
   // stop condition — a dead caster runs no special either.
   if (skill.special !== undefined && !castCutShort()) {

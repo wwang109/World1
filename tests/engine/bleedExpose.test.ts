@@ -21,7 +21,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'bleed', stacks: 10 }],
-    text: '',
   },
   // Enemy self-shield so we can prove bleed bypasses shields.
   shield_self: {
@@ -34,7 +33,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 40 }],
-    text: '',
   },
   // Expose then hit, in board order.
   expose_apply: {
@@ -47,7 +45,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'expose', pct: 50, turns: 5 }],
-    text: '',
   },
   expose_double: {
     id: 'expose_double',
@@ -62,7 +59,23 @@ const B: SkillBook = {
       { kind: 'expose', pct: 50, turns: 5 },
       { kind: 'expose', pct: 50, turns: 5 },
     ],
-    text: '',
+  },
+  // AFFINITY BALLAST. Three of these on a board earn it the AXE affinity, which
+  // since 2026-09-06 is the ONLY way to have one — `setup.weaponAffinity` is
+  // ignored (affinity is a passive buff derived from the board). speedWeight is
+  // above any readiness these defenders reach, so the ballast never performs and
+  // the fight under test is unchanged apart from the affinity it grants.
+  axe_ballast: {
+    id: 'axe_ballast',
+    name: 'Axe Ballast',
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    speedWeight: 999,
+    weapon: 'axe',
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 0 }],
   },
   hit_sword: {
     id: 'hit_sword',
@@ -75,7 +88,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 20 }],
-    text: '',
   },
   poison_apply: {
     id: 'poison_apply',
@@ -87,7 +99,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'poison', stacks: 10 }],
-    text: '',
   },
   // Cleanse charges = 1, heavy so it fires late (after afflictions land + tick).
   cleanse1: {
@@ -100,7 +111,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'cleanse', charges: 1 }],
-    text: '',
   },
   // Enemy applies two debuffs of DIFFERENT durations (armor 6t idx0, magicResist
   // 2t idx1). Neither touches Speed, so the hero's cleanse cadence stays fixed.
@@ -117,7 +127,6 @@ const B: SkillBook = {
       { kind: 'debuffStat', stat: 'armor', pct: 10, turns: 6 },
       { kind: 'debuffStat', stat: 'magicResist', pct: 10, turns: 2 },
     ],
-    text: '',
   },
   // Enemy applies two debuffs of the SAME duration (armor idx0, magicResist idx1).
   afflict_tied: {
@@ -133,7 +142,6 @@ const B: SkillBook = {
       { kind: 'debuffStat', stat: 'armor', pct: 10, turns: 6 },
       { kind: 'debuffStat', stat: 'magicResist', pct: 10, turns: 6 },
     ],
-    text: '',
   },
 };
 
@@ -204,12 +212,16 @@ describe('expose', () => {
   });
 
   it('applies AFTER the matchup multiplier (matchup baked first, then amplified)', () => {
+    // The foe EARNS its axe affinity from three axe cards on its board (the only
+    // source since 2026-09-06); it is too slow to ever cast them.
     const c = cfg(
       tc('hero', ['expose_apply', 'hit_sword'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: B }),
-      { ...tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }), weaponAffinity: 'axe' },
+      tc('foe', ['axe_ballast', 'axe_ballast', 'axe_ballast'], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }),
       { ...OPT, maxTurns: 1 },
     );
-    const hit = enemyDamage(simulate(c, 1).events).find((e) => e.source === 'skill')!;
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.weaponAffinity).toBe('axe');
+    const hit = enemyDamage(events).find((e) => e.source === 'skill')!;
     // sword beats axe (+50%): 30 -> floor(30*1.5)=45, THEN expose 50%: 45 + 22 = 67.
     expect(hit).toMatchObject({ amount: 67, exposed: 22, matchup: 'advantage' });
   });

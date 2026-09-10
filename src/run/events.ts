@@ -23,25 +23,228 @@
 import { hashSeed, Rng } from '../engine/rng';
 import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
 import type { Element, SkillDef, SkillTier, WeaponType } from '../engine/types';
-import { boardTypeIdentity, IDENTITY_THRESHOLD } from '../engine/combat/typeIdentity';
+import { boardAffinities, IDENTITY_THRESHOLD } from '../engine/combat/typeIdentity';
 import {
   eventCatalog,
-  eventCatalogIds,
+  eventRuntimeCatalog,
+  eventRuntimeCatalogIds,
   type EventChoiceDef,
   type EventDef,
   type EventGate,
   type EventOutcomeSpec,
+  type EventRequirement,
   type EventTallyGate,
   type EventTheme,
   type FilterFromSource,
 } from '../data/events';
-import type { CardFilter } from '../data/shopTypes';
+import { eventContentMeta, eventDefAtVersion } from '../data/eventsContent';
+import { isEventDefV2, type EventChoiceV2 } from '../data/eventContentV2';
+import { isEventDefV3, type EventOutcomeSpecV3, type LoadedEventDefV3 } from '../data/eventContentV3';
+import type { LoadedEventDef } from '../data/eventsContent';
+import { eventRequirementMet } from './eventEligibility';
+import { eventRequirementMetV3 } from './eventEligibilityV3';
+import { eventIsChainStarter } from './eventOpportunityHint';
+import { materializeReachedEventV3 } from './eventsV3';
+import { BOSS_EVERY } from './runMap';
+import { previewEventChoicesV3, type EventDeferredOfferV3 } from './eventV3Materialization';
+import {
+  deliverEventCallback,
+  dueEventCallbacks,
+  repairDeliveredCallback,
+  scheduleEventCallback,
+  type EventDefinitionLookup,
+} from './eventCallbacks';
+
+const legacyEventDefAtVersion: EventDefinitionLookup<EventDef> = (eventId, contentVersion) => {
+  const event = eventDefAtVersion(eventId, contentVersion);
+  return event === undefined || isEventDefV3(event) ? undefined : event;
+};
+
+/**
+ * Selection order from the pre-JSON literal catalog. The public
+ * `eventCatalogIds` facade is now canonical code-unit order, but seeded bag
+ * shuffles and conditional tie-breaks are player-visible behavior: feeding
+ * those algorithms a differently ordered source array would change old runs.
+ * Removing this prefix is therefore an intentional run reseed, never cleanup.
+ */
+const PRE_JSON_EVENT_SELECTION_IDS: readonly string[] = [
+  'wandering_tutor',
+  'abandoned_cache',
+  'recruiter',
+  'gemsellers_mishap',
+  'crossroads_shrine',
+  'veterans_last_lesson',
+  'gambler',
+  'overloaded_caravan',
+  'sparring_circle',
+  'hermits_riddle',
+  'collapsed_barrow',
+  'quartermasters_error',
+  'beast_nest',
+  'sellsword_camp',
+  'circle_of_adepts',
+  'field_medic',
+  'wandering_smith',
+  'ruined_anvil',
+  'toll_bridge',
+  'fences_offer',
+  'cinderworks_regrind',
+  'ember_pit',
+  'retiring_smith',
+  'fortune_teller',
+  'weighing_stone',
+  'two_ravens',
+  'toll_collectors_ledger',
+  'broken_axle',
+  'thorn_garden_shrine',
+  'venomers_den',
+  'the_lapidary',
+  'sweep_drill',
+  'tutors_return',
+  'the_reckoning',
+  'the_lands_measure',
+  'factors_ledger',
+  'pyre_watch',
+  'flaw_finder',
+  'banner_scribe',
+  'bell_beneath_ice',
+  'the_bell_unbound',
+  'the_second_toll',
+];
+
+/** Validate the frozen prefix and append genuinely new JSON-authored IDs in
+ * canonical order. This keeps future content JSON-only while failing loudly
+ * if a pre-cutover ID disappears or either input carries a duplicate. */
+export function eventSelectionIdsForCatalog(catalogIds: readonly string[]): readonly string[] {
+  const prefixIds = new Set<string>();
+  for (const id of PRE_JSON_EVENT_SELECTION_IDS) {
+    if (prefixIds.has(id)) throw new Error(`duplicate pre-JSON event id "${id}"`);
+    prefixIds.add(id);
+  }
+
+  const catalogIdSet = new Set<string>();
+  for (const id of catalogIds) {
+    if (catalogIdSet.has(id)) throw new Error(`duplicate catalog event id "${id}"`);
+    catalogIdSet.add(id);
+  }
+  for (const id of PRE_JSON_EVENT_SELECTION_IDS) {
+    if (!catalogIdSet.has(id)) throw new Error(`missing pre-JSON event id "${id}"`);
+  }
+
+  const appended = catalogIds.filter((id) => !prefixIds.has(id)).sort();
+  return Object.freeze([...PRE_JSON_EVENT_SELECTION_IDS, ...appended]);
+}
+
+const EVENT_SELECTION_IDS = eventSelectionIdsForCatalog(eventRuntimeCatalogIds);
+const ORDINARY_EVENT_SELECTION_IDS = ordinaryEventIdsForCatalog(eventRuntimeCatalog, EVENT_SELECTION_IDS);
+
+/** One versioned content source for the live selector. Tests may inject a
+ * bounded validated source without creating a second production algorithm. */
+export interface EventSelectionContent<TEvent extends LoadedEventDef = LoadedEventDef> {
+  catalog: Readonly<Record<string, TEvent>>;
+  orderedIds: readonly string[];
+  currentVersionOf(eventId: string): number;
+}
+
+const ACTIVE_EVENT_SELECTION_CONTENT: EventSelectionContent = {
+  catalog: eventRuntimeCatalog,
+  orderedIds: EVENT_SELECTION_IDS,
+  currentVersionOf: (eventId) => {
+    const version = eventContentMeta[eventId]?.version;
+    if (version === undefined) throw new Error(`event content has no current version for "${eventId}"`);
+    return version;
+  },
+};
+
+export const EVENT_COMEBACK_CHANCES = [35, 60] as const;
+
+function drawnDepthFor(state: RunState, eventId: string): number | undefined {
+  let latest: number | undefined;
+  for (const instance of Object.values(state.eventInstances)) {
+    if (instance.eventId === eventId && (latest === undefined || instance.drawnDepth > latest)) {
+      latest = instance.drawnDepth;
+    }
+  }
+  return latest;
+}
+
+/** The comeback roll replaces rarity only; every authored gate remains. */
+function eventEligibleForComeback(state: RunState, node: RunNode, event: LoadedEventDef): boolean {
+  if (node.kind !== 'event' || event.theme !== node.eventTheme) return false;
+  const biomeId = biomeFor(state.map.seed, node.wave, node.biomeId).id;
+  if (event.biomeIds !== undefined && !event.biomeIds.includes(biomeId)) return false;
+  const previous = drawnDepthFor(state, event.id);
+  if (isEventDefV3(event)) {
+    return event.delivery.kind === 'ambient'
+      && (event.once !== 'run' || previous === undefined)
+      && (event.once !== 'node' || state.eventInstances[node.id]?.eventId !== event.id)
+      && (previous === undefined || event.cooldownNodes === 0 || node.depth > previous + event.cooldownNodes)
+      && eventRequirementMetV3({ state, node }, event.eligibility)
+      && hasAffordableChoice(state, event, node);
+  }
+  if (isEventDefV2(event)) {
+    return event.delivery.kind === 'ambient'
+      && (event.once !== 'run' || previous === undefined)
+      && (event.once !== 'node' || state.eventInstances[node.id]?.eventId !== event.id)
+      && (previous === undefined || event.cooldownNodes === 0 || node.depth > previous + event.cooldownNodes)
+      && eventRequirementMet({ state, node, event }, event.eligibility)
+      && hasAffordableChoice(state, event, node);
+  }
+  return !isDrawnThisRun(state, event.id)
+    && eventBiomeEligible(state, event, node)
+    && gatesMet(state, event)
+    && hasAffordableChoice(state, event, node);
+}
+
+interface ComebackOffer {
+  nodeId: string;
+  record: MissedEventOpportunity;
+  event: LoadedEventDef;
+}
+
+function activeComebackOffer(
+  state: RunState,
+  choices: readonly RunNode[],
+  content: EventSelectionContent = ACTIVE_EVENT_SELECTION_CONTENT,
+): ComebackOffer | undefined {
+  const eventNodes = choices.filter((node) => node.kind === 'event');
+  const records = [...(state.missedEventOpportunities ?? [])]
+    .sort((left, right) => left.missedDepth - right.missedDepth || left.eventId.localeCompare(right.eventId));
+  for (const record of records) {
+    const event = content.catalog[record.eventId];
+    if (event === undefined || content.currentVersionOf(event.id) !== record.contentVersion) continue;
+    if (!eventIsChainStarter(event, content.catalog)) continue;
+    const node = eventNodes.find((candidate) => (
+      candidate.wave % BOSS_EVERY !== 0
+      && candidate.biomeId === record.biomeId
+      && eventEligibleForComeback(state, candidate, event)
+    ));
+    if (node === undefined) continue;
+    const chance = node.wave % BOSS_EVERY === BOSS_EVERY - 1
+      ? 100
+      : EVENT_COMEBACK_CHANCES[Math.min(record.laterOpportunities, EVENT_COMEBACK_CHANCES.length - 1)]!;
+    const roll = hashSeed(state.seed, 'eventComeback', record.eventId, record.missedDepth, record.laterOpportunities) % 100;
+    if (roll < chance) return { nodeId: node.id, record, event };
+  }
+  return undefined;
+}
+
+/** Route-card preview and selected-node commit share this substitution. */
+export function comebackEventForNode(state: RunState, node: RunNode): LoadedEventDef | undefined {
+  if (node.kind !== 'event') return undefined;
+  const offer = activeComebackOffer(state, availableChoices(state));
+  return offer?.nodeId === node.id ? offer.event : undefined;
+}
+import type { CardFilter, CardFilterClause } from '../data/shopTypes';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
-import { biomeFor, counterTypeFor, leanLabel } from './biome';
+import { bandIndexOf, biomeFor, counterTypeFor, leanLabel } from './biome';
+import { applyGrantMapInfo, mapInfoRevealsAnything, mapIntelRecords } from './eventMapInfo';
 import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, sellPriceOfGem } from './shop';
 import {
+  availableChoices,
+  chooseNode,
   currentEventNode,
   MAX_LEVEL,
   runBagHasRoomFor,
@@ -49,11 +252,19 @@ import {
   shopStockDepthForWave,
   tryInsertRunCard,
   type EventResolution,
+  type MissedEventOpportunity,
   type RunBagSlot,
   type RunBoardPiece,
   type RunNode,
   type RunState,
 } from './runState';
+import {
+  eventInstanceAt,
+  hasDrawnEvent,
+  recordEventInstance,
+  sameEventInstance,
+  type EventInstanceRecord,
+} from './eventInstances';
 
 /** Fallback gold grant when a `grantCard`/`bonusDraft` pick can't fit the bag
  * (also reused by `upgradeCard` when nothing owned is eligible to upgrade). */
@@ -107,6 +318,7 @@ export const BONUS_DRAFT_SIZE = 5;
 // `pickWeightedGems`/`sampleGemsWeighted` (shop.ts) error on a too-small
 // pool — they just silently hand back FEWER than `count` options).
 export const EVENT_CHOICE_SIZE = 3;
+export const CHAIN_STARTER_OPPORTUNITY_MULTIPLIER = 2;
 
 /** Tier ladder `upgradeCard` climbs — fixed order, index doubles as "rank". */
 const TIER_LADDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -238,6 +450,8 @@ export type EventOutcome =
   // byte-identical after the offer resolves, which is where that guarantee
   // actually lives.
   | ({ kind: 'mergeCardsPick' } & MergeCardsOffer)
+  /** The exact persisted bands newly revealed by a typed map-info outcome. */
+  | { kind: 'grantMapInfo'; bandsAhead: 2 | 3; revealedBands: readonly number[] }
   | { kind: 'nothing' };
 
 // ---------------------------------------------------------------------------
@@ -290,7 +504,12 @@ function clearPendingEventPick(state: RunState): RunState {
   if (!node) return state;
   const resolution = eventResolutionAt(state, node.id);
   if (!resolution?.pending) return state;
-  return recordEventResolution(state, node.id, { eventId: resolution.eventId, choiceId: resolution.choiceId });
+  return recordEventResolution(state, node.id, {
+    eventId: resolution.eventId,
+    contentVersion: resolution.contentVersion,
+    instanceId: resolution.instanceId,
+    choiceId: resolution.choiceId,
+  });
 }
 
 /** Draw `count` DISTINCT items from `pool` via `rng.int`, fixed call order
@@ -303,6 +522,30 @@ function sampleDistinct<T>(rng: Rng, pool: readonly T[], count: number): T[] {
     const idx = rng.int(remaining.length);
     result.push(remaining[idx]!);
     remaining.splice(idx, 1);
+  }
+  return result;
+}
+
+/** Weighted shuffle without replacement: starters get two tickets for their
+ * next position, but still occur only once in each no-repeat bag cycle. */
+function sampleEventBag(
+  rng: Rng,
+  pool: readonly string[],
+  content: EventSelectionContent,
+): string[] {
+  const remaining = [...pool];
+  const result: string[] = [];
+  while (remaining.length > 0) {
+    const weights = remaining.map((id) => (
+      eventIsChainStarter(content.catalog[id]!, content.catalog)
+        ? CHAIN_STARTER_OPPORTUNITY_MULTIPLIER
+        : 1
+    ));
+    let ticket = rng.int(weights.reduce((sum, weight) => sum + weight, 0));
+    let index = 0;
+    while (ticket >= weights[index]!) ticket -= weights[index++]!;
+    result.push(remaining[index]!);
+    remaining.splice(index, 1);
   }
   return result;
 }
@@ -400,18 +643,87 @@ export function eventTallyMet(state: RunState, gate: EventTallyGate): boolean {
   return tallyValue(state, gate.stat) >= gate.atLeast;
 }
 
-/** Both gates on an `EventDef` or `EventChoiceDef` at once (absent = open).
- * The shared shape is structural on purpose: one predicate, two seams. */
-function gatesMet(state: RunState, gated: { requires?: EventGate; requiresTally?: EventTallyGate }): boolean {
-  if (gated.requires && !eventGateMet(state, gated.requires)) return false;
-  if (gated.requiresTally && !eventTallyMet(state, gated.requiresTally)) return false;
+export function eventRequirementsMet(
+  state: RunState,
+  requirements: readonly EventRequirement[] | undefined,
+): boolean {
+  if (requirements === undefined) return true;
+  for (const requirement of requirements) {
+    if (requirement.kind === 'resolution') {
+      if (!eventGateMet(state, requirement)) return false;
+    } else if (!eventTallyMet(state, requirement)) {
+      return false;
+    }
+  }
   return true;
 }
 
-/** A CHAINED event — one that must never enter a bag (see `rollEventForNode`'s
- * chain scan for the starvation proof) and only draws once its gate is open. */
-function isGatedEvent(event: EventDef): boolean {
-  return event.requires !== undefined || event.requiresTally !== undefined;
+/** All event-level requirements at once (absent = open). Choice-level gates
+ * remain individually evaluated by `choiceLockReason`. */
+function gatesMet(
+  state: RunState,
+  gated: Pick<EventDef, 'requires' | 'requiresTally' | 'requiresAll'>,
+): boolean {
+  if (gated.requires && !eventGateMet(state, gated.requires)) return false;
+  if (gated.requiresTally && !eventTallyMet(state, gated.requiresTally)) return false;
+  return eventRequirementsMet(state, gated.requiresAll);
+}
+
+/** A CONDITIONAL event — one that must never enter an ordinary bag (see
+ * `rollEventForNode`'s pre-bag scan for the starvation proof). */
+export function isConditionalEvent(event: LoadedEventDef): boolean {
+  if (isEventDefV3(event)) {
+    // Schema-v3 definitions always carry an explicit eligibility AST. Until
+    // a later content plan authors a separately tagged ordinary-v3 lane, they
+    // are conditional/special content and never participate in legacy bags.
+    return true;
+  }
+  return isEventDefV2(event)
+    || event.biomeIds !== undefined
+    || event.requires !== undefined
+    || event.requiresTally !== undefined
+    || event.requiresAll !== undefined;
+}
+
+/** Build an ordinary-only pool from an explicit catalog and ordered ID list.
+ * Every bag, widen, and final fallback derives from this one filter so a
+ * conditional definition cannot leak through a separately maintained path. */
+export function ordinaryEventIdsForCatalog(
+  catalog: Readonly<Record<string, LoadedEventDef>>,
+  orderedIds: readonly string[],
+  theme?: EventTheme,
+): readonly string[] {
+  return orderedIds.filter((id) => {
+    const event = catalog[id];
+    if (!event) throw new Error(`ordinaryEventIdsForCatalog: unknown event id "${id}"`);
+    return (theme === undefined || event.theme === theme) && !isConditionalEvent(event);
+  });
+}
+
+/** Whether `event` allows the node's resolved biome. An absent allow-list is
+ * unrestricted. Old/hand-built nodes without a biome stamp re-derive it from
+ * the map seed, never the independently editable top-level state seed. */
+export function eventBiomeEligible(state: RunState, event: EventDef, node: RunNode): boolean {
+  if (event.biomeIds === undefined) return true;
+  const biome = biomeFor(state.map.seed, node.wave, node.biomeId);
+  return event.biomeIds.includes(biome.id);
+}
+
+/** Isolated appearance roll for conditional events. Common and secret content
+ * has no lottery; uncommon/rare use a dedicated hash domain and consume no
+ * `Rng`, bag counter, or mutable state. */
+export function eventRarityEligible(
+  event: LoadedEventDef,
+  node: RunNode,
+  graph: Readonly<Record<string, LoadedEventDef>> = eventRuntimeCatalog,
+): boolean {
+  const rarity = event.rarity ?? 'common';
+  if (rarity === 'common' || rarity === 'secret') return true;
+  const divisor = rarity === 'uncommon' ? 2 : 4;
+  const winningTickets = eventIsChainStarter(event, graph)
+    ? CHAIN_STARTER_OPPORTUNITY_MULTIPLIER
+    : 1;
+  return hashSeed('eventRarity', node.eventSeed ?? 0, event.id) % divisor < Math.min(divisor, winningTickets);
 }
 
 /** The `filterFrom` source on a card-granting spec, or `undefined` — only
@@ -430,8 +742,18 @@ function filterFromOf(spec: EventOutcomeSpec): FilterFromSource | undefined {
  * as a dark rung and `applySpec` renders as "fall back to the static filter"
  * (the module's standing "never throw over a narrow filter" posture).
  *
+ * `boardIdentity` is a UNION over both axes, not the element-first collapse
+ * (2026-09-06 ruling: "if they meet the requirements they should have the
+ * affinity effect"). A board that earns BOTH an element affinity and a
+ * weapon affinity (3 fire + 3 sword) returns a two-clause `CardFilter`
+ * (`[{elements:['fire']}, {weapons:['sword']}]`) — `CardFilter` is already an
+ * OR of clauses (`data/shopTypes.ts`), so this is a plain union of whichever
+ * axes the board has earned, never a forced choice of one. Only when NEITHER
+ * axis clears `IDENTITY_THRESHOLD` does this return `undefined` (the
+ * uncommitted-board case above).
+ *
  * No Rng and no save change: `biomeFor` is a `hashSeed` re-derivation with its
- * own un-stamped-save fallback, and `boardTypeIdentity` is an integer tally
+ * own un-stamped-save fallback, and `boardAffinities` is an integer tally
  * over the board pieces (BOARD only — matching the combat fold's own read).
  * The outcome that consumes the result spends its same draws over a different
  * array, so determinism holds: same state, same node, same filter.
@@ -447,12 +769,14 @@ export function resolveFilterFrom(state: RunState, node: RunNode | null, source:
       const skill = skillBook[piece.skillId];
       if (skill) boardSkills.push(skill);
     }
-    const identity = boardTypeIdentity(boardSkills);
-    if (!identity) return undefined;
-    return identity.kind === 'element' ? [{ elements: [identity.type] }] : [{ weapons: [identity.type] }];
+    const affinities = boardAffinities(boardSkills);
+    const clauses: CardFilterClause[] = [];
+    if (affinities.element !== undefined) clauses.push({ elements: [affinities.element] });
+    if (affinities.weapon !== undefined) clauses.push({ weapons: [affinities.weapon] });
+    return clauses.length > 0 ? clauses : undefined;
   }
   if (!node) return undefined;
-  const lean = biomeFor(state.seed, node.wave, node.biomeId).lean;
+  const lean = biomeFor(state.map.seed, node.wave, node.biomeId).lean;
   if (source === 'biomeLean') {
     return lean.kind === 'element' ? [{ elements: [lean.type] }] : [{ weapons: [lean.type] }];
   }
@@ -480,10 +804,16 @@ export function derivedChoiceFilter(state: RunState, choice: EventChoiceDef): Ca
  * `undefined` for a choice with no `filterFrom` and for one whose source
  * cannot resolve (that rung is dark, and `choiceLockReason` below words WHY
  * instead). A thin read of `derivedChoiceFilter`, exported so neither scene
- * ever re-derives the family a second way (thin client, one authority):
- * `resolveFilterFrom` only ever substitutes a single-type element/weapon
- * filter, and this names that one type in the same uppercase the biome lean
- * chip uses (`leanLabel`, run/biome.ts).
+ * ever re-derives the family a second way (thin client, one authority).
+ *
+ * SINGLE-LABEL ONLY: `boardIdentity` can now resolve to TWO clauses (a board
+ * that earns both an element and a weapon affinity, see `resolveFilterFrom`),
+ * but this reads only `filter[0]` — the element clause when both are
+ * present, same element-first precedence as `boardTypeIdentity`'s display
+ * collapse. The POOL is the honest union either way (this function never
+ * narrows it); only the one-word suffix is lossy, and only for the rare
+ * dual-affinity board. Showing both types on the label is a UI decision, not
+ * made here.
  */
 export function derivedChoiceFamily(state: RunState, choice: EventChoiceDef): string | undefined {
   if (filterFromOf(choice.outcome) === undefined) return undefined;
@@ -580,15 +910,75 @@ function tallyLockReason(state: RunState, gate: EventTallyGate): string {
 /** Words an unresolvable `filterFrom` source. `boardIdentity` teaches the
  * threshold itself; `biomeCounter` names the lean nothing counters (the
  * Arrowfell/bow fact, taught a fourth way); the no-node fallback covers a
- * biome source read off an event node this state is not standing on. */
+ * biome source read off an event node this state is not standing on — dead
+ * in practice (see `choiceLockReason`'s own reachability note), so it stays
+ * honest rather than descriptive. */
 function filterFromLockReason(state: RunState, source: FilterFromSource): string {
-  if (source === 'boardIdentity') return `no ${IDENTITY_THRESHOLD}-of-a-kind on your board`;
+  if (source === 'boardIdentity') return `need ${IDENTITY_THRESHOLD} cards of one type`;
   const node = currentEventNode(state);
   if (node && source === 'biomeCounter') {
-    const lean = biomeFor(state.seed, node.wave, node.biomeId).lean;
+    const lean = biomeFor(state.map.seed, node.wave, node.biomeId).lean;
     if (counterTypeFor(lean) === undefined) return `nothing counters ${leanLabel(lean)}`;
   }
-  return 'the land cannot be read';
+  return 'not available right now';
+}
+
+/**
+ * Whether `choice`'s outcome, resolved RIGHT NOW, could actually hand over a
+ * card — the room-side twin of `mergeCardsPlan`'s bag check, for the three
+ * kinds whose finalizer falls back to `CARD_FALLBACK_GOLD` when the bag has
+ * none: `grantCard` (immediate — the fallback fires in `grantCardOutcome`,
+ * one call down from `choiceLockReason`'s own caller), and `cardChoice`/
+ * `bonusDraft` (deferred — the fallback fires one step later, in
+ * `applyBonusDraftPick`, but the COST is charged the moment THIS rung is
+ * taken, so the gate has to run here, before that charge, not at the picker).
+ *
+ * NOT A SINGLE BOOLEAN OVER "the bag is full": a filtered pool can hold
+ * skills of different SIZES (`SkillSize`, 1-3), so this checks the WORST
+ * CASE the player could be shown — every card `applySpec` could possibly
+ * pick for this outcome right now (the one named `cardId` for a named
+ * `grantCard`; the same tier-narrowed/filtered draw pool
+ * `grantCardOutcome`/`cardChoiceOutcome`/`bonusDraftOutcome` build, for
+ * everything else) — against `runBagHasRoomFor`. LOCKED (`false`) only when
+ * NONE of that pool fits: a guaranteed failure, never a maybe. If some sizes
+ * in the pool fit and others don't, this reads USABLE — the roll can still
+ * land on a card that fits, and the untouched `CARD_FALLBACK_GOLD` safety net
+ * is exactly what covers the unlucky draw, same as it already covers a bag
+ * that changes between the roll and the resolve.
+ *
+ * An empty pool (no skill matches an authored filter at all) is a content bug
+ * the existing throws already catch at resolve time — reporting it as usable
+ * here changes nothing about that; this predicate only judges bag room, never
+ * filter authoring.
+ */
+function cardOutcomeCanDeliver(state: RunState, choice: EventChoiceDef): boolean {
+  const outcome = choice.outcome;
+  if (outcome.kind !== 'grantCard' && outcome.kind !== 'cardChoice' && outcome.kind !== 'bonusDraft') return true;
+  let pool: readonly SkillDef[];
+  if (outcome.kind === 'grantCard') {
+    if (outcome.cardId) {
+      const named = skillBook[outcome.cardId];
+      pool = named ? [named] : [];
+    } else {
+      const requested = outcome.tier ?? DEFAULT_CARD_TIER;
+      const matches = Object.values(skillBook).filter((s) => (outcome.filter ? cardMatchesFilter(s, outcome.filter) : true));
+      const offerable = matches.filter((s) => cardOfferableAtTier(s, requested));
+      pool = offerable.length > 0 ? offerable : matches;
+    }
+  } else {
+    // cardChoice/bonusDraft: the SAME themed-falling-back-to-the-whole-Bronze-
+    // book draw pool `cardChoiceOutcome`/`bonusDraftOutcome` build, with any
+    // `filterFrom` door substituted first — already resolved by the time this
+    // runs, since the earlier `filterFrom` check in `choiceLockReason` returns
+    // before this one on an unresolvable source.
+    const source = filterFromOf(outcome);
+    const filter = source !== undefined ? derivedChoiceFilter(state, choice) : outcome.filter;
+    const all = offerableBook(DEFAULT_CARD_TIER);
+    const filtered = filter ? all.filter((s) => cardMatchesFilter(s, filter)) : all;
+    pool = filtered.length > 0 ? filtered : all;
+  }
+  if (pool.length === 0) return true;
+  return pool.some((s) => runBagHasRoomFor(state, s.id));
 }
 
 /**
@@ -601,14 +991,30 @@ function filterFromLockReason(state: RunState, source: FilterFromSource): string
  * gold first, then gates, then the outcome-specific preconditions — and the
  * FIRST failing check names the reason.
  *
+ * `grantCard`/`cardChoice`/`bonusDraft` (2026-09-06): a paid rung whose bag
+ * has no room for ANYTHING the outcome could hand over used to charge the
+ * choice's cost and then quietly fall back to `CARD_FALLBACK_GOLD` — a rung
+ * the player could not benefit from, offered at full price with no warning.
+ * `cardOutcomeCanDeliver` is the SAME "is there room" read the outcome
+ * functions would hit anyway, run BEFORE the cost is ever charged.
+ *
+ * `upgradeCard`: the same shape, for the OTHER precondition that outcome can
+ * fail on — nothing owned is eligible to bump a tier (every card already
+ * Diamond, or none owned at all) — read straight off `upgradeCardOptions`,
+ * the exact set `upgradeCardOutcome` itself would offer.
+ *
  * `mergeCards` (2026-08-26): a merge needs `MERGE_INPUT_COUNT` owned cards
  * sharing ONE non-Diamond tier AND a deliverable output — all four decisions
  * live in `mergeCardsPlan`, and this gate is the SAME call the offer and the
  * finalizer make, so an event can never advertise a trade it would then
  * refuse (a player with three Diamonds and nothing else, or a bag with no
  * room for anything at tier+1, sees this rung dark instead of spending three
- * cards for a fallback coin). Its reason line reuses the resolver's own
- * "no mergeable trio" wording (`mergeCardsOutcome`'s throw) — one vocabulary.
+ * cards for a fallback coin).
+ *
+ * `grantMapInfo` (2026-09-06): "REVEAL N BANDS" when every one of those N
+ * bands is already recorded (two overlapping map-info events can cover the
+ * same band twice) delivers nothing — `mapInfoRevealsAnything`
+ * (`eventMapInfo.ts`) is the same scan `applyGrantMapInfo` itself runs.
  *
  * Pure read, no Rng, ~30 characters worst case for catalog content — sized to
  * one line of the choice panel's detail row on the mobile profile.
@@ -621,9 +1027,61 @@ export function choiceLockReason(state: RunState, choice: EventChoiceDef): strin
   if (source !== undefined && resolveFilterFrom(state, currentEventNode(state) ?? null, source) === undefined) {
     return filterFromLockReason(state, source);
   }
+  if (
+    (choice.outcome.kind === 'grantCard' || choice.outcome.kind === 'cardChoice' || choice.outcome.kind === 'bonusDraft')
+    && !cardOutcomeCanDeliver(state, choice)
+  ) {
+    return 'no room in your bag';
+  }
+  if (choice.outcome.kind === 'upgradeCard' && upgradeCardOptions(state).length === 0) return 'nothing left to upgrade';
   if (choice.outcome.kind === 'sellGem' && state.gemInventory.length === 0) return 'nothing in your pouch';
-  if (choice.outcome.kind === 'mergeCards' && mergeCardsPlan(state) === null) return 'no mergeable trio';
+  if (choice.outcome.kind === 'mergeCards' && mergeCardsPlan(state) === null) return 'need 3 cards of one grade';
+  if (choice.outcome.kind === 'grantMapInfo') {
+    const node = currentEventNode(state);
+    if (node && !mapInfoRevealsAnything(state, bandIndexOf(node.wave), choice.outcome.bandsAhead)) {
+      return 'nothing new to reveal';
+    }
+  }
   return null;
+}
+
+/** A discovered event's visible rarity tag. Common is the unmarked baseline;
+ * only authored non-common rarities earn a label. Pure presentation — it
+ * neither decides whether the event may draw nor inspects run state. */
+export function eventRarityLabel(event: EventDef): string | null {
+  const rarity = event.rarity;
+  return rarity === undefined || rarity === 'common' ? null : rarity.toUpperCase();
+}
+
+/** The authored choice that satisfied one resolution gate, worded as a recap
+ * clause. Catalog choice order wins over ledger key order when several past
+ * choices satisfy the same gate. */
+function resolutionRecapClause(state: RunState, gate: EventGate): string | null {
+  const target = eventCatalog[gate.eventId];
+  if (!target) return null;
+  for (const past of target.choices) {
+    if (gate.choiceIds && !gate.choiceIds.includes(past.id)) continue;
+    if (!eventGateMet(state, { eventId: target.id, choiceIds: [past.id] })) continue;
+    return `"${strippedChoiceLabel(past.label)}" at ${target.title}`;
+  }
+  return null;
+}
+
+/** The legacy tally recap wording, kept in one helper so `requiresTally`
+ * retains its exact sentences while conjunctive requirements can fall back
+ * to the same presenter authority when they contain only tally gates. */
+function tallyRecapLine(state: RunState, gate: EventTallyGate): string {
+  const value = tallyValue(state, gate.stat);
+  const plural = (one: string, many: string): string => (value === 1 ? one : many);
+  switch (gate.stat) {
+    case 'goldSpent': return `You have spent ${value} gold on this road.`;
+    case 'cardsBought': return `You have bought ${value} ${plural('card', 'cards')} on this road.`;
+    case 'gemsBought': return `You have bought ${value} ${plural('gem', 'gems')} on this road.`;
+    case 'livesLost': return `The road has taken ${value} of your lives.`;
+    case 'wins': return `You have won ${value} ${plural('fight', 'fights')} on this road.`;
+    case 'losses': return `You have lost ${value} ${plural('fight', 'fights')} on this road.`;
+    case 'bossesCleared': return `You have felled ${value} ${plural('boss', 'bosses')} on this road.`;
+  }
 }
 
 /**
@@ -636,34 +1094,34 @@ export function choiceLockReason(state: RunState, choice: EventChoiceDef): strin
  *
  * An EVENT-gated payoff names the deed that opened it — the first choice, in
  * the TARGET event's own authored order (stable catalog data, never ledger
- * key order), that the gate accepts and the run resolved. A TALLY-gated
- * payoff quotes the live counter through the same `tallyValue` read the gate
- * predicate used. Pure read; no Rng; no save field.
+ * key order), that the gate accepts and the run resolved. A conjunctive
+ * payoff names each satisfied resolution requirement in its authored order,
+ * but only after the whole conjunction is met. A TALLY-gated payoff quotes
+ * the live counter through the same `tallyValue` read the gate predicate
+ * used. Pure read; no Rng; no save field.
  */
 export function eventRecapLine(state: RunState, event: EventDef): string | null {
-  if (event.requires && eventGateMet(state, event.requires)) {
-    const target = eventCatalog[event.requires.eventId];
-    if (!target) return null;
-    for (const past of target.choices) {
-      if (event.requires.choiceIds && !event.requires.choiceIds.includes(past.id)) continue;
-      if (!eventGateMet(state, { eventId: target.id, choiceIds: [past.id] })) continue;
-      return `You chose "${strippedChoiceLabel(past.label)}" at ${target.title}.`;
-    }
-    return null;
+  // Evaluate the complete event gate before wording any one part. That keeps
+  // a conjunctive secret wholly silent until every requirement is met.
+  if (!gatesMet(state, event)) return null;
+
+  if (event.requires) {
+    const clause = resolutionRecapClause(state, event.requires);
+    return clause ? `You chose ${clause}.` : null;
   }
-  if (event.requiresTally && eventTallyMet(state, event.requiresTally)) {
-    const stat = event.requiresTally.stat;
-    const value = tallyValue(state, stat);
-    const plural = (one: string, many: string): string => (value === 1 ? one : many);
-    switch (stat) {
-      case 'goldSpent': return `You have spent ${value} gold on this road.`;
-      case 'cardsBought': return `You have bought ${value} ${plural('card', 'cards')} on this road.`;
-      case 'gemsBought': return `You have bought ${value} ${plural('gem', 'gems')} on this road.`;
-      case 'livesLost': return `The road has taken ${value} of your lives.`;
-      case 'wins': return `You have won ${value} ${plural('fight', 'fights')} on this road.`;
-      case 'losses': return `You have lost ${value} ${plural('fight', 'fights')} on this road.`;
-      case 'bossesCleared': return `You have felled ${value} ${plural('boss', 'bosses')} on this road.`;
+  if (event.requiresTally) return tallyRecapLine(state, event.requiresTally);
+
+  if (event.requiresAll) {
+    const clauses: string[] = [];
+    for (const requirement of event.requiresAll) {
+      if (requirement.kind !== 'resolution') continue;
+      const clause = resolutionRecapClause(state, requirement);
+      if (!clause) return null;
+      clauses.push(clause);
     }
+    if (clauses.length > 0) return `You chose ${clauses.join(', then ')}.`;
+    const tally = event.requiresAll.find((requirement) => requirement.kind === 'tally');
+    if (tally) return tallyRecapLine(state, tally);
   }
   return null;
 }
@@ -672,18 +1130,173 @@ export function eventRecapLine(state: RunState, event: EventDef): string | null 
  * if at least one of its choices is both usable AND not the `nothing` no-op
  * outcome — an event whose only usable option is the safe "walk away" exit
  * is exactly the dead-end case this guards against. */
-function hasAffordableChoice(state: RunState, event: EventDef): boolean {
+function v3OutcomeHasUsableReward(state: RunState, outcome: EventOutcomeSpecV3): boolean {
+  if (outcome.kind === 'weighted') {
+    return outcome.branches.some((branch) => v3OutcomeHasUsableReward(state, branch.outcome));
+  }
+  if (outcome.kind === 'nothing') return false;
+  if (outcome.kind === 'sellGem') return state.gemInventory.length > 0;
+  if (outcome.kind === 'mergeCards') return mergeCardsPlan(state) !== null;
+  return true;
+}
+
+function hasAffordableChoice(state: RunState, event: LoadedEventDef, node?: RunNode): boolean {
+  if (isEventDefV3(event)) {
+    if (node === undefined) return false;
+    return previewEventChoicesV3(state.map.seed, `event:${node.id}`, event).some((choice) => (
+      (choice.cost ?? 0) <= state.gold
+      && (choice.requires === undefined || eventGateMet(state, choice.requires))
+      && (choice.requiresTally === undefined || eventTallyMet(state, choice.requiresTally))
+      && v3OutcomeHasUsableReward(state, choice.outcome)
+    ));
+  }
   return event.choices.some((c) => isEventChoiceUsable(state, c) && c.outcome.kind !== 'nothing');
 }
 
 /** First id in `ids` (fixed order) eligible at `state.gold`, or -1. */
-function firstEligibleIndex(ids: readonly string[], state: RunState): number {
-  return ids.findIndex((id) => hasAffordableChoice(state, eventCatalog[id]!));
+function firstEligibleIndex(
+  ids: readonly string[],
+  state: RunState,
+  node: RunNode,
+  catalog: Readonly<Record<string, LoadedEventDef>>,
+): number {
+  return ids.findIndex((id) => hasAffordableChoice(state, catalog[id]!, node));
+}
+
+/** Resolve the widen/fallback ID from an explicit ordered catalog. The widen
+ * pool is always rebuilt through the ordinary-only authority above; if no
+ * ordinary event is currently usable, the already-ordinary themed bag head
+ * remains the first fallback, followed by the ordinary global head. */
+export function eventIdFromOrdinaryWiden(
+  state: RunState,
+  themedBag: readonly string[],
+  catalog: Readonly<Record<string, LoadedEventDef>>,
+  orderedIds: readonly string[],
+  node?: RunNode,
+): string | undefined {
+  const widenPool = ordinaryEventIdsForCatalog(catalog, orderedIds);
+  const eligibleId = widenPool.find((id) => hasAffordableChoice(state, catalog[id]!, node));
+  return eligibleId ?? themedBag[0] ?? widenPool[0];
+}
+
+/** First fully eligible conditional candidate in caller-supplied order. This
+ * pure seam keeps synthetic eligibility tests detached from the deeply frozen
+ * production catalog while `rollEventForNode` supplies the effective legacy-
+ * compatible catalog order. */
+export function firstEligibleConditionalEvent(
+  state: RunState,
+  node: RunNode,
+  candidates: readonly EventDef[],
+): EventDef | undefined;
+export function firstEligibleConditionalEvent(
+  state: RunState,
+  node: RunNode,
+  candidates: readonly LoadedEventDef[],
+): LoadedEventDef | undefined;
+export function firstEligibleConditionalEvent(
+  state: RunState,
+  node: RunNode,
+  candidates: readonly LoadedEventDef[],
+): LoadedEventDef | undefined {
+  const legacyOnly = !candidates.some(isEventDefV3);
+  if (legacyOnly) return (candidates as readonly EventDef[]).find((event) => {
+    if (isEventDefV2(event)) {
+      return event.delivery.kind === 'ambient'
+        && event.theme === node.eventTheme
+        && eventEligibleForComeback(state, node, event)
+        && eventRarityEligible(event, node)
+        && hasAffordableChoice(state, event, node);
+    }
+    return event.theme === node.eventTheme
+      && isConditionalEvent(event)
+      && !isDrawnThisRun(state, event.id)
+      && eventBiomeEligible(state, event, node)
+      && gatesMet(state, event)
+      && eventRarityEligible(event, node)
+      && hasAffordableChoice(state, event, node);
+  });
+
+  const ready = candidates.filter((event) => {
+    if (!isEventDefV3(event)) {
+      if (isEventDefV2(event)) {
+        return event.delivery.kind === 'ambient'
+          && event.theme === node.eventTheme
+          && eventEligibleForComeback(state, node, event)
+          && eventRarityEligible(event, node)
+          && hasAffordableChoice(state, event, node);
+      }
+      return event.theme === node.eventTheme
+        && isConditionalEvent(event)
+        && !isDrawnThisRun(state, event.id)
+        && eventBiomeEligible(state, event, node)
+        && gatesMet(state, event)
+        && eventRarityEligible(event, node)
+        && hasAffordableChoice(state, event, node);
+    }
+    if (event.delivery.kind !== 'ambient' || event.theme !== node.eventTheme) return false;
+    const biomeId = biomeFor(state.map.seed, node.wave, node.biomeId).id;
+    if (event.biomeIds !== undefined && !event.biomeIds.includes(biomeId)) return false;
+    const previous = Object.values(state.eventInstances)
+      .filter((instance) => instance.eventId === event.id)
+      .sort((left, right) => right.drawnDepth - left.drawnDepth)[0];
+    if (event.once === 'run' && previous !== undefined) return false;
+    if (event.once === 'node' && state.eventInstances[node.id]?.eventId === event.id) return false;
+    if (previous !== undefined && event.cooldownNodes > 0 && node.depth <= previous.drawnDepth + event.cooldownNodes) return false;
+    if (!eventRequirementMetV3({ state, node }, event.eligibility)) return false;
+    if (!eventRarityEligible(event, node)) return false;
+    return hasAffordableChoice(state, event, node);
+  });
+  if (ready.length === 0) return undefined;
+  const candidatePriority = (event: LoadedEventDef): number => (
+    isEventDefV3(event) || isEventDefV2(event) ? event.priority : 0
+  );
+  const priority = Math.max(...ready.map(candidatePriority));
+  const highest = ready.filter((event) => candidatePriority(event) === priority);
+  if (!highest.some(isEventDefV3)) return highest[0];
+  const canonical = [...highest].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  return canonical[hashSeed(state.map.seed, 'event-v3-conditional', node.id, priority) % canonical.length];
+}
+
+/** Dormant injected-catalog seam for schema-v3 candidate selection. It uses
+ * the same conditional selector as `rollEventForNode`, commits only the node
+ * actually reached, then materializes that exact version before returning. */
+export function rollEventForNodeFromCandidatesV3(
+  state: RunState,
+  node: RunNode,
+  candidates: readonly LoadedEventDefV3[],
+  contentVersionOf: (eventId: string) => number,
+): { state: RunState; event: LoadedEventDefV3 } {
+  if (node.kind !== 'event') throw new Error(`rollEventForNodeFromCandidatesV3: node "${node.id}" is not an event node`);
+  const existing = eventInstanceAt(state, node.id);
+  if (existing !== undefined) {
+    const event = candidates.find((candidate) => candidate.id === existing.eventId);
+    if (event === undefined || existing.contentVersion !== contentVersionOf(event.id)) {
+      throw new Error(`rollEventForNodeFromCandidatesV3: missing exact committed content for "${node.id}"`);
+    }
+    const replay = materializeReachedEventV3(state, node, event, existing.contentVersion);
+    if (!replay.ok) throw new Error(`rollEventForNodeFromCandidatesV3: replay failed (${replay.reason})`);
+    return { state: replay.state, event };
+  }
+  const selected = firstEligibleConditionalEvent(state, node, candidates);
+  if (selected === undefined || !isEventDefV3(selected)) {
+    throw new Error(`rollEventForNodeFromCandidatesV3: no eligible v3 event for "${node.id}"`);
+  }
+  const contentVersion = contentVersionOf(selected.id);
+  const committed = recordEventInstance(state, node.id, {
+    eventId: selected.id,
+    contentVersion,
+    instanceId: `event:${node.id}`,
+    drawnDepth: node.depth,
+  });
+  const materialized = materializeReachedEventV3(committed, node, selected, contentVersion);
+  if (!materialized.ok) throw new Error(`rollEventForNodeFromCandidatesV3: materialization failed (${materialized.reason})`);
+  return { state: materialized.state, event: selected };
 }
 
 // ---------------------------------------------------------------------------
-// Event draw — a per-run no-repeat bag over `eventCatalogIds`, mirroring the
-// map-gen shop theme bag but stored/refilled on `RunState` itself (which
+// Event draw — a per-run no-repeat bag over the effective compatibility
+// order, mirroring the map-gen shop theme bag but stored/refilled on
+// `RunState` itself (which
 // event nodes actually get visited is path-dependent, so the bag can't be
 // pre-rolled at map-gen time the way shop themes are).
 //
@@ -707,8 +1320,8 @@ function firstEligibleIndex(ids: readonly string[], state: RunState): number {
 // own head rather than leaving the node unresolved.
 // ---------------------------------------------------------------------------
 
-/** UNGATED catalog ids for one theme, in fixed catalog order — the theme
- * bag's pool. GATED (chained) events are excluded here, NOT filtered at draw
+/** ORDINARY catalog ids for one theme, in fixed catalog order — the theme
+ * bag's pool. CONDITIONAL events are excluded here, NOT filtered at draw
  * time, because a locked bag resident is a provable starvation bug: skipped
  * entries stay in the bag and a bag refills only at length 0, so one
  * permanently-locked id would pin its theme's bag non-empty forever — the
@@ -717,16 +1330,20 @@ function firstEligibleIndex(ids: readonly string[], state: RunState): number {
  * event, every time, for the rest of the run). Chained events are delivered
  * by `rollEventForNode`'s priority scan instead; because they never join a
  * pool, every seeded sequence is byte-identical until a gate opens. */
-function idsForTheme(theme: EventTheme): readonly string[] {
-  return eventCatalogIds.filter((id) => eventCatalog[id]!.theme === theme && !isGatedEvent(eventCatalog[id]!));
+function idsForTheme(theme: EventTheme, content: EventSelectionContent): readonly string[] {
+  const ordinaryIds = content === ACTIVE_EVENT_SELECTION_CONTENT
+    ? ORDINARY_EVENT_SELECTION_IDS
+    : ordinaryEventIdsForCatalog(content.catalog, content.orderedIds);
+  return ordinaryIds.filter((id) => content.catalog[id]!.theme === theme);
 }
 
-/** GATED catalog ids for one theme, fixed catalog order — the priority scan's
- * pool (`rollEventForNode`). Fixed order is the tie-break when two chains of
- * one theme unlock together: the first fires now, the second at the following
- * node of that theme (never a loss — both stay "ready" until drawn). */
-function gatedIdsForTheme(theme: EventTheme): readonly string[] {
-  return eventCatalogIds.filter((id) => eventCatalog[id]!.theme === theme && isGatedEvent(eventCatalog[id]!));
+/** CONDITIONAL catalog ids for one theme, fixed catalog order — the pre-bag
+ * scan's pool (`rollEventForNode`). Fixed order is the tie-break when two
+ * eligible events of one theme coincide. */
+function conditionalIdsForTheme(theme: EventTheme, content: EventSelectionContent): readonly string[] {
+  return content.orderedIds.filter((id) => (
+    content.catalog[id]!.theme === theme && isConditionalEvent(content.catalog[id]!)
+  ));
 }
 
 /** Whether this run has already shown `eventId` at some node. `eventInstances`
@@ -735,8 +1352,38 @@ function gatedIdsForTheme(theme: EventTheme): readonly string[] {
  * so membership here IS "the player saw it" — the chains' once-per-run bound,
  * for free, from a field the run already maintains. */
 function isDrawnThisRun(state: RunState, eventId: string): boolean {
-  const drawn = Object.values(state.eventInstances);
-  return drawn.indexOf(eventId) !== -1;
+  return hasDrawnEvent(state, eventId);
+}
+
+/** The version currently projected into the stable catalog view. */
+/** Creates the immutable identity recorded for a newly selected event node. */
+function instanceForDraw(
+  node: RunNode,
+  event: LoadedEventDef,
+  content: EventSelectionContent,
+): EventInstanceRecord {
+  return {
+    eventId: event.id,
+    contentVersion: content.currentVersionOf(event.id),
+    instanceId: `event:${node.id}`,
+    drawnDepth: node.depth,
+  };
+}
+
+function finishSelectedEvent(
+  state: RunState,
+  node: RunNode,
+  event: LoadedEventDef,
+  content: EventSelectionContent,
+): { state: RunState; event: LoadedEventDef } {
+  const instance = instanceForDraw(node, event, content);
+  const committed = recordEventInstance(state, node.id, instance);
+  if (!isEventDefV3(event)) return { state: committed, event };
+  const materialized = materializeReachedEventV3(committed, node, event, instance.contentVersion);
+  if (!materialized.ok) {
+    throw new Error(`rollEventForNode: could not materialize selected v3 content (${materialized.reason})`);
+  }
+  return { state: materialized.state, event };
 }
 
 /** Draws (idempotently) the event for `node` — repeated calls for the same
@@ -744,134 +1391,225 @@ function isDrawnThisRun(state: RunState, eventId: string): boolean {
  * affordability check only runs on this FIRST roll; the memo is authoritative
  * afterward, so a reload/gold change never re-draws a different event for an
  * already-resolved node). Throws if `node` isn't an event node. */
-export function rollEventForNode(state: RunState, node: RunNode): { state: RunState; event: EventDef } {
+export function rollEventForNode(state: RunState, node: RunNode): { state: RunState; event: LoadedEventDef };
+export function rollEventForNode(
+  state: RunState,
+  node: RunNode,
+  callbackLookup: EventDefinitionLookup<LoadedEventDef>,
+): { state: RunState; event: LoadedEventDef };
+export function rollEventForNode<TEvent extends LoadedEventDef>(
+  state: RunState,
+  node: RunNode,
+  callbackLookup: EventDefinitionLookup<TEvent>,
+  content: EventSelectionContent<TEvent>,
+): { state: RunState; event: TEvent };
+export function rollEventForNode(
+  state: RunState,
+  node: RunNode,
+  callbackLookup: EventDefinitionLookup<EventDef | LoadedEventDefV3> = eventDefAtVersion,
+  content: EventSelectionContent = ACTIVE_EVENT_SELECTION_CONTENT,
+): { state: RunState; event: EventDef | LoadedEventDefV3 } {
   if (node.kind !== 'event') {
     throw new Error(`rollEventForNode: node "${node.id}" is not an event node`);
   }
-  const existingId = state.eventInstances[node.id];
-  if (existingId) {
-    const event = eventCatalog[existingId];
-    if (!event) throw new Error(`rollEventForNode: unknown recorded event id "${existingId}" for node "${node.id}"`);
-    return { state, event };
+  const existing = eventInstanceAt(state, node.id);
+  if (existing) {
+    const event = callbackLookup(existing.eventId, existing.contentVersion);
+    if (!event) {
+      throw new Error(
+        `rollEventForNode: missing recorded content ${existing.eventId}@v${existing.contentVersion} for node "${node.id}"`,
+      );
+    }
+    const repaired = repairDeliveredCallback(state, existing);
+    if (!isEventDefV3(event)) return { state: repaired, event };
+    const materialized = materializeReachedEventV3(repaired, node, event, existing.contentVersion);
+    if (!materialized.ok) throw new Error(`rollEventForNode: could not replay v3 materialization (${materialized.reason})`);
+    return { state: materialized.state, event };
   }
+
+  // A due callback is an earned event, not another conditional candidate: it
+  // gets first claim on a compatible node. Failed exact-version lookups leave
+  // their entries untouched and scanning continues, so neither a missing nor
+  // an incompatible callback can starve ordinary selection.
+  for (const callback of dueEventCallbacks(state, node, callbackLookup)) {
+    const delivered = deliverEventCallback(state, node, callback, callbackLookup);
+    if (!delivered) continue;
+    if (!isEventDefV3(delivered.event)) return delivered;
+    const materialized = materializeReachedEventV3(delivered.state, node, delivered.event, callback.contentVersion);
+    if (!materialized.ok) {
+      throw new Error(`rollEventForNode: could not materialize due v3 callback (${materialized.reason})`);
+    }
+    return { state: materialized.state, event: delivered.event };
+  }
+
+  const comeback = content === ACTIVE_EVENT_SELECTION_CONTENT
+    ? comebackEventForNode(state, node)
+    : undefined;
+  if (comeback !== undefined) return finishSelectedEvent(state, node, comeback, content);
 
   const theme = node.eventTheme;
   if (theme === undefined) {
     // Defensive fallback (no theme on the node) — today's original
     // all-catalog no-repeat bag, now affordability-aware. Its refill pool
-    // excludes gated ids for the same starvation reason `idsForTheme` does; a
-    // chained event only ever arrives through the themed priority scan below
-    // (it carries a normal theme, and only themed nodes exist on maps new
-    // enough to know about chains).
+    // excludes conditional ids for the same starvation reason `idsForTheme`
+    // does; conditional content only ever arrives through the fully eligible
+    // themed pre-bag scan below.
     let bag = state.eventBag;
     let refills = state.eventBagRefills;
     if (bag.length === 0) {
-      const pool = eventCatalogIds.filter((id) => !isGatedEvent(eventCatalog[id]!));
+      const pool = content === ACTIVE_EVENT_SELECTION_CONTENT
+        ? ORDINARY_EVENT_SELECTION_IDS
+        : ordinaryEventIdsForCatalog(content.catalog, content.orderedIds);
       const rng = new Rng(hashSeed('eventBag', state.seed, refills));
-      bag = sampleDistinct(rng, pool, pool.length);
+      bag = sampleEventBag(rng, pool, content);
       refills += 1;
     }
-    const eligibleIdx = firstEligibleIndex(bag, state);
+    const eligibleIdx = firstEligibleIndex(bag, state, node, content.catalog);
     if (eligibleIdx === -1) {
       // The whole catalog is this bag's pool already — nothing eligible
       // anywhere means a content bug (every event's every choice is
       // gold-gated or `nothing`). Never throw: fall back to the bag's head.
       const eventId = bag[0]!;
-      const event = eventCatalog[eventId];
+      const event = content.catalog[eventId];
       if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
       const nextState: RunState = {
         ...state,
         eventBag: bag.slice(1),
         eventBagRefills: refills,
-        eventInstances: { ...state.eventInstances, [node.id]: eventId },
       };
-      return { state: nextState, event };
+      return finishSelectedEvent(nextState, node, event, content);
     }
     const eventId = bag[eligibleIdx]!;
-    const event = eventCatalog[eventId];
+    const event = content.catalog[eventId];
     if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
     const nextState: RunState = {
       ...state,
       eventBag: [...bag.slice(0, eligibleIdx), ...bag.slice(eligibleIdx + 1)],
       eventBagRefills: refills,
-      eventInstances: { ...state.eventInstances, [node.id]: eventId },
     };
-    return { state: nextState, event };
+    return finishSelectedEvent(nextState, node, event, content);
   }
 
-  // CHAINED EVENTS (2026-09-02): never bagged, drawn by PRIORITY the first
-  // time their gate is open at a node of their theme — before the bag is even
-  // looked at, and WITHOUT touching it (no reshuffle bookkeeping, no bag
-  // mutation, no Rng call: the whole draw stays a pure function of `state`).
-  // Once per run comes free from the `eventInstances` ledger; fixed catalog
-  // order breaks a two-chains-one-theme tie. `hasAffordableChoice` keeps the
-  // wave-1 "never a dead event" rule — and the catalog lint guarantees every
-  // chained event has a cost-0, non-`nothing` rung lit for every way its gate
-  // can open, so an open chain really does fire at the NEXT node of its theme
-  // rather than "once the player is also rich".
-  const ready = gatedIdsForTheme(theme).find((id) => {
-    const ev = eventCatalog[id]!;
-    return gatesMet(state, ev) && !isDrawnThisRun(state, id) && hasAffordableChoice(state, ev);
-  });
+  // CONDITIONAL EVENTS: never bagged, scanned in effective legacy-compatible
+  // order before the bag is even looked at. The pure scan spends no Rng and
+  // mutates no bag/refill bookkeeping; only a fully eligible event is memoized.
+  const conditionalCandidates = conditionalIdsForTheme(theme, content).map((id) => content.catalog[id]!);
+  const ready = firstEligibleConditionalEvent(state, node, conditionalCandidates);
   if (ready) {
-    const event = eventCatalog[ready]!;
-    const nextState: RunState = {
-      ...state,
-      eventInstances: { ...state.eventInstances, [node.id]: ready },
-    };
-    return { state: nextState, event };
+    return finishSelectedEvent(state, node, ready, content);
   }
 
-  const themePool = idsForTheme(theme);
+  const themePool = idsForTheme(theme, content);
   const themeBags = state.eventThemeBags ?? {};
   const themeRefills = state.eventThemeBagRefills ?? {};
   let bag = themeBags[theme] ?? [];
   let refills = themeRefills[theme] ?? 0;
   if (bag.length === 0) {
     const rng = new Rng(hashSeed('eventBag', state.seed, theme, refills));
-    bag = sampleDistinct(rng, themePool, themePool.length);
+    bag = sampleEventBag(rng, themePool, content);
     refills += 1;
   }
 
-  const eligibleIdx = firstEligibleIndex(bag, state);
+  const eligibleIdx = firstEligibleIndex(bag, state, node, content.catalog);
   if (eligibleIdx === -1) {
     // Nothing currently in this theme's bag is eligible at this gold. Persist
     // the (possibly just-refilled) bag as-is — it wasn't consumed, only
     // scanned — and widen the draw to the first eligible id in the WHOLE
     // catalog, graceful and non-throwing even if that also comes up empty.
-    // The widen pool takes the same gated-id treatment as the bags: a chained
-    // event may appear here only when its gate is open and it has not fired
-    // this run (off-theme delivery is acceptable on this deliberately-rare
-    // last-resort path; a still-locked chain never is). Gated ids sit at the
-    // catalog's tail, so on any state the old catalog could satisfy, the scan
-    // lands on the same id it always did.
-    const widenPool = eventCatalogIds.filter((id) => {
-      const ev = eventCatalog[id]!;
-      return !isGatedEvent(ev) || (gatesMet(state, ev) && !isDrawnThisRun(state, id));
-    });
-    const eventId = widenPool[firstEligibleIndex(widenPool, state)] ?? bag[0] ?? eventCatalogIds[0]!;
-    const event = eventCatalog[eventId];
+    // Widening is ordinary-only. A conditional event may arrive solely from
+    // the fully eligible themed pre-bag scan above; off-theme/off-biome
+    // fallback delivery is forbidden.
+    const eventId = eventIdFromOrdinaryWiden(state, bag, content.catalog, content.orderedIds, node)!;
+    const event = content.catalog[eventId];
     if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
     const nextState: RunState = {
       ...state,
       eventThemeBags: { ...themeBags, [theme]: bag },
       eventThemeBagRefills: { ...themeRefills, [theme]: refills },
-      eventInstances: { ...state.eventInstances, [node.id]: eventId },
     };
-    return { state: nextState, event };
+    return finishSelectedEvent(nextState, node, event, content);
   }
 
   const eventId = bag[eligibleIdx]!;
-  const event = eventCatalog[eventId];
+  const event = content.catalog[eventId];
   if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
 
   const nextState: RunState = {
     ...state,
     eventThemeBags: { ...themeBags, [theme]: [...bag.slice(0, eligibleIdx), ...bag.slice(eligibleIdx + 1)] },
     eventThemeBagRefills: { ...themeRefills, [theme]: refills },
-    eventInstances: { ...state.eventInstances, [node.id]: eventId },
   };
-  return { state: nextState, event };
+  return finishSelectedEvent(nextState, node, event, content);
+}
+
+/**
+ * Commit a route choice while recording graph-derived opportunities the
+ * player actually passed. Previewed comeback cards consume their one return
+ * whether chosen or skipped; failed rolls merely advance their persisted
+ * 35% -> 60% attempt counter. The selected event is committed before the
+ * route node so its card can never disagree with the event screen.
+ */
+export function chooseNodeWithEventOpportunities(state: RunState, nodeId: string): RunState {
+  const choices = availableChoices(state);
+  const selected = choices.find((node) => node.id === nodeId);
+  if (selected === undefined) return chooseNode(state, nodeId);
+
+  const previews = choices
+    .filter((node) => node.kind === 'event')
+    .map((node) => ({ node, event: rollEventForNode(state, node).event }));
+  const offeredComeback = activeComebackOffer(state, choices);
+  const comebackSurfaced = offeredComeback !== undefined
+    && previews.some(({ node, event }) => node.id === offeredComeback.nodeId && event.id === offeredComeback.event.id);
+
+  let working = state;
+  if (selected.kind === 'event') working = rollEventForNode(working, selected).state;
+
+  const used = new Set(working.eventComebackUsedIds ?? []);
+  if (comebackSurfaced) used.add(offeredComeback!.event.id);
+  const selectedPreview = previews.find(({ node }) => node.id === nodeId)?.event;
+  if (selectedPreview !== undefined
+    && (working.missedEventOpportunities ?? []).some((record) => record.eventId === selectedPreview.id)) {
+    used.add(selectedPreview.id);
+  }
+  const currentBiomeIds = new Set(choices.map((node) => node.biomeId).filter((id): id is string => id !== undefined));
+  const missed: MissedEventOpportunity[] = [];
+  for (const record of working.missedEventOpportunities ?? []) {
+    const event = ACTIVE_EVENT_SELECTION_CONTENT.catalog[record.eventId];
+    const invalid = event === undefined
+      || ACTIVE_EVENT_SELECTION_CONTENT.currentVersionOf(record.eventId) !== record.contentVersion
+      || used.has(record.eventId)
+      || drawnDepthFor(working, record.eventId) !== undefined
+      || !eventIsChainStarter(event, ACTIVE_EVENT_SELECTION_CONTENT.catalog)
+      || (currentBiomeIds.size > 0 && !currentBiomeIds.has(record.biomeId));
+    if (invalid) continue;
+    const hadEligibleHost = choices.some((node) => (
+      node.wave % BOSS_EVERY !== 0
+      && node.biomeId === record.biomeId
+      && eventEligibleForComeback(state, node, event)
+    ));
+    missed.push(hadEligibleHost ? { ...record, laterOpportunities: record.laterOpportunities + 1 } : record);
+  }
+
+  const queuedIds = new Set(missed.map((record) => record.eventId));
+  for (const { node, event } of previews) {
+    if (node.id === nodeId || used.has(event.id) || queuedIds.has(event.id)) continue;
+    if (!eventIsChainStarter(event, ACTIVE_EVENT_SELECTION_CONTENT.catalog)) continue;
+    missed.push({
+      eventId: event.id,
+      contentVersion: ACTIVE_EVENT_SELECTION_CONTENT.currentVersionOf(event.id),
+      biomeId: node.biomeId ?? biomeFor(state.map.seed, node.wave).id,
+      missedDepth: node.depth,
+      laterOpportunities: 0,
+    });
+    queuedIds.add(event.id);
+  }
+
+  working = {
+    ...working,
+    missedEventOpportunities: missed,
+    eventComebackUsedIds: [...used],
+  };
+  return chooseNode(working, nodeId);
 }
 
 // ---------------------------------------------------------------------------
@@ -1382,6 +2120,76 @@ function mergeCardsPlan(state: RunState): MergeCardsPlan | null {
   return null;
 }
 
+/** The part of a `MergeCardsOffer` that never needed the choice's `Rng` draw
+ * in the first place — which tier merges, and the exact three instances that
+ * would be consumed. */
+export interface MergeCardsPreview {
+  from: SkillTier;
+  to: SkillTier;
+  consumed: readonly MergeInputCard[];
+}
+
+/**
+ * The persisted schema-v3 `mergeCards` offer for the CURRENT event node, if
+ * one exists — a pure read of `state.eventMaterializations`, never a
+ * re-derivation. `undefined` off an event node, before materialization, or
+ * for a legacy (schema-1/2) event, none of which ever populate this record.
+ */
+function persistedMergeCardsOfferV3(state: RunState): Extract<EventDeferredOfferV3, { kind: 'mergeCards' }> | undefined {
+  const node = currentEventNode(state);
+  if (!node) return undefined;
+  const instance = eventInstanceAt(state, node.id);
+  if (!instance) return undefined;
+  const materialization = state.eventMaterializations[instance.instanceId];
+  if (!materialization) return undefined;
+  for (const offer of Object.values(materialization.deferredOffersByChoiceId)) {
+    if (offer.kind === 'mergeCards') return offer;
+  }
+  return undefined;
+}
+
+/**
+ * The merge trade `state` would show right now — the CHOICE ROW and a
+ * pre-resolution CONFIRM step both need this to name the exact trio before
+ * the player commits to anything.
+ *
+ * TWO SOURCES, ONE RULE: the PERSISTED schema-v3 offer wins whenever one
+ * exists; `mergeCardsPlan`'s live re-derivation is only the FALLBACK for
+ * everything that never persists one — every legacy (schema-1/2) event, and
+ * a v3 event before its offer materializes. This used to be a single live
+ * re-derivation with a doc comment claiming "no persisted offer to go stale,
+ * because nothing here is ever stored" — true for legacy (nothing legacy
+ * EVER stores an offer, so re-reading `state` fresh is exactly correct there)
+ * but FALSE the moment a schema-v3 `mergeCards` event exists: v3 persists its
+ * offer's `consumed` at node entry (`materializeReachedEventV3`,
+ * `eventsV3.ts`) and the finalizer (`finalizeMergeCardsV3` via
+ * `removePersistedMergeInputs`) consumes exactly THAT snapshot, index-and-
+ * instanceId matched, with no live re-derivation of its own. A board/bag
+ * change between materialization and this call (e.g. a Deck Build reorder
+ * that reassigns `.slot` without touching array position) can shift which
+ * trio `mergeCardsPlan` would name FRESH — showing a trio the finalizer would
+ * not actually be the one to remove. Preferring the persisted offer here is
+ * what keeps this function's promise ("names the trio the finalizer takes")
+ * true on BOTH schema paths instead of only the one it was proven on.
+ *
+ * Legacy behavior is unchanged: no legacy event ever writes
+ * `eventMaterializations`, so `persistedMergeCardsOfferV3` always returns
+ * `undefined` for one and this falls straight through to the live
+ * `mergeCardsPlan` read, still reload-stale-proof for the reason the old
+ * comment gave.
+ */
+export function mergeCardsPreview(state: RunState): MergeCardsPreview | null {
+  const persisted = persistedMergeCardsOfferV3(state);
+  if (persisted) {
+    return persisted.status === 'unavailable'
+      ? null
+      : { from: persisted.from, to: persisted.to, consumed: persisted.consumed };
+  }
+  const plan = mergeCardsPlan(state);
+  if (!plan) return null;
+  return { from: plan.from, to: plan.to, consumed: plan.consumed };
+}
+
 /** The trade `state` would be offered right now, or `null`. The plan plus one
  * `sampleDistinct` draw over its pool — the only place a merge spends `Rng`,
  * and it spends it exactly once, from the choice's own
@@ -1521,6 +2329,7 @@ function applySpec(
   spec: EventOutcomeSpec,
   depth: number,
   node: RunNode,
+  sourceEventInstanceId: string | undefined,
 ): { state: RunState; outcome: EventOutcome } {
   switch (spec.kind) {
     case 'grantCard':
@@ -1562,6 +2371,20 @@ function applySpec(
       return { state, outcome: sellGemOutcome(state) };
     case 'mergeCards':
       return mergeCardsOutcome(state, rng);
+    case 'grantMapInfo': {
+      if (!sourceEventInstanceId) throw new Error('grantMapInfo requires a committed source event instance');
+      const nextState = applyGrantMapInfo(state, sourceEventInstanceId, bandIndexOf(node.wave), spec.bandsAhead);
+      return {
+        state: nextState,
+        outcome: {
+          kind: 'grantMapInfo',
+          bandsAhead: spec.bandsAhead,
+          revealedBands: mapIntelRecords(nextState)
+            .filter((record) => record.sourceEventInstanceId === sourceEventInstanceId)
+            .map((record) => record.band),
+        },
+      };
+    }
     case 'nothing':
       return { state, outcome: { kind: 'nothing' } };
     default: {
@@ -1569,6 +2392,39 @@ function applySpec(
       throw new Error(`applySpec: unknown outcome kind "${(exhaustive as EventOutcomeSpec).kind}"`);
     }
   }
+}
+
+/**
+ * Resolve one outcome spec through the production seeded/depth-aware path,
+ * without catalog lookup, cost deduction, or resolution-ledger mutation.
+ * This is the pure seam used by `resolveEventChoice` after it has selected and
+ * charged a real choice; content-boundary tests can pass isolated definitions
+ * here without mutating the production catalog singleton.
+ */
+export function resolveEventOutcomeSpec(
+  state: RunState,
+  node: RunNode,
+  choiceId: string,
+  spec: EventOutcomeSpec,
+  sourceEventInstanceId = eventInstanceAt(state, node.id)?.instanceId,
+): { state: RunState; outcome: EventOutcome } {
+  const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
+  return applySpec(state, rng, spec, shopStockDepthForWave(node.wave), node, sourceEventInstanceId);
+}
+
+/** Apply the closed v2 mutation vocabulary without deriving behavior from
+ * presentation strings. Completion is append-only and idempotent. */
+function applyEventMutations(state: RunState, choice: EventChoiceV2): RunState {
+  if (!choice.mutations || choice.mutations.length === 0) return state;
+  const completed = [...(state.completedStoryIds ?? [])];
+  const seen = new Set(completed);
+  for (const mutation of choice.mutations) {
+    if (!seen.has(mutation.storyId)) {
+      seen.add(mutation.storyId);
+      completed.push(mutation.storyId);
+    }
+  }
+  return completed.length === (state.completedStoryIds ?? []).length ? state : { ...state, completedStoryIds: completed };
 }
 
 /**
@@ -1594,13 +2450,22 @@ export function resolveEventChoice(
   state: RunState,
   eventId: string,
   choiceId: string,
+  lookup: EventDefinitionLookup = legacyEventDefAtVersion,
 ): { state: RunState; outcome: EventOutcome } {
   const node = currentEventNode(state);
   if (!node) {
     throw new Error('resolveEventChoice: no event node is currently active');
   }
-  const event = eventCatalog[eventId];
-  if (!event) {
+  const instance = eventInstanceAt(state, node.id);
+  if (!instance) {
+    throw new Error(`resolveEventChoice: no committed event instance for node "${node.id}"`);
+  }
+  if (instance.eventId !== eventId) {
+    throw new Error(`resolveEventChoice: node "${node.id}" recorded event "${instance.eventId}", not "${eventId}"`);
+  }
+  const contentVersion = instance.contentVersion;
+  const event = lookup(eventId, contentVersion);
+  if (!event || event.id !== eventId) {
     throw new Error(`resolveEventChoice: unknown event id "${eventId}"`);
   }
   const choice = event.choices.find((c) => c.id === choiceId);
@@ -1633,13 +2498,39 @@ export function resolveEventChoice(
     };
   }
 
-  const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
-  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave), node);
+  const { state: outcomeState, outcome } = resolveEventOutcomeSpec(
+    working,
+    node,
+    choiceId,
+    choice.outcome,
+    instance.instanceId,
+  );
+  const v2Choice = isEventDefV2(event)
+    ? event.choices.find((candidate): candidate is EventChoiceV2 => candidate.id === choiceId)
+    : undefined;
+  let transactionState = outcomeState;
+  if (v2Choice) {
+    transactionState = applyEventMutations(transactionState, v2Choice);
+    if (v2Choice.callback) {
+      transactionState = scheduleEventCallback(transactionState, v2Choice.callback, {
+        eventInstanceId: instance.instanceId,
+        choiceId,
+        nodeDepth: node.depth,
+        ordinal: 0,
+      });
+    }
+  }
   return {
     state: recordEventResolution(
-      { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
+      { ...transactionState, stats: { ...transactionState.stats, eventsResolved: transactionState.stats.eventsResolved + 1 } },
       node.id,
-      { eventId, choiceId, ...(isDeferredOutcome(outcome) ? { pending: true } : {}) },
+      {
+        eventId,
+        contentVersion,
+        instanceId: instance.instanceId,
+        choiceId,
+        ...(isDeferredOutcome(outcome) ? { pending: true } : {}),
+      },
     ),
     outcome,
   };
@@ -1666,17 +2557,40 @@ export function resolveEventChoice(
  * `applySpec`'s own consolation coin. That is a real resolution, so the
  * `pending` flag is cleared and the caller shows it as the outcome.
  */
-export function reopenEventChoice(state: RunState): { state: RunState; outcome: EventOutcome } | undefined {
+export function reopenEventChoice(
+  state: RunState,
+  lookup: EventDefinitionLookup<EventDef> = legacyEventDefAtVersion,
+): { state: RunState; outcome: EventOutcome } | undefined {
   const node = currentEventNode(state);
   if (!node) return undefined;
   const resolution = eventResolutionAt(state, node.id);
   if (!resolution?.pending) return undefined;
-  const event = eventCatalog[resolution.eventId];
+  const instance = eventInstanceAt(state, node.id);
+  if (!instance) {
+    throw new Error(`reopenEventChoice: no committed event instance for node "${node.id}"`);
+  }
+  if (!sameEventInstance(instance, {
+    eventId: resolution.eventId,
+    contentVersion: resolution.contentVersion,
+    instanceId: resolution.instanceId,
+    drawnDepth: instance.drawnDepth,
+    ...(instance.callbackInstanceId === undefined ? {} : { callbackInstanceId: instance.callbackInstanceId }),
+  })) {
+    throw new Error(`reopenEventChoice: resolution for node "${node.id}" does not match committed event instance`);
+  }
+  const event = lookup(resolution.eventId, resolution.contentVersion);
   const choice = event?.choices.find((c) => c.id === resolution.choiceId);
   if (!choice) return undefined;
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, resolution.choiceId));
-  const { state: nextState, outcome } = applySpec(state, rng, choice.outcome, shopStockDepthForWave(node.wave), node);
+  const { state: nextState, outcome } = applySpec(
+    state,
+    rng,
+    choice.outcome,
+    shopStockDepthForWave(node.wave),
+    node,
+    instance.instanceId,
+  );
   return {
     state: isDeferredOutcome(outcome) ? nextState : clearPendingEventPick(nextState),
     outcome,

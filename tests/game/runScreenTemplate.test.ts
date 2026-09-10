@@ -100,6 +100,32 @@ describe('runScreenTemplate', () => {
     expect(runScreenTemplate('desktop')).toBe(runScreenTemplate('desktop'));
   });
 
+  it('gives every mobile full-HUD action a non-overlapping 44px live hit rectangle', () => {
+    const template = runScreenTemplate('mobile');
+    const hitRects = [
+      template.actionSlots.secondary,
+      template.actionSlots.tertiary,
+      template.actionSlots.primary,
+    ];
+
+    for (const hitRect of hitRects) {
+      expect(hitRect.width).toBeGreaterThanOrEqual(44);
+      expect(hitRect.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(overlaps(hitRects[0]!, hitRects[1]!)).toBe(false);
+    expect(overlaps(hitRects[0]!, hitRects[2]!)).toBe(false);
+    expect(overlaps(hitRects[1]!, hitRects[2]!)).toBe(false);
+  });
+
+  it('preserves the distinct compact desktop action geometry', () => {
+    const template = runScreenTemplate('desktop');
+
+    expect(template.regions.actions).toEqual({ x: 948, y: 74, width: 460, height: 34 });
+    expect(template.actionSlots.secondary.height).toBe(34);
+    expect(template.actionSlots.tertiary.height).toBe(34);
+    expect(template.actionSlots.primary.height).toBe(34);
+  });
+
   // ---- statsOnly chrome (battle's HUD, 2026-08-04 decision) — kicker/title/
   // stats only, no badge/actions band, a higher content top. ----
   const CORE_REGIONS: RunScreenRegion[] = ['kicker', 'title', 'stats', 'content'];

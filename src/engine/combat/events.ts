@@ -1,4 +1,4 @@
-import type { BuffableStat, CombatOutcome, EffectSourceRef, Property, Side } from '../types';
+import type { Action, BuffableStat, CombatOutcome, EffectSourceRef, Property, Side } from '../types';
 import type { AuraSource } from './auras';
 import type { ShieldPools } from './state';
 
@@ -233,6 +233,9 @@ export type CombatEvent =
       aoe?: boolean;
       /** All struck opposing unit indices for an AoE cast, ascending. */
       targets?: number[];
+      /** Resolved `skill.effects` actions this cast reached, in authored order.
+       * Registered `skill.special` handlers are outside this list. */
+      actionKinds?: readonly Action['kind'][];
       /**
        * Board-aura contributors that reached and matched this cast, each with
        * the per-mod magnitudes it added (ascending board-slot order). Additive

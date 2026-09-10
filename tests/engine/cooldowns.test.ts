@@ -24,7 +24,6 @@ function card(id: string, over: Partial<SkillDef> = {}): SkillDef {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 10 }],
-    text: '',
     ...over,
   };
 }

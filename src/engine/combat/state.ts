@@ -2,7 +2,7 @@ import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantSt
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 import { powerLevelDeci } from '../balance';
-import { boardTypeIdentity, type BoardIdentity } from './typeIdentity';
+import { boardAffinities, boardEffectAffinities, primaryIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward';
@@ -238,13 +238,28 @@ export interface CombatantState {
    * keeps the larger amount — see the `affinityCharge` docs in types.ts).
    */
   empowerNext?: { type: Element | WeaponType; amount: number };
+  /**
+   * THE TWO AFFINITY AXES, both derived from THIS UNIT'S OWN BOARD and nothing
+   * else (`boardAffinities`, ./typeIdentity; user ruling 2026-09-06 — "affinity
+   * are just passive buffs based on the board … there should be no hardcoded
+   * enemy that break the rule"). Independent: a board of 3 nature + 3 bow holds
+   * both. `undefined` on an axis its board does not lean into.
+   *
+   * Read by `cardMatchup` (element for magical cards, weapon for physical) and
+   * by `affinityOpen` (whichever axis the CARD's own type sits on).
+   */
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
+  /** Independent threshold set for gated effects when singular matchup fields cannot represent it. */
+  effectAffinities?: BoardIdentity[];
   /**
-   * The board's derived type identity (a unique type with the highest count,
-   * count >= 3), computed once at setup. `undefined` when the board has none.
-   * Drives the +20% same-type damage bonus (folded via AuraMods) and the
-   * defensive-affinity fill below. Purely a function of the placed cards.
+   * The single headline label for the two axes above — element first when a
+   * board holds both (`primaryIdentity`, ./typeIdentity). Computed once at
+   * setup, `undefined` when the board leans into neither axis.
+   *
+   * A DISPLAY/FILTER HOOK ONLY (docs/board-type-identity.md, "UI hooks"), and
+   * lossy on a dual-affinity board by construction. Nothing the sim DOES reads
+   * it: both axes reach the interpreter through the two fields above.
    */
   boardIdentity?: BoardIdentity;
   /** Single-target offensive targeting rule among living foes. Default `aggro`. */
@@ -302,20 +317,24 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem) });
   }
   pieces.sort((a, b) => a.slot - b.slot);
-  // Board Type Identity, computed once from the placed cards (element/weapon is
-  // unaffected by tier/gem resolution, so the effective skills are fine to use).
-  const boardIdentity = boardTypeIdentity(pieces.map((p) => p.skill));
-  // Effect 1 — defensive attunement (Effect 2, the opt-in `affinityStrike`
-  // payoff, reads these same two fields at cast time via `affinityOpen`): an identity fills the matching affinity
-  // ONLY where no affinity was authored. Authored (enemy) affinities always win;
-  // heroes have none, so this is their first source of affinity.
-  let elementAffinity = setup.elementAffinity;
-  let weaponAffinity = setup.weaponAffinity;
-  if (boardIdentity?.kind === 'element' && elementAffinity === undefined) {
-    elementAffinity = boardIdentity.type;
-  } else if (boardIdentity?.kind === 'weapon' && weaponAffinity === undefined) {
-    weaponAffinity = boardIdentity.type;
-  }
+  // AFFINITY — derived from the placed cards, and from NOTHING ELSE (user
+  // ruling 2026-09-06: "affinity are just passive buffs based on the board … if
+  // they meet the requirements they should have the affinity effect … there
+  // should be no hardcoded enemy that break the rule"). `setup.elementAffinity`
+  // / `setup.weaponAffinity` are deprecated and DELIBERATELY NOT READ here: an
+  // authored value used to override the board, which made an enemy's affinity
+  // unreadable from its own cards and let content contradict the rule.
+  //
+  // Both axes are filled independently, so a board with 3+ of an element AND 3+
+  // of a weapon carries both. Element/weapon is unaffected by tier/gem
+  // resolution, so the effective skills are fine to tally.
+  const affinities = boardAffinities(pieces.map((p) => p.skill));
+  const boardIdentity = primaryIdentity(affinities);
+  const elementAffinity = affinities.element;
+  const weaponAffinity = affinities.weapon;
+  const allEffectAffinities = boardEffectAffinities(pieces.map((p) => p.skill));
+  const representedEffectCount = (elementAffinity === undefined ? 0 : 1) + (weaponAffinity === undefined ? 0 : 1);
+  const effectAffinities = allEffectAffinities.length === representedEffectCount ? undefined : allEffectAffinities;
   return {
     side,
     index,
@@ -332,6 +351,7 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     lastCastArchetypes: [],
     elementAffinity,
     weaponAffinity,
+    ...(effectAffinities === undefined ? {} : { effectAffinities }),
     boardIdentity,
     targetPolicy: setup.targetPolicy ?? 'aggro',
     focus: setup.focus,

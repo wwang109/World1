@@ -133,7 +133,8 @@ const AREAS: Asset[] = [
   { file: 'area-crossroads-unquiet.png', width: 360, height: 140, fill: [90, 74, 122] }, // twilight shrine
 ];
 
-// Event choice-type icons — 48×48, keyed to src/data/events.ts outcome kinds.
+// Event choice-type icons — 48×48, keyed to outcome kinds authored in
+// src/data/content/events.v1.json (typed by src/data/eventTypes.ts).
 const CHOICE_ICONS: Asset[] = [
   { file: 'icon-choice-gold.png', width: 48, height: 48, fill: [201, 162, 39] }, // grantGold / loseGold
   { file: 'icon-choice-card.png', width: 48, height: 48, fill: [74, 111, 165] }, // grantCard / bonusDraft

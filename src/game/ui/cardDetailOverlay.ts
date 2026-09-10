@@ -25,14 +25,22 @@ import { renderCardInfoBox } from './cardInfoBox';
 export function renderCardDetailOverlay(
   scene: Phaser.Scene,
   skill: SkillDef,
-  opts: { onClose: () => void; font: LayoutProfile['font'] },
+  opts: {
+    onClose: () => void;
+    font: LayoutProfile['font'];
+    title?: string;
+    primaryAction?: { label: string; enabled: boolean; onPress: () => void };
+  },
 ): void {
-  const W = SCREEN.width;
-  const H = SCREEN.height;
-  const veil = scene.add.rectangle(0, 0, W, H, 0x05070c, 0.88).setOrigin(0, 0).setInteractive();
+  const embedded = scene.data?.get('embeddedRunView') as { x: number; y: number; width: number; height: number } | undefined;
+  const W = embedded?.width ?? SCREEN.width;
+  const H = embedded?.height ?? SCREEN.height;
+  const originX = embedded?.x ?? 0;
+  const originY = embedded?.y ?? 0;
+  const veil = scene.add.rectangle(originX, originY, W, H, 0x05070c, 0.88).setOrigin(0, 0).setInteractive();
   veil.on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
 
-  const closeBtn = scene.add.rectangle(W - 30, 46, 28, 28, 0x24344a, 1)
+  const closeBtn = scene.add.rectangle(originX + W - 30, originY + (embedded ? 26 : 46), 28, 28, 0x24344a, 1)
     .setOrigin(0.5).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
   scene.add.text(closeBtn.x, closeBtn.y, '×', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${opts.font.xlarge}px`, color: UI.textBright,
@@ -44,10 +52,16 @@ export function renderCardDetailOverlay(
   });
 
   const paneWidth = W - 40;
-  const centerX = W / 2;
-  const cardW = 140;
+  const centerX = originX + W / 2;
+  const cardW = embedded ? Math.min(140, W * 0.35, Math.max(60, H * 0.32) / (690 / 420)) : 140;
   const cardH = cardW * (690 / 420);
-  let y = 66;
+  let y = originY + (embedded ? 46 : 66);
+  if (opts.title) {
+    const title = scene.add.text(originX + 20, y - 34, opts.title.toUpperCase(), {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${opts.font.label}px`, color: UI.textAccent,
+    }).setOrigin(0, 0.5);
+    title.setDepth(2);
+  }
   const cardY = y + cardH / 2;
   new FantasyCardTemplateV2(scene, centerX, cardY, skill, { width: cardW, height: cardH, tier: skill.tier, glossary: false });
   y = cardY + cardH / 2 + 10;
@@ -65,7 +79,29 @@ export function renderCardDetailOverlay(
   y += plLine.height + 10;
 
   const infoTop = y;
-  const infoH = H - infoTop - 20;
+  const actionHeight = opts.primaryAction ? 52 : 0;
+  const infoH = embedded
+    ? Math.max(40, originY + H - infoTop - 20 - actionHeight)
+    : H - infoTop - 20 - actionHeight;
   scene.add.rectangle(centerX - paneWidth / 2, infoTop, paneWidth, infoH, 0x101a2a, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
   renderCardInfoBox(scene, centerX - paneWidth / 2, infoTop, paneWidth, infoH, skill);
+
+  if (opts.primaryAction) {
+    const action = opts.primaryAction;
+    const buttonY = infoTop + infoH + 8;
+    const button = scene.add.rectangle(centerX, buttonY, paneWidth, 40, action.enabled ? UI.chip : UI.panelMuted, action.enabled ? 1 : 0.5)
+      .setOrigin(0.5, 0).setStrokeStyle(1, UI.border, action.enabled ? 1 : 0.4);
+    scene.add.text(centerX, buttonY + 20, action.label, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${opts.font.label}px`,
+      color: action.enabled ? UI.textOnChip : UI.textSoft,
+    }).setOrigin(0.5);
+    if (action.enabled) {
+      button.setInteractive({ useHandCursor: true });
+      button.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        playSfx('uiClick');
+        action.onPress();
+      });
+    }
+  }
 }

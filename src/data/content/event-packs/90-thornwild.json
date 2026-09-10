@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "bloom_behind_the_teeth",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Bloom Behind the Teeth",
+            "body": "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall.",
+            "theme": "cache",
+            "rarity": "secret",
+            "biomeIds": ["thornwild"],
+            "story": { "storyId": "bloom_behind_the_teeth", "stage": "capstone", "role": "capstone" },
+            "eligibility": {
+              "all": [
+                { "fact": "combat.statusUsed", "args": { "status": "poison", "result": "bossWin", "biomeId": "thornwild" } },
+                { "fact": "board.affinity", "args": { "affinityId": "nature" } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "harvest_venom", "label": "Harvest the venom", "cost": 0, "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["poison"] }, { "ids": ["festering_sliver"] }] } },
+                {
+                  "id": "cultivate_bloom",
+                  "label": "Cultivate the bloom",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["nature"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  },
+                  "mutations": [{ "op": "set", "key": "venom_bloom", "value": "cultivated" }]
+                },
+                { "id": "leave", "label": "Leave the bloom sleeping", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

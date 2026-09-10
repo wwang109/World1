@@ -35,7 +35,7 @@ import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { GEM_RARITY_COLOR, PROPERTY_LABEL, TIER_COLOR, UI, textRoleFor, type ResolvedTextStyle } from '../theme';
 import { renderActionBar } from './ActionBar';
 import { auditControlLabel } from './controlLayoutAudit';
-import { gemCatalogOrder } from './gemGlossary';
+import { gemCatalogOrder, gemChipLines } from './gemPresentation';
 import { gridWindow, inGridWindow } from './gridWindow';
 import { attachButtonFeel, hoverFillFor, pressedFill } from './motion';
 
@@ -339,7 +339,14 @@ export function renderFoeDeckEditor(scene: Phaser.Scene, opts: FoeDeckEditorOpti
       const gem = gems[i - 1]!;
       objs.push(scene.add.rectangle(L.catalog.x, y, L.catalog.w, L.rowH, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7));
       const name = scene.add.text(L.catalog.x + 8, y + L.rowH / 2, gem.name.toUpperCase(), role('label')).setOrigin(0, 0.5);
-      const meta = scene.add.text(L.catalog.x + L.catalog.w - 8, y + L.rowH / 2, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT' : 'EFFECT'}`, role('micro')).setOrigin(1, 0.5);
+      // The ONE meta line every gem surface prints (`gemChipLines`). This row
+      // used to hand-type a THIRD spelling of the kind — STAT / EFFECT, where
+      // the shop, the pouch and the reward picker say STAT MOD / EFFECT GEM.
+      // (This comment first claimed "and both wikis" too, which was wrong:
+      // `MobileWikiScene`'s gem ROW had the identical defect and was fixed the
+      // day after, 2026-09-07. Corrected rather than deleted — the count of
+      // surfaces that had drifted is the reason this reads from one builder.)
+      const meta = scene.add.text(L.catalog.x + L.catalog.w - 8, y + L.rowH / 2, gemChipLines(gem).meta, role('micro')).setOrigin(1, 0.5);
       clampTextWidth(name, L.catalog.w - 16 - meta.width - 8);
       objs.push(name, meta);
     } else {

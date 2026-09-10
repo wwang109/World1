@@ -1,5 +1,26 @@
 # Card Text Style Guide
 
+> **CLASS: HISTORY (2026-09-06). Nothing here is authored any more.**
+>
+> `SkillDef.text` no longer exists. A card's face is GENERATED from its
+> `effects` by `renderSkillText` (`src/engine/keywords/compose.ts`), reading
+> the keyword registry in `src/engine/keywords/text.ts` — one `faceClause`
+> template per `Action` kind for the card's own parameters, and one
+> parameter-free `ruleSentence` per keyword for the mechanism, which is
+> reached by tap/hover and never printed on a face.
+>
+> So the vocabulary below is no longer a guide an author follows; it is the
+> record of the vocabulary the registry was BUILT FROM, and of the drift
+> that made hand-authoring untenable (41 `{{Poison}}` clauses in 6 different
+> wordings; a `thorns` glossary entry stating four facts none of the 26
+> authored thorns clauses mentioned). To change how a keyword reads now,
+> edit its row in `src/engine/keywords/text.ts` — one edit, every card.
+>
+> Kept rather than deleted because the RATIONALE behind each choice (which
+> stat token a role reads, why a guard may never say "all types") is still
+> the reasoning the registry encodes, and the two dated defects it records
+> are the reason several tests exist.
+
 Canonical vocabulary and phrasing for every card's `text` field in
 `src/data/content/skills.v1.json` (authoring guide:
 `src/data/content/README.md`). This is a **reference document, not a rewrite** — no

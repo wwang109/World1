@@ -26,7 +26,6 @@ const twinCombo: SkillDef = {
     { kind: 'damage', power: 20 },
     { kind: 'damage', power: 20 },
   ],
-  text: '',
 };
 
 /** The same card, fanned out over every foe — the bonus must reach EVERY target of its one action. */

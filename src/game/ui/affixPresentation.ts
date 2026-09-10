@@ -1,4 +1,8 @@
-import { ELITE_AFFIX_IDS, MODIFIER_PRESETS } from '../../data/modifiers';
+import { ELITE_AFFIX_IDS, MODIFIER_PRESETS, type EnemyModifierPreset } from '../../data/modifiers';
+import { renderSkillText } from '../../engine/keywords/compose';
+import { stripCardTextMarkup } from './cardTextMarkup';
+import { STAT_LONG_NAME, STAT_TOKEN, type StatKey } from './statLabels';
+import { LEVEL_STAT_COST } from '../../run/leveling';
 import { skillBook } from '../../data/skills';
 import { UI, type InkRole } from '../theme';
 import type { EncounterPack } from '../../run/encounter';
@@ -18,11 +22,11 @@ import type { EncounterPack } from '../../run/encounter';
  * WHY AN `answer` LINE AT ALL. A name is not a preview here. "BRACED" tells a
  * player nothing about which of their cards still works, and the whole
  * premise of the elite affix is that it is a question the DECK answers — so
- * the chip has to name the answer, not just the threat. The effect half comes
- * verbatim from the preset's own `blurb` (one source of truth, in
- * `src/data/modifiers.ts`); only the answer half is authored here, because it
- * lives in that file as a prose `Answered by:` NOTE rather than as data — see
- * `ANSWER` below.
+ * the chip has to name the answer, not just the threat. BOTH halves now come
+ * from `src/data/modifiers.ts`: the effect is DERIVED from the affix's own
+ * fields (`effectOf` below — a card-granting affix renders the granted card's
+ * OWN generated face), and the answer is read from `preset.answer`. Neither
+ * is re-worded here, and neither is authored twice.
  *
  * NO COMBAT, NO SIM. This reads content (`MODIFIER_PRESETS`, `skillBook`) and
  * returns strings. `src/game` may never run a battle (CLAUDE.md rule 2), so
@@ -30,36 +34,77 @@ import type { EncounterPack } from '../../run/encounter';
  */
 
 /**
- * THE ANSWER LINE, one per affix in `ELITE_AFFIX_IDS`.
+ * WHAT AN AFFIX DOES, DERIVED FROM WHAT IT IS.
  *
- * Each entry is a compression of that preset's own `Answered by:` note in
- * `src/data/modifiers.ts` — the design owner of "what beats this" — down to
- * the one clause a player can act on while looking at their board:
+ * Every preset used to carry a hand-written `blurb` — "Braced Pike - takes 20%
+ * less physical damage while braced" — and that sentence was the same disease
+ * the card faces had, in a third location: it restated, in prose, a card that
+ * already exists (`braced_pike`) and could drift from it silently. Four of the
+ * six affixes ARE just a card:
  *
- *   braced   → "Answered by: TRUE ... or magical ... hits, which the guard
- *              cannot see at all; or expose to pay the tax back."
- *   hobbling → "Answered by: BUILD LIGHT ... cleanse cannot answer this one."
- *              (said explicitly, because a slow LOOKS like a status)
- *   leeching → "Answered by: the anti-heal world rule — each affliction
- *              CATEGORY ... cuts its lifesteal 20% ... Or out-burst it."
- *   venomous → "Answered by: cleanse ... or ward ... poison BYPASSES SHIELDS."
- *              (the bypass is said, because shields are the instinct)
+ *   braced   cards: ['braced_pike']     hobbling  cards: ['hamstring']
+ *   leeching cards: ['leeching_fang']   venomous  cards: ['second_bite']
  *
- * A NEW AFFIX MUST APPEAR HERE. `tests/game/affixPresentation.test.ts` asserts
- * this table covers `ELITE_AFFIX_IDS` exactly, so adding a fifth affix without
- * writing its answer fails the suite instead of shipping a chip that names a
- * threat and no counter.
+ * So a card-granting affix now renders the granted card's OWN generated face
+ * (`renderSkillText`, engine/keywords/compose.ts) — the same words the card
+ * shows everywhere else, from the same generator, with the keyword markup
+ * stripped because a chip is not a card face. `diamond` and `swift` describe
+ * themselves from `forceTier` / `bonusPL`+`bonusProfile`.
+ *
+ * The `Answered by:` COUNTERPLAY line is the one genuinely affix-specific
+ * piece of editorial — a claim about the whole card pool that no field can
+ * derive — so it survives, but as `EnemyModifierPreset.answer`, authored ONCE
+ * in `src/data/modifiers.ts` and READ here. It used to be authored twice: as a
+ * prose note in that file and hand-compressed again into a local `ANSWER`
+ * table in this one.
  */
-const ANSWER: Record<string, string> = {
-  braced: 'magical or TRUE hits, or expose to pay the tax',
-  hobbling: 'build light — cleanse cannot touch this slow',
-  leeching: 'DoT, debuff or expose each cut it 20% — or burst',
-  venomous: 'cleanse or ward — it bypasses shields',
-};
+function effectOf(preset: EnemyModifierPreset): string {
+  const cards = preset.cards ?? [];
+  if (cards.length > 0) {
+    return cards
+      .map((id) => {
+        const skill = skillBook[id];
+        return skill === undefined ? id : `${skill.name} — ${stripCardTextMarkup(renderSkillText(skill))}`;
+      })
+      .join(' · ');
+  }
+  if (preset.forceTier !== undefined) {
+    return `Every card upgraded to ${preset.forceTier.charAt(0).toUpperCase()}${preset.forceTier.slice(1)} tier`;
+  }
+  if (preset.bonusPL !== undefined) {
+    const profile = Object.entries(preset.bonusProfile ?? {});
+    // THE STAT POINTS, not just the PL. The authored blurb said "+8 PL of pure
+    // Speed (+4 SPD)" and the first derived version dropped the `(+4 SPD)` —
+    // but that IS the affix's parameter, and the one a player can act on: PL is
+    // a price, SPD is what arrives. It is exactly derivable through the SAME
+    // `LEVEL_STAT_COST` economy `allocateMonsterPL` spends it by (speed costs
+    // 2 PL per point, so 8 PL is +4), so it is read from that table rather
+    // than re-typed.
+    //
+    // Only for a SINGLE-stat profile. A multi-stat profile is allocated by
+    // weight with rounding, so a per-stat number here would be a guess — those
+    // name their stats and leave the split to the fight.
+    const single = profile.length === 1 ? profile[0] : undefined;
+    if (single !== undefined) {
+      const [stat] = single;
+      const cost = LEVEL_STAT_COST[stat as keyof typeof LEVEL_STAT_COST];
+      const token = STAT_TOKEN[stat as StatKey] ?? stat;
+      const longName = STAT_LONG_NAME[stat as StatKey] ?? stat;
+      const gain = cost === undefined ? undefined : Math.floor(preset.bonusPL / cost.pl) * cost.gain;
+      return gain === undefined
+        ? `+${preset.bonusPL} PL of pure ${longName}`
+        : `+${preset.bonusPL} PL of pure ${longName} (+${gain} ${token})`;
+    }
+    const stats = profile.map(([stat]) => STAT_TOKEN[stat as StatKey] ?? stat).join(', ');
+    return `+${preset.bonusPL} PL auto-spent${stats === '' ? '' : ` across ${stats}`}`;
+  }
+  return preset.name;
+}
 
 /**
- * Every answer above is written so that `answerLine` — the answer PLUS its
- * `ANSWER · ` label — fits ONE LINE in the narrowest place it is drawn: 60
+ * Every `answer` in `src/data/modifiers.ts` is written so that `answerLine`
+ * — the answer PLUS its `ANSWER · ` label — fits ONE LINE in the narrowest
+ * place it is drawn: 60
  * characters, `charsForWidth(396, 11)`, the desktop foe panel's inner width.
  * `tests/game/affixPresentation.test.ts` pins it, because a two-line answer is
  * what pushed the sandbox prep panel past its own bottom edge once already.
@@ -74,9 +119,9 @@ export interface AffixPresentation {
   name: string;
   /** The chip's own label — the "modifier chip" vocabulary, marked as an affix. */
   chipLabel: string;
-  /** What it does. VERBATIM from the preset `blurb` — never re-worded here. */
+  /** What it does — DERIVED (see `effectOf`), never a second hand-written copy. */
   effect: string;
-  /** What answers it (see `ANSWER`); `''` only for an affix with no entry. */
+  /** What answers it (`EnemyModifierPreset.answer`); `''` for a preset with none. */
   answer: string;
   /** Display names of the cards the affix installs onto the elite's deck. */
   cardNames: string[];
@@ -106,8 +151,8 @@ export function presentEliteAffix(affixId: string | null | undefined): AffixPres
     id: affixId,
     name: preset.name,
     chipLabel: `AFFIX · ${preset.name}`,
-    effect: preset.blurb,
-    answer: ANSWER[affixId] ?? '',
+    effect: effectOf(preset),
+    answer: preset.answer ?? '',
     cardNames: (preset.cards ?? []).map((id) => skillBook[id]?.name ?? id),
     accent: UI.bad,
     accentText: `#${UI.bad.toString(16).padStart(6, '0')}`,

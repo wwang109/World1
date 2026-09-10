@@ -28,7 +28,7 @@
 
 import { hashSeed, Rng } from '../engine/rng';
 import { shopCatalog, shopTypeIds } from '../data/shopTypes';
-import type { EventTheme } from '../data/events';
+import type { EventTheme } from '../data/eventTypes';
 import { bandIndexOf, biomeForBand } from './biome';
 
 /** `'event'`/`'shop'` are the two stop-column choice kinds; `'fight'` is the
@@ -161,7 +161,7 @@ const MAX_CHOICES = 3;
  */
 const MAX_SHOP_COLUMNS_PER_WAVE = 1;
 
-/** The 6-theme event catalog grouping (`EventTheme` in data/events.ts) — kept
+/** The 6-theme event catalog grouping (`EventTheme` in data/eventTypes.ts) — kept
  * as a local literal list rather than importing the catalog's ids, since
  * this module only needs the theme labels for map-gen (not the events
  * themselves — see the "additive features" resolver-seam note in CLAUDE.md,

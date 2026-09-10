@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { renderSkillText } from '../../src/engine/keywords/compose';
+import { displayTokenOf } from '../../src/engine/keywords/text';
 import { applyTier } from '../../src/engine/cards';
 import {
   capViolations,
@@ -15,6 +17,11 @@ import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { validateGemDocument } from '../../src/data/validateGemContent';
 import { cardExistsAtTier, tierResolved, TIER_ORDER } from '../../src/engine/types';
 import type { Action, CombatConfig, SkillDef, SkillTier } from '../../src/engine/types';
+import {
+  AFFINITY_CAPSTONE_CONTRACTS,
+  AFFINITY_CAPSTONE_IDS,
+  isAllowedAffinityCapstoneRegression,
+} from './fixtures/affinityCapstones';
 
 /**
  * TIER-LOCKED EFFECTS — `minTier` on an action: "this line does not exist below
@@ -98,7 +105,7 @@ const CAPSTONES = Object.values(skillBook).flatMap((card) =>
 
 describe('THE FIVE DIAMOND CAPSTONES ARE ONE LADDER EACH', () => {
   it('the capstones exist as locks — this suite is not vacuous', () => {
-    expect(CAPSTONES.length, 'no shipped card locks a gated action to a higher tier').toBe(5);
+    expect(CAPSTONES.map(({ card }) => card.id).sort()).toEqual(AFFINITY_CAPSTONE_IDS);
     for (const { card, tier } of CAPSTONES) {
       expect(tier, `${card.id}: capstones are a Diamond design statement`).toBe('diamond');
       // ONE definition, no restatement: the whole point of the migration.
@@ -106,6 +113,38 @@ describe('THE FIVE DIAMOND CAPSTONES ARE ONE LADDER EACH', () => {
       expect(upgrades.some((up) => up.effects !== undefined), `${card.id} must not restate its effects`).toBe(false);
       // ...and the Bronze copy is genuinely ungated — the lock is what does it.
       expect(tierResolved(card).effects.some((a) => a.affinity === true), `${card.id} bronze must be ungated`).toBe(false);
+    }
+  });
+
+  it('pins every Gold and Diamond capstone number plus the exact authored gate', () => {
+    expect(AFFINITY_CAPSTONE_CONTRACTS.map(({ id }) => id)).toEqual(AFFINITY_CAPSTONE_IDS);
+    for (const contract of AFFINITY_CAPSTONE_CONTRACTS) {
+      const card = skillBook[contract.id];
+      expect(card, `${contract.id}: contract card exists`).toBeDefined();
+      const gold = applyTier(card!, 'gold');
+      const diamond = applyTier(card!, 'diamond');
+      const goldBase = gold.effects.find((action) => action.kind === 'damage' && action.affinity !== true);
+      const diamondBase = diamond.effects.find((action) => action.kind === 'damage' && action.affinity !== true);
+      const goldGates = gold.effects.filter((action) => action.kind === 'damage' && action.affinity === true);
+      const diamondGates = diamond.effects.filter((action) => action.kind === 'damage' && action.affinity === true);
+      const authoredGates = card!.effects.filter((action) => action.kind === 'damage' && action.affinity === true);
+      const diamondGate = diamondGates[0];
+      const authoredGate = authoredGates[0];
+
+      expect(powerLevelDeci(gold), `${contract.id}@gold total PL`).toBe(contract.gold.totalPlDeci);
+      expect(powerLevelDeci(diamond), `${contract.id}@diamond total PL`).toBe(contract.diamond.totalPlDeci);
+      expect(guaranteedPowerLevelDeci(gold), `${contract.id}@gold guaranteed PL`).toBe(contract.gold.guaranteedPlDeci);
+      expect(guaranteedPowerLevelDeci(diamond), `${contract.id}@diamond guaranteed PL`).toBe(contract.diamond.guaranteedPlDeci);
+      expect(goldBase?.kind === 'damage' ? goldBase.power : undefined, `${contract.id}@gold base hit`).toBe(contract.gold.baseHit);
+      expect(diamondBase?.kind === 'damage' ? diamondBase.power : undefined, `${contract.id}@diamond base hit`).toBe(contract.diamond.baseHit);
+      expect(goldGates, `${contract.id}@gold gated hits`).toHaveLength(0);
+      expect(diamondGates, `${contract.id}@diamond gated hits`).toHaveLength(1);
+      expect(authoredGates, `${contract.id}: authored gated hits`).toHaveLength(1);
+      expect(diamondGate?.kind === 'damage' ? diamondGate.power : undefined, `${contract.id}@diamond gated hit`).toBe(contract.diamond.gatedHit);
+      expect(
+        authoredGate && { affinity: authoredGate.affinity, minTier: authoredGate.minTier },
+        `${contract.id}: exact authored gate`,
+      ).toEqual(contract.gatedAction);
     }
   });
 
@@ -155,7 +194,6 @@ const LOCK_PROBE: SkillDef = {
   id: 'lock_trade_probe', name: 'Lock Trade Probe', archetypes: ['offense'],
   property: 'physical', weapon: 'sword', size: 1, rarity: 'common', tier: 'bronze',
   effects: [{ kind: 'damage', power: 20 }, { kind: 'stun', turns: 1, minTier: 'gold' }],
-  text: 'Deal 20 (+ATK) Sword damage · Gold+: {{Stun}} 1 turn.',
 };
 
 /** The same kit with the locked line deleted outright — "the card without it". */
@@ -365,21 +403,27 @@ describe('THE TRADE IS REAL: what a rank-up guarantees never falls for an UNCOND
     // The pin. Any new card whose guaranteed share drops with rank shows up here
     // and has to be justified deliberately, rather than shipping as a purchase
     // that made the player worse.
-    const KNOWN = new Set(CAPSTONES.map(({ card }) => card.id));
+    const KNOWN = new Set<string>(AFFINITY_CAPSTONE_IDS);
     const offenders: string[] = [];
     for (const card of Object.values(skillBook)) {
       let previous = guaranteedPowerLevelDeci(card);
       for (const tier of RANKS.slice(1)) {
         if (!cardExistsAtTier(card, tier)) continue;
         const now = guaranteed(card, tier);
-        if (now < previous && !KNOWN.has(card.id)) {
+        if (now < previous && !isAllowedAffinityCapstoneRegression(card.id, tier)) {
           offenders.push(`${card.id}@${tier}: guaranteed ${previous / 10} -> ${now / 10} PL`);
         }
         previous = now;
       }
     }
     expect(offenders, offenders.join('\n')).toEqual([]);
-    expect(KNOWN.size, 'the allowlist must not be empty — that would make this vacuous').toBe(5);
+    expect([...KNOWN].sort()).toEqual(AFFINITY_CAPSTONE_IDS);
+  });
+
+  it('keeps known capstones protected from lower-rung guaranteed-PL regressions', () => {
+    expect(isAllowedAffinityCapstoneRegression('lance_thrust', 'silver')).toBe(false);
+    expect(isAllowedAffinityCapstoneRegression('lance_thrust', 'gold')).toBe(false);
+    expect(isAllowedAffinityCapstoneRegression('lance_thrust', 'diamond')).toBe(true);
   });
 });
 
@@ -397,7 +441,6 @@ describe('COMPOSITION: locked AND gated means "only at Diamond, and only on the 
       { kind: 'damage', power: 18 },
       { kind: 'damage', power: 48, affinity: true, minTier: 'diamond' },
     ],
-    text: 'Deal 18 (+MATK) Lightning damage · Diamond+ {{Affinity}} Lightning — hit again for 48.',
   };
   const ON_TYPE = [PROBE.id, 'static_jolt', 'chain_spark'];   // 3 Lightning -> identity
   const OFF_TYPE = [PROBE.id, 'sword_slash', 'twin_slash'];   // 1 Lightning -> none
@@ -488,7 +531,6 @@ describe('A CARD-LEVEL MINIMUM: a card with no Bronze form is a card authored ab
     property: 'physical', weapon: 'axe', size: 1, rarity: 'epic', tier: 'gold',
     // On the GOLD budget (200 deci) exactly: damage 20 (100) + stun 1 (100).
     effects: [{ kind: 'damage', power: 20 }, { kind: 'stun', turns: 1 }],
-    text: 'Deal 20 (+ATK) Axe damage · {{Stun}} 1 turn.',
   };
 
   it('it is on budget where it exists, and the sweep actually covers both cases', () => {
@@ -529,7 +571,7 @@ describe('A CARD-LEVEL MINIMUM: a card with no Bronze form is a card authored ab
 describe('a nonsense lock is REFUSED at authoring time', () => {
   const CARD_BASE = {
     name: 'Probe', archetypes: ['offense'], property: 'physical', weapon: 'sword',
-    size: 1, rarity: 'common', tier: 'bronze', text: 'Deal 20 (+ATK) Sword damage.',
+    size: 1, rarity: 'common', tier: 'bronze',
   };
   const problemsFor = (def: Record<string, unknown>): string => validateSkillDocument({
     schemaVersion: 1,
@@ -565,7 +607,7 @@ describe('a nonsense lock is REFUSED at authoring time', () => {
       ...CARD_BASE,
       effects: [{ kind: 'damage', power: 20 }],
       tierUpgrades: {
-        gold: { effects: [{ kind: 'damage', power: 40, minTier: 'diamond' }], text: 'Deal 40 (+ATK) Sword damage.' },
+        gold: { effects: [{ kind: 'damage', power: 40, minTier: 'diamond' }] },
       },
     })).toContain('minTier cannot be used inside a tierUpgrades effects list');
   });
@@ -580,7 +622,6 @@ describe('a nonsense lock is REFUSED at authoring time', () => {
           def: {
             name: 'Probe Gem', kind: 'effect', rarity: 'common',
             actions: [{ kind: 'poison', stacks: 4, minTier: 'gold' }],
-            text: 'Apply 4 poison.',
           },
         }],
       }],
@@ -602,7 +643,7 @@ describe('a nonsense lock is REFUSED at authoring time', () => {
     expect(problemsFor({
       ...CARD_BASE, tier: 'gold',
       effects: [{ kind: 'damage', power: 30 }, { kind: 'stun', turns: 1 }],
-      tierUpgrades: { silver: { effects: [{ kind: 'damage', power: 20 }], text: 'Deal 20 (+ATK) Sword damage.' } },
+      tierUpgrades: { silver: { effects: [{ kind: 'damage', power: 20 }] } },
     })).toContain('is at or below this card\'s own tier');
   });
 
@@ -621,7 +662,6 @@ describe('a nonsense lock is REFUSED at authoring time', () => {
           def: {
             ...CARD_BASE,
             effects: [{ kind: 'burden', weight: 8, minTier: 'gold' }, { kind: 'splash' }],
-            text: 'Burden 8, spread across the band.',
           },
         }],
       }],
@@ -673,23 +713,49 @@ describe('nothing changes for a card with no lock', () => {
     }
   });
 
-  it('EVERY tier at or above a lock carries an authored `text` — the face can never describe a line it lacks', () => {
-    // The one thing the migration cannot delegate to the solver. `retextScaledNumbers`
-    // rewrites CHANGED numbers in the existing prose; it cannot invent the clause for
-    // a line the Bronze face never mentioned. So a `tierUpgrades.<tier>.text` override
-    // is mandatory from the lock tier upward, and `tests/engine/cardText.test.ts`
-    // audits each one against the RESOLVED rank.
-    const missing: string[] = [];
+  it('EVERY tier at or above a lock DESCRIBES the line it unlocked, and the tier below does NOT', () => {
+    // WHAT THIS USED TO ASSERT, and why it changed. A locked line's clause was
+    // something no re-texter could invent — `retextScaledNumbers` rewrote
+    // CHANGED NUMBERS in existing prose and had no way to add a sentence — so
+    // the rule was "every tier from the lock up must carry an authored
+    // `tierUpgrades.<tier>.text`", i.e. an author must remember. That is a
+    // rule about AUTHORING, and it is now unrepresentable: the face is
+    // composed from the RESOLVED kit (`renderSkillText`), so a line that
+    // resolves in is printed and a line that does not is not.
+    //
+    // So this asserts the OUTCOME instead, and in BOTH directions — the
+    // second half is the one that actually has teeth, because "the face
+    // mentions it" would also pass if the face mentioned it at every tier.
+    const problems: string[] = [];
     for (const id of LOCKED_IDS) {
       const card = skillBook[id]!;
-      const locks = card.effects.filter((a) => a.minTier !== undefined).map((a) => TIER_ORDER.indexOf(a.minTier!));
-      const lowest = Math.min(...locks);
-      for (let i = lowest; i < TIER_ORDER.length; i += 1) {
-        const tier = TIER_ORDER[i]! as Exclude<SkillTier, 'bronze'>;
-        if (card.tierUpgrades?.[tier]?.text === undefined) missing.push(`${id}@${tier}`);
+      for (const action of card.effects) {
+        if (action.minTier === undefined) continue;
+        const lockAt = TIER_ORDER.indexOf(action.minTier);
+        // The marker this kind puts on a face: its own keyword token where it
+        // has one, else the clause's opening verb (damage/heal/shield are
+        // exempt from markup — the type badge teaches them).
+        const token = displayTokenOf(action);
+        const marker = token !== undefined
+          ? `{{${token.charAt(0).toUpperCase()}${token.slice(1)}}}`
+          : action.kind === 'damage' ? 'Deal ' : action.kind === 'heal' ? 'Restore ' : 'Gain ';
+        for (let i = 0; i < TIER_ORDER.length; i += 1) {
+          const tier = TIER_ORDER[i]!;
+          if (i < TIER_ORDER.indexOf(card.tier)) continue;
+          const face = renderSkillText(applyTier(card, tier));
+          const present = face.toLowerCase().includes(marker.toLowerCase());
+          // BELOW the lock, only assert absence when the marker is UNIQUE to
+          // the locked line: a Diamond-locked second `damage` shares "Deal "
+          // with the base hit, so its absence is not observable this way.
+          const sharesMarker = card.effects.some((other) => other !== action && other.minTier === undefined
+            && (displayTokenOf(other) ?? '') === (token ?? '')
+            && (token !== undefined || other.kind === action.kind));
+          if (i >= lockAt && !present) problems.push(`${id}@${tier}: unlocked ${action.kind} but the face never shows ${marker}`);
+          if (i < lockAt && present && !sharesMarker) problems.push(`${id}@${tier}: BELOW the lock but the face already shows ${marker}`);
+        }
       }
     }
-    expect(missing, `a locked line unlocks into prose that never mentions it:\n${missing.join('\n')}`).toEqual([]);
+    expect(problems, `a locked line and its face disagree:\n${problems.join('\n')}`).toEqual([]);
   });
 
   it('`tierResolved` and `applyTier` hand back the SAME REFERENCE for every UNLOCKED card', () => {

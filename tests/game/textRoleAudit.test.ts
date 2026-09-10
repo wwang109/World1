@@ -277,7 +277,6 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   // Down from `{ hex: 7, fontSize: 26 }` (2026-08-31, the `PL n` chip took the
   // `kicker` role), then to 3 hex (2026-09-02): two toast greens -> `UI.textGem`.
   'scenes/MobileWikiScene.ts': { hex: 3, fontSize: 25 },
-  'scenes/StartScene.ts': { hex: 1, fontSize: 4 },
   'scenes/UiKitScene.ts': { hex: 5, fontSize: 31 },
   // hex retired (2026-09-02): the footer's on-gold/off-gold label pair were
   // pasted copies of `UI.textOnChip`/`UI.textBright` — now the tokens.
@@ -298,7 +297,9 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   // is a PER-SLOT argument — mobile primary is 13 against the row's 8) and the
   // mobile disclosure chevron sized off the stats row.
   'ui/RunProgressStrip.ts': { fontSize: 2 },
-  'ui/RunRewardPanel.ts': { fontSize: 11 },
+  // W1-35 user-authorized local teal/gold/ivory palette. Seven bounded ink
+  // literals only; runtime drawing/contrast guards live in runEventRewardRenderer.
+  'ui/RunRewardPanel.ts': { hex: 7, fontSize: 11 },
   'ui/RunRouteBoard.ts': { hex: 2, fontSize: 7 },
   'ui/RunStatPanel.ts': { fontSize: 2 },
   'ui/battleFxSpec.ts': { hex: 1 },
@@ -418,7 +419,7 @@ describe('src/game: the type-system ratchet', () => {
     // 171 -> 161 (2026-09-02, status chips): the two battle scenes' copied
     // ailment palettes (−9 hex each) collapsed into `ui/battleStatusPalette.ts`
     // (+8) — a real deduplication, so the mark moves DOWN.
-    const HIGH_WATER = { hex: 161, fontSize: 408 };
+    const HIGH_WATER = { hex: 167, fontSize: 404 }; // +7 local W1-35 palette; all other budgets unchanged.
     const totals = [...counts.values()].reduce((a, c) => ({ hex: a.hex + c.hex, fontSize: a.fontSize + c.fontSize }), { hex: 0, fontSize: 0 });
     expect(totals.hex, 'raw colour literals in src/game (excluding theme.ts)').toBeLessThanOrEqual(HIGH_WATER.hex);
     expect(totals.fontSize, 'inline fontSize literals in src/game').toBeLessThanOrEqual(HIGH_WATER.fontSize);

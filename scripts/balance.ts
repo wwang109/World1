@@ -9,6 +9,7 @@
 import { simulate1v1 } from '../src/engine/combat/simulate';
 import { hashSeed } from '../src/engine/rng';
 import { powerLevel } from '../src/engine/balance';
+import { boardAffinities, type BoardAffinities } from '../src/engine/combat/typeIdentity';
 import { skillBook } from '../src/data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
 import { enemies } from '../src/data/enemies';
@@ -42,40 +43,62 @@ const HERO_BOARD: CombatantSetup = {
  * A "fair" test opponent, defined here (not in src/data) so the demonstration
  * below isolates board PL as the variable: its stats/HP are set equal to the
  * hero's own base stats, but its board carries MORE / a wider kit of cards,
- * i.e. clearly HIGHER board PL. It also nails down a weapon + element
- * affinity so a counter-picking build has something concrete to punish.
+ * i.e. clearly HIGHER board PL.
+ *
+ * Its weapon/element affinity is EARNED, not authored (user ruling
+ * 2026-09-06: the board is the only source — an authored `elementAffinity`/
+ * `weaponAffinity` on a `CombatantSetup` is dead data the engine never reads,
+ * `src/engine/combat/state.ts`). Element and weapon are tallied on separate
+ * axes (`boardAffinities`, `src/engine/combat/typeIdentity.ts`) and a board
+ * earns an axis's affinity only by running >= `IDENTITY_THRESHOLD` (3) cards
+ * of one unique type on that axis. This board holds exactly 3 `axe` cards
+ * (crushing_blow, gutting_cleave, armor_break) and exactly 3 `nature` cards
+ * (heartwood_sanctum, grove_lash, poison_bloom) — no other type reaches 3 on
+ * either axis — so it genuinely derives weaponAffinity=axe AND
+ * elementAffinity=nature through the real rule, at slot sizes 3+2+1 / 3+2+1
+ * that still sum to this board's `boardSize: 12`. `runDemoMode` below prints
+ * the DERIVED value (`boardAffinities(...)`), never a restated literal, so
+ * this can't drift out of sync with the engine's rule again.
  */
 const FAIR_ENEMY: CombatantSetup = {
   name: 'Fair Test Enemy (higher board PL, hero-equal stats)',
   stats: { ...BASE_HERO_STATS },
   boardSize: 12,
-  weaponAffinity: 'axe',
-  elementAffinity: 'nature',
   pieces: [
     { skillId: 'crushing_blow', slot: 0 }, // axe, size 3 -> 0,1,2
-    { skillId: 'rending_claws', slot: 3 }, // beast, size 3 -> 3,4,5
-    { skillId: 'hex_of_frailty', slot: 6 },
-    { skillId: 'mending_light', slot: 7 }, // size 2 -> 7,8
-    { skillId: 'iron_bulwark', slot: 9 }, // size 2 -> 9,10
-    { skillId: 'battle_howl', slot: 11 },
+    { skillId: 'gutting_cleave', slot: 3 }, // axe, size 2 -> 3,4
+    { skillId: 'armor_break', slot: 5 }, // axe, size 1 -> 5
+    { skillId: 'heartwood_sanctum', slot: 6 }, // nature, size 3 -> 6,7,8
+    { skillId: 'grove_lash', slot: 9 }, // nature, size 2 -> 9,10
+    { skillId: 'poison_bloom', slot: 11 }, // nature, size 1 -> 11
   ],
 };
+
+/** `FAIR_ENEMY`'s board's derived affinities — computed once, printed, never restated. */
+function fairEnemyAffinities(): BoardAffinities {
+  const defs = FAIR_ENEMY.pieces
+    .map((p) => skillBook[p.skillId])
+    .filter((d): d is NonNullable<typeof d> => d !== undefined);
+  return boardAffinities(defs);
+}
 
 /**
  * The low-PL synergy + counter-pick build (~40 board PL, 4 Bronze cards):
  *   - war_banner (support aura): +25% damage to touching Offense cards.
  *     Placed in the MIDDLE of the mini-cluster so BOTH neighbors (sword_slash,
  *     follow_through) get buffed — every slot of budget pulls double duty.
- *   - sword_slash / follow_through: both `sword` weapon. FAIR_ENEMY's
- *     weaponAffinity is `axe`, and sword beats axe on the weapon triangle
- *     (WEAPON_BEATS.sword === 'axe') -> +50% weapon-triangle advantage on
- *     BOTH of them, stacked on top of the aura.
+ *   - sword_slash / follow_through: both `sword` weapon. FAIR_ENEMY's board
+ *     DERIVES weaponAffinity `axe` (3 axe cards, see `FAIR_ENEMY` above), and
+ *     sword beats axe on the weapon triangle (WEAPON_BEATS.sword === 'axe')
+ *     -> +50% weapon-triangle advantage on BOTH of them, stacked on top of
+ *     the aura.
  *   - follow_through's comboBonus (+150% if the previous cast was also
  *     Offense) is set up to fire off the back of sword_slash.
- *   - fireball is `fire` element; FAIR_ENEMY's elementAffinity is `nature`,
- *     and fire beats nature on the element wheel (ELEMENT_BEATS.fire ===
- *     'nature') -> +50% elemental advantage, plus a 3-turn burn DoT that
- *     doesn't care about the enemy's shield/mitigation math.
+ *   - fireball is `fire` element; FAIR_ENEMY's board DERIVES elementAffinity
+ *     `nature` (3 nature cards), and fire beats nature on the element wheel
+ *     (ELEMENT_BEATS.fire === 'nature') -> +50% elemental advantage, plus a
+ *     3-turn burn DoT that doesn't care about the enemy's shield/mitigation
+ *     math.
  * Net effect: every single damage-dealing card in this 40-PL board is
  * either aura-buffed, weapon-advantaged, element-advantaged, or all three.
  */
@@ -93,9 +116,9 @@ const SYNERGY_BUILD: CombatantSetup = {
 
 /**
  * A NAIVE build at HIGHER board PL than FAIR_ENEMY (70 PL vs the enemy's
- * ~59.5 PL, 7 Bronze cards) — MORE raw budget than both the synergy build
+ * 60 PL, 7 Bronze cards) — MORE raw budget than both the synergy build
  * (40 PL) and the opponent itself, but no aura synergy and actively
- * mismatched weapon/element choices against FAIR_ENEMY's axe/nature
+ * mismatched weapon/element choices against FAIR_ENEMY's derived axe/nature
  * affinities:
  *   - crippling_strike / hamstring: `lance` weapon. Axe beats lance
  *     (WEAPON_BEATS.axe === 'lance') -> these two take the −25% weapon
@@ -322,10 +345,12 @@ function runDemoMode(n: number, baseSeed: number): void {
   const naivePl = boardPL(NAIVE_BUILD.pieces, skillBook);
   const enemyPl = boardPL(FAIR_ENEMY.pieces, skillBook);
 
+  const fairAffinities = fairEnemyAffinities();
   console.log(`FAIR_ENEMY board PL: ${fmt1(enemyPl)} (${FAIR_ENEMY.pieces.map((p) => p.skillId).join(', ')})`);
   console.log(`  stats: hp ${FAIR_ENEMY.stats.maxHp}, attack ${FAIR_ENEMY.stats.attack}, magicPower ${FAIR_ENEMY.stats.magicPower} ` +
     `(identical to hero base stats — HP is NOT the variable here)`);
-  console.log(`  weaponAffinity=${FAIR_ENEMY.weaponAffinity}, elementAffinity=${FAIR_ENEMY.elementAffinity}\n`);
+  console.log(`  DERIVED board identity (boardAffinities, not authored): ` +
+    `weaponAffinity=${fairAffinities.weapon ?? 'none'}, elementAffinity=${fairAffinities.element ?? 'none'}\n`);
 
   console.log(`SYNERGY_BUILD board PL: ${fmt1(heroPl)} (${SYNERGY_BUILD.pieces.map((p) => p.skillId).join(', ')})`);
   console.log(`  counters: sword_slash + follow_through (sword beats axe affinity, +50%), ` +

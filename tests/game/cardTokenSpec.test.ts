@@ -3,7 +3,6 @@ import {
   boxesOverlap, cardTokenSpec, chipBox, CHIP_PAD_X, CHIP_PAD_Y, INSPECT_BUTTON_SIZE, SLOT_LABEL_MIN_HEIGHT,
   TOKEN_COMPACT_HEIGHT, type ChipTextLike, type TokenBox,
 } from '../../src/game/ui/cardTokenSpec';
-
 const W = 620;
 const H = 84;
 
@@ -223,6 +222,35 @@ describe('cardTokenSpec', () => {
     });
   });
 });
+
+/**
+ * The card-face duration-suffix truncation audit that used to live here (a
+ * hand-rolled `chars * fontSize * 0.62` linear-width model of
+ * `CardToken.segmentedLine`, named `segmentedLineSurvivors`) was DELETED
+ * 2026-09-06, not fixed in place: an independent audit found it disagreed
+ * with the real proportional-font renderer on the exact near-budget lines it
+ * existed to check (a monospace-equivalent estimate over- or under-shoots a
+ * real bold body face per segment, not just in aggregate), returned `[]` for
+ * empty input where production seeds `[{ text: '' }]`, and — because the RED
+ * to GREEN transition for the fix it was guarding happened entirely by
+ * rewriting the model in the same edit that flipped the assertion — could not
+ * fail if `CardToken.ts`'s `segmentedLine` were reverted to its pre-fix body.
+ * A vitest test genuinely cannot import `CardToken.ts` (Phaser touches
+ * `window` at module load, and this repo's vitest config is
+ * `environment: 'node'` with no canvas/jsdom polyfill), so real coverage for
+ * this renderer is a COMMITTED Playwright audit instead, same mold as
+ * `scripts/shop-smoke.ts`/`scripts/run-hud-audit.ts`:
+ * `scripts/card-face-truncation-audit.ts` (`npm run audit:cardface`)
+ * dynamically imports the ACTUAL `CardToken`/`skillBook`/`applyTier` off the
+ * live Vite dev server, builds a real token for every duration+multi-effect
+ * tier variant in the book on every shipped surface (including the
+ * `compactLine` call site this file never covered), reads the ACTUAL
+ * rendered `Text` children, and EXITS NON-ZERO the moment any surface renders
+ * a whole-segment drop with no "…" cue — the exact regression this comment
+ * used to guard with a model that could not actually fail. See that script's
+ * header for the exact population filter, widths, and its own RED/GREEN
+ * proof.
+ */
 
 describe('chipBox', () => {
   it('centers on the text\'s true glyph bounds, not its own (possibly corner) origin', () => {

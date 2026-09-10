@@ -1,8 +1,11 @@
-import type { MergeCardsOffer, MergeInputCard } from '../../run/events';
+import { mergeCardsPreview, type MergeCardsOffer, type MergeCardsPreview, type MergeInputCard } from '../../run/events';
+import type { MergeCardsOfferAvailabilityV3 } from '../../run/eventsV3';
+import type { RunState } from '../../run/runState';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { rowIdeal } from './runRewardGeometry';
+import type { RunEventOutcomeHint } from './runEventViewModel';
 import type { Rect, RunTemplatePlatform } from './runScreenTemplate';
 
 /**
@@ -96,6 +99,7 @@ export interface MergeCandidateEntry {
 }
 
 export interface RunMergeViewModel {
+  status: MergeCardsOfferAvailabilityV3;
   from: SkillTier;
   to: SkillTier;
   /** "3 BRONZE → 1 SILVER" — the whole trade in one line, and the reason this
@@ -120,31 +124,121 @@ export interface RunMergeViewModel {
  * receipt exists to close (the outcome screen used to say only "Gained a SILVER
  * card", which names neither the price nor the tier that was spent).
  */
+/**
+ * The exact merge price a tapped event choice may confirm right now.
+ *
+ * Schema-v3 choices already carry their persisted offer on `outcomeHint`.
+ * Read that choice-local snapshot directly: asking the run layer for a fresh
+ * current-event preview can select a different trio after Deck/Bag changes,
+ * and is ambiguous if one event ever exposes two merge choices. Legacy events
+ * have no persisted offer, so they retain their historical live preview.
+ *
+ * Both paths validate the recorded location, index, instance id, skill id and
+ * tier before returning anything. This is the same identity contract the V3
+ * finalizer checks before removal; a stale offer closes the confirm instead of
+ * naming the card now occupying an old index or silently substituting another
+ * mergeable trio.
+ */
+export function mergeConfirmPreviewForChoice(
+  hint: RunEventOutcomeHint,
+  state: RunState,
+): MergeCardsPreview | null {
+  if (hint.kind !== 'mergeCards') return null;
+  const preview: MergeCardsPreview | null = 'offer' in hint
+    ? hint.offer.status === 'pending'
+      ? { from: hint.offer.from, to: hint.offer.to, consumed: hint.offer.consumed }
+      : null
+    : mergeCardsPreview(state);
+  if (preview === null) return null;
+
+  for (const input of preview.consumed) {
+    const owned = input.location === 'board'
+      ? state.pieces[input.index]
+      : state.bagSlots[input.index];
+    if (owned === null || owned === undefined
+      || owned.instanceId !== input.instanceId
+      || owned.skillId !== input.skillId
+      || owned.tier !== input.tier) return null;
+  }
+  return preview;
+}
+
 export function mergeTradeLine(count: number, from: SkillTier, to: SkillTier): string {
   return `${count} ${from.toUpperCase()} → 1 ${to.toUpperCase()}`;
 }
 
 /** Where one consumed instance is sitting, in the player's own vocabulary.
- * BOARD pieces name their SLOT (1-based, the `SLOT ${slot + 1}` convention the
- * shop's buy-destination label already uses) when the caller passes the board,
- * because a player with two copies of the same card at the same tier can
- * otherwise not tell which one the anvil is about to eat. Falls back to a bare
- * "BOARD" if the board wasn't passed or the index doesn't resolve — a missing
- * slot number is worth strictly less than a wrong one. */
-function whereLabel(card: MergeInputCard, pieces?: readonly { slot: number }[]): string {
+ * With the full run location state, the recorded index is trusted only when
+ * its instance id, skill id, and tier still match; otherwise the label says
+ * MOVED FROM BOARD/BAG and can never borrow another card's current slot.
+ * Legacy callers that pass only board geometry retain the older best-effort
+ * BOARD label because they have no bag identity state to validate. */
+type MergeLocationSource =
+  | Pick<RunState, 'pieces' | 'bagSlots'>
+  | readonly { slot: number }[];
+
+function isRunLocationState(source: MergeLocationSource): source is Pick<RunState, 'pieces' | 'bagSlots'> {
+  return 'pieces' in source;
+}
+
+function exactInputStillAtRecordedLocation(
+  input: MergeInputCard,
+  state: Pick<RunState, 'pieces' | 'bagSlots'>,
+): boolean {
+  const owned = input.location === 'board'
+    ? state.pieces[input.index]
+    : state.bagSlots[input.index];
+  return owned !== null && owned !== undefined
+    && owned.instanceId === input.instanceId
+    && owned.skillId === input.skillId
+    && owned.tier === input.tier;
+}
+
+function whereLabel(card: MergeInputCard, source?: MergeLocationSource): string {
+  if (source !== undefined && isRunLocationState(source)) {
+    if (!exactInputStillAtRecordedLocation(card, source)) return `MOVED FROM ${card.location.toUpperCase()}`;
+    if (card.location === 'bag') return 'BAG';
+    return `BOARD ${source.pieces[card.index]!.slot + 1}`;
+  }
   if (card.location === 'bag') return 'BAG';
-  const piece = pieces?.[card.index];
+  const piece = source?.[card.index];
   return piece ? `BOARD ${piece.slot + 1}` : 'BOARD';
 }
 
 /**
- * Pure mapping from a pending `MergeCardsOffer` to the picker's display.
+ * One consumed instance, ready to draw: `name` for identity, `tierLabel` for
+ * grade, `whereLabel` for where it sits right now. Factored out of
+ * `buildRunMergeViewModel` (2026-09-06) so the CHOICE ROW's pre-tap price line
+ * and its pre-resolution CONFIRM dialog (`eventOutcomeText.ts`,
+ * `RunEventEventScene`s) can label a bare `MergeCardsPreview`/`MergeInputCard[]`
+ * — which exist before any `Rng`-drawn `MergeCardsOffer` does — with the exact
+ * same rule the picker's own chips use, rather than a second copy of it.
  *
- * `pieces` is the run's CURRENT board (`runStore.currentRunPieces()`), used
- * only to turn a consumed board piece's array index into the slot number the
- * player sees. It is optional so this module stays a pure function of the offer
- * — a caller that has no board to hand still gets a correct, if slightly less
- * specific, model rather than a crash.
+ * `locations` should be the run's current board + bag state when available,
+ * which makes labels identity-safe. It remains optional for legacy callers
+ * that can only supply board slots.
+ */
+export function buildMergeSpentEntries(
+  consumed: readonly MergeInputCard[],
+  locations?: MergeLocationSource,
+): MergeSpentEntry[] {
+  const spent: MergeSpentEntry[] = [];
+  for (let i = 0; i < consumed.length; i += 1) {
+    const card = consumed[i]!;
+    spent.push({
+      instanceId: card.instanceId,
+      skillId: card.skillId,
+      name: skillBook[card.skillId]?.name ?? card.skillId,
+      tier: card.tier,
+      tierLabel: card.tier.toUpperCase(),
+      whereLabel: whereLabel(card, locations),
+    });
+  }
+  return spent;
+}
+
+/**
+ * Pure mapping from a pending `MergeCardsOffer` to the picker's display.
  *
  * A candidate whose `skillId` is missing from the book is DROPPED rather than
  * rendered as a blank cell: `mergeCardsPlan` draws candidates from
@@ -153,22 +247,12 @@ function whereLabel(card: MergeInputCard, pieces?: readonly { slot: number }[]):
  */
 export function buildRunMergeViewModel(
   offer: MergeCardsOffer,
-  pieces?: readonly { slot: number }[],
+  locations?: MergeLocationSource,
+  status: MergeCardsOfferAvailabilityV3 = { kind: 'ready' },
 ): RunMergeViewModel {
-  const spent: MergeSpentEntry[] = [];
-  for (let i = 0; i < offer.consumed.length; i += 1) {
-    const card = offer.consumed[i]!;
-    spent.push({
-      instanceId: card.instanceId,
-      skillId: card.skillId,
-      name: skillBook[card.skillId]?.name ?? card.skillId,
-      tier: card.tier,
-      tierLabel: card.tier.toUpperCase(),
-      whereLabel: whereLabel(card, pieces),
-    });
-  }
+  const spent = buildMergeSpentEntries(offer.consumed, locations);
   const candidates: MergeCandidateEntry[] = [];
-  for (let i = 0; i < offer.candidates.length; i += 1) {
+  for (let i = 0; status.kind === 'ready' && i < offer.candidates.length; i += 1) {
     const cand = offer.candidates[i]!;
     const base = skillBook[cand.skillId];
     if (!base) continue;
@@ -179,11 +263,22 @@ export function buildRunMergeViewModel(
     });
   }
   return {
+    status,
     from: offer.from,
     to: offer.to,
-    title: mergeTradeLine(offer.consumed.length, offer.from, offer.to),
-    spentCaption: `THESE ${offer.consumed.length === 3 ? 'THREE' : offer.consumed.length} ARE SPENT`,
-    pickCaption: `PICK ONE — IT ARRIVES AT ${offer.to.toUpperCase()}`,
+    title: status.kind === 'ready'
+      ? mergeTradeLine(offer.consumed.length, offer.from, offer.to)
+      : 'MERGE PAUSED',
+    spentCaption: status.kind === 'ready'
+      ? `THESE ${offer.consumed.length === 3 ? 'THREE' : offer.consumed.length} ARE SPENT`
+      : status.reason === 'inputs_changed'
+        ? 'THE OFFERED CARDS HAVE MOVED'
+        : 'THE REWARD NO LONGER FITS',
+    pickCaption: status.kind === 'ready'
+      ? `PICK ONE — IT ARRIVES AT ${offer.to.toUpperCase()}`
+      : status.reason === 'inputs_changed'
+        ? 'RESTORE THE RECORDED DECK / BAG ARRANGEMENT'
+        : 'RESTORE BAG SPACE TO CONTINUE',
     spent,
     candidates,
   };

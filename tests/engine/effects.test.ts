@@ -63,7 +63,6 @@ describe('typed shields', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'shield', power: 20 }],
-      text: '',
     },
     magic_bolt: {
       id: 'magic_bolt',
@@ -75,7 +74,6 @@ describe('typed shields', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'damage', power: 10 }],
-      text: '',
     },
     true_wall: {
       id: 'true_wall',
@@ -87,7 +85,6 @@ describe('typed shields', () => {
       rarity: 'epic',
       tier: 'bronze',
       effects: [{ kind: 'shield', power: 50 }],
-      text: '',
     },
     true_wall_small: {
       id: 'true_wall_small',
@@ -99,7 +96,6 @@ describe('typed shields', () => {
       rarity: 'epic',
       tier: 'bronze',
       effects: [{ kind: 'shield', power: 30 }],
-      text: '',
     },
   };
 
@@ -267,7 +263,6 @@ describe('typed shields', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'shield', power: 10 }],
-        text: '',
       },
       big_bolt: {
         id: 'big_bolt',
@@ -279,7 +274,6 @@ describe('typed shields', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'damage', power: 30 }],
-        text: '',
       },
     };
     // Turtle (score 12−1) shields twice first; the hero (score 10−10) then fires once.
@@ -411,7 +405,6 @@ describe('damage over time (global-turn durations)', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'poison', stacks: 5 }],
-        text: '',
       },
       big_wall: {
         id: 'big_wall',
@@ -423,7 +416,6 @@ describe('damage over time (global-turn durations)', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'shield', power: 30 }],
-        text: '',
       },
     };
     // Hero poisons once on turn 1 (then has nothing useful — one_poison re-applies... it re-casts).
@@ -456,7 +448,6 @@ describe('damage over time (global-turn durations)', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'burn', stacks: 6 }],
-        text: '',
       },
       magic_wall: {
         id: 'magic_wall',
@@ -468,7 +459,6 @@ describe('damage over time (global-turn durations)', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'shield', power: 300 }],
-        text: '',
       },
     };
     const c = cfg(
@@ -495,7 +485,6 @@ describe('damage over time (global-turn durations)', () => {
         rarity: 'common',
         tier: 'bronze',
         effects: [{ kind: 'poison', stacks: 5 }],
-        text: '',
       },
     };
     const c = cfg(

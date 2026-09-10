@@ -3,378 +3,225 @@ import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import { applyTier } from '../../src/engine/cards';
 import { KEYWORD_PRICING } from '../../src/engine/balance';
-import { tierResolved } from '../../src/engine/types';
-import type { Action, AuraDef, SkillTier } from '../../src/engine/types';
+import { renderSkillClauses, renderSkillText } from '../../src/engine/keywords/compose';
+import { renderGemText } from '../../src/engine/keywords/gemText';
+import { TIER_ORDER, type SkillTier } from '../../src/engine/types';
 
-// Drift guard: every numeric magnitude a card's `effects`/`aura` carries must
-// be spelled out verbatim in its `text`. This keeps card prose from silently
-// diverging from the mechanics it describes (see docs/card-text-style-guide.md).
-//
-// We don't try to reconstruct the exact sentence — just extract every integer
-// that appears in `text` and assert each mechanically-relevant number is one
-// of them. `stun` with turns === 1 is exempt: per the style guide its
-// canonical phrasing ("the enemy's next performance is consumed") carries no
-// numeral for the single-performance case. `negate` with charges === 1 is
-// exempt for the same reason ("Negate the next magical attack." — singular, no
-// numeral).
-//
-// 2026-07-24: the guard now ALSO audits every authored `tierUpgrades` entry —
-// a tier override that changes effects/aura must carry its own accurate text.
+/**
+ * CARD TEXT — what is left to test once the text is GENERATED.
+ *
+ * This file used to be the DRIFT GUARD: 183 cards × 4 tiers of authored prose,
+ * audited against the effects beside it for magnitudes (`expectedNumbers`) and
+ * stat tokens (`assertStatTokens`). Both audits existed because the prose was
+ * hand-typed and could disagree with the kit — and both had already caught real
+ * shipped defects (16 defensive lines advertising `(+ATK)`; `purify_echo`
+ * claiming "all types" on a TRUE-only guard).
+ *
+ * Neither failure is expressible now. A card carries no `text`; its face is one
+ * function of its `effects` (`renderSkillText`, engine/keywords/compose.ts), so
+ * the magnitude on the face IS the magnitude in the kit and the stat suffix IS
+ * the one the property picks. The drift guard's job moved INTO the generator,
+ * and what is worth pinning here is different:
+ *
+ *   1. the generator runs on every shipped card at every reachable tier
+ *      without throwing and without emitting an empty face (the
+ *      `attunedShield` failure mode: a kind with no clause prints nothing);
+ *   2. a GOLDEN SET of faces, so a template edit that quietly changes 700 card
+ *      faces has to be looked at rather than merely re-run;
+ *   3. the stat-suffix ROLE rule, kept because it is cheap and it is the one
+ *      rule with a dated regression behind it — now asserted against generated
+ *      output, where a violation would be a bug in one template rather than in
+ *      one card's prose.
+ *
+ * The GEM half moved with it: gem `text` is gone too (2026-09-06), so what the
+ * gem block below pins is the GENERATOR, not 53 authored strings — see
+ * `tests/engine/gemTextRegistry.test.ts` for the gem golden set and the
+ * one-reference invariants.
+ */
 
+const TIERS: readonly SkillTier[] = TIER_ORDER;
+
+describe('generated card text: it runs, on everything', () => {
+  it('every card at every reachable tier renders a non-empty, fully-formed face', () => {
+    const problems: string[] = [];
+    let rendered = 0;
+    for (const skill of Object.values(skillBook)) {
+      for (const tier of TIERS) {
+        if (TIERS.indexOf(tier) < TIERS.indexOf(skill.tier)) continue;
+        const resolved = applyTier(skill, tier);
+        const face = renderSkillText(resolved);
+        rendered += 1;
+        if (face.trim() === '') problems.push(`${skill.id}@${tier}: empty face`);
+        if (!face.endsWith('.')) problems.push(`${skill.id}@${tier}: face does not end in a full stop — "${face}"`);
+        // A card with effects must produce at least one clause. An empty
+        // clause list on a card that HAS a kit is exactly the `attunedShield`
+        // defect: a kind whose template produced nothing.
+        if (resolved.effects.length > 0 && renderSkillClauses(resolved).length === 0) {
+          problems.push(`${skill.id}@${tier}: ${resolved.effects.length} effects produced no clause`);
+        }
+        // No template may emit a dangling separator or a doubled space.
+        if (/ {2}| · \.|· $/.test(face)) problems.push(`${skill.id}@${tier}: malformed spacing — "${face}"`);
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
+    expect(rendered, 'every card/tier pair the game can reach').toBe(732);
+  });
+});
+
+/**
+ * THE GOLDEN PIN — twelve faces chosen to cover every structural feature of
+ * the grammar exactly once, so a template change cannot slide through as "700
+ * snapshots updated".
+ */
+// FOUR of these strings gained `{{shield}}` on 2026-09-06 and NOTHING else:
+// `shield` was wrongly on the markup exemption list despite carrying a real
+// `ruleSentence`, so 36 cards printed the game's most common defensive keyword
+// with no tap cue. The markup is lowercase, so the SENTENCE is byte-identical
+// after `stripCardTextMarkup` — only the colour and the tap target are new.
+const GOLDEN: Record<string, string> = {
+  // The three cards the correction named, and the inconsistency it named:
+  // both bramble cards now lead with their headline and trail the other clause.
+  'bramble_covenant@bronze': 'Gain 12 (+MDEF) magical {{shield}} · {{Affinity}} Nature — {{Poison}} 8.',
+  'bramble_ward@bronze': 'Gain 10 (+DEF) physical {{shield}} · {{Thorns}} 5.',
+  'bramblewrath@bronze': 'Deal 56 (+ATK) Lance damage · {{Thorns}} 20.',
+  // ...and the same card at Gold, where a `minTier` line resolves in with no
+  // authored tier text anywhere on the card.
+  'bramblewrath@gold': 'Deal 94 (+ATK) Lance damage · {{Stun}} · {{Thorns}} 20.',
+  // setup → headline → payload → conditional, all four buckets on one card.
+  'gutting_cleave@bronze': '{{Shatter}} 40 · Deal 26 (+ATK) Axe damage · {{Bleed}} 6.',
+  // A conditional rider that names another keyword's status. Also the card
+  // spec §4.3 named for the `flavor` field — and the reason NO card carries one:
+  // "The fresh barbs feed your next swing" is `stackBonus`'s own cross-cast
+  // rider rule in other words, i.e. the mechanism restatement this migration
+  // removed, re-authored in the one field still open to hand-authoring. The
+  // other three shipped flavour lines named a keyword the card did not even
+  // have. The field survives (validated inert, and now also refusing any
+  // keyword NAME); zero cards use it.
+  'thorn_reckoning@bronze': 'Deal 20 (+ATK) Axe damage · {{Thorns}} 8 · +3/{{Thorns}} (cap 12).',
+  // Multi-hit: a COUNT, never a sum (24 × 2 is not 48 against armor).
+  'barrage@bronze': 'Deal 24 (+ATK) Bow damage ×2.',
+  // ...and the unequal form, which only exists at Silver.
+  'twin_slash@silver': 'Deal 12, then 10 (+ATK) Sword damage.',
+  // AoE leads, because `scope` widens every offensive line and not just the hit.
+  'chain_spark@diamond': 'Hits EVERY foe · Deal 34 (+MATK) Lightning damage · Gain 10 (+MDEF) magical {{shield}} · {{Slow}} +8wt. Cooldown 4 (default 3).',
+  // The pile MERGE (spec §2.5): four `thorns` lines, one printed clause. The
+  // headline still leads (spec §4.1) — which is the ordering the user named on
+  // `bramble_ward` vs `bramble_covenant`, applied without exception.
+  'rimebarb_vigil@diamond': 'Gain 64 (+MDEF) magical {{shield}} · {{Thorns}} 14.',
+  // TRUE: no stat suffix on defensive output, `(+best stat)` on offence.
+  'annihilation_strike@bronze': 'Deal 48 (+best stat) TRUE damage.',
+  // An aura card, and the one clause that is not an `Action` at all — plus the
+  // two 2026-09-07 grammar fixes on one line: the gated hit REPEATS the
+  // headline's kind, so it says "again" the way the authored face did ("hit
+  // again for 8"), and the aura's mod words now come from the registry
+  // (`+3 damage` — the same words the gem chip and the compact badge use for
+  // `damageFlat`) instead of this function's own `deal +3`.
+  'enfilade_volley@bronze': 'Deal 10 (+ATK) Bow damage · {{Affinity}} Bow — Hit again for 8 (+ATK) · Passive: the 2 cards to its RIGHT get +3 damage.',
+};
+
+describe('generated card text: the golden set', () => {
+  for (const [key, expected] of Object.entries(GOLDEN)) {
+    const [id, tier] = key.split('@') as [string, SkillTier];
+    it(key, () => {
+      const skill = skillBook[id];
+      expect(skill, `${id} left the catalog`).toBeDefined();
+      expect(renderSkillText(applyTier(skill!, tier))).toBe(expected);
+    });
+  }
+});
+
+describe('generated card text: control keywords keep parameters compact', () => {
+  it('prints Curse, Burden, and Splash parameters without duplicating their definitions', () => {
+    expect(renderSkillText(skillBook.writ_of_sanction!)).toBe(
+      '{{Curse}} -12 (2t) · {{Burden}} +8wt · {{Splash}}.',
+    );
+  });
+});
+
+/**
+ * STAT-TOKEN ROLE (kept from the drift guard, retargeted at the generator).
+ *
+ * The rule: a card's `property` picks WHICH stat, the ROLE of the line picks
+ * WHICH SIDE of the sheet — offence (damage) reads ATK/MATK, defensive output
+ * (heal/shield/plating) reads DEF/MDEF. It caught a real, dated miss: when
+ * shields moved to Armor scaling, 16 authored faces kept advertising `(+ATK)`
+ * and no test failed, because every NUMBER was still right.
+ *
+ * A violation now would be a bug in ONE template rather than in sixteen cards,
+ * which is exactly why it stays cheap to keep.
+ */
+const OFFENSE_TOKENS = ['(+ATK)', '(+MATK)'] as const;
+const DEFENSE_TOKENS = ['(+DEF)', '(+MDEF)'] as const;
+
+describe('generated card text: the stat suffix names the right side of the sheet', () => {
+  it('no purely defensive card advertises an offensive stat, and vice versa', () => {
+    const problems: string[] = [];
+    for (const skill of Object.values(skillBook)) {
+      for (const tier of TIERS) {
+        if (TIERS.indexOf(tier) < TIERS.indexOf(skill.tier)) continue;
+        const resolved = applyTier(skill, tier);
+        const face = renderSkillText(resolved);
+        const hasOffense = resolved.effects.some((e) => e.kind === 'damage');
+        const hasDefense = resolved.effects.some((e) => {
+          const family = KEYWORD_PRICING[e.kind].family;
+          return family === 'shield' || family === 'heal';
+        });
+        if (hasDefense && !hasOffense) {
+          for (const token of OFFENSE_TOKENS) {
+            if (face.includes(token)) problems.push(`${skill.id}@${tier}: defensive card prints ${token} — "${face}"`);
+          }
+        }
+        if (hasOffense && !hasDefense) {
+          for (const token of DEFENSE_TOKENS) {
+            if (face.includes(token)) problems.push(`${skill.id}@${tier}: offensive card prints ${token} — "${face}"`);
+          }
+        }
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+});
+
+/**
+ * GEM TEXT IS GENERATED TOO NOW (2026-09-06) — so the old authored-prose drift
+ * guard could not survive, but the invariant it protected can, aimed one layer
+ * down at the TEMPLATE instead of at 53 hand-typed strings.
+ *
+ * What it used to catch: a gem's sentence quoting a magnitude its payload did
+ * not carry. What this catches: a `faceClause` that DROPS one. Same failure
+ * (the player is told the wrong number), now impossible to author per-gem and
+ * possible only once, in a template, where it would hit every gem carrying
+ * that kind — which is exactly the trade the card migration made.
+ */
 function numbersInText(text: string): number[] {
   return (text.match(/\d+/g) ?? []).map(Number);
 }
 
-/**
- * The default arm is `assertNever`, so this switch is compile-time exhaustive
- * over `Action['kind']` (mirrors the trick `validateSkillContent.ts`'s action
- * switch uses) — a new Action kind fails `tsc`, not silently sails through the
- * drift guard unchecked the way `ward`/`thorns` did before this comment.
- */
-function assertNever(value: never): never {
-  throw new Error('expectedNumbers: unhandled action kind ' + JSON.stringify(value));
-}
-
-/** The magnitudes a kit (effects + aura) must spell out in its text. */
-function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined): number[] {
-  const expected: number[] = [];
-
-  for (const eff of effects) {
-    switch (eff.kind) {
-      case 'damage':
-      case 'heal':
-      case 'shield':
-        expected.push(eff.power);
-        break;
-      case 'poison':
-      case 'burn':
-      case 'bleed':
-        expected.push(eff.stacks);
-        break;
-      case 'stun':
-        if (eff.turns > 1) expected.push(eff.turns);
-        break;
-      case 'buffStat':
-      case 'debuffStat':
-      case 'expose':
-        expected.push(eff.pct, eff.turns);
-        break;
-      case 'cleanse':
-        expected.push(eff.charges);
-        break;
-      case 'slow':
-      case 'burden':
-        expected.push(eff.weight);
-        break;
-      // CURSE: both numbers, like `expose`/`debuffStat` — how much softer the
-      // card hits and for how long are equally load-bearing, and the pair is
-      // what the effect is priced on (`PRICE.cursePerAmountNum`).
-      case 'curse':
-        expected.push(eff.amount, eff.turns);
-        break;
-      // SPLASH: nothing to check — the SPREADER has no magnitude at all (see
-      // its docs in engine/types.ts). What it changes is the REACH of the
-      // burden/curse beside it, whose own numbers are audited above. Its
-      // presence in the prose is a style-guide matter, not a numeric one.
-      case 'splash':
-        break;
-      case 'disrupt':
-      case 'shieldBreak':
-        expected.push(eff.amount);
-        break;
-      case 'lifesteal':
-        expected.push(eff.pct);
-        break;
-      case 'comboBonus':
-        expected.push(eff.amount);
-        break;
-      case 'guard':
-        expected.push(eff.pct, eff.turns);
-        break;
-      case 'negate':
-        if (eff.charges > 1) expected.push(eff.charges);
-        break;
-      // WARD/THORNS (closed 2026-08-18, this was the hole): every authored
-      // ward/thorns card spells the charge/stack count as a literal digit
-      // right after the keyword ("{{Ward}} 2 \u2014 ...", "{{Thorns}} 5
-      // \u2014 ..."), including the charges===1 / stacks===low cases — unlike
-      // `stun`/`negate`, there is no wordy singular phrasing to exempt.
-      case 'ward':
-        expected.push(eff.charges);
-        break;
-      case 'thorns':
-        expected.push(eff.stacks);
-        break;
-      // TAUNT: no card authors this yet, but `amount` is a flat magnitude of
-      // the exact same shape as `disrupt`/`shieldBreak`/`comboBonus` above, so
-      // it is checked the same way rather than left to drift silently.
-      case 'taunt':
-        expected.push(eff.amount);
-        break;
-      // STAT STRIKE: deliberately EXEMPT, same family as the stun/negate
-      // singular exemptions above but for the opposite reason — `shareOf` is
-      // never spelled as a digit by design (docs/card-text-style-guide.md +
-      // the type's own doc comment in src/engine/types.ts): it prints as a
-      // word ratio ("half strength", "a quarter"), because the actual damage
-      // is proportional to a stat the text cannot know at authoring time. A
-      // `cap`, if ever authored, IS a genuine flat number (a hard ceiling on
-      // the payload) and is checked like any other magnitude.
-      case 'statStrike':
-        if (eff.cap !== undefined) expected.push(eff.cap);
-        break;
-      // EXPLOIT: the flat bonus it adds is the whole magnitude, same shape as
-      // `comboBonus` above. The STATUS it keys off is a word, not a number, so
-      // there is nothing else to check numerically here (the prose naming it is
-      // covered by the style guide, not by this guard).
-      case 'exploit':
-        expected.push(eff.amount);
-        break;
-      // STACK BONUS: BOTH numbers are load-bearing and both must be printed —
-      // `per` is what a player counts per stack, and `cap` is the ceiling that
-      // decides what the effect is worth (it is also the number the card is
-      // PRICED on, `actionsPriceDeci`). A text that spelled one and not the
-      // other would hide exactly the half a player needs to plan around.
-      case 'stackBonus':
-        expected.push(eff.per, eff.cap);
-        break;
-      // TAX BONUS: both numbers, for the identical reason — `per` is what a
-      // player counts per taxed card, `cap` is the ceiling that decides what the
-      // rider is worth (and the number it is PRICED on).
-      case 'taxBonus':
-        expected.push(eff.per, eff.cap);
-        break;
-      // SHIELD BURST: the `cap` is the whole magnitude and it is doubly
-      // load-bearing — it is the most damage the rider can add AND the most of
-      // your own shield it will spend. A face that hid it would hide the cost.
-      case 'shieldBurst':
-        expected.push(eff.cap);
-        break;
-      // WARD RELEASE: `per` and `cap`, the `taxBonus` reading exactly — `per` is
-      // what a charge is worth, `cap` is both the ceiling AND (via `ceil(cap/per)`)
-      // how many charges the release actually spends. Hiding either would hide half
-      // the trade the card is asking the player to make.
-      case 'wardRelease':
-        expected.push(eff.per, eff.cap);
-        break;
-      // DESPERATION: the flat `amount` is the whole magnitude, `exploit`'s shape.
-      // The gate ("at or below half HP") is prose, not a printed number — the HALF
-      // is a rule, not a card-specific value, so there is nothing else to pin here.
-      case 'desperation':
-        expected.push(eff.amount);
-        break;
-      // OVERHEAL SHIELD: `cap` is the whole magnitude and the only number a player
-      // can plan around (how much overflow will actually bank), so the face must
-      // carry it — the `shieldBurst` reading.
-      case 'overhealShield':
-        expected.push(eff.cap);
-        break;
-      // CLEANSE CONVERT: both numbers, the `stackBonus`/`taxBonus` reading — `per`
-      // is what one cleansed stack is worth in HP, `cap` the ceiling it is priced on.
-      case 'cleanseConvert':
-        expected.push(eff.per, eff.cap);
-        break;
-      // CHAIN BONUS: `amount` is the bonus; `after` is a TYPE NAME, not a number,
-      // so it carries no numeral for the face to print.
-      case 'chainBonus':
-        expected.push(eff.amount);
-        break;
-      // EMPOWER NEXT: `amount` is the bonus it arms for the next cast. (A gated
-      // `damage` needs no case of its own any more — affinity is a modifier, so it
-      // is priced and rendered as the damage action it is.)
-      case 'empowerNext':
-        expected.push(eff.amount);
-        break;
-      // ATTUNED SHIELD: `power` is the plating granted; the doubling is a rule,
-      // not a number, so there is nothing else for the face to print.
-      case 'attunedShield':
-        expected.push(eff.power);
-        break;
-      default:
-        assertNever(eff);
-    }
-  }
-
-  if (aura) {
-    const { damageFlat, healFlat, weightDelta } = aura.mods;
-    if (damageFlat !== undefined) expected.push(damageFlat);
-    if (healFlat !== undefined) expected.push(healFlat);
-    if (weightDelta !== undefined) expected.push(Math.abs(weightDelta));
-  }
-
-  return expected;
-}
-
-/**
- * STAT-TOKEN drift guard (added 2026-08-05, after a real miss).
- *
- * The numeric guard above audits HOW MUCH; this audits BOOSTED BY WHAT. When
- * shields/heals moved to defensive-stat scaling (engine commit `9960720`), 16
- * card texts kept advertising "(+ATK)"/"(+MATK)" on defensive clauses and NOT
- * ONE test failed — the numbers were all still correct, so the numeric guard
- * had nothing to catch. The text lied to the player until a human spotted it.
- *
- * The rule audited (docs/card-text-style-guide.md, "Which stat token"): a
- * card's `property` picks WHICH stat, the ROLE of the clause picks WHICH SIDE
- * of the stat sheet — OFFENSE (damage) reads ATK/MATK, DEFENSE (shield/heal)
- * reads DEF/MDEF. TRUE carries no token on defense (flat by identity) and
- * "(+best stat)" on offense.
- *
- * Deliberately asserts only what is UNAMBIGUOUS: a text may not carry a stat
- * token belonging to the OPPOSITE role for a role it actually has. It does not
- * demand a token be present — TRUE clauses correctly have none, and a card
- * mixing both roles legitimately carries one of each, which is why this is a
- * forbidden-token check rather than an exact-template match.
- */
-const OFFENSE_TOKENS = ['(+ATK)', '(+MATK)', '(+ATK/MATK)'] as const;
-const DEFENSE_TOKENS = ['(+DEF)', '(+MDEF)', '(+DEF/MDEF)'] as const;
-
-function assertStatTokens(label: string, text: string, effects: readonly Action[]): void {
-  const hasOffense = effects.some((e) => e.kind === 'damage');
-  // DERIVED FROM THE PRICING TABLE, not a hand-kept list of kinds. This used to
-  // read `e.kind === 'shield' || e.kind === 'heal'` and so did not know about
-  // `attunedShield` (2026-08-25) — a card carrying one plus a damage line read as
-  // PURELY offensive and was told off for printing the (+DEF) its plating
-  // genuinely scales from. Keying off `family` covers every present and future
-  // defensive kind by construction.
-  const hasDefense = effects.some((e) => {
-    const family = KEYWORD_PRICING[e.kind].family;
-    return family === 'shield' || family === 'heal';
-  });
-
-  // A purely defensive card must never advertise an offensive stat, and vice
-  // versa. A card with BOTH roles is exempt: either token is legitimately its.
-  if (hasDefense && !hasOffense) {
-    for (const token of OFFENSE_TOKENS) {
-      expect(
-        text.includes(token),
-        `${label}: defensive card advertises the OFFENSIVE token ${token} — shields/heals scale off DEF/MDEF: "${text}"`,
-      ).toBe(false);
-    }
-  }
-  if (hasOffense && !hasDefense) {
-    for (const token of DEFENSE_TOKENS) {
-      expect(
-        text.includes(token),
-        `${label}: offensive card advertises the DEFENSIVE token ${token} — damage scales off ATK/MATK: "${text}"`,
-      ).toBe(false);
-    }
-  }
-}
-
-/**
- * GUARD/NEGATE property-overclaim guard (added 2026-08-06, after a real miss:
- * `purify_echo` shipped with "-20% incoming damage, all types" on a TRUE-
- * property guard, which only ever cuts TRUE damage — see docs/card-text-
- * style-guide.md §2, the `guard`/`negate` rows: "Never say 'all'/'all
- * types'"/"Never say 'any'". A guard/negate covers ONLY its own `property`
- * (`src/engine/combat/interpreter.ts`), and that property is not always the
- * host card's — a gem can graft a TRUE guard onto any card — so "all"/"any"
- * phrasing is a real overclaim, not a harmless generalization.
- *
- * Scoped to TRUE specifically: that's the exact shape of the shipped bug (a
- * single-property effect described as blanket coverage). There is exactly
- * ONE live TRUE-scoped guard/negate in the game today (the gem
- * `purify_echo`) — every other guard/negate is physical- or magical-scoped
- * and short-circuits out of this check before the assertion below ever runs.
- * That one instance had no numeric mismatch — the number was right, the
- * CLAIM was wrong — so the drift guard above had nothing to catch it. This
- * check is deliberately stronger than "words present" (it fails on the
- * literal universal words the style guide bans, not on the property name
- * being absent), but be clear-eyed about its coverage: it is a single-case
- * regression pin for `purify_echo`, not a broad audit of guard/negate
- * phrasing across the catalog — it only ever gets to fire once.
- */
-function assertNoUniversalGuardNegateOverclaim(label: string, text: string, effects: readonly Action[]): void {
-  const trueScoped = effects.some((e) => (e.kind === 'guard' || e.kind === 'negate') && e.property === 'true');
-  if (!trueScoped) return;
-  expect(
-    /\ball\b/i.test(text) || /\bany\b/i.test(text),
-    `${label}: TRUE-scoped guard/negate uses universal "all"/"any" phrasing, but it only ever covers TRUE damage/hits: "${text}"`,
-  ).toBe(false);
-}
-
-function assertTextCoversKit(label: string, text: string, effects: readonly Action[], aura: AuraDef | undefined): void {
-  const nums = numbersInText(text);
-  for (const n of expectedNumbers(effects, aura)) {
-    expect(nums, `${label}: expected number ${n} not found in text: "${text}"`).toContain(n);
-  }
-  assertStatTokens(label, text, effects);
-  assertNoUniversalGuardNegateOverclaim(label, text, effects);
-}
-
-describe('card text drift guard', () => {
-  for (const skill of Object.values(skillBook)) {
-    it(`${skill.id}: every effect/aura magnitude appears in text`, () => {
-      // THE CARD'S OWN FACE DESCRIBES THE CARD AS IT EXISTS AT ITS OWN TIER
-      // (2026-08-26, the Q1 `minTier` migration). A tier-locked action is not on
-      // the Bronze copy at all — `tierResolved` strips it — so its magnitude has
-      // no business in the Bronze prose, and demanding it there would force every
-      // migrated card to print a number its Bronze copy cannot deliver. The
-      // locked line's own numbers are audited at the tier it unlocks, below.
-      const base = tierResolved(skill);
-      assertTextCoversKit(skill.id, base.text, base.effects, base.aura);
-    });
-
-    const upgrades = skill.tierUpgrades;
-    if (upgrades) {
-      it(`${skill.id}: every tierUpgrades entry carries accurate text`, () => {
-        for (const tier of Object.keys(upgrades) as Exclude<SkillTier, 'bronze'>[]) {
-          const up = upgrades[tier];
-          if (!up) continue;
-          // AUDITED AGAINST THE RESOLVED RANK, not against the authored block.
-          // Before the `minTier` migration a block that added a line restated the
-          // whole effects list, so `up.effects` WAS the rank's kit; now the kit at
-          // this rank is what `applyTier` produces (locked lines resolved in, the
-          // sink re-solved by the budget-honest scaler) and the block usually
-          // carries nothing but the `text` being checked. Reading the resolved
-          // rank is strictly stronger: it audits the numbers the player is shown
-          // against the numbers the engine will actually cast.
-          const resolved = applyTier(skill, tier);
-          // An override that changes the kit MUST bring its own text — the UI
-          // would otherwise show the Bronze prose with the wrong numbers.
-          if (up.effects !== undefined || up.aura !== undefined) {
-            expect(up.text, `${skill.id}@${tier}: override changes effects/aura but has no text`).toBeDefined();
-          }
-          assertTextCoversKit(`${skill.id}@${tier}`, resolved.text, resolved.effects, resolved.aura);
-        }
-      });
-    }
-  }
-});
-
-// A gem's action is appended onto its HOST card and resolved by the SAME role
-// rule, so a gem's dual token drifts for exactly the same reason a card's does
-// — and drifted in the same 2026-08-05 pass. Gems name both stats they could
-// scale with (they can't know the host's property), so the pair is the token.
-describe('gem text stat-token drift guard', () => {
+describe('generated gem text: every magnitude the payload carries reaches the face', () => {
   for (const gem of Object.values(gemBook)) {
-    // `Gem` is a union: stat gems carry `mods`, not `actions`, and their
-    // "Passive: hero +4 SPD" text names a stat that is not a scaling term.
     if (gem.kind !== 'effect') continue;
-    const actions: readonly Action[] = gem.actions;
-    if (!actions.length) continue;
-    it(`${gem.id}: names the stat pair its ROLE actually scales off`, () => {
-      // 2026-08-06: widened from a bare `assertStatTokens` call to the full
-      // `assertTextCoversKit` — gems previously got only the stat-token half
-      // of the drift guard; the numeric drift check and the TRUE-scoped
-      // guard/negate overclaim check (this file's real miss, `purify_echo`)
-      // now run against gemBook too. Verified against the whole gem catalog
-      // first: every 'effect' gem's authored numbers already appear in its
-      // text, so this closes the gap without introducing any new failures.
-      assertTextCoversKit(gem.id, gem.text, actions, undefined);
-      const hasDefense = actions.some((a) => a.kind === 'shield' || a.kind === 'heal');
-      const hasOffense = actions.some((a) => a.kind === 'damage');
-      if (hasDefense && !hasOffense) {
-        expect(
-          gem.text.includes('(+ATK/MATK)'),
-          `${gem.id}: defensive gem names the offensive pair: "${gem.text}"`,
-        ).toBe(false);
+    if (!gem.actions.length) continue;
+    it(`${gem.id}: every magnitude appears in its generated face`, () => {
+      const face = renderGemText(gem);
+      const nums = numbersInText(face);
+      for (const action of gem.actions) {
+        for (const [field, value] of Object.entries(action)) {
+          if (typeof value !== 'number') continue;
+          // Same two exemptions the old guard carried: a single stun/negate
+          // charge is spelled as a word, and `shareOf` prints as a ratio.
+          if (action.kind === 'stun' && field === 'turns' && value === 1) continue;
+          if (action.kind === 'negate' && field === 'charges' && value === 1) continue;
+          if (action.kind === 'statStrike' && field === 'shareOf') continue;
+          expect(nums, `${gem.id}: ${action.kind}.${field} = ${value} not in "${face}"`).toContain(value);
+        }
       }
-      if (hasOffense && !hasDefense) {
-        expect(
-          gem.text.includes('(+DEF/MDEF)'),
-          `${gem.id}: offensive gem names the defensive pair: "${gem.text}"`,
-        ).toBe(false);
+      // A GEM NEVER PRINTS A STAT SUFFIX AT ALL — stronger than the old
+      // "defensive gem must not name the offensive pair" pair of checks, and
+      // for a structural reason: which stat scales a gem's line is the HOST
+      // card's property, so host-less mode drops the term rather than picking
+      // a side (`RenderCtx.host`, engine/keywords/text.ts).
+      for (const token of ['(+ATK)', '(+MATK)', '(+DEF)', '(+MDEF)', '(+best stat)']) {
+        expect(face.includes(token), `${gem.id}: a gem face may not carry ${token} — "${face}"`).toBe(false);
       }
     });
   }

@@ -20,7 +20,8 @@ import { DesktopRunPrepScene } from './game/scenes/DesktopRunPrepScene';
 import { MobileRunPrepScene } from './game/scenes/MobileRunPrepScene';
 import { DesktopRunEventScene } from './game/scenes/DesktopRunEventScene';
 import { MobileRunEventScene } from './game/scenes/MobileRunEventScene';
-import { devicePixels, installFillHost, installRenderScale, uiScale } from './game/renderScale';
+import { shouldPreserveDrawingBufferForLayoutAudit } from './game/devLaunch';
+import { devicePixels, installFillHost, installRenderScale, manageTextResolution, textResolution } from './game/renderScale';
 
 // The canvas FILLS the browser window (Phaser.Scale.RESIZE) -- no letterbox,
 // no crop. `installFillHost` must run BEFORE the game is constructed: it sizes
@@ -32,23 +33,35 @@ const sizeFillHost = installFillHost();
 window.addEventListener('resize', sizeFillHost);
 window.addEventListener('orientationchange', sizeFillHost);
 
-// Crisp text: the canvas backing store is sized to PHYSICAL pixels (above) and
-// the camera is zoomed to match, so design coordinates stay in profile space
-// while glyphs rasterize at native density. Text `resolution` is a modest
-// supersample on top of that -- it CANNOT rescue an upscaled canvas (the glyph
-// texture is resampled into the canvas first), so it stays low once the buffer
-// itself carries the density.
-const TEXT_RESOLUTION = uiScale() * devicePixels() >= 2 ? 1 : 2;
+// Phaser has already registered `text`; register alone refuses an existing
+// key. Wrap its original factory so all normal Text behavior is preserved.
+// Density follows the current DPR/scale, while explicit styles stay owned by
+// their callers. Only automatic Text objects refresh when display scale changes.
+const originalTextFactory = Phaser.GameObjects.GameObjectFactory.prototype.text;
+Phaser.GameObjects.GameObjectFactory.remove('text');
 Phaser.GameObjects.GameObjectFactory.register(
   'text',
   function (this: Phaser.GameObjects.GameObjectFactory, x: number, y: number, text: string | string[], style?: Phaser.Types.GameObjects.Text.TextStyle) {
-    const withRes: Phaser.Types.GameObjects.Text.TextStyle = { resolution: TEXT_RESOLUTION, ...style };
-    return this.displayList.add(new Phaser.GameObjects.Text(this.scene, x, y, text, withRes)) as Phaser.GameObjects.Text;
+    const automatic = style?.resolution === undefined;
+    const withRes: Phaser.Types.GameObjects.Text.TextStyle = automatic ? { ...style, resolution: textResolution() } : { ...style };
+    const result = originalTextFactory.call(this, x, y, text, withRes);
+    if (automatic) manageTextResolution(result);
+    return result;
   },
 );
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
+  // WebGL's default non-preserved buffer can be cleared before a browser
+  // capture reads it. Pay the preservation cost only on the explicit
+  // development layout-audit route; normal development and production keep
+  // Phaser's default false behavior.
+  render: {
+    preserveDrawingBuffer: shouldPreserveDrawingBufferForLayoutAudit(
+      import.meta.env.DEV,
+      window.location.search,
+    ),
+  },
   // RESIZE overwrites these from the parent's size on the first refresh -- they
   // only matter for the very first frame, before the Scale Manager runs.
   width: window.innerWidth * devicePixels(),

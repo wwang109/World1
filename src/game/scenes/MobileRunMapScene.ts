@@ -1,105 +1,86 @@
 import Phaser from 'phaser';
-import { shopCatalog } from '../../data/shopTypes';
-import { shopMapFooter } from '../ui/shopMapFooter';
-import { eventThemeBlurb } from '../ui/eventThemeBlurb';
-import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, textRole, UI } from '../theme';
+import { RunDestinationHost } from '../ui/RunDestinationHost';
+import { SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
-import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { affixMapFooter } from '../ui/affixPresentation';
-import { auditTextBlock } from '../ui/controlLayoutAudit';
+import { renderRunTravelChoiceCard, runTravelChoiceCardsLayout } from '../ui/RunTravelChoiceCard';
+import { bossArrivalViewModel } from '../ui/RunBossArrivalPanel';
+import { buildRunTravelChoiceViewModel, type RunTravelChoiceViewModel } from '../ui/runTravelChoiceViewModel';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
+import { runCalendar } from '../../run/runCalendar';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { bandBannerForWave, bandBannerHeight, type BandBannerViewModel } from '../ui/bandBannerViewModel';
+import { mapIntelLayoutModel, renderEmbeddedBandRead, renderMobileMapIntelOverlay, renderRunRouteBoard, snapshotRunRoute, type MapIntelLayoutModel, type MapIntelRect } from '../ui/RunRouteBoard';
+import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
+import { addBrightRunArt, addRunArt, RUN_ART_KEYS } from '../ui/runArt';
+import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
   clearRun,
+  currentMapIntel,
+  currentEncounter,
   currentNode,
-  encounterHintDetail,
-  FIGHT_TIER_LABEL,
   getActiveRun,
   pickNode,
   previewEncounter,
+  previewRunEvent,
   retireActiveRun,
   type RunNode,
-  type RunNodeKind,
 } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
 
-const F = MOBILE_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
 const TEMPLATE = runScreenLayoutRef('mobile');
 const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
 
-/** The TALLEST the choice stack can ever be: the planner heading, then three
- * panels at the 94px ceiling with a 10px gap between them. A one-option stop
- * adds a MANDATORY label but drops two panels, so it is far shorter; three is
- * the worst case and therefore the only number the map lane has to respect.
- *
- * The template's `choices` slot is 386px tall and this stack has never needed
- * more than 319 of it, so ~67px sat empty at the bottom of every phone run map
- * (visible as the gap under the third card). BOTTOM-ANCHORING the stack inside
- * its slot hands that back to the map lane above, where the trail lives — and
- * because the number is a constant, not a measurement of the current options,
- * the block still sits at a FIXED y and does not move between stops. */
-const CHOICE_STACK_H = MOBILE_PROFILE.font.tiny + 8 + 94 * 3 + 10 * 2;
-
-/** Steel-blue / gold-bronze / green / red — same palette as the desktop map. */
-const KIND_COLOR: Record<RunNodeKind, number> = {
-  fight: 0x4a7ab5,
-  event: UI.chip,
-  shop: UI.good,
-  boss: UI.bad,
-};
-const KIND_LABEL: Record<RunNodeKind, string> = {
-  fight: 'FIGHT',
-  event: 'EVENT',
-  shop: 'SHOP',
-  boss: 'BOSS',
-};
 
 /**
- * Mobile Run Map — the Run Mode node-choice screen: a vertical trail of thin
- * "cleared"/"undiscovered" depth rows around a block of 2-3 pickable next-
- * node panels, a compact header (depth/gold/hero LV/win-loss), and a START
- * RUN panel when no run is active yet. Pure playback/selection surface over
+ * Mobile Run Map — compact region guide, five-day route and stacked travel
+ * cards with each earned receipt kept above its action. Pure playback over
  * `src/game/runStore`. Reachable at ?scene=mrunmap.
  */
 export class MobileRunMapScene extends Phaser.Scene {
+  private readonly destination = new RunDestinationHost(this, () => this.rerender());
   private W = SCREEN.width;
   private H = SCREEN.height;
   private statPanelOpen = false;
   private retireConfirmOpen = false;
   private statsOverlayOpen = false;
-  /** The band banner's "READ THE BAND ›" overlay — the full forecast card. */
+  /** EXPLORE REGION replaces the planner's cards with the current-band read. */
   private bandReadOpen = false;
-  /** The band model this render drew, kept so the overlay shows the SAME read
-   * the banner summarised (one forecast per render, never a second roll). */
+  /** A separate, masked read sheet: never squeeze desktop's rail into the
+   * phone's route lane. */
+  private mapIntelOpen = false;
+  /** The band model this render drew, kept so the embedded panel shows the
+   * SAME read as the region guide (one forecast per render, never a second roll). */
   private band: BandBannerViewModel | null = null;
 
   constructor() { super('MobileRunMap'); }
 
   init(): void {
+    this.destination.reset();
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
     this.statsOverlayOpen = false;
     this.bandReadOpen = false;
+    this.mapIntelOpen = false;
     this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
 
   create(): void {
+    this.destination.hide();
     this.W = SCREEN.width; this.H = SCREEN.height;
-    this.cameras.main.setBackgroundColor(0x0b1420);
-    addRunArt(this, RUN_ART_KEYS.runMap, { x: 0, y: 0, width: this.W, height: this.H }, 0.2);
-    this.add.rectangle(0, 0, this.W, this.H, UI.bg, 0.58).setOrigin(0, 0);
+    this.cameras.main.setBackgroundColor(UI.bg);
+    // Mobile keeps its own vertical composition: the cyan mass leads above
+    // the fold and the warm mass closes the route near the footer.
+    this.add.ellipse(this.W * 0.18, this.H * 0.18, this.W * 1.35, this.H * 0.58, UI.bgBlobA, BRIGHT_ART_TREATMENT.map.ambienceAlpha);
+    this.add.ellipse(this.W * 0.86, this.H * 0.82, this.W * 1.05, this.H * 0.5, UI.bgBlobB, BRIGHT_ART_TREATMENT.map.ambienceAlpha * 0.72);
+    addBrightRunArt(this, RUN_ART_KEYS.runMap, { x: 0, y: 0, width: this.W, height: this.H }, BRIGHT_ART_TREATMENT.map);
 
     const run = getActiveRun();
     if (!run) {
@@ -130,14 +111,8 @@ export class MobileRunMapScene extends Phaser.Scene {
     // bounds overlap check (rightly) flags, since it has no notion of one
     // object being drawn UNDER another. Skipping the trail while a modal owns
     // the screen is the honest fix: nothing is drawn that could never be seen.
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen || this.bandReadOpen;
-    // The banner is what normally composes `this.band` (a class field, which
-    // `rebuildScene` deliberately preserves), but the trail is skipped while a
-    // modal owns the screen — so the read is composed straight from the run
-    // instead. Without this, an overlay opened on a rebuild that skipped the
-    // trail would render nothing behind its scrim.
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen || this.mapIntelOpen;
     if (!modalOpen) this.renderTrail(run);
-    else if (this.bandReadOpen) this.band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -165,11 +140,12 @@ export class MobileRunMapScene extends Phaser.Scene {
         onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
       });
     }
-    if (this.bandReadOpen && this.band) {
-      renderBandReadOverlay(this, this.band, {
-        compact: true,
-        onClose: () => { this.bandReadOpen = false; this.rerender(); },
-      });
+    if (this.mapIntelOpen) {
+      renderMobileMapIntelOverlay(
+        this,
+        this.mobileIntelLayout(),
+        () => { this.mapIntelOpen = false; this.rerender(); },
+      );
     }
   }
 
@@ -185,7 +161,8 @@ export class MobileRunMapScene extends Phaser.Scene {
       onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
       onOpenStatsOverlay: run ? () => { this.statsOverlayOpen = true; this.rerender(); } : undefined,
       actions: run ? {
-        secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        back: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        secondary: { label: 'RUN LEDGER', onPress: () => { this.statsOverlayOpen = true; this.rerender(); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
     });
@@ -194,172 +171,137 @@ export class MobileRunMapScene extends Phaser.Scene {
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    // THE BAND BANNER takes the top of the map lane on mobile exactly as it
-    // takes the left of it on desktop — same blocks, same claims, same words
-    // (both-platforms rule): a phone is not told less about the band it is
-    // standing in than a desktop is.
-    //
-    // THE TRAIL KEEPS THE REST, and the rest is now measured honestly. When the
-    // banner first landed, this lane was 100..426 and the banner took 163 of
-    // it: the trail dropped from 310px to 155px and its cell at wave 10 (36
-    // depths) went 8.2px -> 3.9px, which is a smear, not a map. The commit
-    // message claimed the banner "reclaims the dead 28px the hardcoded 310
-    // left"; it took 155. Two things fix it and neither removes the banner:
-    // the choice stack is bottom-anchored in its slot, which gives this lane
-    // ~67px it was never using (see CHOICE_STACK_H), and the trail WINDOWS
-    // itself so a depth is never drawn smaller than it can be read at
-    // (runRouteLayout.ts). The second is the one that still holds at wave 30.
+    const content = TEMPLATE.regions.content;
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
-    const laneTop = TEMPLATE.regions.content.y;
-    const bannerH = bandBannerHeight(band, 'mobile');
-    renderRunBandBanner(this, { x: 10, y: laneTop, w: this.W - 20, h: bannerH }, band, {
-      mode: 'mobile',
-      onOpenRead: () => { this.bandReadOpen = true; this.rerender(); },
-    });
-    // FIXED position (a constant offset from the template slot, not a
-    // measurement of this stop's options) so the choices never move between
-    // stops — same reasoning as desktop.
-    const slot = TEMPLATE.contentSlots.choices;
-    const choicesTop = slot.y + slot.height - CHOICE_STACK_H;
-    const routeTop = laneTop + bannerH + 8;
-    const routeBounds = { x: 10, y: routeTop, w: this.W - 20, h: Math.max(60, choicesTop - 12 - routeTop) };
-    const route = snapshotRunRoute(run);
-    renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
+    // Compact region identity opens the same complete forecast as desktop.
+    const regionH = 88;
+    this.add.rectangle(content.x, content.y, content.width, regionH, UI.panel, 0.96).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.7);
+    addRunArt(this, band.artKey, { x: content.x + 4, y: content.y + 4, width: 80, height: 80 });
+    const textX = content.x + 104;
+    const textW = content.width - 112;
+    const name = this.add.text(textX, content.y + 6, band.name, textRole('section'));
+    auditTextBlock(name, { name: 'Mobile current region name', maxWidth: textW, maxHeight: 20, minFontSize: 9 });
+    const facts = this.add.text(textX, content.y + 27, `${band.leanChip} · ${band.waveRange}`, textRole('micro', { ink: 'secondary' }));
+    auditTextBlock(facts, { name: 'Mobile current region day range', maxWidth: textW, maxHeight: 14, minFontSize: 9 });
+    const opener = this.add.rectangle(textX, content.y + 44, textW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.8);
+    const openerLabel = this.add.text(textX + textW / 2, content.y + 64,
+      this.bandReadOpen ? 'REGION OPEN' : 'EXPLORE REGION ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+    auditControlLabel(opener, openerLabel, { name: 'Mobile explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    if (!this.bandReadOpen) {
+      opener.setInteractive({ useHandCursor: true });
+      attachButtonFeel(this, opener, {
+        fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
+        onPress: () => { this.destination.close(false); this.bandReadOpen = true; this.rerender(); },
+      });
+    }
 
-    if (route.columns.length === 0) return;
-    this.renderChoiceBlock(slot.x, choicesTop, slot.width, CHOICE_STACK_H);
+    const plannerTop = content.y + regionH + 8;
+    this.add.rectangle(content.x, plannerTop, content.width, content.y + content.height - plannerTop, UI.panel, 0.94).setOrigin(0, 0);
+    const routeTop = plannerTop + 8;
+    const routeH = 72;
+    const intel = currentMapIntel();
+    const routeWidth = content.width - (intel.length > 0 ? 124 : 0);
+    renderRunRouteBoard(this, { x: content.x, y: routeTop, w: routeWidth, h: routeH }, snapshotRunRoute(run), {
+      mode: 'mobile', regionName: band.name,
+    });
+    if (intel.length > 0) {
+      const buttonW = 112;
+      const buttonH = 40;
+      const buttonX = content.x + content.width - buttonW;
+      const buttonY = routeTop + 8;
+      const button = this.add.rectangle(buttonX, buttonY, buttonW, buttonH, UI.panelAlt, 0.96).setOrigin(0, 0)
+        .setStrokeStyle(1, UI.border, 0.75).setInteractive({ useHandCursor: true });
+      const label = this.add.text(buttonX + buttonW / 2, buttonY + buttonH / 2, `MAP INTEL · ${intel.length}`, textRole('micro', { ink: 'accent' })).setOrigin(0.5);
+      auditControlLabel(button, label, { name: 'Mobile map intel opener', horizontalPadding: 6, verticalPadding: 6, minFontSize: 9 });
+      attachButtonFeel(this, button, {
+        fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
+        onPress: () => { this.mapIntelOpen = true; this.rerender(); },
+      });
+    }
+    const choicesTop = routeTop + routeH + 8;
+    this.renderChoiceBlock(content.x, choicesTop, content.width, content.y + content.height - choicesTop);
+  }
+
+  /** The compact profile also serves narrow desktop windows. Keep its
+   * existing masked sheet contract, centered when there is extra width. */
+  private mobileIntelLayout(): MapIntelLayoutModel {
+    const width = Math.min(this.W, 640);
+    const layout = mapIntelLayoutModel(currentMapIntel(), { width, height: this.H });
+    const dx = (this.W - width) / 2;
+    const move = (rect: MapIntelRect): MapIntelRect => ({ ...rect, x: rect.x + dx });
+    return {
+      ...layout,
+      rail: move(layout.rail),
+      route: move(layout.route),
+      heading: move(layout.heading),
+      cards: layout.cards.map((card) => ({ ...card, rect: move(card.rect) })),
+      mask: layout.mask ? move(layout.mask) : undefined,
+      close: layout.close ? move(layout.close) : undefined,
+    };
   }
 
   private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {
-    // A committed-but-unresolved stop (the player detoured via DECK/BAG,
-    // whose back button lands on the MAP) must offer the way BACK IN —
-    // choices() is deliberately empty while a node is being resolved, so
-    // without this panel the run dead-ends here.
     const pending = currentNode();
-    if (pending) {
-      const heading = this.add.text(x + w / 2, top, 'STOP IN PROGRESS', textRole('kicker')).setOrigin(0.5, 0);
-      auditTextBlock(heading, { name: 'Mobile run map stop-in-progress heading', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-      // ASK the panel how tall it needs to be (the hand-picked 94 this
-      // replaced was under the stack's real height on desktop, and the panel
-      // reserves a bottom row for its SELECT affordance whether or not the
-      // model carries a footer — see `runChoicePanelMinHeight`).
-      renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: runChoicePanelMinHeight(F) }, {
-        nodeId: pending.id,
-        kind: pending.kind,
-        title: `RETURN TO ${KIND_LABEL[pending.kind]}`,
-        detail: 'Resume where you left off.',
-        image: pending.kind === 'shop'
-          ? { textureKey: shopArtKey(pending.shopId ?? '') }
-          : pending.kind === 'event'
-            ? { textureKey: eventArtKey(pending.eventTheme ?? 'training') }
-            : pending.kind === 'boss'
-              ? { textureKey: RUN_ART_KEYS.icon.bossSkull }
-              : undefined,
-        accent: KIND_COLOR[pending.kind],
-        enabled: true,
-      }, {
-        font: F,
-        onSelect: () => {
-          const sceneName = pending.kind === 'shop' ? 'MobileShop' : pending.kind === 'event' ? 'MobileRunEvent' : 'MobileRunPrep';
-          this.scene.start(sceneName);
-        },
+    const options = this.destination.choices(pending ? [pending] : choices());
+    const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
+    const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
+    const planner = this.add.text(x + 8, top, 'CHOOSE YOUR NEXT STOP', textRole('label'));
+    auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w - 132, maxHeight: 18, minFontSize: 9 });
+    const status = this.bandReadOpen ? 'REGION VIEW' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+      : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
+        : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
+    const statusText = this.add.text(x + w - 8, top + 2, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
+    auditTextBlock(statusText, { name: 'Mobile route choice count', maxWidth: 116, maxHeight: 16, minFontSize: 9 });
+    if (this.bandReadOpen && this.band) {
+      renderEmbeddedBandRead(this, { x, y: top + 20, w, h: availableH - 20 }, this.band, {
+        mode: 'mobile', onBack: () => { this.bandReadOpen = false; this.rerender(); },
       });
       return;
     }
-    const options = choices();
-    if (options.length === 0) {
-      this.add.text(x + w / 2, top + 20, '···', textRole('label', { ink: 'disabled' })).setOrigin(0.5, 0);
+    if (this.destination.render({ x, y: top + 20, width: w, height: availableH - 20 })) return;
+    if (boss && arrival) {
+      this.destination.renderBoss({ x, y: top + 20, width: w, height: availableH - 20 }, arrival, true, () => {
+        if (!currentNode()) pickNode(boss.id);
+        this.scene.start('MobileRunPrep');
+      });
       return;
     }
-    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', textRole('kicker')).setOrigin(0.5, 0);
-    auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-    top += F.tiny + 8;
-    availableH -= F.tiny + 8;
-    if (options.length === 1) {
-      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', textRole('kicker', { ink: 'label' })).setOrigin(0.5, 0);
-      auditTextBlock(mandatory, { name: 'Mobile run map mandatory label', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-      top += F.tiny + 6;
-      availableH -= F.tiny + 6;
+    const models = options.map((node) => ({ ...this.choiceViewModel(node), enabled: !pending || node.id === pending.id }));
+    if (models.length > 0 && models.every((model) => model.dossier)) {
+      this.destination.renderEncounters({ x, y: top + 20, width: w, height: availableH - 20 }, models, true, pending?.id, (nodeId) => {
+        if (!pending) pickNode(nodeId);
+        this.scene.start('MobileRunPrep');
+      });
+      return;
     }
-    const gap = 10;
-    // The 94 is a CEILING on wasted space, never a licence to squeeze below what
-    // the stack needs: shop nodes carry a footer, and under the floor the detail
-    // line silently ellipsizes instead of overflowing (see runChoicePanelMinHeight).
-    const h = Math.max(
-      runChoicePanelMinHeight(F),
-      Math.min(94, (availableH - gap * (options.length - 1)) / options.length),
+    const layout = runTravelChoiceCardsLayout(
+      { x, y: top + 20, width: w, height: availableH - 20 }, models,
+      { compact: true, pending: pending !== undefined },
     );
-    let y = top;
-    for (const node of options) {
-      renderRunChoicePanel(this, { x, y, w, h }, this.choiceViewModel(node), {
-        font: F,
+    options.forEach((node, index) => {
+      renderRunTravelChoiceCard(this, layout.cards[index]!, models[index]!, {
+        compact: true,
+        pending: pending?.id === node.id,
+        appearIndex: index,
         onSelect: () => {
-          pickNode(node.id);
-          const sceneName = node.kind === 'shop' ? 'MobileShop' : node.kind === 'event' ? 'MobileRunEvent' : 'MobileRunPrep';
-          this.scene.start(sceneName);
+          if (!pending) pickNode(node.id);
+          if (node.kind === 'boss') { this.rerender(); return; }
+          if (node.kind === 'event' || node.kind === 'shop') {
+            this.destination.open(node.kind === 'event' ? 'MobileRunEvent' : 'MobileShop', node.id, options);
+            return;
+          }
+          this.scene.start('MobileRunPrep');
         },
       });
-      y += h + gap;
-    }
+    });
   }
 
-  private choiceViewModel(node: RunNode): RunChoiceViewModel {
-    const shop = node.kind === 'shop' && node.shopId ? shopCatalog[node.shopId] : undefined;
-    // Event themes come from map-gen, so labelling costs no event-bag draw.
-    // Fight nodes (three-tier fight choices, USER-DIRECTED 2026-08-04) slot
-    // their EASY/MEDIUM/HARD risk tier into this SAME "KIND · SUFFIX" title
-    // grammar — mirrors DesktopRunMapScene's `choiceViewModel`.
-    const themeSuffix = shop
-      ? shop.name.toUpperCase()
-      : node.kind === 'fight' && node.fightOption
-        ? FIGHT_TIER_LABEL[node.fightOption]
-        : node.eventTheme?.toUpperCase();
-    const titleLabel = themeSuffix ? `${KIND_LABEL[node.kind]} · ${themeSuffix}` : KIND_LABEL[node.kind];
-
-    if (node.kind === 'shop') {
-      return {
-        nodeId: node.id,
-        kind: node.kind,
-        title: titleLabel,
-        detail: shop?.tagline ?? '',
-        footer: shop && node.shopId ? shopMapFooter(node.shopId) : undefined,
-        image: { textureKey: shopArtKey(node.shopId ?? '') },
-        accent: KIND_COLOR[node.kind],
-        enabled: true,
-      };
-    }
-
-    if (node.kind === 'fight' || node.kind === 'boss') {
-      const pack = previewEncounter(node);
-      return {
-        nodeId: node.id,
-        kind: node.kind,
-        title: titleLabel,
-        detail: pack ? encounterHintDetail(pack, node.kind === 'fight' ? node.fightOption : undefined) : '',
-        // THE ELITE AFFIX, ON THE SCREEN WHERE THE CHOICE IS MADE. The chip
-        // shipped on RunPrep, one screen too late — the easy/medium/hard pick
-        // happens HERE. `affixMapFooter` reads `pack.units[0].affix` off the
-        // preview this panel already rolled, so it names exactly what prep and
-        // the fight will, spends no extra roll, and spreads to NOTHING for a
-        // normal fight, a boss or a pack (see its note for the gate, and for
-        // why a column's three rungs may legitimately differ).
-        ...affixMapFooter(pack),
-        image: node.kind === 'boss' ? { textureKey: RUN_ART_KEYS.icon.bossSkull } : undefined,
-        accent: KIND_COLOR[node.kind],
-        enabled: true,
-      };
-    }
-
-    return {
-      nodeId: node.id,
-      kind: node.kind,
-      title: titleLabel,
-      detail: eventThemeBlurb(node.eventTheme),
-      image: { textureKey: eventArtKey(node.eventTheme ?? 'training') },
-      accent: KIND_COLOR[node.kind],
-      enabled: true,
-    };
+  private choiceViewModel(node: RunNode): RunTravelChoiceViewModel {
+    const run = getActiveRun()!;
+    return buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
   }
 
   // ---------- defeat / retired end-summary banner ----------
@@ -375,7 +317,7 @@ export class MobileRunMapScene extends Phaser.Scene {
     // else in the scene, which is what gives the banner a reading order at all.
     this.add.text(cx, 64, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, 106, `DAYS SURVIVED ${run.depth}`, {
+    this.add.text(cx, 106, `DAY REACHED ${runCalendar(run).absoluteDay}`, {
       ...textRole('statValue', { ink: 'accent' }), align: 'center',
     }).setOrigin(0.5, 0);
     this.add.text(cx, 130, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {

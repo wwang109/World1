@@ -15,7 +15,6 @@ function card(id: string, weight: number, size: 1 | 2 | 3 = 1, extra: Partial<Sk
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 1 }],
-    text: '',
     ...extra,
   };
 }

@@ -132,11 +132,89 @@ describe('data: content schema contract', () => {
     failsWith(d, 'exactly ONE of element or weapon');
   });
 
-  it('empty text or empty name is rejected', () => {
-    const a = clone(); vers(a)[0]!.def.text = '   ';
-    failsWith(a, 'the card must be able to SHOW what it does');
+  it('an empty name is rejected', () => {
     const b = clone(); vers(b)[0]!.def.name = '';
     failsWith(b, 'name must be a non-empty string');
+  });
+
+  // ---- the field that is GONE, and the small one that replaced it ---------
+  // A card carries no `text`: its face is generated from `effects`
+  // (`renderSkillText`, engine/keywords/compose.ts). The schema is a CONTRACT,
+  // so re-authoring one is a rejection rather than a silently ignored field —
+  // otherwise a hand-written face would sit in the document doing nothing and
+  // drifting from the card beside it, which is the whole defect the migration
+  // removed.
+  it('an authored `text` field is rejected — the face is generated now', () => {
+    const d = clone(); vers(d)[0]!.def.text = 'Deal 12 damage.';
+    failsWith(d, 'unknown field text');
+  });
+
+  it('a `text` inside a tier block is rejected too', () => {
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = { silver: { effects: [{ kind: 'damage', power: 30 }], text: 'Deal 30 damage.' } };
+    failsWith(d, 'unknown tier-upgrade field text');
+  });
+
+  // `flavor` is the ONE authored string that survives, and it is validated
+  // MECHANICALLY INERT so it can never assert a claim `effects` does not back
+  // and can never go stale when a number moves at a higher tier.
+  it('flavor accepts prose', () => {
+    const d = clone(); vers(d)[0]!.def.flavor = 'The fresh barbs feed your next swing.';
+    expect(validateSkillDocument(d)).toEqual([]);
+  });
+
+  it('flavor carrying a digit is rejected', () => {
+    const d = clone(); vers(d)[0]!.def.flavor = 'It hits for 12 more.';
+    failsWith(d, 'flavor must contain no digit');
+  });
+
+  it('flavor carrying a percentage is rejected', () => {
+    const d = clone(); vers(d)[0]!.def.flavor = 'Cuts damage by a fifth%.';
+    failsWith(d, 'flavor must contain no "%"');
+  });
+
+  it('flavor carrying keyword markup is rejected', () => {
+    const d = clone(); vers(d)[0]!.def.flavor = 'The {{Poison}} lingers.';
+    failsWith(d, 'flavor must carry no {{keyword}} markup');
+  });
+
+  /**
+   * THE KEYWORD-NAME BAN, unmarked-up. All four flavour lines this migration
+   * shipped were removed for breaking it, and THREE named a keyword the card
+   * does not have: `overgrowth` (heal + shield) said "A thorned bark ward",
+   * `gutting_cleave` (shieldBreak + bleed + damage) said "Opening the guard".
+   * A flavour line naming a mechanic the card lacks is worse than none — it is
+   * the drift this migration removed, re-authored by hand in the one field
+   * still open to hand-authoring.
+   *
+   * The word list is DERIVED from the keyword registry (`KEYWORD_NAME_WORDS`,
+   * validateSkillContent.ts), so a 37th keyword is covered without editing
+   * either the validator or this test.
+   */
+  it('flavor naming a keyword is rejected, markup or not — the real removed lines', () => {
+    for (const [line, word] of [
+      // Caught on 'ward' rather than 'thorns': the ban matches the keyword's
+      // CANONICAL name on a word boundary, so the adjective 'thorned' slips it
+      // and the noun 'ward' does not. One real keyword named is enough to reject.
+      ['A thorned bark ward.', 'ward'],
+      ['Opening the guard so the bleed can land.', 'guard'],
+      ['The poison lingers in the wound.', 'poison'],
+      ['A charge waits on the board.', 'charge'],
+    ] as const) {
+      const d = clone(); vers(d)[0]!.def.flavor = line;
+      failsWith(d, `flavor names the keyword "${word}"`);
+    }
+  });
+
+  it('flavor that names no mechanic at all is accepted', () => {
+    // The field still exists for real colour — this is the shape that passes.
+    const d = clone(); vers(d)[0]!.def.flavor = 'Forged in a quieter age.';
+    expect(validateSkillDocument(d)).toEqual([]);
+  });
+
+  it('an empty flavor is rejected', () => {
+    const d = clone(); vers(d)[0]!.def.flavor = '   ';
+    failsWith(d, 'flavor must be a non-empty string');
   });
 
   it('an empty archetypes list is rejected', () => {
@@ -183,38 +261,37 @@ describe('data: content schema contract', () => {
     failsWith(d, 'all-numeric id is not allowed');
   });
 
-  it('a tier upgrade that changes effects without text is rejected', () => {
+  // THE "MUST CARRY TEXT" RULE IS GONE, and its two tests with it: a tier
+  // block that changes effects or scope re-renders its own face from those
+  // effects, so there is nothing left for an author to forget. What replaced
+  // it is the assertion just above — that authoring a `text` at all is now a
+  // rejection.
+  it('a tier upgrade that changes effects needs nothing else', () => {
     const d = clone();
     vers(d)[0]!.def.tierUpgrades = { silver: { effects: [{ kind: 'damage', power: 30 }] } };
-    failsWith(d, 'must carry non-empty text');
+    expect(validateSkillDocument(d)).toEqual([]);
   });
 
   // ---- tier-block scope: the field that buys an ABILITY at a tier ---------
   it('a tier-block scope outside the one|all union is rejected', () => {
     const d = clone();
-    vers(d)[0]!.def.tierUpgrades = { silver: { scope: 'every', text: 'Hits every foe.' } };
+    vers(d)[0]!.def.tierUpgrades = { silver: { scope: 'every' } };
     failsWith(d, 'scope must be one or all');
-  });
-
-  it('a tier block that changes scope without text is rejected (the card face would lie)', () => {
-    const d = clone();
-    vers(d)[0]!.def.tierUpgrades = { diamond: { scope: 'all' } };
-    failsWith(d, 'must carry non-empty text');
   });
 
   it('a tier-block scope that is not carried to every HIGHER tier is rejected', () => {
     // Gold goes AoE, Diamond says nothing → `applyTier` would rebuild Diamond
     // from the BASE card and silently drop the AoE: a downgrade for paying more.
     const d = clone();
-    vers(d)[0]!.def.tierUpgrades = { gold: { scope: 'all', text: 'Hits every foe.' } };
+    vers(d)[0]!.def.tierUpgrades = { gold: { scope: 'all' } };
     failsWith(d, 'must be carried by every higher tier');
   });
 
   it('carrying scope up through Diamond validates', () => {
     const d = clone();
     vers(d)[0]!.def.tierUpgrades = {
-      gold: { scope: 'all', text: 'Hits every foe.' },
-      diamond: { scope: 'all', text: 'Hits every foe, harder.' },
+      gold: { scope: 'all' },
+      diamond: { scope: 'all' },
     };
     expect(validateSkillDocument(d)).toEqual([]);
   });
@@ -262,7 +339,6 @@ describe('data: content schema contract', () => {
         id: 'test_ward_over_clamp', name: 'Over-Warded', archetypes: ['defensive'],
         property: 'physical', size: 3, rarity: 'common', tier: 'bronze', weapon: 'sword',
         effects: [{ kind: 'ward', charges: MAX_WARD_CHARGES + 1 }, { kind: 'damage', power: 56 }],
-        text: 'Ward 4. Deal 56 (+ATK) Sword damage.',
       };
       // The card the engine can never honour is, to the balance gates, perfect.
       expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);
@@ -319,7 +395,6 @@ describe('data: content schema contract', () => {
         id: 'test_expose_over_clamp', name: 'Over-Exposed', archetypes: ['debuff'],
         property: 'magical', element: 'dark', size: 1, rarity: 'common', tier: 'bronze',
         effects: [{ kind: 'expose', pct: 100, turns: 1 }],
-        text: 'Expose 100% for 1 turn.',
       };
       // The engine only ever delivers 50% (Math.min(50, ...)); the balance
       // gates see a card that prices exactly on budget and breaks no cap.
@@ -333,7 +408,6 @@ describe('data: content schema contract', () => {
         id: 'test_guard_over_clamp', name: 'Over-Guarded', archetypes: ['defensive'],
         property: 'magical', element: 'holy', size: 1, rarity: 'common', tier: 'bronze',
         effects: [{ kind: 'guard', property: 'magical', pct: 100, turns: 1 }],
-        text: 'Guard 100% for 1 turn.',
       };
       // The engine only ever delivers 60% (Math.min(60, ...)).
       expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);

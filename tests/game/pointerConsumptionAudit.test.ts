@@ -52,15 +52,83 @@ const GENERIC_POINTER_PHASES: Array<{ name: 'pointerdown' | 'pointerup'; pattern
  * alternate guard shape — harmless, since nothing in the codebase matches it
  * today — rather than narrowing this sweep on the same pass that removed it. */
 const GUARD = /wasPointerConsumedByRebuild\(|consumedPointerAt/;
+
+/** Mask comments without moving source offsets, so a comment cannot either
+ * invent a registration or satisfy a handler's guard. This stays deliberately
+ * small and source-shaped: the audit does not need a new parser dependency. */
+function withoutComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (comment) => ' '.repeat(comment.length));
+}
+
+function escaped(name: string): string {
+  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Return exactly one braced callback body, or null when the source callback
+ * cannot be resolved. The latter deliberately FAILS CLOSED. */
+function bracedBody(source: string, code: string, openingBrace: number): string | null {
+  let depth = 0;
+  for (let i = openingBrace; i < code.length; i += 1) {
+    if (code[i] === '{') depth += 1;
+    else if (code[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(openingBrace + 1, i);
+    }
+  }
+  return null;
+}
+
+function namedHandlerBody(source: string, code: string, name: string): string | null {
+  const safeName = escaped(name);
+  const declaration = new RegExp(
+    `(?:const|let)\\s+${safeName}\\s*=\\s*(?:async\\s*)?\\([^)]*\\)\\s*(?::[^=]+)?=>\\s*\\{|` +
+    `function\\s+${safeName}\\s*\\([^)]*\\)\\s*(?::[^\\{]+)?\\{`,
+  );
+  const match = declaration.exec(code);
+  if (!match || match.index === undefined) return null;
+  const openingBrace = match.index + match[0].lastIndexOf('{');
+  return bracedBody(source, code, openingBrace);
+}
+
+function handlerBodyAtRegistration(source: string, code: string, registrationAt: number): string | null {
+  const tail = code.slice(registrationAt);
+  const named = /^\.input\.on\(\s*['"]pointer(?:down|up)['"]\s*,\s*([A-Za-z_$][\w$]*)\s*\)/.exec(tail);
+  if (named?.[1]) return namedHandlerBody(source, code, named[1]);
+
+  const inline = /^\.input\.on\(\s*['"]pointer(?:down|up)['"]\s*,\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{/.exec(tail);
+  if (!inline || inline.index === undefined) return null;
+  const openingBrace = registrationAt + inline[0].lastIndexOf('{');
+  return bracedBody(source, code, openingBrace);
+}
+
+function pointerOffenders(source: string, file = '<fixture>'): string[] {
+  const code = withoutComments(source);
+  const lines = code.split('\n');
+  const offenders: string[] = [];
+  let offset = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    for (const phase of GENERIC_POINTER_PHASES) {
+      const registration = phase.pattern.exec(line);
+      if (!registration || registration.index === undefined) continue;
+      const body = handlerBodyAtRegistration(source, code, offset + registration.index);
+      if (!body || !GUARD.test(withoutComments(body))) {
+        offenders.push(`${file}:${i + 1}  [${phase.name}]  ${source.split('\n')[i]!.trim()}`);
+      }
+    }
+    offset += line.length + 1;
+  }
+  return offenders;
+}
 /** How many lines past the registration a guard must appear within — every
  * fixed listener in this repo puts it as the first real statement, but several
  * carry a multi-line doc comment ABOVE that statement explaining why; this
  * window is generous on purpose (comment lines, not tuning). */
-const WINDOW = 16;
 /** A doc comment that happens to mention `.input.on('pointerdown')` in
  * backticks (e.g. explaining the mechanism) is not a REGISTRATION — only
  * actual code lines count. */
-const COMMENT_LINE = /^\s*(\*|\/\/)/;
 
 /**
  * KNOWN SWEEP LIMITATION (left as-is; see the task audit that raised it): this
@@ -79,17 +147,7 @@ describe('src/game: every scene-level generic pointerdown/pointerup listener gua
     const offenders: string[] = [];
     for (const file of tsFiles(GAME_DIR)) {
       if (file.endsWith('sceneRebuild.ts')) continue; // defines the guard, doesn't need it
-      const lines = readFileSync(file, 'utf8').split('\n');
-      lines.forEach((line, i) => {
-        if (COMMENT_LINE.test(line)) return; // a doc comment referencing the API, not a real registration
-        for (const phase of GENERIC_POINTER_PHASES) {
-          if (!phase.pattern.test(line)) continue;
-          const windowText = lines.slice(i, i + WINDOW).join('\n');
-          if (!GUARD.test(windowText)) {
-            offenders.push(`${file.replace(process.cwd(), '')}:${i + 1}  [${phase.name}]  ${line.trim()}`);
-          }
-        }
-      });
+      offenders.push(...pointerOffenders(readFileSync(file, 'utf8'), file.replace(process.cwd(), '')));
     }
     expect(
       offenders,
@@ -99,6 +157,80 @@ describe('src/game: every scene-level generic pointerdown/pointerup listener gua
         'event (see src/game/sceneRebuild.ts). Add `if (wasPointerConsumedByRebuild(this, p)) return;` as the ' +
         `first line of the handler:\n${offenders.join('\n')}`,
     ).toEqual([]);
+  });
+});
+
+describe('pointer-consumption source detector fixtures', () => {
+  it('resolves guarded named pointerdown and pointerup callbacks declared before registration', () => {
+    const source = `
+      const onPointerDown = (p: Pointer): void => {
+        if (wasPointerConsumedByRebuild(scene, p)) return;
+        open();
+      };
+      function onPointerUp(p: Pointer): void {
+        if (wasPointerConsumedByRebuild(scene, p)) return;
+        close();
+      }
+      scene.input.on('pointerdown', onPointerDown);
+      scene.input.on('pointerup', onPointerUp);
+    `;
+    expect(pointerOffenders(source)).toEqual([]);
+  });
+
+  it('fails an unguarded named callback even when another callback and a comment mention the guard', () => {
+    const source = `
+      const guarded = (p: Pointer) => { if (wasPointerConsumedByRebuild(scene, p)) return; };
+      const unsafe = (p: Pointer) => { open(); }; // wasPointerConsumedByRebuild(scene, p)
+      scene.input.on('pointerdown', unsafe);
+    `;
+    expect(pointerOffenders(source)).toHaveLength(1);
+    expect(pointerOffenders(source)[0]).toContain('[pointerdown]');
+  });
+
+  it('keeps inline callbacks covered: guarded passes and unguarded fails', () => {
+    const source = `
+      scene.input.on('pointerdown', (p: Pointer) => { if (wasPointerConsumedByRebuild(scene, p)) return; open(); });
+      scene.input.on('pointerup', (p: Pointer) => { close(); });
+    `;
+    expect(pointerOffenders(source)).toHaveLength(1);
+    expect(pointerOffenders(source)[0]).toContain('[pointerup]');
+  });
+
+  it('does not let an unguarded inline listener borrow a later named callback guard', () => {
+    const source = `
+      scene.input.on('pointerdown', (p: Pointer) => { open(); });
+      const guarded = (p: Pointer) => { if (wasPointerConsumedByRebuild(scene, p)) return; close(); };
+      scene.input.on('pointerup', guarded);
+    `;
+    expect(pointerOffenders(source)).toHaveLength(1);
+    expect(pointerOffenders(source)[0]).toContain('[pointerdown]');
+  });
+
+  it('fails closed for a missing named callback and ignores comments that look like registrations', () => {
+    const source = `
+      // scene.input.on('pointerdown', imaginary);
+      /* scene.input.on('pointerup', imaginary); */
+      scene.input.on('pointerdown', missingHandler);
+    `;
+    expect(pointerOffenders(source)).toHaveLength(1);
+    expect(pointerOffenders(source)[0]).toContain('missingHandler');
+  });
+
+  it('inspects the old cardInfoBox failure shape at the named callback body, not after the registration', () => {
+    const source = `
+      const onPointerDown = (p: Pointer): void => {
+        if (wasPointerConsumedByRebuild(scene, p)) return;
+        rebuild();
+      };
+      const onPointerUp = (p: Pointer): void => {
+        if (wasPointerConsumedByRebuild(scene, p)) return;
+        finish();
+      };
+
+      scene.input.on('pointerdown', onPointerDown);
+      scene.input.on('pointerup', onPointerUp);
+    `;
+    expect(pointerOffenders(source)).toEqual([]);
   });
 });
 

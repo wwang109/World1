@@ -23,13 +23,18 @@
 // nodes; that removes the reason to walk the map.
 
 import type { EnemyTitle } from './encounter';
-import type { EventTheme } from '../data/events';
+import type { EventTheme } from '../data/eventTypes';
 import { enemies } from '../data/enemies';
+import { enemyDerivedAffinity } from '../data/enemyAffinity';
 import { shopCatalog } from '../data/shopTypes';
 import {
   bandIndexOf, biomeForBand, bossWaveOfBand, counterTypeFor, counterTypesFor, firstWaveOfBand,
   leanLabel, type BiomeDef, type BiomeLean,
 } from './biome';
+import {
+  BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
+  type BandForecastClaim, type BandForecastRow,
+} from './bandForecastRows';
 import { ensureWavesThrough } from './runMap';
 import { rollEncounter, type RunState } from './runState';
 
@@ -84,7 +89,11 @@ function bossCandidatesFor(biome: BiomeDef): readonly BossCandidate[] {
     const id = biome.bosses[i]!;
     const def = enemies[id];
     if (def === undefined) continue;
-    out.push({ id, name: def.name, counterTypes: counterTypesFor(def.elementAffinity, def.weaponAffinity) });
+    // `def.elementAffinity`/`.weaponAffinity` are no longer authored (2026-09-06
+    // ruling: affinity is board-derived only) — `enemyDerivedAffinity` recomputes
+    // the same thing combat itself derives from this enemy's own pieces.
+    const affinity = enemyDerivedAffinity(def);
+    out.push({ id, name: def.name, counterTypes: counterTypesFor(affinity.elementAffinity, affinity.weaponAffinity) });
   }
   return out;
 }
@@ -109,7 +118,9 @@ export function bossCounterFor(
 ): BossCounterRead {
   if (boss !== null) {
     const def = enemies[boss.enemyId];
-    return { basis: 'named', types: counterTypesFor(def?.elementAffinity, def?.weaponAffinity) };
+    // Same derived-affinity note as `bossCandidatesFor` above.
+    const affinity = def === undefined ? {} : enemyDerivedAffinity(def);
+    return { basis: 'named', types: counterTypesFor(affinity.elementAffinity, affinity.weaponAffinity) };
   }
   if (candidates.length === 0) return { basis: 'shortlist', types: [] };
   const first = candidates[0]!;
@@ -221,11 +232,8 @@ export function forecastBand(state: RunState, band: number): BandForecast {
   };
 }
 
-/** Longest line the phone format allows (CLAUDE.md, USER-LOCKED 2026-08-25). */
-const FORECAST_WIDTH = 28;
-
 /**
- * The counter sentence for ONE block, as its own stacked lines.
+ * The counter sentence for ONE claim, as its own stacked lines.
  *
  * `subject` is what the claim is about ("this boss" / "these mobs") and it is
  * REQUIRED, not optional: an unqualified "+50%" line was the bug — it read as
@@ -237,13 +245,21 @@ const FORECAST_WIDTH = 28;
  * first line too wide for a phone, the sentence flips to a colon form that puts
  * the types on a line of their own rather than wrapping.
  */
-function counterSentence(subject: string, types: readonly string[]): string[] {
+function counterSentence(subject: BandForecastClaim['subject'], types: readonly string[]): string[] {
   if (types.length === 0) return ['nothing counters', `${subject}.`];
   const list = types.join(' and ');
   const head = `${list} ${types.length === 1 ? 'hits' : 'hit'} ${subject.split(' ')[0]!}`;
   const tail = `${subject.split(' ').slice(1).join(' ')} for +50%.`;
-  if (head.length <= FORECAST_WIDTH && tail.length <= FORECAST_WIDTH) return [head, tail];
+  if (head.length <= BAND_FORECAST_LINE_WIDTH && tail.length <= BAND_FORECAST_LINE_WIDTH) return [head, tail];
   return [`+50% on ${subject}:`, `${list}.`];
+}
+
+/** A `'claim'` row, in THIS renderer's own words. `'unsure'` never turns
+ * `types` into a sentence — no type is true of BOTH faces of a split
+ * shortlist, so none may be printed as a promise. */
+function claimLines(claim: BandForecastClaim): string[] {
+  if (claim.kind === 'unsure') return ['no counter is sure.'];
+  return counterSentence(claim.subject, claim.types);
 }
 
 /** What a single candidate's counters look like beside its name, when the band
@@ -259,6 +275,16 @@ function candidateCounter(types: readonly string[]): string {
  * the boss-countdown panel are to render THIS model (a second renderer would
  * drift, exactly as the hand-written combat-log demo did).
  *
+ * A THIN FOLD OVER `bandForecastRows` (refactored 2026-09-06). This function
+ * used to compose the card's lines directly; it now walks the SAME row list
+ * `src/game/ui/bandBannerViewModel.ts`'s Phaser card reads, so the two cannot
+ * disagree about which facts exist — only, deliberately, about how each says
+ * them (this renderer keeps sentence case; the Phaser one upper-cases). The
+ * `switch` is exhaustive over `BandForecastRowStyle` — a `never` check at the
+ * bottom makes a new, unhandled style a COMPILE ERROR here. Output is
+ * BYTE-IDENTICAL to the pre-refactor renderer; see `tests/run/biomeForecastCounter.test.ts`
+ * (untouched by this refactor) and `tests/run/biomeMobs.test.ts`.
+ *
  * TWO COUNTER LINES, EACH INSIDE THE BLOCK IT DESCRIBES (fixed 2026-08-26). The
  * renderer used to print exactly ONE counter line — the MOB one, derived from
  * the biome's declared lean — as a FOOTER for the whole card, after EVENTS and
@@ -272,9 +298,15 @@ function candidateCounter(types: readonly string[]): string {
  *   swornhold/thornpike_marshal  card said lance, boss wants axe
  *
  * (`thornwild`/`greenwood_sovereign` is named as off-type in the bug report but
- * is NOT one of them: it carries `elementAffinity: 'nature'` — the Thornwild's
- * own lean — plus `weaponAffinity: 'bow'`, and nothing counters bow, so "fire"
- * was already true of it. Measured, not assumed; see the counter suite.)
+ * was NOT one of them AT THE TIME: it authored `elementAffinity: 'nature'` —
+ * the Thornwild's own lean — plus `weaponAffinity: 'bow'`, and nothing
+ * counters bow, so "fire" was already true of it. Measured, not assumed; see
+ * the counter suite. STALE AS OF 2026-09-06: that authored `nature` override
+ * is gone (affinity is board-derived only now) and this boss's own 3-card
+ * board is 3/3 bow, 0/3 nature, so it derives `weaponAffinity: 'bow'` alone —
+ * "fire" is no longer true of it, and nothing else is either. See the boss's
+ * own comment in `src/data/enemies.ts` and the counter suite's updated
+ * assertions.)
  *
  * The fix is positional as well as textual. Each counter sentence now sits
  * immediately under the block it is about and names its subject, so proximity
@@ -284,56 +316,36 @@ function candidateCounter(types: readonly string[]): string {
  */
 export function renderBandForecast(f: BandForecast): string {
   const lines: string[] = [];
-  lines.push(`${f.name.toUpperCase()}`);
-  lines.push(`[${f.leanLabel}] w${f.fromWave}-${f.throughWave}`);
-  lines.push(f.tagline);
-  lines.push('');
-  lines.push('BOSS');
-  const split = f.bossCounter.basis === 'split';
-  if (f.boss) {
-    lines.push(`  ${f.boss.name}`);
-    lines.push(`  LV ${f.boss.level} · ${f.boss.title.toUpperCase()}`);
-  } else if (f.bossCandidates.length > 0) {
-    // The specific face did not resolve, so the honest read is the SHORTLIST —
-    // every name it could be, and (only when they disagree) what each one gives
-    // way to. Naming the fork beats the old bare "(unresolved)".
-    lines.push('  one of these:');
-    for (const c of f.bossCandidates) {
-      lines.push(`  ${c.name}`);
-      if (split) lines.push(`    ${candidateCounter(c.counterTypes)}`);
-    }
-  } else {
-    lines.push('  (unresolved)');
-  }
-  if (split) {
-    // No type is true of BOTH faces, so no type may be printed as a promise.
-    lines.push('no counter is sure.');
-  } else {
-    for (const line of counterSentence('this boss', f.bossCounter.types)) lines.push(line);
-  }
-  lines.push('');
-  lines.push('MOBS');
-  for (const m of f.mobs) lines.push(`  ${m.name}`);
-  // THE ABSENT COUNTER IS A FACT, NOT A MISSING LINE (fixed 2026-08-26). This
-  // used to be `if (f.counterType) { ... }`, so a band whose lean nothing
-  // counters printed NO claim under its mobs at all — and there is exactly such
-  // a band: `WEAPON_BEATS` maps sword->axe->lance->sword and bow->beast, with no
-  // entry mapping TO bow, so the Arrowfell's `counterTypeFor` is `undefined`.
-  // A silently absent line is the worst of the three options: the player cannot
-  // tell "no type helps here" (real, route-choosing information — this is the
-  // one band the type wheel offers no shortcut in) from "the renderer dropped
-  // something". It now goes through the SAME `counterSentence` the boss block
-  // uses, whose zero-type branch already says so in words; for every band that
-  // does have a counter the two output lines are character-identical to what
-  // they were before, which `biomeForecastCounter.test.ts` pins verbatim.
-  for (const line of counterSentence('these mobs', f.counterType === undefined ? [] : [f.counterType])) {
-    lines.push(line);
-  }
-  lines.push('');
-  lines.push('SHOPS');
-  for (const s of f.shops) lines.push(`  ${s.name}`);
-  lines.push('');
-  lines.push('EVENTS');
-  for (const t of f.eventThemes) lines.push(`  ${t}`);
+  for (const row of bandForecastRows(f)) lines.push(...rowToAsciiLines(row));
   return lines.join('\n');
+}
+
+/** ONE row -> its ASCII line(s), exhaustive over `BandForecastRowStyle`.
+ * Exported so `tests/game/bandForecastRows.test.ts` can assert totality
+ * directly (every row yields >= 1 line) without re-parsing rendered text. */
+export function rowToAsciiLines(row: BandForecastRow): string[] {
+  const prefix = '  '.repeat(BAND_FORECAST_ROW_INDENT[row.style]);
+  switch (row.style) {
+    case 'name':
+    case 'meta':
+    case 'tagline':
+    case 'heading':
+    case 'bossName':
+    case 'bossSub':
+    case 'bossIntro':
+    case 'bossUnresolved':
+    case 'bossEntry':
+    case 'entry':
+      return [`${prefix}${row.text}`];
+    case 'blank':
+      return [''];
+    case 'bossEntryCounter':
+      return [`${prefix}${candidateCounter(row.types)}`];
+    case 'claim':
+      return claimLines(row.claim);
+    default: {
+      const exhaustive: never = row;
+      return exhaustive;
+    }
+  }
 }

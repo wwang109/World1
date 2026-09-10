@@ -39,7 +39,6 @@
      "version": 1,
      "def": {
       "name": "Aegis of the Unbroken",
-      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Restore 28 (+MDEF) HP.",
       "notes": [
        "ward 2 charges (100) \\u2014 NOT 3: `ward 3` would hit the size-2 empower cap",
        "(150 deci) AND `MAX_WARD_CHARGES` (3) at once, so this card alone would",
@@ -84,7 +83,6 @@
      "version": 1,
      "def": {
       "name": "Aegis Wall",
-      "text": "Gain 44 (+DEF) physical shield. Lighter stance (weight 16).",
       "archetypes": [
        "defensive"
       ],
@@ -111,7 +109,6 @@
      "version": 1,
      "def": {
       "name": "Annihilation Strike",
-      "text": "Deal 48 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "archetypes": [
        "offense"
       ],
@@ -137,7 +134,6 @@
      "version": 1,
      "def": {
       "name": "Arcane Bolt",
-      "text": "Deal 18 (+MATK) Lightning damage.",
       "archetypes": [
        "offense"
       ],
@@ -159,11 +155,6 @@
         "minTier": "diamond"
        }
       ],
-      "tierUpgrades": {
-       "diamond": {
-        "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 48."
-       }
-      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -172,7 +163,7 @@
        "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
        "reads the face and decides \u2014 an on-type board gains, any other board is",
        "buying a worse card and can see that.",
-       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "The plain bolt learns a follow-up. Auto-scaled Diamond is a single 48; this",
@@ -205,7 +196,6 @@
      "version": 1,
      "def": {
       "name": "Armor Break",
-      "text": "-50% enemy DEF (2 turns).",
       "notes": [
        "Frozen debuff (already at the size-1 control cap, 100 deci); a physical",
        "Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100",
@@ -255,18 +245,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
-       },
-       "gold": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
-       },
-       "diamond": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -278,7 +257,6 @@
      "version": 1,
      "def": {
       "name": "Barrage",
-      "text": "Deal 24 (+ATK) Bow damage, twice. Heavier and slower (weight 26).",
       "notes": [
        "TWO HITS, AND EACH HIT IS PRICED ALONE, so each hit's power must be EVEN",
        "(flatPowerPerPoint = 5 deci: an odd power prices at x.5 PL). A two-hit card",
@@ -322,8 +300,7 @@
           "kind": "damage",
           "power": 40
          }
-        ],
-        "text": "Deal 42 (+ATK) Bow damage, then 40 again. Heavier and slower (weight 26)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -335,8 +312,7 @@
           "kind": "damage",
           "power": 48
          }
-        ],
-        "text": "Deal 50 (+ATK) Bow damage, then 48 again. Heavier and slower (weight 26)."
+        ]
        }
       }
      }
@@ -350,7 +326,6 @@
      "version": 1,
      "def": {
       "name": "Bastion Stance",
-      "text": "Gain 20 (+DEF) physical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -376,7 +351,6 @@
      "version": 1,
      "def": {
       "name": "Battle Howl",
-      "text": "+50% ATK (2 turns).",
       "notes": [
        "NOTE (2026-07-23): 'lucky_charm' was removed here. Its sole effect was an",
        "adjacent +Crit aura and crit was excised from the game, leaving it inert /",
@@ -416,18 +390,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "+50% ATK (2 turns) \u00b7 Deal 10 (+ATK) Beast damage."
-       },
-       "gold": {
-        "text": "+50% ATK (2 turns) \u00b7 Deal 20 (+ATK) Beast damage."
-       },
-       "diamond": {
-        "text": "+50% ATK (2 turns) \u00b7 Deal 30 (+ATK) Beast damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -439,7 +402,6 @@
      "version": 1,
      "def": {
       "name": "Blooming Vine",
-      "text": "Deal 14 (+MATK) Nature damage \u00b7 {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).",
       "archetypes": [
        "offense",
        "debuff"
@@ -471,8 +433,7 @@
           "kind": "poison",
           "stacks": 6
          }
-        ],
-        "text": "Deal 20 (+MATK) Nature damage \u00b7 {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12)."
+        ]
        },
        "gold": {
         "effects": [
@@ -484,8 +445,7 @@
           "kind": "poison",
           "stacks": 7
          }
-        ],
-        "text": "Deal 28 (+MATK) Nature damage \u00b7 {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -497,8 +457,7 @@
           "kind": "poison",
           "stacks": 8
          }
-        ],
-        "text": "Deal 36 (+MATK) Nature damage \u00b7 {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12)."
+        ]
        }
       }
      }
@@ -512,7 +471,6 @@
      "version": 1,
      "def": {
       "name": "Braced Pike",
-      "text": "Deal 12 (+ATK) Lance damage \u00b7 -20% incoming physical damage (2 turns).",
       "archetypes": [
        "offense",
        "defensive"
@@ -545,7 +503,6 @@
      "version": 1,
      "def": {
       "name": "Bramble Ward",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 10 (+DEF) physical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -575,7 +532,6 @@
      "version": 1,
      "def": {
       "name": "Bramblewrath",
-      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 56 (+ATK) Lance damage.",
       "notes": [
        "thorns AT the size-3 empower cap (200 deci = 20 stacks) + damage sink",
        "56 (280 raw = 56*5): 200 + 280 = 480 raw - 380 (size-3 grant) = 100 =",
@@ -627,15 +583,7 @@
         "turns": 1,
         "minTier": "gold"
        }
-      ],
-      "tierUpgrades": {
-       "gold": {
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 94 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
-       },
-       "diamond": {
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 122 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
-       }
-      }
+      ]
      }
     }
    ]
@@ -647,7 +595,6 @@
      "version": 1,
      "def": {
       "name": "Chain Spark",
-      "text": "Deal 16 (+MATK) Lightning damage \u00b7 {{Slow}} the enemy's next action by +8 weight.",
       "notes": [
        "AOE TIER GATE (2026-08-18): the elemental-blast case done as a CHAIN \u2014",
        "the spark literally arcs to every foe at Gold+, lightning's most",
@@ -703,8 +650,7 @@
           "kind": "slow",
           "weight": 8
          }
-        ],
-        "text": "Deal 34 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 The arc is slow to come back around (cooldown 4)."
+        ]
        },
        "diamond": {
         "scope": "all",
@@ -722,8 +668,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "Deal 34 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 Gain 10 (+MDEF) magical shield \u00b7 The arc is slow to come back around (cooldown 4)."
+        ]
        }
       }
      }
@@ -737,7 +682,6 @@
      "version": 1,
      "def": {
       "name": "Cinder Dart",
-      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Burn}} 3. Light and quick (weight 8).",
       "archetypes": [
        "offense"
       ],
@@ -768,8 +712,7 @@
           "kind": "burn",
           "stacks": 5
          }
-        ],
-        "text": "Deal 18 (+MATK) Fire damage \u00b7 {{Burn}} 5. Light and quick (weight 8)."
+        ]
        },
        "gold": {
         "effects": [
@@ -781,8 +724,7 @@
           "kind": "burn",
           "stacks": 6
          }
-        ],
-        "text": "Deal 26 (+MATK) Fire damage \u00b7 {{Burn}} 6. Light and quick (weight 8)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -794,8 +736,7 @@
           "kind": "burn",
           "stacks": 7
          }
-        ],
-        "text": "Deal 34 (+MATK) Fire damage \u00b7 {{Burn}} 7. Light and quick (weight 8)."
+        ]
        }
       }
      }
@@ -809,7 +750,6 @@
      "version": 1,
      "def": {
       "name": "Cinder Skin",
-      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns).",
       "notes": [
        "Same CAP-HIT shape as Retaliation Stance (thorns + guard, both frozen",
        "empower, 60 + 40 = 100 = Bronze exactly) \\u2014 magical/Fire twin, magical",
@@ -849,18 +789,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
-       },
-       "gold": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -872,7 +801,6 @@
      "version": 1,
      "def": {
       "name": "Concussive Shot",
-      "text": "Deal 12 (+ATK) Bow damage \u00b7 {{Disrupt}} 6 banked readiness.",
       "notes": [
        "disrupt re-priced to an ESCALATING bracket schedule (user-locked",
        "2026-07-25 \u2014 see PRICE.disruptBrackets): disrupt 6 costs 5*5 + 1*15 =",
@@ -934,8 +862,7 @@
           "kind": "disrupt",
           "amount": 6
          }
-        ],
-        "text": "Deal 30 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 The shockwave is slow to come back around (cooldown 4)."
+        ]
        },
        "diamond": {
         "scope": "all",
@@ -953,8 +880,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "Deal 30 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 Gain 10 (+DEF) physical shield \u00b7 The shockwave is slow to come back around (cooldown 4)."
+        ]
        }
       }
      }
@@ -968,7 +894,6 @@
      "version": 1,
      "def": {
       "name": "Crippling Strike",
-      "text": "Deal 38 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns).",
       "notes": [
        "GOLD-TIER IDENTITY (2026-08-18): Silver is left to the auto-scaler",
        "(damage 54, debuffStat frozen at 25%/2t \u2014 verified against",
@@ -1017,15 +942,7 @@
         "turns": 1,
         "minTier": "gold"
        }
-      ],
-      "tierUpgrades": {
-       "gold": {
-        "text": "Deal 52 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns) \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
-       },
-       "diamond": {
-        "text": "Deal 68 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns) \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
-       }
-      }
+      ]
      }
     }
    ]
@@ -1037,7 +954,6 @@
      "version": 1,
      "def": {
       "name": "Crushing Blow",
-      "text": "Deal 96 (+ATK) Axe damage.",
       "notes": [
        "AOE TIER GATE (2026-08-18): the mastery capstone for a size-3 axe swing",
        "is a cleave through the whole line \u2014 axe is the weapon literally named",
@@ -1080,8 +996,7 @@
           "kind": "shield",
           "power": 22
          }
-        ],
-        "text": "Deal 100 (+ATK) Axe damage to ALL foes \u00b7 Gain 22 (+DEF) physical shield."
+        ]
        },
        "diamond": {
         "scope": "all",
@@ -1094,8 +1009,7 @@
           "kind": "shield",
           "power": 50
          }
-        ],
-        "text": "Deal 100 (+ATK) Axe damage to ALL foes \u00b7 Gain 50 (+DEF) physical shield."
+        ]
        }
       }
      }
@@ -1109,7 +1023,6 @@
      "version": 1,
      "def": {
       "name": "Deep Freeze",
-      "text": "Deal 24 (+MATK) Frost damage \u00b7 -40% enemy SPD (3 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -1142,7 +1055,6 @@
      "version": 1,
      "def": {
       "name": "Ember Lash",
-      "text": "Deal 10 (+MATK) Fire damage \u00b7 {{Burn}} 5.",
       "notes": [
        "Moderate burn growth, rest into damage (same house style as fireball)."
       ],
@@ -1175,8 +1087,7 @@
           "kind": "burn",
           "stacks": 7
          }
-        ],
-        "text": "Deal 16 (+MATK) Fire damage \u00b7 {{Burn}} 7."
+        ]
        },
        "gold": {
         "effects": [
@@ -1188,8 +1099,7 @@
           "kind": "burn",
           "stacks": 8
          }
-        ],
-        "text": "Deal 24 (+MATK) Fire damage \u00b7 {{Burn}} 8."
+        ]
        },
        "diamond": {
         "effects": [
@@ -1201,8 +1111,7 @@
           "kind": "burn",
           "stacks": 9
          }
-        ],
-        "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Burn}} 9."
+        ]
        }
       }
      }
@@ -1216,7 +1125,6 @@
      "version": 1,
      "def": {
       "name": "Fireball",
-      "text": "Deal 38 (+MATK) Fire damage \u00b7 {{Burn}} 5.",
       "notes": [
        "burn priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (halves each turn: 10,4,2 = 16",
@@ -1256,8 +1164,7 @@
           "kind": "burn",
           "stacks": 7
          }
-        ],
-        "text": "Deal 50 (+MATK) Fire damage \u00b7 {{Burn}} 7."
+        ]
        },
        "gold": {
         "effects": [
@@ -1269,8 +1176,7 @@
           "kind": "burn",
           "stacks": 8
          }
-        ],
-        "text": "Deal 66 (+MATK) Fire damage \u00b7 {{Burn}} 8."
+        ]
        },
        "diamond": {
         "effects": [
@@ -1282,8 +1188,7 @@
           "kind": "burn",
           "stacks": 10
          }
-        ],
-        "text": "Deal 78 (+MATK) Fire damage \u00b7 {{Burn}} 10."
+        ]
        }
       }
      }
@@ -1297,7 +1202,6 @@
      "version": 1,
      "def": {
       "name": "Follow-Through",
-      "text": "Deal 10 (+ATK) Sword damage \u00b7 +20 if previous cast was Offense.",
       "notes": [
        "comboPerPoint discount (2.5/pt, user-locked 2026-07-23): damage 10 (50)",
        "+ comboBonus 20 (floor(20*5/2)=50) = 100 = Bronze exactly. Un-comboed",
@@ -1332,7 +1236,6 @@
      "version": 1,
      "def": {
       "name": "Fortress Bastion",
-      "text": "Gain 96 (+DEF) physical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -1358,7 +1261,6 @@
      "version": 1,
      "def": {
       "name": "Frost Shackle",
-      "text": "Deal 14 (+MATK) Frost damage \u00b7 {{Slow}} the enemy's next action by +12 weight.",
       "archetypes": [
        "offense",
        "debuff"
@@ -1389,7 +1291,6 @@
      "version": 1,
      "def": {
       "name": "Frost Ward",
-      "text": "-50% incoming magical damage (2 turns).",
       "notes": [
        "guard re-priced to statPctTurn parity (1x): 50*2*1 = 100 = Bronze exactly",
        "(was 40% at the old 1.25x premium). Apply-time clamp is 60%, so 50 is legal.",
@@ -1428,18 +1329,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
-       },
-       "gold": {
-        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -1451,7 +1341,6 @@
      "version": 1,
      "def": {
       "name": "Glacial Spike",
-      "text": "Deal 12 (+MATK) Frost damage \u00b7 -20% enemy SPD (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -1484,7 +1373,6 @@
      "version": 1,
      "def": {
       "name": "Gutting Cleave",
-      "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 26 (+ATK) Axe damage \u00b7 {{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "TEACHING CARD: `shieldBreak` is authored BEFORE `bleed` in `effects` and stays there (it is a `pre` keyword, so the 2026-08-31 cast-order ruling does not move it) \\u2014",
        "bleed cannot land on a shielded target, so opening the guard first is",
@@ -1551,8 +1439,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 38 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -1568,8 +1455,7 @@
           "kind": "damage",
           "power": 54
          }
-        ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 54 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -1585,8 +1471,7 @@
           "kind": "damage",
           "power": 68
          }
-        ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 68 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -1600,7 +1485,6 @@
      "version": 1,
      "def": {
       "name": "Hamstring",
-      "text": "Deal 12 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +16 weight.",
       "archetypes": [
        "offense",
        "debuff"
@@ -1631,7 +1515,6 @@
      "version": 1,
      "def": {
       "name": "Hemorrhage",
-      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "\"Bought with extra weight\": speedWeight 16 (baseline 10, 6 heavier) is a",
        "-30 deci refund, buying more bleed+damage than the Bronze budget alone",
@@ -1693,8 +1576,7 @@
           "kind": "damage",
           "power": 20
          }
-        ],
-        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -1711,8 +1593,7 @@
           "pct": 20,
           "turns": 2
          }
-        ],
-        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -1729,8 +1610,7 @@
           "pct": 30,
           "turns": 2
          }
-        ],
-        "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns)."
+        ]
        }
       }
      }
@@ -1744,7 +1624,6 @@
      "version": 1,
      "def": {
       "name": "Hex of Frailty",
-      "text": "-50% enemy MDEF (2 turns).",
       "notes": [
        "Refit for the size-1 control cap (10 PL): 50%\u00d72t = 100 deci exactly",
        "(was 40%\u00d73t = 12 PL funded by extra weight).",
@@ -1796,18 +1675,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
-       },
-       "gold": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
-       },
-       "diamond": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -1819,7 +1687,6 @@
      "version": 1,
      "def": {
       "name": "Hunter's Shot",
-      "text": "Deal 20 (+ATK) Bow damage. Strong vs Beasts.",
       "archetypes": [
        "offense"
       ],
@@ -1840,11 +1707,6 @@
         "minTier": "diamond"
        }
       ],
-      "tierUpgrades": {
-       "diamond": {
-        "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 32."
-       }
-      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -1853,7 +1715,7 @@
        "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
        "reads the face and decides \u2014 an on-type board gains, any other board is",
        "buying a worse card and can see that.",
-       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "THE CAUTIOUS ONE (34 + 20 against an auto-scaled 50): bow sits outside the",
@@ -1885,7 +1747,6 @@
      "version": 1,
      "def": {
       "name": "Impaling Charge",
-      "text": "Deal 36 (+ATK) Lance damage \u00b7 -30% incoming physical damage (2 turns).",
       "archetypes": [
        "offense",
        "defensive"
@@ -1918,7 +1779,6 @@
      "version": 1,
      "def": {
       "name": "Inferno Eruption",
-      "text": "Deal 56 (+MATK) Fire damage \u00b7 {{Burn}} 20.",
       "archetypes": [
        "offense"
       ],
@@ -1948,8 +1808,7 @@
           "kind": "burn",
           "stacks": 25
          }
-        ],
-        "text": "Deal 74 (+MATK) Fire damage \u00b7 {{Burn}} 25."
+        ]
        },
        "gold": {
         "effects": [
@@ -1961,8 +1820,7 @@
           "kind": "burn",
           "stacks": 28
          }
-        ],
-        "text": "Deal 98 (+MATK) Fire damage \u00b7 {{Burn}} 28."
+        ]
        },
        "diamond": {
         "effects": [
@@ -1974,8 +1832,7 @@
           "kind": "burn",
           "stacks": 32
          }
-        ],
-        "text": "Deal 118 (+MATK) Fire damage \u00b7 {{Burn}} 32."
+        ]
        }
       }
      }
@@ -1989,7 +1846,6 @@
      "version": 1,
      "def": {
       "name": "Iron Bulwark",
-      "text": "Gain 48 (+DEF) physical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -2015,7 +1871,6 @@
      "version": 1,
      "def": {
       "name": "Iron Maiden",
-      "text": "{{Thorns}} 15 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 18 (+DEF) physical shield.",
       "notes": [
        "thorns AT the size-2 empower cap (150 deci = 15 stacks, 10 deci/stack)",
        "+ shield sink 18 (90 raw = 18*5): 150 + 90 = 240 raw - 140 (size-2",
@@ -2054,7 +1909,6 @@
      "version": 1,
      "def": {
       "name": "Iron Riposte",
-      "text": "{{Negate}} the next physical attack.",
       "notes": [
        "PHYSICAL negate (2026-08-18) \u2014 `extraHitPremium` is justified in its own",
        "comment (src/engine/balance.ts) by \"negate cancels ONE hit per charge\",",
@@ -2104,18 +1958,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Negate}} the next physical attack \u00b7 Deal 10 (+ATK) Sword damage."
-       },
-       "gold": {
-        "text": "{{Negate}} the next physical attack \u00b7 Deal 20 (+ATK) Sword damage."
-       },
-       "diamond": {
-        "text": "{{Negate}} the next physical attack \u00b7 Deal 30 (+ATK) Sword damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -2127,7 +1970,6 @@
      "version": 1,
      "def": {
       "name": "Judgment Light",
-      "text": "Deal 12 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -2155,11 +1997,6 @@
         "minTier": "diamond"
        }
       ],
-      "tierUpgrades": {
-       "diamond": {
-        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 32."
-       }
-      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2168,7 +2005,7 @@
        "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
        "reads the face and decides \u2014 an on-type board gains, any other board is",
        "buying a worse card and can see that.",
-       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "The MDEF debuff is frozen control, so it survives the swap untouched and the",
@@ -2213,7 +2050,6 @@
      "version": 1,
      "def": {
       "name": "Lance Thrust",
-      "text": "Deal 20 (+ATK) Lance damage.",
       "archetypes": [
        "offense"
       ],
@@ -2234,11 +2070,6 @@
         "minTier": "diamond"
        }
       ],
-      "tierUpgrades": {
-       "diamond": {
-        "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 48."
-       }
-      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2247,7 +2078,7 @@
        "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
        "reads the face and decides \u2014 an on-type board gains, any other board is",
        "buying a worse card and can see that.",
-       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "Auto-scaled Diamond is a single 50; this is 26 + 30 = 56 on a lance board,",
@@ -2277,7 +2108,6 @@
      "version": 1,
      "def": {
       "name": "Leeching Fang",
-      "text": "Deal 16 (+ATK) Beast damage \u00b7 heal 45% of damage dealt.",
       "archetypes": [
        "offense",
        "healing"
@@ -2304,11 +2134,6 @@
         "minTier": "diamond"
        }
       ],
-      "tierUpgrades": {
-       "diamond": {
-        "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 32."
-       }
-      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2317,7 +2142,7 @@
        "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
        "reads the face and decides \u2014 an on-type board gains, any other board is",
        "buying a worse card and can see that.",
-       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "THE ONE WITH REAL SYNERGY: `lifesteal` heals a percentage of the whole",
@@ -2350,7 +2175,6 @@
      "version": 1,
      "def": {
       "name": "Mana Ward",
-      "text": "Gain 20 (+MDEF) magical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -2376,7 +2200,6 @@
      "version": 1,
      "def": {
       "name": "Marksman Shot",
-      "text": "Deal 48 (+ATK) Bow damage.",
       "archetypes": [
        "offense"
       ],
@@ -2402,7 +2225,6 @@
      "version": 1,
      "def": {
       "name": "Mending Aura",
-      "text": "Passive: adjacent Healing cards heal +10.",
       "notes": [
        "Pure aura (no scalable sink) \u2014 grows exactly like war_banner's damageFlat curve."
       ],
@@ -2430,8 +2252,7 @@
          "mods": {
           "healFlat": 15
          }
-        },
-        "text": "Passive: adjacent Healing cards heal +15."
+        }
        },
        "gold": {
         "aura": {
@@ -2440,8 +2261,7 @@
          "mods": {
           "healFlat": 20
          }
-        },
-        "text": "Passive: adjacent Healing cards heal +20."
+        }
        },
        "diamond": {
         "aura": {
@@ -2450,8 +2270,7 @@
          "mods": {
           "healFlat": 25
          }
-        },
-        "text": "Passive: adjacent Healing cards heal +25."
+        }
        }
       }
      }
@@ -2465,7 +2284,6 @@
      "version": 1,
      "def": {
       "name": "Mending Light",
-      "text": "Restore 48 (+MDEF) HP.",
       "archetypes": [
        "healing"
       ],
@@ -2491,7 +2309,6 @@
      "version": 1,
      "def": {
       "name": "Nettle Lash",
-      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies).",
       "archetypes": [
        "offense",
        "defensive"
@@ -2522,7 +2339,6 @@
      "version": 1,
      "def": {
       "name": "Overcharge",
-      "text": "Deal 16 (+MATK) Lightning damage \u00b7 {{Disrupt}} 4 banked readiness.",
       "archetypes": [
        "offense",
        "debuff"
@@ -2553,7 +2369,6 @@
      "version": 1,
      "def": {
       "name": "Overgrowth",
-      "text": "Restore 30 (+MDEF) HP \u00b7 Gain 18 (+MDEF) magical shield \u2014 a thorned bark ward.",
       "archetypes": [
        "healing",
        "defensive"
@@ -2595,8 +2410,7 @@
           "kind": "shield",
           "power": 24
          }
-        ],
-        "text": "Restore 40 (+MDEF) HP \u00b7 Gain 24 (+MDEF) magical shield \u2014 a thorned bark ward."
+        ]
        },
        "gold": {
         "effects": [
@@ -2608,8 +2422,7 @@
           "kind": "shield",
           "power": 30
          }
-        ],
-        "text": "Restore 52 (+MDEF) HP \u00b7 Gain 30 (+MDEF) magical shield \u2014 a thorned bark ward."
+        ]
        },
        "diamond": {
         "effects": [
@@ -2621,8 +2434,7 @@
           "kind": "shield",
           "power": 36
          }
-        ],
-        "text": "Restore 62 (+MDEF) HP \u00b7 Gain 36 (+MDEF) magical shield \u2014 a thorned bark ward."
+        ]
        }
       }
      }
@@ -2636,7 +2448,6 @@
      "version": 1,
      "def": {
       "name": "Piercing Arrow",
-      "text": "Deal 8 (+ATK) Bow damage \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -2668,7 +2479,6 @@
      "version": 1,
      "def": {
       "name": "Piercing Reach",
-      "text": "{{Shatter}} 16 enemy shield, then deal 16 (+ATK) Lance damage.",
       "archetypes": [
        "offense",
        "debuff"
@@ -2689,64 +2499,24 @@
        }
       ],
       "notes": [
-       "AUTHORED TIER TEXT (bug fix, 2026-08-21) \u2014 this card had NO tierUpgrades and",
-       "relied on `autoScaleTier`'s generic text rewrite, which was WRONG here at every",
-       "tier above bronze. Both authored actions are 16 (shieldBreak 16 + damage 16) and",
-       "only `damage` scales, so the rewrite \u2014 which replaced the FIRST standalone",
-       "\"16\" \u2014 printed the scaled damage as the SHATTER number: at Silver the face read",
-       "\"Shatter 26 ... deal 16\" while the engine actually shattered 16 and hit for 26.",
-       "Both numbers wrong, and swapped. (shieldBreak's magnitude is `amount`, a field",
-       "that rewrite does not track at all, so nothing marked its numeral as taken.)",
-       "`retextScaledNumbers` now REFUSES to rewrite an ambiguous numeral and",
-       "tests/engine/tierTextDrift.test.ts audits every card x tier, so the class is",
-       "caught rather than shipped. This card supplies explicit text per tier, which",
-       "wins verbatim over that path.",
+       "THE CARD THAT PROVED GENERATED TEXT WAS NECESSARY (bug, 2026-08-21;",
+       "resolved by the 2026-09-06 card-text migration). Both authored actions are",
+       "16 (shieldBreak 16 + damage 16) and only `damage` scales, so the old",
+       "display-text rewrite \u2014 which replaced the FIRST standalone \"16\" in a stored",
+       "string \u2014 printed the scaled damage as the SHATTER number: at Silver the",
+       "face read \"Shatter 26 ... deal 16\" while the engine shattered 16 and hit",
+       "for 26. Both numbers wrong, and swapped. (`shieldBreak`'s magnitude is",
+       "`amount`, a field that rewrite never tracked, so nothing marked its numeral",
+       "as taken.) The fix at the time was to author explicit per-tier text; the",
+       "fix now is that there is no stored text to patch and no numeral to guess",
+       "at \u2014 the face is composed from the RESOLVED kit (`renderSkillText`), so",
+       "`{{Shatter}} 16 \u00b7 Deal 26 (+ATK) Lance damage.` cannot come out any other",
+       "way. Those authored tier blocks are gone with it: the auto-scaler already",
+       "reproduced their effects exactly.",
        "PRICE unchanged and exact at every tier: shieldBreak 16 = 20 deci",
        "(PRICE.shieldBreakPerPointNum/Den, 5/4, frozen control) + damage 16/26/36/46 =",
-       "80/130/180/230 -> 100/150/200/250. The MAGNITUDES are identical to what the",
-       "auto-scaler already produced; only the TEXT is corrected."
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "shieldBreak",
-          "amount": 16
-         },
-         {
-          "kind": "damage",
-          "power": 26
-         }
-        ],
-        "text": "{{Shatter}} 16 enemy shield, then deal 26 (+ATK) Lance damage."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "shieldBreak",
-          "amount": 16
-         },
-         {
-          "kind": "damage",
-          "power": 36
-         }
-        ],
-        "text": "{{Shatter}} 16 enemy shield, then deal 36 (+ATK) Lance damage."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "shieldBreak",
-          "amount": 16
-         },
-         {
-          "kind": "damage",
-          "power": 46
-         }
-        ],
-        "text": "{{Shatter}} 16 enemy shield, then deal 46 (+ATK) Lance damage."
-       }
-      }
+       "80/130/180/230 -> 100/150/200/250."
+      ]
      }
     }
    ]
@@ -2758,7 +2528,6 @@
      "version": 1,
      "def": {
       "name": "Prism Barrier",
-      "text": "Gain 92 TRUE shield \u2014 blocks TRUE damage fully; physical/magical drain it 2:1.",
       "notes": [
        "TRUE shield at 5 deci/pt (typed parity \u2014 the premium is the 2:1 drain",
        "vs typed damage, not the price): 92 \u00d7 5 = 460 =",
@@ -2790,7 +2559,6 @@
      "version": 1,
      "def": {
       "name": "Purge the Rot",
-      "text": "Remove up to 4 of your ailments \u00b7 Restore 28 (+MDEF) HP.",
       "notes": [
        "Two DIFFERENT-RATE sinks (cleanse 25 deci/charge, heal 5 deci/point) \\u2014",
        "`autoScaleTier`'s sink solve requires every sink action to share one",
@@ -2832,8 +2600,7 @@
           "kind": "heal",
           "power": 44
          }
-        ],
-        "text": "Remove up to 4 of your ailments \u00b7 Restore 44 (+MDEF) HP."
+        ]
        },
        "gold": {
         "effects": [
@@ -2845,8 +2612,7 @@
           "kind": "heal",
           "power": 62
          }
-        ],
-        "text": "Remove up to 4 of your ailments \u00b7 Restore 62 (+MDEF) HP."
+        ]
        },
        "diamond": {
         "effects": [
@@ -2858,8 +2624,7 @@
           "kind": "heal",
           "power": 78
          }
-        ],
-        "text": "Remove up to 4 of your ailments \u00b7 Restore 78 (+MDEF) HP."
+        ]
        }
       }
      }
@@ -2873,7 +2638,6 @@
      "version": 1,
      "def": {
       "name": "Purging Strike",
-      "text": "Deal 9 (+best stat) TRUE damage \u2014 ignores DEF/MDEF. Light and quick (weight 8).",
       "notes": [
        "TRUE damage at 10 deci/pt (half-effect rule): 9 \u00d7 10 = 90 =",
        "100 budget \u2212 10 for weight 8 (2 under baseline)."
@@ -2904,7 +2668,6 @@
      "version": 1,
      "def": {
       "name": "Purify",
-      "text": "Remove up to 4 of your ailments.",
       "notes": [
        "cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.",
        "cleanse SCALES with tier (user-locked 2026-08-17): no authored",
@@ -2940,7 +2703,6 @@
      "version": 1,
      "def": {
       "name": "Rapid Volley",
-      "text": "Deal 10 (+ATK) Bow damage, twice. Heavier and slower (weight 16).",
       "notes": [
        "TWO HITS, EACH PRICED ALONE, so each power must be EVEN (5 deci/point). The",
        "damage line therefore moves in 20-deci steps against tier budgets that step by",
@@ -2982,8 +2744,7 @@
           "kind": "damage",
           "power": 14
          }
-        ],
-        "text": "Deal 16 (+ATK) Bow damage, then 14 again. Heavier and slower (weight 16)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -2995,8 +2756,7 @@
           "kind": "damage",
           "power": 24
          }
-        ],
-        "text": "Deal 26 (+ATK) Bow damage, then 24 again. Heavier and slower (weight 16)."
+        ]
        }
       }
      }
@@ -3010,7 +2770,6 @@
      "version": 1,
      "def": {
       "name": "Rending Claws",
-      "text": "Deal 96 (+ATK) Beast damage.",
       "archetypes": [
        "offense"
       ],
@@ -3036,7 +2795,6 @@
      "version": 1,
      "def": {
       "name": "Renewing Wave",
-      "text": "Restore 30 TRUE HP. Heavier cast (weight 14).",
       "notes": [
        "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 30 \u00d7 4 = 120 \u2212 20",
        "(weight 14, 4 under baseline 10) = 100 = Bronze.",
@@ -3067,18 +2825,10 @@
           "power": 45
          }
         ],
-        "speedWeight": 16,
-        "text": "Restore 45 TRUE HP. Heavier cast (weight 16)."
+        "speedWeight": 16
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 55
-         }
-        ],
-        "speedWeight": 14,
-        "text": "Restore 55 TRUE HP. Heavier cast (weight 14)."
+        "speedWeight": 14
        },
        "diamond": {
         "effects": [
@@ -3087,8 +2837,7 @@
           "power": 70
          }
         ],
-        "speedWeight": 16,
-        "text": "Restore 70 TRUE HP. Heavier cast (weight 16)."
+        "speedWeight": 16
        }
       }
      }
@@ -3102,7 +2851,6 @@
      "version": 1,
      "def": {
       "name": "Retaliation Stance",
-      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns).",
       "notes": [
        "thorns + guard are BOTH frozen empower members with no scalable sink",
        "between them \\u2014 combined they exactly fill the size-1 empower cap (60 +",
@@ -3146,18 +2894,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
-       },
-       "gold": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
-       },
-       "diamond": {
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -3169,7 +2906,6 @@
      "version": 1,
      "def": {
       "name": "Ruinous Hex",
-      "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns).",
       "notes": [
        "expose 50%\u00d72 (50*2*1 = 100) = Bronze exactly. pct clamped to <=50 at apply.",
        "Expose is frozen (already at the size-1 control cap, 100 deci, and the",
@@ -3220,18 +2956,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
-       },
-       "gold": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
-       },
-       "diamond": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -3243,7 +2968,6 @@
      "version": 1,
      "def": {
       "name": "Rupturing Strike",
-      "text": "Deal 10 (+ATK) Axe damage \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "bleed priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
@@ -3283,8 +3007,7 @@
           "kind": "bleed",
           "stacks": 7
          }
-        ],
-        "text": "Deal 16 (+ATK) Axe damage \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -3296,8 +3019,7 @@
           "kind": "bleed",
           "stacks": 8
          }
-        ],
-        "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -3309,8 +3031,7 @@
           "kind": "bleed",
           "stacks": 9
          }
-        ],
-        "text": "Deal 32 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -3324,7 +3045,6 @@
      "version": 1,
      "def": {
       "name": "Sanctified Bulwark",
-      "text": "Gain 12 (+MDEF) magical shield \u00b7 -20% incoming magical damage (2 turns).",
       "archetypes": [
        "defensive"
       ],
@@ -3356,7 +3076,6 @@
      "version": 1,
      "def": {
       "name": "Savage Bite",
-      "text": "Deal 20 (+ATK) Beast damage.",
       "archetypes": [
        "offense"
       ],
@@ -3382,7 +3101,6 @@
      "version": 1,
      "def": {
       "name": "Scorching Brand",
-      "text": "Deal 8 (+MATK) Fire damage \u00b7 {{Burn}} 3 \u00b7 -15% enemy DEF (2 turns).",
       "notes": [
        "The armor debuff is frozen (control); burn grows moderately, damage sinks the rest."
       ],
@@ -3428,8 +3146,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Deal 14 (+MATK) Fire damage \u00b7 {{Burn}} 5 \u00b7 -15% enemy DEF (2 turns)."
+        ]
        },
        "gold": {
         "effects": [
@@ -3447,8 +3164,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Deal 22 (+MATK) Fire damage \u00b7 {{Burn}} 6 \u00b7 -15% enemy DEF (2 turns)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -3466,8 +3182,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Deal 30 (+MATK) Fire damage \u00b7 {{Burn}} 7 \u00b7 -15% enemy DEF (2 turns)."
+        ]
        }
       }
      }
@@ -3481,7 +3196,6 @@
      "version": 1,
      "def": {
       "name": "Second Wind",
-      "text": "Restore 25 HP.",
       "notes": [
        "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 25 \u00d7 4 = 100 = Bronze.",
        "Silver/Diamond sink the rest into weight (lighter costs, so speedWeight",
@@ -3511,17 +3225,7 @@
           "power": 40
          }
         ],
-        "speedWeight": 12,
-        "text": "Restore 40 HP."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 50
-         }
-        ],
-        "text": "Restore 50 HP."
+        "speedWeight": 12
        },
        "diamond": {
         "effects": [
@@ -3530,8 +3234,7 @@
           "power": 65
          }
         ],
-        "speedWeight": 12,
-        "text": "Restore 65 HP."
+        "speedWeight": 12
        }
       }
      }
@@ -3545,7 +3248,6 @@
      "version": 1,
      "def": {
       "name": "Shadow Bolt",
-      "text": "Deal 20 (+MATK) Dark damage.",
       "notes": [
        "AOE TIER GATE (2026-08-18): a plain bolt widening into the whole enemy",
        "line at Gold+ \u2014 the pure \"elemental blast\" case. Silver is left to the",
@@ -3590,8 +3292,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "Deal 38 (+MATK) Dark damage to ALL foes \u00b7 The blast is slow to come back around (cooldown 4)."
+        ]
        },
        "diamond": {
         "scope": "all",
@@ -3605,8 +3306,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "Deal 38 (+MATK) Dark damage to ALL foes \u00b7 Gain 10 (+MDEF) magical shield \u00b7 The blast is slow to come back around (cooldown 4)."
+        ]
        }
       }
      }
@@ -3620,7 +3320,6 @@
      "version": 1,
      "def": {
       "name": "Shield Splitter",
-      "text": "{{Shatter}} 24 enemy shield, then deal 42 (+ATK) Axe damage.",
       "archetypes": [
        "offense",
        "debuff"
@@ -3651,7 +3350,6 @@
      "version": 1,
      "def": {
       "name": "Silencing Slash",
-      "text": "Deal 10 (+ATK) Sword damage \u00b7 -25% enemy MATK (2 turns).",
       "notes": [
        "Debuff x sword was empty, and no card in the book debuffed magicPower \\u2014",
        "the five buffable stats had ATK (crippling_strike), armor (armor_break),",
@@ -3697,7 +3395,6 @@
      "version": 1,
      "def": {
       "name": "Siphon Life",
-      "text": "Deal 16 (+MATK) Dark damage \u00b7 heal 45% of damage dealt.",
       "notes": [
        "Dark x healing was empty, and lifesteal (anti-heal-reduced, so it wants",
        "a ward beside it \\u2014 see Theme 1) had only one card in the whole book.",
@@ -3738,7 +3435,6 @@
      "version": 1,
      "def": {
       "name": "Slowing Hex",
-      "text": "Deal 8 (+MATK) Frost damage \u00b7 -30% enemy SPD (2 turns).",
       "archetypes": [
        "debuff"
       ],
@@ -3770,7 +3466,6 @@
      "version": 1,
      "def": {
       "name": "Soul Rend",
-      "text": "Deal 27 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "notes": [
        "TRUE damage at 10 deci/pt (half-effect rule): 27 \u00d7 10 = 270 =",
        "100 budget + 140 size-2 grant + 30 weight-26 refund."
@@ -3801,7 +3496,6 @@
      "version": 1,
      "def": {
       "name": "Spotter's Mark",
-      "text": "Passive: adjacent Offense cards deal +10 damage.",
       "notes": [
        "Bow's 6/6 cards are all `offense` \\u2014 this is bow's first non-attack card,",
        "so a bow board can finally hold a support piece of its own type. Pure",
@@ -3834,8 +3528,7 @@
          "mods": {
           "damageFlat": 15
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +15 damage."
+        }
        },
        "gold": {
         "aura": {
@@ -3844,8 +3537,7 @@
          "mods": {
           "damageFlat": 20
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +20 damage."
+        }
        },
        "diamond": {
         "aura": {
@@ -3854,8 +3546,7 @@
          "mods": {
           "damageFlat": 25
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +25 damage."
+        }
        }
       }
      }
@@ -3869,7 +3560,6 @@
      "version": 1,
      "def": {
       "name": "Static Jolt",
-      "text": "Deal 16 (+MATK) Lightning damage. Very quick (weight 6).",
       "notes": [
        "GOLD-TIER IDENTITY (2026-08-18): a pure clean hit at Bronze/Silver",
        "(Silver left to the auto-scaler \u2014 damage 26, exact and cap-compliant on",
@@ -3909,15 +3599,7 @@
         "amount": 6,
         "minTier": "gold"
        }
-      ],
-      "tierUpgrades": {
-       "gold": {
-        "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Disrupt}} 6 banked readiness. Very quick (weight 6)."
-       },
-       "diamond": {
-        "text": "Deal 38 (+MATK) Lightning damage \u00b7 {{Disrupt}} 6 banked readiness. Very quick (weight 6)."
-       }
-      }
+      ]
      }
     }
    ]
@@ -3929,7 +3611,6 @@
      "version": 1,
      "def": {
       "name": "Storm Guard",
-      "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns).",
       "notes": [
        "Lightning x defensive was empty. guard (magical, 30%x2t = 60 deci) +",
        "buffStat (speed, 20%x2t = 40 deci) = 100 = Bronze exactly \\u2014 both frozen",
@@ -3973,18 +3654,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
-       },
-       "gold": {
-        "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -3996,7 +3666,6 @@
      "version": 1,
      "def": {
       "name": "Storm Surge",
-      "text": "Deal 36 (+MATK) Lightning damage \u00b7 +30% SPD (2 turns).",
       "archetypes": [
        "offense",
        "support"
@@ -4029,7 +3698,6 @@
      "version": 1,
      "def": {
       "name": "Stunning Smash",
-      "text": "{{Stun}} \u2014 the enemy's next performance is consumed.",
       "notes": [
        "Pure control: at the re-priced stunPerTurn (100 deci) a single stun turn",
        "IS the whole Bronze budget, so the card is stun-only. Size 1 / default",
@@ -4081,18 +3749,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
-       },
-       "gold": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
-       },
-       "diamond": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -4104,7 +3761,6 @@
      "version": 1,
      "def": {
       "name": "Sundering Roar",
-      "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 56 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "Same teaching order as Gutting Cleave (shieldBreak before bleed), plus",
        "expose. shieldBreak (80 raw = 64*1.25) + expose 20%x2t (40 raw) = 120,",
@@ -4176,8 +3832,7 @@
           "kind": "damage",
           "power": 80
          }
-        ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 80 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -4198,8 +3853,7 @@
           "kind": "damage",
           "power": 108
          }
-        ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 108 (+ATK) Axe damage \u00b7 {{Bleed}} 11 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -4220,8 +3874,7 @@
           "kind": "damage",
           "power": 134
          }
-        ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 134 (+ATK) Axe damage \u00b7 {{Bleed}} 12 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -4235,7 +3888,6 @@
      "version": 1,
      "def": {
       "name": "Swift March",
-      "text": "Passive: adjacent cards -5 weight (cast sooner).",
       "notes": [
        "Pure aura \u2014 weightDelta deepens and a self Speed buff sinks the rest",
        "(same shape as time_crystal, but untargeted and quicker-firing)."
@@ -4270,8 +3922,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent cards -6 weight (cast sooner). Self: +15% SPD (2 turns)."
+        ]
        },
        "gold": {
         "aura": {
@@ -4287,8 +3938,7 @@
           "pct": 20,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent cards -8 weight (cast sooner). Self: +20% SPD (2 turns)."
+        ]
        },
        "diamond": {
         "aura": {
@@ -4304,8 +3954,7 @@
           "pct": 25,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent cards -10 weight (cast sooner). Self: +25% SPD (2 turns)."
+        ]
        }
       }
      }
@@ -4319,7 +3968,6 @@
      "version": 1,
      "def": {
       "name": "Sword Slash",
-      "text": "Deal 20 (+ATK) Sword damage.",
       "notes": [
        "AOE TIER GATE (2026-08-18): the single stroke widens into a sweep at",
        "Gold \u2014 the obvious \"single-target attack learns to cleave\" case, kept",
@@ -4365,8 +4013,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "Deal 38 (+ATK) Sword damage to ALL foes \u00b7 The sweep is slow to come back around (cooldown 4)."
+        ]
        },
        "diamond": {
         "scope": "all",
@@ -4380,8 +4027,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "Deal 38 (+ATK) Sword damage to ALL foes \u00b7 Gain 10 (+DEF) physical shield \u00b7 The sweep is slow to come back around (cooldown 4)."
+        ]
        }
       }
      }
@@ -4395,7 +4041,6 @@
      "version": 1,
      "def": {
       "name": "Thorn Bite",
-      "text": "Deal 10 (+MATK) Nature damage \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "archetypes": [
        "offense",
        "debuff"
@@ -4426,8 +4071,7 @@
           "kind": "poison",
           "stacks": 7
          }
-        ],
-        "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Poison}} 7 (poison bypasses shields)."
+        ]
        },
        "gold": {
         "effects": [
@@ -4439,8 +4083,7 @@
           "kind": "poison",
           "stacks": 8
          }
-        ],
-        "text": "Deal 24 (+MATK) Nature damage \u00b7 {{Poison}} 8 (poison bypasses shields)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -4452,8 +4095,7 @@
           "kind": "poison",
           "stacks": 9
          }
-        ],
-        "text": "Deal 32 (+MATK) Nature damage \u00b7 {{Poison}} 9 (poison bypasses shields)."
+        ]
        }
       }
      }
@@ -4467,7 +4109,6 @@
      "version": 1,
      "def": {
       "name": "Thunder Step",
-      "text": "Deal 12 (+MATK) Lightning damage \u00b7 +20% SPD (2 turns).",
       "archetypes": [
        "offense",
        "support"
@@ -4500,7 +4141,6 @@
      "version": 1,
      "def": {
       "name": "Time Crystal",
-      "text": "Passive: adjacent Magical cards -5 weight (cast sooner).",
       "notes": [
        "Time theme: the aura's own weight-shave deepens, and a self Speed buff",
        "(empower, well under the size-1 100-deci cap) rounds each tier out exact.",
@@ -4539,8 +4179,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent Magical cards -6 weight (cast sooner). Self: +15% SPD (2 turns)."
+        ]
        },
        "gold": {
         "aura": {
@@ -4557,8 +4196,7 @@
           "pct": 20,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent Magical cards -8 weight (cast sooner). Self: +20% SPD (2 turns)."
+        ]
        },
        "diamond": {
         "aura": {
@@ -4575,8 +4213,7 @@
           "pct": 25,
           "turns": 2
          }
-        ],
-        "text": "Passive: adjacent Magical cards -10 weight (cast sooner). Self: +25% SPD (2 turns)."
+        ]
        }
       }
      }
@@ -4590,7 +4227,6 @@
      "version": 1,
      "def": {
       "name": "Twin Slash",
-      "text": "Deal 6 (+ATK) Sword damage, twice.",
       "notes": [
        "Twin-hit showcase: 2 x 6 base (60 deci) + 1 extra-hit premium (30 deci)",
        "+ weight 8 (light, +10 deci) = exactly Bronze. Each hit adds full",
@@ -4635,8 +4271,7 @@
           "kind": "damage",
           "power": 10
          }
-        ],
-        "text": "Deal 12 (+ATK) Sword damage, then 10 again."
+        ]
        },
        "diamond": {
         "effects": [
@@ -4648,8 +4283,7 @@
           "kind": "damage",
           "power": 20
          }
-        ],
-        "text": "Deal 22 (+ATK) Sword damage, then 20 again."
+        ]
        }
       }
      }
@@ -4663,7 +4297,6 @@
      "version": 1,
      "def": {
       "name": "Venom Fang",
-      "text": "Deal 12 (+ATK) Beast damage \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "notes": [
        "poison priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
@@ -4705,8 +4338,7 @@
           "kind": "poison",
           "stacks": 7
          }
-        ],
-        "text": "Deal 18 (+ATK) Beast damage \u00b7 {{Poison}} 7 (poison bypasses shields)."
+        ]
        },
        "gold": {
         "effects": [
@@ -4718,8 +4350,7 @@
           "kind": "poison",
           "stacks": 8
          }
-        ],
-        "text": "Deal 26 (+ATK) Beast damage \u00b7 {{Poison}} 8 (poison bypasses shields)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -4731,8 +4362,7 @@
           "kind": "poison",
           "stacks": 9
          }
-        ],
-        "text": "Deal 34 (+ATK) Beast damage \u00b7 {{Poison}} 9 (poison bypasses shields)."
+        ]
        }
       }
      }
@@ -4746,7 +4376,6 @@
      "version": 1,
      "def": {
       "name": "Verdant Rebuke",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 10 (+MATK) Nature damage.",
       "notes": [
        "ward 1 (50, frozen) + damage sink (50) = 100 = Bronze exactly. Silver",
        "is left to the auto-scaler (damage 20 \\u2014 verified against",
@@ -4793,8 +4422,7 @@
           "kind": "lifesteal",
           "pct": 45
          }
-        ],
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 24 (+MATK) Nature damage \u00b7 heal 45% of damage dealt."
+        ]
        },
        "diamond": {
         "effects": [
@@ -4810,8 +4438,7 @@
           "kind": "lifesteal",
           "pct": 60
          }
-        ],
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 32 (+MATK) Nature damage \u00b7 heal 60% of damage dealt."
+        ]
        }
       }
      }
@@ -4825,7 +4452,6 @@
      "version": 1,
      "def": {
       "name": "Verdant Touch",
-      "text": "Restore 20 (+MDEF) HP.",
       "archetypes": [
        "healing"
       ],
@@ -4851,7 +4477,6 @@
      "version": 1,
      "def": {
       "name": "Vital Surge",
-      "text": "Restore 48 (+DEF) HP.",
       "archetypes": [
        "healing"
       ],
@@ -4877,7 +4502,6 @@
      "version": 1,
      "def": {
       "name": "Void Pierce",
-      "text": "Deal 10 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "archetypes": [
        "offense"
       ],
@@ -4903,7 +4527,6 @@
      "version": 1,
      "def": {
       "name": "War Banner",
-      "text": "Passive: adjacent Offense cards deal +10 damage.",
       "notes": [
        "Pure aura (no scalable sink) \u2014 the aura itself grows: 15/20/25 damageFlat",
        "\u00d7 auraDamageFlat 10 (adjacent reach \u00d71) = 150/200/250 exactly."
@@ -4932,8 +4555,7 @@
          "mods": {
           "damageFlat": 15
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +15 damage."
+        }
        },
        "gold": {
         "aura": {
@@ -4942,8 +4564,7 @@
          "mods": {
           "damageFlat": 20
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +20 damage."
+        }
        },
        "diamond": {
         "aura": {
@@ -4952,8 +4573,7 @@
          "mods": {
           "damageFlat": 25
          }
-        },
-        "text": "Passive: adjacent Offense cards deal +25 damage."
+        }
        }
       }
      }
@@ -4967,7 +4587,6 @@
      "version": 1,
      "def": {
       "name": "Ward of Silence",
-      "text": "{{Negate}} the next magical attack.",
       "notes": [
        "negate re-priced to 100 deci/charge: 1 charge = Bronze exactly (was 2).",
        "Negate can't grow to 2 charges (200 deci would blow the size-1 empower",
@@ -5004,18 +4623,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Negate}} the next magical attack \u00b7 Gain 10 (+MDEF) magical shield."
-       },
-       "gold": {
-        "text": "{{Negate}} the next magical attack \u00b7 Gain 20 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "text": "{{Negate}} the next magical attack \u00b7 Gain 30 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -5027,7 +4635,6 @@
      "version": 1,
      "def": {
       "name": "Warding Prayer",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Remove up to 2 of your ailments.",
       "notes": [
        "ward (frozen empower, 50 deci/charge) 1 charge (50) + cleanse (the one",
        "TIER-SCALING sink, 25 deci/charge) 2 charges (50) = 100 = Bronze",
@@ -5067,7 +4674,6 @@
      "version": 1,
      "def": {
       "name": "Warlord's Banner",
-      "text": "Passive: ALL board cards deal +5 damage.",
       "notes": [
        "Pure aura at allBoard reach (2x cost); damageFlat grows and a self",
        "Attack buff sinks the rest."
@@ -5102,8 +4708,7 @@
           "pct": 15,
           "turns": 2
          }
-        ],
-        "text": "Passive: ALL board cards deal +6 damage. Self: +15% ATK (2 turns)."
+        ]
        },
        "gold": {
         "aura": {
@@ -5119,8 +4724,7 @@
           "pct": 20,
           "turns": 2
          }
-        ],
-        "text": "Passive: ALL board cards deal +8 damage. Self: +20% ATK (2 turns)."
+        ]
        },
        "diamond": {
         "aura": {
@@ -5136,8 +4740,7 @@
           "pct": 25,
           "turns": 2
          }
-        ],
-        "text": "Passive: ALL board cards deal +10 damage. Self: +25% ATK (2 turns)."
+        ]
        }
       }
      }
@@ -5151,7 +4754,6 @@
      "version": 1,
      "def": {
       "name": "Wildfire Surge",
-      "text": "Deal 24 (+MATK) Fire damage \u00b7 {{Burn}} 12.",
       "archetypes": [
        "offense"
       ],
@@ -5181,8 +4783,7 @@
           "kind": "burn",
           "stacks": 14
          }
-        ],
-        "text": "Deal 36 (+MATK) Fire damage \u00b7 {{Burn}} 14."
+        ]
        },
        "gold": {
         "effects": [
@@ -5194,8 +4795,7 @@
           "kind": "burn",
           "stacks": 15
          }
-        ],
-        "text": "Deal 52 (+MATK) Fire damage \u00b7 {{Burn}} 15."
+        ]
        },
        "diamond": {
         "effects": [
@@ -5207,8 +4807,7 @@
           "kind": "burn",
           "stacks": 17
          }
-        ],
-        "text": "Deal 64 (+MATK) Fire damage \u00b7 {{Burn}} 17."
+        ]
        }
       }
      }
@@ -5222,7 +4821,6 @@
      "version": 1,
      "def": {
       "name": "Sanctum Thorn",
-      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Restore 18 (+DEF) HP.",
       "notes": [
        "THE heal -> ward -> thorns CHAIN CARD (2026-08-18 hybrid pass): all three keywords",
        "of the requested chain on one card. ward 2 (100) + thorns 5 (50) = 150 =",
@@ -5269,7 +4867,6 @@
      "version": 1,
      "def": {
       "name": "Bramblemend",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Restore 10 (+DEF) HP.",
       "notes": [
        "heal+thorns hybrid (2026-08-18): \"you soak, you heal back, they bleed",
        "on you\" without ward yet. thorns 5 (50, frozen) + heal 10 (50) = 100 =",
@@ -5318,8 +4915,7 @@
           "kind": "heal",
           "power": 20
          }
-        ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 20 (+DEF) HP."
+        ]
        },
        "diamond": {
         "effects": [
@@ -5335,8 +4931,7 @@
           "kind": "heal",
           "power": 30
          }
-        ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 30 (+DEF) HP."
+        ]
        }
       }
      }
@@ -5350,7 +4945,6 @@
      "version": 1,
      "def": {
       "name": "Warded Reprisal",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 10 (+DEF) HP.",
       "notes": [
        "heal+ward, physical mirror of Aegis of the Unbroken (magical/holy):",
        "ward 1 (50, frozen) + heal 10 (50) = 100 = Bronze exactly. No",
@@ -5388,7 +4982,6 @@
      "version": 1,
      "def": {
       "name": "Bulwark Thicket",
-      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 56 (+DEF) physical shield.",
       "notes": [
        "shield+thorns deepening, SIZE-3 (the heavy slot): `reflectThorns` fires",
        "on a hit REGARDLESS of whether a shield absorbed it, so this is a",
@@ -5439,8 +5032,7 @@
           "kind": "shield",
           "power": 94
          }
-        ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Remove up to 4 of your ailments \u00b7 Gain 94 (+DEF) physical shield."
+        ]
        },
        "diamond": {
         "effects": [
@@ -5456,8 +5048,7 @@
           "kind": "shield",
           "power": 112
          }
-        ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Remove up to 6 of your ailments \u00b7 Gain 112 (+DEF) physical shield."
+        ]
        }
       }
      }
@@ -5471,7 +5062,6 @@
      "version": 1,
      "def": {
       "name": "Unbreakable Stance",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns).",
       "notes": [
        "ward+guard: BOTH frozen empower with no scalable sink between them \u2014",
        "combined they exactly fill the size-1 empower cap (50 + 50 = 100 deci",
@@ -5514,18 +5104,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
-       },
-       "gold": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
-       },
-       "diamond": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -5537,7 +5116,6 @@
      "version": 1,
      "def": {
       "name": "Umbral Ward",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns).",
       "notes": [
        "ward+debuffStat: BOTH frozen (empower + control), no scalable sink at",
        "Bronze \u2014 CAP-HIT, same shape as unbreakable_stance. ward 1 (50) +",
@@ -5594,18 +5172,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
-       },
-       "gold": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
-       },
-       "diamond": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -5617,7 +5184,6 @@
      "version": 1,
      "def": {
       "name": "Thorn Shackle",
-      "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns).",
       "notes": [
        "thorns+debuffStat: a new pairing for the Thorn Garden (every other",
        "thorns card pairs with shield/guard/damage). Both frozen (empower +",
@@ -5663,18 +5229,7 @@
         "power": 16,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 16 (+DEF) physical shield."
-       },
-       "gold": {
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 34 (+DEF) physical shield."
-       },
-       "diamond": {
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 50 (+DEF) physical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -5686,7 +5241,6 @@
      "version": 1,
      "def": {
       "name": "Mortal Wound",
-      "text": "Deal 5 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "Opened Wound, TRUE property: \"a wound too deep to defend against\" \u2014",
        "the property axis rather than a new weapon. Bleed is priced flat",
@@ -5730,8 +5284,7 @@
           "kind": "bleed",
           "stacks": 7
          }
-        ],
-        "text": "Deal 8 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -5743,8 +5296,7 @@
           "kind": "bleed",
           "stacks": 8
          }
-        ],
-        "text": "Deal 12 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -5756,8 +5308,7 @@
           "kind": "bleed",
           "stacks": 9
          }
-        ],
-        "text": "Deal 16 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -5771,7 +5322,6 @@
      "version": 1,
      "def": {
       "name": "Barbed Rampart",
-      "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 6 (+ATK) Beast damage \u00b7 {{Bleed}} 3 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "bleed+guard: a new pairing for the Opened Wound (every other bleed",
        "card pairs with shieldBreak/expose/debuffStat/nothing) \u2014 a defensive",
@@ -5840,8 +5390,7 @@
           "kind": "damage",
           "power": 12
          }
-        ],
-        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 12 (+ATK) Beast damage \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -5859,8 +5408,7 @@
           "kind": "damage",
           "power": 18
          }
-        ],
-        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 18 (+ATK) Beast damage \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -5878,8 +5426,7 @@
           "kind": "damage",
           "power": 26
          }
-        ],
-        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 26 (+ATK) Beast damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -5893,7 +5440,6 @@
      "version": 1,
      "def": {
       "name": "Crippling Gore",
-      "text": "-40% enemy DEF (2 turns) \u00b7 Deal 60 (+ATK) Lance damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "bleed+debuffStat: a new pairing (weaken the guard further while it",
        "bleeds, distinct from the shieldBreak-then-bleed teaching cards).",
@@ -5963,8 +5509,7 @@
           "kind": "damage",
           "power": 82
          }
-        ],
-        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 82 (+ATK) Lance damage \u00b7 {{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "gold": {
         "effects": [
@@ -5982,8 +5527,7 @@
           "kind": "damage",
           "power": 108
          }
-        ],
-        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 108 (+ATK) Lance damage \u00b7 {{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        },
        "diamond": {
         "effects": [
@@ -6001,8 +5545,7 @@
           "kind": "damage",
           "power": 132
          }
-        ],
-        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 132 (+ATK) Lance damage \u00b7 {{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields."
+        ]
        }
       }
      }
@@ -6016,7 +5559,6 @@
      "version": 1,
      "def": {
       "name": "Blossoming Toxin",
-      "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Restore 10 (+MDEF) HP.",
       "notes": [
        "poison+heal: the nature \"poison/regen\" identity taken literally \u2014",
        "you poison the foe and regrow the same turn. New pairing for the",
@@ -6056,8 +5598,7 @@
           "kind": "heal",
           "power": 16
          }
-        ],
-        "text": "{{Poison}} 7 (poison bypasses shields) \u00b7 Restore 16 (+MDEF) HP."
+        ]
        },
        "gold": {
         "effects": [
@@ -6069,8 +5610,7 @@
           "kind": "heal",
           "power": 24
          }
-        ],
-        "text": "{{Poison}} 8 (poison bypasses shields) \u00b7 Restore 24 (+MDEF) HP."
+        ]
        },
        "diamond": {
         "effects": [
@@ -6082,8 +5622,7 @@
           "kind": "heal",
           "power": 32
          }
-        ],
-        "text": "{{Poison}} 9 (poison bypasses shields) \u00b7 Restore 32 (+MDEF) HP."
+        ]
        }
       }
      }
@@ -6097,7 +5636,6 @@
      "version": 1,
      "def": {
       "name": "Plague Ritual",
-      "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 2 of your ailments.",
       "notes": [
        "poison+cleanse: the self-cleansing venom-user \u2014 poison the foe, purge",
        "your own ailments. poison stays frozen at 5 (the DoT-sink trap would",
@@ -6138,8 +5676,7 @@
           "kind": "cleanse",
           "charges": 4
          }
-        ],
-        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 4 of your ailments."
+        ]
        },
        "gold": {
         "effects": [
@@ -6151,8 +5688,7 @@
           "kind": "cleanse",
           "charges": 6
          }
-        ],
-        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 6 of your ailments."
+        ]
        },
        "diamond": {
         "effects": [
@@ -6164,8 +5700,7 @@
           "kind": "cleanse",
           "charges": 8
          }
-        ],
-        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 8 of your ailments."
+        ]
        }
       }
      }
@@ -6179,7 +5714,6 @@
      "version": 1,
      "def": {
       "name": "Evasive Cordon",
-      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Gain 10 (+DEF) physical shield.",
       "notes": [
        "ward+shield: physical mirror of Aegis of the Unbroken's ward+heal.",
        "ward 1 (50, frozen) + shield 10 (50) = 100 = Bronze exactly. No",
@@ -6216,7 +5750,6 @@
      "version": 1,
      "def": {
       "name": "Shockwave Slam",
-      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Burden}} +4 weight on the card the enemy is about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
        "SHOWCASE CARD for the `burden + splash` pairing (2026-08-18; re-authored",
        "2026-08-21 when `splash` became the payload-less SPREADER; re-solved later",
@@ -6283,7 +5816,6 @@
      "version": 1,
      "def": {
       "name": "Arc Cascade",
-      "text": "Deal 12 (+MATK) Lightning damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
        "MAGICAL SPREAD (content-designer pass, 2026-08-19; re-authored 2026-08-21",
        "for the spreader model, re-verified under the flat splash price the same",
@@ -6343,7 +5875,6 @@
      "version": 1,
      "def": {
       "name": "Line Breaker",
-      "text": "Deal 10 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 {{Burden}} +4 weight on the card they are about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
        "SLOW + SPREAD BURDEN PAIRING (content-designer pass, 2026-08-19;",
        "re-authored 2026-08-21 for the spreader model; re-solved later the same",
@@ -6414,7 +5945,6 @@
      "version": 1,
      "def": {
       "name": "Disarming Blow",
-      "text": "-50% enemy ATK (2 turns).",
       "notes": [
        "ATK/MATK debuff parity pass (2026-08-19, issue #39): the catalog had a",
        "heavy PURE debuff for DEF (armor_break) and MDEF (hex_of_frailty) but",
@@ -6475,18 +6005,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
-       },
-       "gold": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
-       },
-       "diamond": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -6498,7 +6017,6 @@
      "version": 1,
      "def": {
       "name": "Mind Frost",
-      "text": "-50% enemy MATK (2 turns).",
       "notes": [
        "ATK/MATK debuff parity pass (2026-08-19, issue #39): the MATK-side twin",
        "of Disarming Blow, same shape as hex_of_frailty's MDEF version restated",
@@ -6552,18 +6070,7 @@
         "power": 10,
         "minTier": "silver"
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 10 (+MATK) Frost damage."
-       },
-       "gold": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 20 (+MATK) Frost damage."
-       },
-       "diamond": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 30 (+MATK) Frost damage."
-       }
-      }
+      ]
      }
     }
    ]
@@ -6575,7 +6082,6 @@
      "version": 1,
      "def": {
       "name": "Toxic Bulwark",
-      "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 4 (poison bypasses shields).",
       "notes": [
        "poison lane depth pass (2026-08-19, issue #51): blooming_vine/thorn_bite/",
        "venom_fang were three near-identical damage+poison cards. This is a",
@@ -6587,11 +6093,10 @@
        "value. Silver 60 + poison 9 (90) = 150. Gold 60 + poison 14 (140) = 200.",
        "Diamond 60 + poison 19 (190, under the 200 cap) = 250 \u2014 hand-authored",
        "ladder, but the numbers are exactly what `autoScaleTier` itself",
-       "computes for this kit (confirmed by actually running it: silver ->",
-       "poison 9, gold -> poison 14, diamond -> poison 19, zero cap",
-       "violations at every tier) \u2014 hand-authored anyway so the shipped text",
-       "carries its own accurate numbers at every tier rather than relying on",
-       "the generic retext pass."
+       "computes for this kit (confirmed by actually running it: silver -> poison 9,",
+       "gold -> poison 14, diamond -> poison 19, zero cap violations at every tier).",
+       "Kept hand-authored because it is the deliberate ladder; the FACE at each",
+       "tier is generated from whichever kit resolves there."
       ],
       "archetypes": [
        "defensive",
@@ -6613,54 +6118,7 @@
         "kind": "poison",
         "stacks": 4
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "poison",
-          "stacks": 9
-         }
-        ],
-        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 9 (poison bypasses shields)."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "poison",
-          "stacks": 14
-         }
-        ],
-        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 14 (poison bypasses shields)."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "poison",
-          "stacks": 19
-         }
-        ],
-        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 19 (poison bypasses shields)."
-       }
-      }
+      ]
      }
     }
    ]
@@ -6672,7 +6130,6 @@
      "version": 1,
      "def": {
       "name": "Nettle Ward",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "notes": [
        "poison lane depth pass (2026-08-19, issue #51): the second genuinely NEW",
        "pairing \u2014 poison+thorns, contact venom that lashes back at attackers.",
@@ -6685,10 +6142,9 @@
        "at Diamond by construction (250 budget \u2212 50 frozen thorns = 200):",
        "Silver 50 + poison 10 (100) = 150. Gold 50 + poison 15 (150) = 200.",
        "Diamond 50 + poison 20 (200, exactly the dot cap) = 250 \u2014 confirmed by",
-       "actually running `autoScaleTier` on this kit (it independently lands on",
-       "the same 10/15/20 stack ladder with zero cap violations at every",
-       "tier); hand-authored anyway so the shipped text carries its own",
-       "accurate numbers rather than relying on the generic retext pass."
+       "running `autoScaleTier` on this kit (it independently lands on the same",
+       "10/15/20 stack ladder, zero cap violations at every tier). Kept",
+       "hand-authored anyway; the FACE at each tier is generated from whichever kit resolves there."
       ],
       "archetypes": [
        "defensive",
@@ -6708,48 +6164,7 @@
         "kind": "poison",
         "stacks": 5
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 5
-         },
-         {
-          "kind": "poison",
-          "stacks": 10
-         }
-        ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 10 (poison bypasses shields)."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 5
-         },
-         {
-          "kind": "poison",
-          "stacks": 15
-         }
-        ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 15 (poison bypasses shields)."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 5
-         },
-         {
-          "kind": "poison",
-          "stacks": 20
-         }
-        ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 20 (poison bypasses shields)."
-       }
-      }
+      ]
      }
     }
    ]
@@ -6761,7 +6176,6 @@
      "version": 1,
      "def": {
       "name": "Blight Feast",
-      "text": "Deal 12 (+MATK) Nature damage \u00b7 +12 more if the target already carries {{Poison}} (checked before this card acts).",
       "notes": [
        "PURE EXPLOITER \u2014 the poison lane's payoff card: it applies no poison of",
        "its own, so its bonus depends entirely on what the rest of the board (or",
@@ -6812,8 +6226,7 @@
           "kind": "damage",
           "power": 20
          }
-        ],
-        "text": "Deal 20 (+MATK) Nature damage \u00b7 +16 more if the target already carries {{Poison}} (checked before this card acts)."
+        ]
        },
        "gold": {
         "effects": [
@@ -6826,8 +6239,7 @@
           "kind": "damage",
           "power": 28
          }
-        ],
-        "text": "Deal 28 (+MATK) Nature damage \u00b7 +20 more if the target already carries {{Poison}} (checked before this card acts)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -6840,8 +6252,7 @@
           "kind": "damage",
           "power": 36
          }
-        ],
-        "text": "Deal 36 (+MATK) Nature damage \u00b7 +24 more if the target already carries {{Poison}} (checked before this card acts)."
+        ]
        }
       }
      }
@@ -6855,7 +6266,6 @@
      "version": 1,
      "def": {
       "name": "Second Bite",
-      "text": "Deal 8 (+ATK) Beast damage \u00b7 +4 more if the target was already poisoned \u00b7 {{Poison}} 4 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one.",
       "notes": [
        "SELF-SUFFICIENT EXPLOITER \u2014 it applies the poison it feeds on, so it",
        "guarantees its own condition from its SECOND cast onward and pays the",
@@ -6913,8 +6323,7 @@
           "kind": "poison",
           "stacks": 6
          }
-        ],
-        "text": "Deal 12 (+ATK) Beast damage \u00b7 +6 more if the target was already poisoned \u00b7 {{Poison}} 6 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+        ]
        },
        "gold": {
         "effects": [
@@ -6931,8 +6340,7 @@
           "kind": "poison",
           "stacks": 7
          }
-        ],
-        "text": "Deal 18 (+ATK) Beast damage \u00b7 +8 more if the target was already poisoned \u00b7 {{Poison}} 7 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+        ]
        },
        "diamond": {
         "effects": [
@@ -6949,8 +6357,7 @@
           "kind": "poison",
           "stacks": 8
          }
-        ],
-        "text": "Deal 24 (+ATK) Beast damage \u00b7 +10 more if the target was already poisoned \u00b7 {{Poison}} 8 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+        ]
        }
       }
      }
@@ -6964,7 +6371,6 @@
      "version": 1,
      "def": {
       "name": "Thorn Reckoning",
-      "text": "Deal 20 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing.",
       "notes": [
        "THE WALL'S WIN CONDITION \u2014 a thorn deck accumulates a pile it can only",
        "spend by being hit; this card cashes it in as damage WITHOUT consuming it.",
@@ -6983,8 +6389,8 @@
        "Silver:  60 + 80 + damage 36 (180) = 320 = 150 + grant 170.",
        "Gold:    60 + 80 + damage 54 (270) = 410 = 200 + grant 210.",
        "Diamond: 60 + 80 + damage 70 (350) = 490 = 250 + grant 240.",
-       "Hand-authored (the auto-scaler solves the same damage numbers, but its",
-       "generic retexter cannot rewrite prose carrying four magnitudes)."
+       "Hand-authored, and the auto-scaler solves the same damage numbers. The old",
+       "reason for authoring it \u2014 a generic retexter could not rewrite prose carrying four magnitudes \u2014 is gone: the face is generated from the kit."
       ],
       "archetypes": [
        "offense",
@@ -7011,69 +6417,7 @@
         "kind": "thorns",
         "stacks": 8
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "stackBonus",
-          "status": "thorns",
-          "of": "caster",
-          "per": 3,
-          "cap": 12
-         },
-         {
-          "kind": "damage",
-          "power": 36
-         },
-         {
-          "kind": "thorns",
-          "stacks": 8
-         }
-        ],
-        "text": "Deal 36 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "stackBonus",
-          "status": "thorns",
-          "of": "caster",
-          "per": 3,
-          "cap": 12
-         },
-         {
-          "kind": "damage",
-          "power": 54
-         },
-         {
-          "kind": "thorns",
-          "stacks": 8
-         }
-        ],
-        "text": "Deal 54 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "stackBonus",
-          "status": "thorns",
-          "of": "caster",
-          "per": 3,
-          "cap": 12
-         },
-         {
-          "kind": "damage",
-          "power": 70
-         },
-         {
-          "kind": "thorns",
-          "stacks": 8
-         }
-        ],
-        "text": "Deal 70 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
-       }
-      }
+      ]
      }
     }
    ]
@@ -7085,7 +6429,6 @@
      "version": 1,
      "def": {
       "name": "Bleed Executioner",
-      "text": "Deal 14 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +12).",
       "notes": [
        "THE BLEED LANE'S PAYOFF CARD, `stackBonus`-shaped (the DoT-executioner",
        "form balance.ts names, `of: 'target'`) rather than `exploit`: the bonus",
@@ -7143,8 +6486,7 @@
           "kind": "damage",
           "power": 22
          }
-        ],
-        "text": "Deal 22 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +16)."
+        ]
        },
        "gold": {
         "effects": [
@@ -7159,8 +6501,7 @@
           "kind": "damage",
           "power": 30
          }
-        ],
-        "text": "Deal 30 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +20)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7175,8 +6516,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "Deal 38 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +24)."
+        ]
        }
       }
      }
@@ -7190,7 +6530,6 @@
      "version": 1,
      "def": {
       "name": "Burn Detonator",
-      "text": "Deal 12 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +16). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing.",
       "notes": [
        "BURN'S PAYOFF CARD \u2014 `stackBonus` (`of: 'target'`) reads whatever",
        "{{Burn}} pile cinder_dart/ember_lash/inferno_eruption/scorching_brand/",
@@ -7245,8 +6584,7 @@
           "kind": "damage",
           "power": 20
          }
-        ],
-        "text": "Deal 20 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +20). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+        ]
        },
        "gold": {
         "effects": [
@@ -7261,8 +6599,7 @@
           "kind": "damage",
           "power": 28
          }
-        ],
-        "text": "Deal 28 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +24). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7277,8 +6614,7 @@
           "kind": "damage",
           "power": 36
          }
-        ],
-        "text": "Deal 36 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +28). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+        ]
        }
       }
      }
@@ -7292,7 +6628,6 @@
      "version": 1,
      "def": {
       "name": "Control Opportunist",
-      "text": "Deal 16 (+ATK) Bow damage \u00b7 +8 more if the target already carries {{Stun}} (checked before this card acts).",
       "notes": [
        "PURE EXPLOITER on `stun` \u2014 stun already has three appliers in the book",
        "(the two lance cards, stunning_smash), so this card supplies none of its",
@@ -7346,8 +6681,7 @@
           "kind": "damage",
           "power": 24
          }
-        ],
-        "text": "Deal 24 (+ATK) Bow damage \u00b7 +12 more if the target already carries {{Stun}} (checked before this card acts)."
+        ]
        },
        "gold": {
         "effects": [
@@ -7360,8 +6694,7 @@
           "kind": "damage",
           "power": 32
          }
-        ],
-        "text": "Deal 32 (+ATK) Bow damage \u00b7 +16 more if the target already carries {{Stun}} (checked before this card acts)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7374,8 +6707,7 @@
           "kind": "damage",
           "power": 40
          }
-        ],
-        "text": "Deal 40 (+ATK) Bow damage \u00b7 +20 more if the target already carries {{Stun}} (checked before this card acts)."
+        ]
        }
       }
      }
@@ -7389,7 +6721,6 @@
      "version": 1,
      "def": {
       "name": "Debuff Crusher",
-      "text": "Deal 18 (+MATK) Lightning damage \u00b7 +4 more if the target already carries a stat debuff (checked before this card acts).",
       "notes": [
        "THE GENERALIST \u2014 `exploit` keyed to `debuff`, which is ONE status kind",
        "covering all four `debuffStat` targets (attack/magicPower/armor/",
@@ -7446,8 +6777,7 @@
           "kind": "damage",
           "power": 26
          }
-        ],
-        "text": "Deal 26 (+MATK) Lightning damage \u00b7 +8 more if the target already carries a stat debuff (checked before this card acts)."
+        ]
        },
        "gold": {
         "effects": [
@@ -7460,8 +6790,7 @@
           "kind": "damage",
           "power": 34
          }
-        ],
-        "text": "Deal 34 (+MATK) Lightning damage \u00b7 +12 more if the target already carries a stat debuff (checked before this card acts)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7474,8 +6803,7 @@
           "kind": "damage",
           "power": 42
          }
-        ],
-        "text": "Deal 42 (+MATK) Lightning damage \u00b7 +16 more if the target already carries a stat debuff (checked before this card acts)."
+        ]
        }
       }
      }
@@ -7489,7 +6817,6 @@
      "version": 1,
      "def": {
       "name": "Aegis Charge",
-      "text": "Deal 14 (+ATK) Sword damage \u00b7 Shatter up to 12 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts.",
       "notes": [
        "THE PURE SPENDER \u2014 the shield lane's payoff card, and the first keyword",
        "that turns plating into damage. It grants NO shield of its own, so every",
@@ -7547,8 +6874,7 @@
           "kind": "damage",
           "power": 22
          }
-        ],
-        "text": "Deal 22 (+ATK) Sword damage \u00b7 Shatter up to 16 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+        ]
        },
        "gold": {
         "effects": [
@@ -7560,8 +6886,7 @@
           "kind": "damage",
           "power": 30
          }
-        ],
-        "text": "Deal 30 (+ATK) Sword damage \u00b7 Shatter up to 20 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7573,8 +6898,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "Deal 38 (+ATK) Sword damage \u00b7 Shatter up to 24 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+        ]
        }
       }
      }
@@ -7588,7 +6912,6 @@
      "version": 1,
      "def": {
       "name": "Deadweight Toll",
-      "text": "Deal 12 (+ATK) Axe damage, +4 per weight-taxed card on the target (max +16) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count.",
       "notes": [
        "THE TEMPO PUNISHER \u2014 the payoff card of the slow/splash lane: it counts",
        "the backlog somebody else built (every board piece carrying a splash tax,",
@@ -7653,8 +6976,7 @@
           "kind": "damage",
           "power": 20
          }
-        ],
-        "text": "Deal 20 (+ATK) Axe damage, +5 per weight-taxed card on the target (max +20) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        ]
        },
        "gold": {
         "effects": [
@@ -7667,8 +6989,7 @@
           "kind": "damage",
           "power": 28
          }
-        ],
-        "text": "Deal 28 (+ATK) Axe damage, +6 per weight-taxed card on the target (max +24) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7681,8 +7002,7 @@
           "kind": "damage",
           "power": 36
          }
-        ],
-        "text": "Deal 36 (+ATK) Axe damage, +7 per weight-taxed card on the target (max +28) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        ]
        }
       }
      }
@@ -7696,7 +7016,6 @@
      "version": 1,
      "def": {
       "name": "Dulling Hex",
-      "text": "Deal 12 (+MATK) Dark damage \u00b7 {{Curse}} the card the enemy is about to play deals 8 less damage for 2 turns.",
       "notes": [
        "SHOWCASE CARD for `curse` (2026-08-21) \u2014 the CARD-scope damage debuff, and",
        "the anchor-only form of it. `burden` (Shockwave Slam, Line Breaker) makes the",
@@ -7754,7 +7073,6 @@
      "version": 1,
      "def": {
       "name": "Sapping Arc",
-      "text": "Deal 12 (+ATK) Sword damage \u00b7 {{Curse}} the card the enemy is about to play deals 4 less damage for 2 turns \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
        "SHOWCASE CARD for `curse + splash` (2026-08-21) \u2014 the SPREADER doing its job",
        "on the second card-targeting keyword. `splash` carries no payload: it widens",
@@ -7819,7 +7137,6 @@
      "version": 1,
      "def": {
       "name": "Sanctuary Overflow",
-      "text": "Heal 14 (+MDEF) Holy \u2014 up to 12 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax.",
       "notes": [
        "THE WASTE-NOTHING HEALER \u2014 the first card whose overheal is worth",
        "something. A heal into a full (or nearly full) bar normally evaporates at",
@@ -7874,8 +7191,7 @@
           "kind": "heal",
           "power": 22
          }
-        ],
-        "text": "Heal 22 (+MDEF) Holy \u2014 up to 16 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+        ]
        },
        "gold": {
         "effects": [
@@ -7887,8 +7203,7 @@
           "kind": "heal",
           "power": 30
          }
-        ],
-        "text": "Heal 30 (+MDEF) Holy \u2014 up to 20 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+        ]
        },
        "diamond": {
         "effects": [
@@ -7900,8 +7215,7 @@
           "kind": "heal",
           "power": 38
          }
-        ],
-        "text": "Heal 38 (+MDEF) Holy \u2014 up to 24 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+        ]
        }
       }
      }
@@ -7915,7 +7229,6 @@
      "version": 1,
      "def": {
       "name": "Penitent Mending",
-      "text": "{{Cleanse}} 2 \u2014 then heal 4 (+MDEF) Holy, +4 more for every affliction stack that cleanse actually removed (max +12). Strip nothing, heal nothing extra.",
       "notes": [
        "THE PAYOFF FOR BEING AFFLICTED \u2014 a cleanse whose value scales with how",
        "much there was to clean. cleanseConvert reads the STACKS the cast's own",
@@ -7996,8 +7309,7 @@
           "kind": "heal",
           "power": 10
          }
-        ],
-        "text": "{{Cleanse}} 2 \u2014 then heal 10 (+MDEF) Holy, +7 more for every affliction stack that cleanse actually removed (max +20). Strip nothing, heal nothing extra."
+        ]
        },
        "gold": {
         "effects": [
@@ -8014,8 +7326,7 @@
           "kind": "heal",
           "power": 16
          }
-        ],
-        "text": "{{Cleanse}} 2 \u2014 then heal 16 (+MDEF) Holy, +10 more for every affliction stack that cleanse actually removed (max +28). Strip nothing, heal nothing extra."
+        ]
        },
        "diamond": {
         "effects": [
@@ -8032,8 +7343,7 @@
           "kind": "heal",
           "power": 22
          }
-        ],
-        "text": "{{Cleanse}} 2 \u2014 then heal 22 (+MDEF) Holy, +12 more for every affliction stack that cleanse actually removed (max +36). Strip nothing, heal nothing extra."
+        ]
        }
       }
      }
@@ -8047,7 +7357,6 @@
      "version": 1,
      "def": {
       "name": "Vow Broken",
-      "text": "Deal 8 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +8 damage each (max +24), and the charges are gone. Only charges you were already holding count.",
       "notes": [
        "THE SECOND SPENDER \u2014 Aegis Charge one currency over. Where a burst throws",
        "your plating, this cashes in your WARD CHARGES: each one released is worth",
@@ -8114,8 +7423,7 @@
           "kind": "damage",
           "power": 16
          }
-        ],
-        "text": "Deal 16 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +10 damage each (max +28), and the charges are gone. Only charges you were already holding count."
+        ]
        },
        "gold": {
         "effects": [
@@ -8128,8 +7436,7 @@
           "kind": "damage",
           "power": 24
          }
-        ],
-        "text": "Deal 24 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +11 damage each (max +32), and the charges are gone. Only charges you were already holding count."
+        ]
        },
        "diamond": {
         "effects": [
@@ -8142,8 +7449,7 @@
           "kind": "damage",
           "power": 32
          }
-        ],
-        "text": "Deal 32 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +12 damage each (max +36), and the charges are gone. Only charges you were already holding count."
+        ]
        }
       }
      }
@@ -8157,7 +7463,6 @@
      "version": 1,
      "def": {
       "name": "Cornered Beast",
-      "text": "Deal 14 (+ATK) Axe damage, +12 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt.",
       "notes": [
        "THE LAST-STAND PAYOFF \u2014 Blight Feast with the gate moved onto YOUR OWN HP",
        "bar. `desperation` adds its flat bonus while the caster sits at or below",
@@ -8212,8 +7517,7 @@
           "kind": "damage",
           "power": 22
          }
-        ],
-        "text": "Deal 22 (+ATK) Axe damage, +16 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+        ]
        },
        "gold": {
         "effects": [
@@ -8225,8 +7529,7 @@
           "kind": "damage",
           "power": 30
          }
-        ],
-        "text": "Deal 30 (+ATK) Axe damage, +20 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+        ]
        },
        "diamond": {
         "effects": [
@@ -8238,8 +7541,7 @@
           "kind": "damage",
           "power": 38
          }
-        ],
-        "text": "Deal 38 (+ATK) Axe damage, +24 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+        ]
        }
       }
      }
@@ -8253,7 +7555,6 @@
      "version": 1,
      "def": {
       "name": "Leaden Bite",
-      "text": "Deal 16 (+ATK) Beast damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play.",
       "notes": [
        "THE ANCHOR-ONLY BURDEN CARD (content-designer pass, 2026-08-21) \u2014 closes two",
        "gaps at once, both left by the splash consolidation earlier the same day.",
@@ -8318,7 +7619,6 @@
      "version": 1,
      "def": {
       "name": "Finishing Cleave",
-      "text": "{{Chain}} +8 damage if your previous cast was a Sword card \u00b7 deal 16 (+ATK) Axe damage.",
       "notes": [
        "SHOWCASE CARD for `chainBonus` on the WEAPON axis (2026-08-21) \u2014 the",
        "keyword's founding example: a sword opens, the axe finishes. The gate reads",
@@ -8375,7 +7675,6 @@
      "version": 1,
      "def": {
       "name": "Thermal Shock",
-      "text": "{{Chain}} +16 damage if your previous cast was a Fire card \u00b7 deal 12 (+MATK) Frost damage.",
       "notes": [
        "THE ELEMENT AXIS of `chainBonus` (2026-08-21) \u2014 the same keyword, the magical",
        "half of it: `cardType` reads `element ?? weapon`, so a card type is a WEAPON",
@@ -8426,7 +7725,6 @@
      "version": 1,
      "def": {
       "name": "Breach Strike",
-      "text": "+8 damage if the target is already {{Expose}}d \u00b7 deal 16 (+ATK) Lance damage.",
       "notes": [
        "THE EXPOSE PAYOFF (content-designer pass, 2026-08-21) \u2014 closes the last hole",
        "in the debuff-affinity family. `EXPLOITABLE` (validateSkillContent) lists six",
@@ -8483,7 +7781,6 @@
      "version": 1,
      "def": {
       "name": "Sworn Edge",
-      "text": "Deal 34 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 28.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8497,9 +7794,9 @@
        "count board-dependent \u2014 one hit off-type, two on-type.",
        "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
        "BASE AND PAYOFF MUST DIFFER (32+32 -> 34+28). At the 1/2 refund the",
-       "even solve put both halves on the same number, and `retextScaledNumbers`",
-       "REFUSES to rewrite an ambiguous numeral (a value appearing twice), so every",
-       "tier above bronze kept printing the bronze base. The guard is right; the",
+       "even solve put both halves on the same number, and the display-text rewrite",
+       "of the day REFUSED to touch an ambiguous numeral (a value appearing twice), so",
+       "every tier above bronze kept printing the bronze base. That guard was right; the",
        "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
        "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
       ],
@@ -8533,7 +7830,6 @@
      "version": 1,
      "def": {
       "name": "Kindred Flame",
-      "text": "Deal 28 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 40.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8577,7 +7873,6 @@
      "version": 1,
      "def": {
       "name": "Communion Light",
-      "text": "Deal 36 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 24.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8621,7 +7916,6 @@
      "version": 1,
      "def": {
       "name": "Warband Cleave",
-      "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 48.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8665,7 +7959,6 @@
      "version": 1,
      "def": {
       "name": "Phalanx Thrust",
-      "text": "Deal 36 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 24.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8709,7 +8002,6 @@
      "version": 1,
      "def": {
       "name": "Massed Volley",
-      "text": "Deal 40 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 16.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8753,7 +8045,6 @@
      "version": 1,
      "def": {
       "name": "Pack Instinct",
-      "text": "Deal 28 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 40.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8797,7 +8088,6 @@
      "version": 1,
      "def": {
       "name": "Grove Lash",
-      "text": "Deal 34 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 28.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8811,9 +8101,9 @@
        "count board-dependent \u2014 one hit off-type, two on-type.",
        "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
        "BASE AND PAYOFF MUST DIFFER (32+32 -> 34+28). At the 1/2 refund the",
-       "even solve put both halves on the same number, and `retextScaledNumbers`",
-       "REFUSES to rewrite an ambiguous numeral (a value appearing twice), so every",
-       "tier above bronze kept printing the bronze base. The guard is right; the",
+       "even solve put both halves on the same number, and the display-text rewrite",
+       "of the day REFUSED to touch an ambiguous numeral (a value appearing twice), so",
+       "every tier above bronze kept printing the bronze base. That guard was right; the",
        "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
        "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
       ],
@@ -8847,7 +8137,6 @@
      "version": 1,
      "def": {
       "name": "Deepening Frost",
-      "text": "Deal 36 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 24.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8891,7 +8180,6 @@
      "version": 1,
      "def": {
       "name": "Gathering Storm",
-      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 40.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8935,7 +8223,6 @@
      "version": 1,
      "def": {
       "name": "Umbral Choir",
-      "text": "Deal 36 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 24.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -8979,7 +8266,6 @@
      "version": 1,
      "def": {
       "name": "Kindling Rite",
-      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Charge}} Fire \u2014 your next Fire card deals +16 damage.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9019,7 +8305,6 @@
      "version": 1,
      "def": {
       "name": "Whetstone Vow",
-      "text": "Deal 12 (+ATK) Sword damage \u00b7 {{Charge}} Sword \u2014 your next Sword card deals +16 damage.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9059,7 +8344,6 @@
      "version": 1,
      "def": {
       "name": "Thunderhead",
-      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Charge}} Lightning \u2014 your next Lightning card deals +40 damage.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9099,7 +8383,6 @@
      "version": 1,
      "def": {
       "name": "Bulwark of the Line",
-      "text": "{{Attuned}} Lance shield 24 (+DEF) \u2014 absorbs 2 damage per point from Lance attacks \u00b7 Gain 12 (+DEF) physical shield.",
       "notes": [
        "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
        "per point from that type and 1 from everything else.",
@@ -9155,7 +8438,6 @@
      "version": 1,
      "def": {
       "name": "Riposte Guard",
-      "text": "Deal 24 (+ATK) Sword damage \u00b7 {{Attuned}} Sword shield 16 (+DEF) \u2014 absorbs 2 damage per point from Sword attacks.",
       "notes": [
        "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
        "per point from that type and 1 from everything else.",
@@ -9202,7 +8484,6 @@
      "version": 1,
      "def": {
       "name": "Emberguard",
-      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Attuned}} Fire shield 24 (+MDEF) \u2014 absorbs 2 damage per point from Fire attacks.",
       "notes": [
        "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
        "per point from that type and 1 from everything else.",
@@ -9252,7 +8533,6 @@
      "version": 1,
      "def": {
       "name": "Wildfire Rite",
-      "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 {{Burn}} 16.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9292,7 +8572,6 @@
      "version": 1,
      "def": {
       "name": "Hallowed Toll",
-      "text": "Deal 38 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 {{Stun}}.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9338,7 +8617,6 @@
      "version": 1,
      "def": {
       "name": "Grove Communion",
-      "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 restore 64 (+MDEF) HP.",
       "notes": [
        "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
        "and the base held: at half price the same budget buys twice the effect the",
@@ -9378,7 +8656,6 @@
      "version": 1,
      "def": {
       "name": "Rustbind Hex",
-      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 -30% enemy ATK (2 turns).",
       "notes": [
        "AFFINITY OUTSIDE OFFENSE (2026-08-26 reachability pass). Before this card the",
        "17 gated cards in the book were 16 offense + 1 healing, and the Alchemist's",
@@ -9394,7 +8671,8 @@
        "THE GATED LINE IS FROZEN AT RANK (`autoScaleTier`, GATED SINKS ARE FROZEN), so",
        "the ungated hit absorbs the whole tier delta: 14 -> 24 -> 34 -> 44, each landing",
        "exactly on 150/200/250. BASE AND PAYOFF ARE ON DIFFERENT NUMERALS (14 vs 30/2)",
-       "so `retextScaledNumbers` can rewrite the face at every tier."
+       "the tier ladder reads unambiguously on the face. (Both facts are now moot for",
+       "DISPLAY \u2014 the face is generated from the resolved kit \u2014 but the numbers they forced are the shipped ones.)"
       ],
       "archetypes": [
        "debuff"
@@ -9428,7 +8706,6 @@
      "version": 1,
      "def": {
       "name": "Blooded Fang",
-      "text": "Deal 16 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 {{Bleed}} 4 (ticks when the enemy performs).",
       "notes": [
        "Second of the three debuff-archetype affinity cards (2026-08-26). A GATED DoT",
        "on the physical side, beside `wildfire_rite`'s gated burn on the magical one \u2014",
@@ -9472,7 +8749,6 @@
      "version": 1,
      "def": {
       "name": "Hoarfrost Creed",
-      "text": "Deal 42 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 {{Expose}} the enemy, +30% damage from direct hits (2 turns).",
       "notes": [
        "Third of the three debuff-archetype affinity cards (2026-08-26), and the one",
        "that makes a Frost board a SETUP board: the expose only lands for a committed",
@@ -9517,7 +8793,6 @@
      "version": 1,
      "def": {
       "name": "Pikewall Oath",
-      "text": "Gain 12 (+DEF) physical shield \u00b7 {{Affinity}} Lance \u2014 -40% incoming physical damage (2 turns).",
       "notes": [
        "AFFINITY FOR THE WALL (2026-08-26 reachability pass). Bulwark's cardFilter",
        "(defensive / support) matched ZERO gated cards before this pass \u2014 0.0% of 500",
@@ -9564,7 +8839,6 @@
      "version": 1,
      "def": {
       "name": "Sanctified Vigil",
-      "text": "Gain 10 (+MDEF) magical shield \u00b7 {{Affinity}} Holy \u2014 {{Ward}} 2 \u2014 prevent the next 2 ailments outright.",
       "notes": [
        "Second of the four defensive/support affinity cards (2026-08-26), and the first",
        "gated `ward`: a Holy congregation is what makes the ailment bounce off.",
@@ -9607,7 +8881,6 @@
      "version": 1,
      "def": {
       "name": "Oathplate",
-      "text": "Gain 14 (+DEF) physical shield \u00b7 {{Affinity}} Sword \u2014 {{Attuned}} Sword shield 8 (+DEF), absorbing 2 damage per point from Sword attacks.",
       "notes": [
        "Third of the four defensive/support affinity cards (2026-08-26). The gate and",
        "the payload read the SAME field: `attunedShield` tunes itself to the card's own",
@@ -9652,7 +8925,6 @@
      "version": 1,
      "def": {
       "name": "Graveside Rite",
-      "text": "Restore 10 (+MDEF) HP \u00b7 {{Affinity}} Dark \u2014 {{Cleanse}} up to 4 of your ailments.",
       "notes": [
        "Fourth of the four defensive/support affinity cards (2026-08-26), and the first",
        "gated `cleanse`. Tagged healing+support so it reaches BOTH Sanctum (elements",
@@ -9698,7 +8970,6 @@
      "version": 1,
      "def": {
       "name": "Enfilade Volley",
-      "text": "Deal 10 (+ATK) Bow damage \u00b7 Passive: the two cards to its RIGHT deal +3 damage \u00b7 {{Affinity}} Bow \u2014 hit again for 8.",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` \\u2014 both had ZERO content",
        "users before this card: all six shipped auras were `adjacent` or `allBoard`, and",
@@ -9756,7 +9027,6 @@
      "version": 1,
      "def": {
       "name": "Rearguard Pike",
-      "text": "Gain 8 (+DEF) physical shield \u00b7 Passive: the two cards to its LEFT are -2 weight (cast sooner) \u00b7 {{Affinity}} Lance \u2014 also -20% incoming physical damage (2 turns).",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2`, on a DEFENSIVE card \\u2014 the",
        "half of Q2 that matters: before this pass all six aura cards were `support`, so",
@@ -9809,7 +9079,6 @@
      "version": 1,
      "def": {
       "name": "Gravelight Choir",
-      "text": "Restore 6 (+MDEF) HP \u00b7 Passive: the two cards to its LEFT heal +4 \u00b7 {{Affinity}} Dark \u2014 restore 12 more.",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `healFlat` \\u2014 the",
        "one aura mod with a single shipped user (`mending_aura`), and it had never been",
@@ -9859,7 +9128,6 @@
      "version": 1,
      "def": {
       "name": "Rimebound Pact",
-      "text": "Deal 8 (+MATK) Frost damage \u00b7 Passive: the two cards to its RIGHT are -2 weight (cast sooner) \u00b7 {{Affinity}} Frost \u2014 -20% enemy DEF (2 turns).",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` on an OFFENSE/DEBUFF card.",
        "Q3 AFFINITY PASS in the same card: frost shipped 2 bronze-reachable gated cards",
@@ -9908,7 +9176,6 @@
      "version": 1,
      "def": {
       "name": "Stormrank Relay",
-      "text": "Deal 8 (+MATK) Lightning damage \u00b7 Passive: adjacent Magical cards are -2 weight (cast sooner) \u00b7 {{Affinity}} Lightning \u2014 +20% SPD (2 turns).",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). The one card in the pass that keeps `adjacent`,",
        "with a `propertyFilter` \\u2014 the shape `time_crystal` established, moved off",
@@ -9959,7 +9226,6 @@
      "version": 1,
      "def": {
       "name": "Packline Flank",
-      "text": "Deal 6 (+ATK) Beast damage \u00b7 Passive: the two cards to its LEFT deal +4 damage \u00b7 {{Affinity}} Beast \u2014 hit again for 12.",
       "notes": [
        "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `damageFlat`, the",
        "mirror of Enfilade Volley \\u2014 the two are the pass's on/off pair for direction:",
@@ -10007,7 +9273,6 @@
      "version": 1,
      "def": {
       "name": "Cleaving Creed",
-      "text": "Deal 12 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 {{Bleed}} 8 (ticks when the enemy performs; blocked by shields).",
       "notes": [
        "Q3 AFFINITY DENSITY PASS (2026-08-26). Axe is the WIDEST type in the book (22",
        "on-type cards) and had only 2 bronze-reachable gated payoffs \\u2014 the largest",
@@ -10049,7 +9314,6 @@
      "version": 1,
      "def": {
       "name": "Bramble Covenant",
-      "text": "Gain 12 (+MDEF) magical shield \u00b7 {{Affinity}} Nature \u2014 {{Poison}} 8 (ticks at end of turn; bypasses shields).",
       "notes": [
        "Q3 AFFINITY DENSITY PASS (2026-08-26). Nature had 2 bronze-reachable gated",
        "payoffs against 13 on-type cards. DEFENSIVE + DEBUFF, because the gate's",
@@ -10089,7 +9353,6 @@
      "version": 1,
      "def": {
       "name": "Marksman's Creed",
-      "text": "Deal 16 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 {{Expose}} the enemy: +20% damage from all direct hits (2 turns).",
       "notes": [
        "Q3 AFFINITY DENSITY PASS (2026-08-26). BOW WAS THE WHOLE POINT: it shipped ONE",
        "bronze-reachable gated card (`massed_volley`) against 10 on-type cards \\u2014 the",
@@ -10130,7 +9393,6 @@
      "version": 1,
      "def": {
       "name": "Rimebarb Vigil",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 32 (+MDEF) magical shield.",
       "notes": [
        "THE FIRST THORNS CARD WHOSE STACKS SCALE WITH RANK (2026-08-26), and it is only",
        "expressible because of the Q1 `minTier` migration in the same pass.",
@@ -10196,18 +9458,7 @@
         "kind": "shield",
         "power": 32
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "text": "{{Thorns}} 5 plus 3 \u2014 an 8-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 42 (+MDEF) magical shield."
-       },
-       "gold": {
-        "text": "{{Thorns}} 5 plus 3 twice \u2014 an 11-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 54 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "text": "{{Thorns}} 5 plus 3 three times \u2014 a 14-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 64 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]
@@ -10219,7 +9470,6 @@
      "version": 1,
      "def": {
       "name": "Emberchant Rite",
-      "text": "+30% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +2 damage and are -1 weight (cast sooner).",
       "notes": [
        "THE FIRST FIRE SUPPORT CARD. Measured over the 166 shipped cards, the",
        "`support` archetype has ZERO fire and ZERO frost entries (support is",
@@ -10309,8 +9559,7 @@
           "pct": 40,
           "turns": 2
          }
-        ],
-        "text": "+40% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +3 damage and are -2 weight (cast sooner)."
+        ]
        },
        "gold": {
         "aura": {
@@ -10328,8 +9577,7 @@
           "pct": 50,
           "turns": 2
          }
-        ],
-        "text": "+50% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +4 damage and are -3 weight (cast sooner)."
+        ]
        },
        "diamond": {
         "aura": {
@@ -10347,8 +9595,7 @@
           "pct": 50,
           "turns": 2
          }
-        ],
-        "text": "+50% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +5 damage and are -5 weight (cast sooner)."
+        ]
        }
       }
      }
@@ -10362,7 +9609,6 @@
      "version": 1,
      "def": {
       "name": "Frostbind Litany",
-      "text": "-15% enemy MATK and -10% enemy MDEF (2 turns) \u00b7 Remove up to 2 of your ailments.",
       "notes": [
        "THE FIRST CARD IN THE GAME TO DEBUFF TWO STATS AT ONCE. All 16 shipped",
        "debuffStat cards carry exactly ONE stat line; the tally across the book",
@@ -10453,8 +9699,7 @@
           "kind": "cleanse",
           "charges": 2
          }
-        ],
-        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 2 of your ailments."
+        ]
        },
        "gold": {
         "effects": [
@@ -10474,8 +9719,7 @@
           "kind": "cleanse",
           "charges": 4
          }
-        ],
-        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 4 of your ailments."
+        ]
        },
        "diamond": {
         "effects": [
@@ -10495,8 +9739,7 @@
           "kind": "cleanse",
           "charges": 6
          }
-        ],
-        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 6 of your ailments."
+        ]
        }
       }
      }
@@ -10510,7 +9753,6 @@
      "version": 1,
      "def": {
       "name": "Storm Tithe",
-      "text": "{{Disrupt}} 6 banked readiness \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 +20% SPD (2 turns).",
       "notes": [
        "THE TEMPO THIEF \u2014 the only card in the game that denies tempo on BOTH",
        "axes and hands the difference to the caster. `disrupt` ships on 3 cards",
@@ -10597,8 +9839,7 @@
           "pct": 30,
           "turns": 2
          }
-        ],
-        "text": "{{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 +30% SPD (2 turns)."
+        ]
        },
        "gold": {
         "effects": [
@@ -10616,8 +9857,7 @@
           "pct": 50,
           "turns": 2
          }
-        ],
-        "text": "{{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +12 weight \u00b7 +50% SPD (2 turns)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -10639,8 +9879,7 @@
           "pct": 50,
           "turns": 2
          }
-        ],
-        "text": "Deal 10 (+MATK) Lightning damage \u00b7 {{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +12 weight \u00b7 +50% SPD (2 turns)."
+        ]
        }
       }
      }
@@ -10654,7 +9893,6 @@
      "version": 1,
      "def": {
       "name": "Writ of Sanction",
-      "text": "{{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
        "THE FIRST CARD TO SPREAD BOTH CARD-SCOPE TAXES AT ONCE. There are four",
        "splash cards in the book and every one of them spreads a SINGLE payload:",
@@ -10741,8 +9979,7 @@
          {
           "kind": "splash"
          }
-        ],
-        "text": "Deal 10 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+        ]
        },
        "gold": {
         "effects": [
@@ -10762,8 +9999,7 @@
          {
           "kind": "splash"
          }
-        ],
-        "text": "Deal 20 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+        ]
        },
        "diamond": {
         "effects": [
@@ -10783,8 +10019,7 @@
          {
           "kind": "splash"
          }
-        ],
-        "text": "Deal 30 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+        ]
        }
       }
      }
@@ -10798,7 +10033,6 @@
      "version": 1,
      "def": {
       "name": "Quiverwarden's Call",
-      "text": "{{Charge}} Bow \u2014 your next Bow card deals +16 damage \u00b7 Passive: the two cards to its RIGHT deal +2 damage.",
       "notes": [
        "THE FIRST UNGATED `empowerNext` IN THE GAME. All three shipped armers \u2014",
        "kindling_rite, whetstone_vow, thunderhead \u2014 carry `affinity: true` on",
@@ -10876,8 +10110,7 @@
           "kind": "empowerNext",
           "amount": 20
          }
-        ],
-        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +5 damage."
+        ]
        },
        "gold": {
         "aura": {
@@ -10892,8 +10125,7 @@
           "kind": "empowerNext",
           "amount": 20
          }
-        ],
-        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +10 damage."
+        ]
        },
        "diamond": {
         "aura": {
@@ -10908,8 +10140,7 @@
           "kind": "empowerNext",
           "amount": 20
          }
-        ],
-        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +15 damage."
+        ]
        }
       }
      }
@@ -10923,7 +10154,6 @@
      "version": 1,
      "def": {
       "name": "Standard of the Ninth",
-      "text": "+30% ATK and +30% DEF (2 turns) \u00b7 Passive: ALL board cards deal +6 damage.",
       "notes": [
        "THE FIRST CARD TO BUFF A DEFENSIVE STAT. `buffStat` has 14 uses across",
        "the book and names exactly two stats \u2014 attack (4) and speed (10). Armor,",
@@ -11013,8 +10243,7 @@
           "pct": 30,
           "turns": 2
          }
-        ],
-        "text": "+40% ATK and +30% DEF (2 turns) \u00b7 Passive: ALL board cards deal +9 damage."
+        ]
        },
        "gold": {
         "aura": {
@@ -11036,8 +10265,7 @@
           "pct": 35,
           "turns": 2
          }
-        ],
-        "text": "+40% ATK and +35% DEF (2 turns) \u00b7 Passive: ALL board cards deal +13 damage."
+        ]
        },
        "diamond": {
         "aura": {
@@ -11059,8 +10287,7 @@
           "pct": 35,
           "turns": 2
          }
-        ],
-        "text": "+40% ATK and +35% DEF (2 turns) \u00b7 Passive: ALL board cards deal +17 damage."
+        ]
        }
       }
      }
@@ -11074,7 +10301,6 @@
      "version": 1,
      "def": {
       "name": "Blightstep Dirge",
-      "text": "{{Slow}} the enemy's next action by +8 weight \u00b7 {{Poison}} 8 (poison bypasses shields).",
       "notes": [
        "THE FIRST DoT + CONTROL CARD WITH NO HIT. Nine poison cards ship and",
        "none of them slows; four slow cards ship and every one of them is a",
@@ -11138,8 +10364,7 @@
           "kind": "poison",
           "stacks": 12
          }
-        ],
-        "text": "{{Slow}} the enemy's next action by +12 weight \u00b7 {{Poison}} 12 (poison bypasses shields)."
+        ]
        },
        "gold": {
         "effects": [
@@ -11151,8 +10376,7 @@
           "kind": "poison",
           "stacks": 16
          }
-        ],
-        "text": "{{Slow}} the enemy's next action by +16 weight \u00b7 {{Poison}} 16 (poison bypasses shields)."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11164,8 +10388,7 @@
           "kind": "poison",
           "stacks": 20
          }
-        ],
-        "text": "{{Slow}} the enemy's next action by +20 weight \u00b7 {{Poison}} 20 (poison bypasses shields)."
+        ]
        }
       }
      }
@@ -11179,7 +10402,6 @@
      "version": 1,
      "def": {
       "name": "Ironmarch Tithe",
-      "text": "Deal 14 (+ATK) Lance damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness.",
       "notes": [
        "THE FIRST AFFINITY GATE ON THE TEMPO FAMILY. Affinity ships on 38 cards",
        "and has been attached to 14 keywords \u2014 damage, empowerNext, burn, stun,",
@@ -11274,24 +10496,6 @@
        }
       ],
       "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 24
-         },
-         {
-          "kind": "burden",
-          "weight": 8
-         },
-         {
-          "kind": "disrupt",
-          "amount": 4,
-          "affinity": true
-         }
-        ],
-        "text": "Deal 24 (+ATK) Lance damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
-       },
        "gold": {
         "effects": [
          {
@@ -11307,8 +10511,7 @@
           "amount": 4,
           "affinity": true
          }
-        ],
-        "text": "Deal 32 (+ATK) Lance damage \u00b7 {{Burden}} +12 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11325,8 +10528,7 @@
           "amount": 4,
           "affinity": true
          }
-        ],
-        "text": "Deal 42 (+ATK) Lance damage \u00b7 {{Burden}} +12 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
+        ]
        }
       }
      }
@@ -11340,7 +10542,6 @@
      "version": 1,
      "def": {
       "name": "Champion's Challenge",
-      "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 8 (+DEF) physical shield.",
       "notes": [
        "THE FIRST TAUNT CARD IN THE GAME. `taunt` shipped with an interpreter arm",
        "(combat/interpreter.ts: caster.aggro += amount, permanent, never",
@@ -11411,8 +10612,7 @@
           "kind": "shield",
           "power": 14
          }
-        ],
-        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -30% incoming physical damage (2 turns) \u00b7 Gain 14 (+DEF) physical shield."
+        ]
        },
        "gold": {
         "effects": [
@@ -11430,8 +10630,7 @@
           "kind": "shield",
           "power": 20
          }
-        ],
-        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -40% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11449,8 +10648,7 @@
           "kind": "shield",
           "power": 30
          }
-        ],
-        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -40% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+        ]
        }
       }
      }
@@ -11464,7 +10662,6 @@
      "version": 1,
      "def": {
       "name": "Ironhide",
-      "text": "+20% DEF (2 turns) \u00b7 +20% MDEF (2 turns) \u00b7 Gain 4 (+DEF) physical shield.",
       "notes": [
        "THE FIRST DEFENSIVE STAT BUFF. All five shipped `buffStat` actions raise",
        "`attack` (battle_howl) or `speed` (storm_guard, storm_surge, thunder_step,",
@@ -11536,8 +10733,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
+        ]
        },
        "gold": {
         "effects": [
@@ -11557,8 +10753,7 @@
           "kind": "shield",
           "power": 20
          }
-        ],
-        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11578,8 +10773,7 @@
           "kind": "shield",
           "power": 30
          }
-        ],
-        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+        ]
        }
       }
      }
@@ -11593,7 +10787,6 @@
      "version": 1,
      "def": {
       "name": "Hibernation",
-      "text": "{{Negate}} the next magical attack \u00b7 Restore 16 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown.",
       "notes": [
        "THE FIRST CARD IN THE BOOK AUTHORED AROUND A COOLDOWN. `cooldownTurns` is",
        "set by no base card today; the refund table (PRICE.cooldownRefundStepDeci,",
@@ -11657,51 +10850,7 @@
         "kind": "heal",
         "power": 16
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "heal",
-          "power": 26
-         }
-        ],
-        "text": "{{Negate}} the next magical attack \u00b7 Restore 26 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "heal",
-          "power": 36
-         }
-        ],
-        "text": "{{Negate}} the next magical attack \u00b7 Restore 36 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "heal",
-          "power": 46
-         }
-        ],
-        "text": "{{Negate}} the next magical attack \u00b7 Restore 46 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
-       }
-      }
+      ]
      }
     }
    ]
@@ -11713,7 +10862,6 @@
      "version": 1,
      "def": {
       "name": "Steady Draw",
-      "text": "Restore 12 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +8 damage.",
       "notes": [
        "THE FIRST HEALING CARD ON A BOW, and the first `empowerNext` outside the",
        "offense lane. Healing ships on exactly four of eleven types today (beast,",
@@ -11769,8 +10917,7 @@
           "kind": "empowerNext",
           "amount": 12
          }
-        ],
-        "text": "Restore 18 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +12 damage."
+        ]
        },
        "gold": {
         "effects": [
@@ -11782,8 +10929,7 @@
           "kind": "empowerNext",
           "amount": 16
          }
-        ],
-        "text": "Restore 24 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +16 damage."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11795,8 +10941,7 @@
           "kind": "empowerNext",
           "amount": 20
          }
-        ],
-        "text": "Restore 30 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +20 damage."
+        ]
        }
       }
      }
@@ -11810,7 +10955,6 @@
      "version": 1,
      "def": {
       "name": "Heartwood Sanctum",
-      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Remove up to 2 of your ailments \u00b7 Restore 66 (+MDEF) HP.",
       "notes": [
        "THE FIRST SIZE-3 HEALING CARD. Ten size-3 cards ship \u2014 six offense/debuff,",
        "four defensive, none healing \u2014 so the biggest board commitment the game",
@@ -11880,8 +11024,7 @@
           "kind": "heal",
           "power": 84
          }
-        ],
-        "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Remove up to 4 of your ailments \u00b7 Restore 84 (+MDEF) HP."
+        ]
        },
        "gold": {
         "effects": [
@@ -11897,8 +11040,7 @@
           "kind": "heal",
           "power": 104
          }
-        ],
-        "text": "{{Ward}} 3 \u2014 prevent the next 3 ailments outright \u00b7 Remove up to 4 of your ailments \u00b7 Restore 104 (+MDEF) HP."
+        ]
        },
        "diamond": {
         "effects": [
@@ -11914,8 +11056,7 @@
           "kind": "heal",
           "power": 122
          }
-        ],
-        "text": "{{Ward}} 3 \u2014 prevent the next 3 ailments outright \u00b7 Remove up to 6 of your ailments \u00b7 Restore 122 (+MDEF) HP."
+        ]
        }
       }
      }
@@ -11929,7 +11070,6 @@
      "version": 1,
      "def": {
       "name": "Nullshroud",
-      "text": "-30% incoming TRUE damage (2 turns) \u00b7 Gain 8 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1.",
       "notes": [
        "THE FIRST TRUE-PROPERTY GUARD. All twelve shipped `guard` actions and both",
        "`negate`s are physical- or magical-scoped, and a guard covers ONLY its own",
@@ -11995,8 +11135,7 @@
           "kind": "shield",
           "power": 14
          }
-        ],
-        "text": "-40% incoming TRUE damage (2 turns) \u00b7 Gain 14 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+        ]
        },
        "gold": {
         "effects": [
@@ -12010,8 +11149,7 @@
           "kind": "shield",
           "power": 20
          }
-        ],
-        "text": "-50% incoming TRUE damage (2 turns) \u00b7 Gain 20 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+        ]
        },
        "diamond": {
         "effects": [
@@ -12025,8 +11163,7 @@
           "kind": "shield",
           "power": 30
          }
-        ],
-        "text": "-50% incoming TRUE damage (2 turns) \u00b7 Gain 30 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+        ]
        }
       }
      }
@@ -12040,7 +11177,6 @@
      "version": 1,
      "def": {
       "name": "The Long Watch",
-      "text": "-20% incoming magical damage (4 turns) \u00b7 Gain 4 (+MDEF) magical shield.",
       "notes": [
        "EVERY ONE OF THE TWELVE SHIPPED GUARDS IS EXACTLY 2 TURNS. This is the first",
        "one that is not, and the whole design is that single change.",
@@ -12102,8 +11238,7 @@
           "kind": "shield",
           "power": 10
          }
-        ],
-        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 10 (+MDEF) magical shield."
+        ]
        },
        "gold": {
         "effects": [
@@ -12117,8 +11252,7 @@
           "kind": "shield",
           "power": 20
          }
-        ],
-        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 20 (+MDEF) magical shield."
+        ]
        },
        "diamond": {
         "effects": [
@@ -12132,8 +11266,7 @@
           "kind": "shield",
           "power": 30
          }
-        ],
-        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 30 (+MDEF) magical shield."
+        ]
        }
       }
      }
@@ -12147,7 +11280,6 @@
      "version": 1,
      "def": {
       "name": "Quickmend",
-      "text": "Restore 16 (+MDEF) HP.",
       "notes": [
        "THE LIGHTEST HEAL IN THE GAME, and the first healing card on LIGHTNING \u2014 the",
        "element whose whole identity is speed/tempo and which had no healing card.",
@@ -12203,36 +11335,7 @@
         "kind": "heal",
         "power": 16
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 26
-         }
-        ],
-        "text": "Restore 26 (+MDEF) HP."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 36
-         }
-        ],
-        "text": "Restore 36 (+MDEF) HP."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 46
-         }
-        ],
-        "text": "Restore 46 (+MDEF) HP."
-       }
-      }
+      ]
      }
     }
    ]
@@ -12244,7 +11347,6 @@
      "version": 1,
      "def": {
       "name": "Forgeheart Bastion",
-      "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 56 (+MDEF) magical shield.",
       "notes": [
        "THE ONLY MULTI-CHARGE NEGATE THE PRICE TABLE ALLOWS. Both shipped negate",
        "cards carry exactly 1 charge, and that is not a taste decision: negate costs",
@@ -12295,51 +11397,7 @@
         "kind": "shield",
         "power": 56
        }
-      ],
-      "tierUpgrades": {
-       "silver": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 2
-         },
-         {
-          "kind": "shield",
-          "power": 84
-         }
-        ],
-        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 84 (+MDEF) magical shield."
-       },
-       "gold": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 2
-         },
-         {
-          "kind": "shield",
-          "power": 114
-         }
-        ],
-        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 114 (+MDEF) magical shield."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 2
-         },
-         {
-          "kind": "shield",
-          "power": 142
-         }
-        ],
-        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 142 (+MDEF) magical shield."
-       }
-      }
+      ]
      }
     }
    ]

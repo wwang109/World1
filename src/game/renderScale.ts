@@ -86,6 +86,38 @@ export function uiScale(): number {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
+/** Rasterize each design-space glyph at its physical display density. Text's
+ * renderer divides its texture dimensions by this value, so this is not a
+ * second UI/DPR scale. Bound the texture cost on unusually large displays. */
+export function textResolution(): number {
+  return Math.max(1, Math.min(4, Math.ceil(uiScale() * devicePixels())));
+}
+
+const automaticTextResolution = new WeakMap<Phaser.GameObjects.Text, number>();
+
+export function manageTextResolution(text: Phaser.GameObjects.Text): void {
+  automaticTextResolution.set(text, text.style.resolution);
+}
+
+function refreshTextResolution(scene: Phaser.Scene): void {
+  const resolution = textResolution();
+  const visit = (objects: readonly Phaser.GameObjects.GameObject[]): void => {
+    for (const object of objects) {
+      if (object instanceof Phaser.GameObjects.Container) visit(object.list);
+      if (!(object instanceof Phaser.GameObjects.Text)) continue;
+      const previous = automaticTextResolution.get(object);
+      if (previous === undefined) continue;
+      // A caller's later explicit setResolution takes ownership back.
+      if (object.style.resolution !== previous) { automaticTextResolution.delete(object); continue; }
+      if (previous !== resolution) {
+        object.setResolution(resolution);
+        automaticTextResolution.set(object, resolution);
+      }
+    }
+  };
+  visit(scene.children?.list ?? []);
+}
+
 /**
  * Sizes the Phaser parent to physical pixels and pins the canvas to the
  * window. Must run BEFORE `new Phaser.Game` so the very first parent size
@@ -157,6 +189,9 @@ export function syncViewport(game: Phaser.Game): void {
  * inward by half the slack and re-create a letterbox in reverse.
  */
 export function applyRenderScale(scene: Phaser.Scene): void {
+  refreshTextResolution(scene);
+  const embeddedLayout = scene.data?.get('positionEmbeddedRunDestination');
+  if (typeof embeddedLayout === 'function') { embeddedLayout(); return; }
   const cam = scene.cameras?.main;
   if (!cam) return;
   // Re-size the camera to the CURRENT backing store FIRST. Phaser does this

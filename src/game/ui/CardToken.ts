@@ -5,9 +5,10 @@ import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { buildCardArtPlaceholder } from './cardArtPlaceholder';
 import { whenCardArtReady } from './cardArtLoader';
-import { summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
+import { effectSegmentJoiner, summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
 import { keywordTextColor } from './cardTextMarkup';
 import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
+import { syncCardArtMask } from './cardTokenArtMask';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -104,6 +105,26 @@ export interface CardTokenOptions {
    *   screen.
    */
   slotMods?: { burden?: number; curse?: number };
+  /**
+   * Battle-playback-only affinity-gate state for THIS card, computed once per
+   * combatant against the REAL fight (`battleTimeline.ts`'s
+   * `cardAffinityOpen`, reading the combatant's resolved
+   * `elementAffinity`/`weaponAffinity` — the same fields the engine's own
+   * cast-time gate check reads, NOT a recount of on-type board cards, which
+   * would disagree with an authored enemy affinity like `cinder_sprite`'s).
+   * Same additive idiom as `comboLive` above, and drives TWO things at once so
+   * they cannot disagree with each other:
+   *   - the card's `affinity: true` clause (`EffectSegment.gateClosed`, see
+   *     `skillPresentation.ts`) dims its payload — `FIRE:` stays normal-
+   *     colored, `NEXT FIRE +16` greys — when this is exactly `false`;
+   *   - the identity chip (`affinityLine` below) stops showing a deck-count
+   *     progress fraction (meaningless once a real gate state is known) and
+   *     instead colors the bare type name the same open/closed way.
+   * `true` or omitted (every non-battle caller — prep/shop/deck build/draft/
+   * wiki, where there is no caster to check a gate against) both render
+   * normally: "unknown" is not "closed".
+   */
+  affinityOpen?: boolean;
 }
 
 /** The active platform's default card-face number treatment — mobile keeps
@@ -116,23 +137,49 @@ function defaultFaceMode(): SkillFaceMode {
 
 /** A rendered effect segment: the token's text plus its RESOLVED color —
  * `KEYWORD_TEXT_COLOR[keyword]` (cardTextMarkup.ts) when the token has one,
- * `fallbackColor` otherwise (DMG/HEAL/AOE and any other un-keyworded token).
- * This is what makes the card face's compact effects line match the
- * flavor-text markup renderer's keyword palette (FantasyCardTemplateV2) —
- * previously the two never shared a color at all. */
+ * else `UI.textCalculated` when the segment's own number folded in a live
+ * stat (`EffectSegment.calculated` — see that field's doc comment for the
+ * exact rule), else `fallbackColor` (AOE and any other flat, un-keyworded,
+ * uncalculated token). This is what makes the card face's compact effects
+ * line match the flavor-text markup renderer's keyword palette
+ * (FantasyCardTemplateV2) AND tells a "MY number" apart from a "the card's
+ * number" — previously neither distinction existed and everything un-
+ * keyworded rendered in the one flat fallback color.
+ *
+ * KEYWORD ALWAYS WINS OVER `calculated` when a segment carries both (SHLD /
+ * ATTUNED SHLD scale off Armor/Magic Resist just like DMG/HEAL do, so they
+ * can be `calculated` too) — the shield-blue/attuned-blue identity is
+ * established elsewhere (flavor text, the battle log's pool tokens) and must
+ * not flicker to a different colour just because this particular caster's
+ * defense stat happens to be nonzero. The calculated colour only ever wins on
+ * a segment with NO keyword of its own — which today means DMG/HEAL, the
+ * exact gap the feature was written to close.
+ *
+ * `EffectSegment.gateClosed` (2026-09-06 — see `CardTokenOptions.affinityOpen`)
+ * WINS OVER EVERYTHING ELSE, same precedence as the COMBO override right
+ * below it: a shut affinity gate's payload must read as "not live" no matter
+ * which keyword it carries. */
 function effectFaceSegments(
-  skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0', comboLive?: boolean,
-): { text: string; color: string }[] {
-  return summarizeEffectSegments(skill, stats, mode).map((segment: EffectSegment) => ({
+  skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0', comboLive?: boolean, affinityOpen?: boolean,
+): { text: string; color: string; joinWithPrevious?: boolean }[] {
+  return summarizeEffectSegments(skill, stats, mode, affinityOpen).map((segment: EffectSegment) => ({
     text: segment.text,
-    // The COMBO segment overrides its keyword color to the disabled tone
-    // when battle playback says it isn't live right now (see
-    // `CardTokenOptions.comboLive`'s doc comment for the full rule) — every
-    // other segment, and COMBO itself when `comboLive` is `true`/omitted,
-    // keeps the ordinary keyword-color lookup.
-    color: segment.keyword === 'combo' && comboLive === false
+    ...(segment.joinWithPrevious ? { joinWithPrevious: true } : {}),
+    // A shut affinity gate's payload dims regardless of keyword (checked
+    // first — see the doc comment above). The COMBO segment overrides its
+    // keyword color to the disabled tone when battle playback says it isn't
+    // live right now (see `CardTokenOptions.comboLive`'s doc comment for the
+    // full rule) — every other segment, and COMBO itself when `comboLive` is
+    // `true`/omitted, keeps the ordinary keyword-color lookup.
+    color: segment.gateClosed
       ? UI.textDisabled
-      : (segment.keyword && keywordTextColor(segment.keyword)) ?? fallbackColor,
+      : segment.keyword === 'combo' && comboLive === false
+        ? UI.textDisabled
+        : segment.keyword
+          ? keywordTextColor(segment.keyword) ?? fallbackColor
+          : segment.calculated
+            ? UI.textCalculated
+            : fallbackColor,
   }));
 }
 
@@ -256,11 +303,20 @@ export class CardToken extends Phaser.GameObjects.Container {
       // DMG 16 +ATK / DMG 16 · PSN 5 — each token tinted to match its
       // KEYWORD_TEXT_COLOR (cardTextMarkup.ts) when it has one, so a keyword's
       // color reads the same here as it does in flavor text / the glossary.
+      // A keyword-less token whose OWN number folded in this caster's live
+      // stat (mobile's 'summed' mode — `EffectSegment.calculated`) instead
+      // tints `UI.textCalculated`, so `DMG 37` (this hero's number) reads as
+      // visibly different from `AOE` (printed on the card, never computed) —
+      // see `effectFaceSegments`'s doc comment for the exact precedence.
       this.segmentedLine(scene, spec, spec.effects, [
         ...curseSegments,
-        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive),
+        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive, opts.affinityOpen),
       ], '#e8d8b0');
-      line(spec.affinity, this.affinityLine(skill, type, opts.deck), UI.textFootnote);
+      line(
+        spec.affinity,
+        this.affinityLine(skill, type, opts.deck, opts.affinityOpen),
+        opts.affinityOpen === false ? UI.textDisabled : UI.textFootnote,
+      );
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
       // the token width so long names never overflow the strip. The name
@@ -270,7 +326,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       this.segmentedLine(scene, spec, spec.compactLine, [
         { text: skill.name, color: UI.textBright },
         ...curseSegments,
-        ...effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive),
+        ...effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive, opts.affinityOpen),
       ], UI.textBright);
     }
 
@@ -357,67 +413,125 @@ export class CardToken extends Phaser.GameObjects.Container {
    * sibling of `FantasyCardTemplateV2.makeBody`'s word-by-word wrap.
    *
    * Truncation preserves `line()`'s guarantee that a too-wide line never
-   * overflows `entry.maxWidth`: it first drops WHOLE trailing segments (each
-   * drop marked with a "…" on the last kept one, so cut content is visible as
-   * cut rather than silently missing) and, only if even a single remaining
-   * segment alone is wider than the line, falls back to `line()`'s original
-   * per-character ellipsis clamp on that segment's own text.
+   * overflows `entry.maxWidth`, but an overflowing TAIL segment is ELLIPSISED
+   * IN PLACE rather than dropped whole — `SHLD 8 (T) · T.GUARD 30%…` beats
+   * `SHLD 8 (T)…`, because the player can still see the guard exists and its
+   * magnitude even though its duration suffix got clipped. Every segment
+   * before the tail is left untouched. Only when even a single character plus
+   * "…" for the tail still doesn't fit alongside the untouched earlier
+   * segments do we drop that whole segment and retry the same ellipsis
+   * treatment on the new tail (the previous segment) — cascading toward the
+   * front until something fits. A single remaining segment is never dropped
+   * (there must always be a defined terminal state): it is clamped down to as
+   * little as one character plus "…", however far over width that still
+   * leaves it, exactly as `line()`'s own per-character clamp already accepts.
+   *
+   * A WHOLE-SEGMENT DROP MUST NEVER BE SILENT (2026-09-06 fix). Dropping a
+   * segment removes it AND its leading separator, so the remaining line
+   * usually fits on its own with no further clipping needed — which means
+   * nothing naturally puts a "…" anywhere. Left alone that reads as "this
+   * card has no CLEANSE/BURDEN/SPLASH" rather than "one more thing got cut",
+   * strictly worse than the pre-ellipsis-in-place renderer this replaced. So
+   * after the shrink loop settles, if ANY segment was dropped along the way
+   * and the surviving tail doesn't already carry its own "…" (from being
+   * ellipsised in place), one is appended here — re-clamping that tail if the
+   * marker itself pushes back over budget.
+   *
+   * PERFORMANCE. The shrink loop above used to destroy and rebuild the ENTIRE
+   * row (2n-1 `Text` objects, each a fresh canvas + measurement) for every
+   * single character removed while probing a fit. This version uses ONE
+   * reusable, un-added-to-the-container `probe` Text purely to MEASURE
+   * candidates (`setText` + read `.width`, no new object), and only builds
+   * the row's real `Text` objects once, after every segment's final text is
+   * already decided.
    */
   private segmentedLine(
     scene: Phaser.Scene,
     spec: CardTokenSpec,
     entry: TokenTextLine,
-    segments: { text: string; color: string }[],
+    segments: { text: string; color: string; joinWithPrevious?: boolean }[],
     fallbackColor: string,
   ): void {
-    const SEP = ' · ';
     const makeText = (text: string, color: string): Phaser.GameObjects.Text =>
       scene.add.text(0, entry.dy, text, {
         fontSize: `${entry.fontSize}px`, color, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(0, 0.5);
-    const totalWidth = (nodes: Phaser.GameObjects.Text[]): number => nodes.reduce((sum, n) => sum + n.width, 0);
-    const destroyAll = (nodes: Phaser.GameObjects.Text[]): void => nodes.forEach((n) => n.destroy());
-    const build = (working: { text: string; color: string }[]): Phaser.GameObjects.Text[] => {
-      const nodes: Phaser.GameObjects.Text[] = [];
-      working.forEach((seg, i) => {
-        if (i > 0) nodes.push(makeText(SEP, fallbackColor));
-        nodes.push(makeText(seg.text, seg.color));
-      });
-      return nodes;
-    };
 
-    let working = segments.length > 0 ? segments : [{ text: '', color: fallbackColor }];
-    let nodes = build(working);
-    let droppedSegments = false;
-    while (totalWidth(nodes) > entry.maxWidth && working.length > 1) {
-      destroyAll(nodes);
-      working = working.slice(0, -1);
-      droppedSegments = true;
-      nodes = build(working);
-    }
-    if (totalWidth(nodes) > entry.maxWidth) {
-      // A single remaining segment still doesn't fit — fall back to
-      // `line()`'s own character-by-character ellipsis clamp, applied to
-      // just that segment's text.
-      const only = nodes[nodes.length - 1]!;
-      let s = working[working.length - 1]!.text;
-      while (s.length > 1 && totalWidth(nodes) > entry.maxWidth) {
-        s = s.slice(0, -1);
-        only.setText(`${s}…`);
+    // Measurement-only scratch node — destroyed before any real row node is
+    // created, so it never leaks onto the token or the scene.
+    const probe = makeText('', fallbackColor);
+    const widthOf = (text: string): number => { probe.setText(text); return probe.width; };
+    const joinerBefore = (seg: { joinWithPrevious?: boolean }, index: number): string =>
+      effectSegmentJoiner(seg, index);
+    const lineWidth = (arr: readonly { text: string; joinWithPrevious?: boolean }[]): number =>
+      arr.reduce((sum, seg, i) => sum + widthOf(joinerBefore(seg, i)) + widthOf(seg.text), 0);
+    // A mid-word character clip can leave a trailing space before the marker
+    // ("T.GUARD 30% …") — trim it so the marker sits flush ("T.GUARD 30%…").
+    const ellipsisOf = (text: string): string => `${text.trimEnd()}…`;
+
+    let working = segments.length > 0 ? segments.slice() : [{ text: '', color: fallbackColor }];
+    let droppedWhole = false;
+
+    while (lineWidth(working) > entry.maxWidth) {
+      const tailIndex = working.length - 1;
+      const original = working[tailIndex]!;
+      // Everything before the tail is untouched for this pass, so its width
+      // is fixed for the whole inner loop — measured once, not per candidate.
+      const headWidth = lineWidth(working.slice(0, tailIndex)) + widthOf(joinerBefore(original, tailIndex));
+      // The full, unclipped tail is already known not to fit (that's why the
+      // outer loop is here), so start shrinking immediately rather than
+      // re-probing the exact line that just failed.
+      let clipped = original.text.slice(0, -1);
+      let fitted = false;
+      while (clipped.length > 0) {
+        const candidateText = ellipsisOf(clipped);
+        if (headWidth + widthOf(candidateText) <= entry.maxWidth) {
+          working = [...working.slice(0, tailIndex), { ...original, text: candidateText }];
+          fitted = true;
+          break;
+        }
+        clipped = clipped.slice(0, -1);
       }
-    } else if (droppedSegments) {
-      // Fits now, but trailing segments were cut — mark it, re-clamping in
-      // case the added "…" itself pushes the line back over width.
-      const last = nodes[nodes.length - 1]!;
-      let s = working[working.length - 1]!.text;
-      last.setText(`${s}…`);
-      while (s.length > 1 && totalWidth(nodes) > entry.maxWidth) {
-        s = s.slice(0, -1);
-        last.setText(`${s}…`);
+      if (fitted) break;
+      if (working.length === 1) {
+        // Terminal state: clamp to as little as one character plus the
+        // marker even if that alone still overflows — there must always be
+        // something on the face, and this is as small as it gets.
+        working = [{ ...original, text: ellipsisOf(original.text.slice(0, 1)) }];
+        break;
+      }
+      // Even a single character plus the marker didn't fit alongside the
+      // untouched segments ahead of it — that whole segment is cut. Retry
+      // the same ellipsis treatment on the new tail (the previous segment,
+      // still whole up to this point).
+      working = working.slice(0, tailIndex);
+      droppedWhole = true;
+    }
+
+    if (droppedWhole) {
+      const tailIndex = working.length - 1;
+      const original = working[tailIndex]!;
+      if (!original.text.endsWith('…')) {
+        // The surviving tail fit on its own with no clipping of its own, so
+        // nothing above marked the cut. Add it here, re-clamping in case the
+        // marker itself pushes the line back over budget.
+        const headWidth = lineWidth(working.slice(0, tailIndex)) + widthOf(joinerBefore(original, tailIndex));
+        let s = original.text;
+        while (s.length > 1 && headWidth + widthOf(ellipsisOf(s)) > entry.maxWidth) s = s.slice(0, -1);
+        working = [...working.slice(0, tailIndex), { ...original, text: ellipsisOf(s) }];
       }
     }
 
-    const width = totalWidth(nodes);
+    probe.destroy();
+
+    const nodes: Phaser.GameObjects.Text[] = [];
+    working.forEach((seg, i) => {
+      const joiner = joinerBefore(seg, i);
+      if (joiner) nodes.push(makeText(joiner, fallbackColor));
+      nodes.push(makeText(seg.text, seg.color));
+    });
+
+    const width = nodes.reduce((sum, n) => sum + n.width, 0);
     let cursor = spec.textOriginX === 0 ? spec.textX : spec.textX - width;
     for (const node of nodes) {
       node.setPosition(cursor, entry.dy);
@@ -515,21 +629,43 @@ export class CardToken extends Phaser.GameObjects.Container {
    */
   override setPosition(x?: number, y?: number, z?: number, w?: number): this {
     super.setPosition(x, y, z, w);
-    if (this.artMask) {
-      this.artMask.clear();
-      this.artMask.fillStyle(0xffffff);
-      this.artMask.fillRect(this.x - this.maskW / 2, this.y - this.maskH / 2, this.maskW, this.maskH);
-    }
+    this.syncWorldArtMask();
     return this;
   }
 
-  /** "SWORD 2/3" — affinity name + deck progress toward its identity (gold at 3/3). */
-  private affinityLine(skill: SkillDef, type: ReturnType<typeof cardType>, deck?: readonly SkillDef[]): string {
+  /** Re-align after a parent container moves without calling this token's setPosition. */
+  syncWorldArtMask(): void {
+    if (this.artMask) {
+      syncCardArtMask(this.artMask, this.getWorldTransformMatrix(), this.maskW, this.maskH);
+    }
+  }
+
+  /**
+   * "SWORD 2/3" — affinity name + deck progress toward its identity. The
+   * progress FRACTION only means anything when the gate is being derived
+   * from a raw board recount, which is exactly what `affinityOpen` (2026-09-06
+   * — see `CardTokenOptions.affinityOpen`) replaces once it is known. THE
+   * BOARD IS THE ONLY SOURCE (`docs/board-type-identity.md`): element and
+   * weapon are tallied SEPARATELY, so a board can earn neither, either, or
+   * both axes, and nothing outside the board's own cards — no authored
+   * override — can open a gate a recount says is shut. A stale "FIRE 2/3"
+   * count would disagree with the SAME clause this exact chip sits beside on
+   * the face the moment the true state is known. So: whenever the caller
+   * KNOWS the true state (`affinityOpen !== undefined` — a real battle), this
+   * chip stops counting and instead reads the bare type name, colored by the
+   * call site the same open/closed way as the gated clause (see the `line()`
+   * call above) — the two can no longer disagree because both read the
+   * identical boolean. Only with NO known state (deck build / shop / wiki —
+   * `affinityOpen` omitted) does the deck-count progress fraction print,
+   * unchanged from before.
+   */
+  private affinityLine(skill: SkillDef, type: ReturnType<typeof cardType>, deck?: readonly SkillDef[], affinityOpen?: boolean): string {
     const label = skill.element
       ? skill.element.toUpperCase()
       : skill.weapon
         ? (skill.weapon === 'beast' ? 'BEAST' : skill.weapon.toUpperCase())
         : 'TRUE';
+    if (affinityOpen !== undefined) return label;
     if (!deck || !type) return label;
     const count = deck.filter((d) => {
       const t = cardType(d);

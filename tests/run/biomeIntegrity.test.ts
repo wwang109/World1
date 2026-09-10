@@ -44,7 +44,9 @@ import { enemies } from '../../src/data/enemies';
  */
 
 const SEEDS = Array.from({ length: 32 }, (_, i) => i + 1);
-/** Through wave 25 = the first 5 bands, so a sweep covers every depth tier. */
+/** First five bands cover every depth tier. Pre-draw pack feasibility includes
+ * the maximum exact eligible growth-board cost; the post-draw roster solve
+ * bills each actual member's resolved growth board. */
 const THROUGH_WAVE = 25;
 const BANDS_SWEPT = THROUGH_WAVE / 5;
 

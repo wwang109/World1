@@ -96,7 +96,7 @@ the human-readable contract for the same numbers.
 | `tierFrame` | 0, 440, 420, 250 | **Text scrim**: a soft dark gradient (alpha 0 → 0.85 over the top 30%, then solid 0.85) with the card's bottom corner radius. No box, no border — the full-art direction keeps frames minimal. |
 | `titleBox` | 40, 500, 340, 44 | Card name. Center-aligned, title ladder (§5). |
 | `divider` | 60, 550, 300, 2 | Horizontal rule between title and body (tier divider color). |
-| `bodyBox` | 40, 562, 340, 76 | Authored card `text` with `{{keyword}}` markup styled inline (§5c). Left-aligned, body ladder (§5). |
+| `bodyBox` | 40, 562, 340, 76 | The card's GENERATED body (`renderSkillText`, `src/engine/keywords/compose.ts`) with `{{keyword}}` markup styled inline (§5c). Left-aligned, body ladder (§5). At `cardScale` below ~0.5 the 8px font floor pins this box to TWO lines whatever the ladder says, so an overflowing body ends in an ellipsis — see §5c. |
 | `slotLabel` | 230, 644, 156, 20 | Board footprint: the word `Slot` (9 pt) + one box glyph per occupied slot (12 pt, gap 8; `slotDisplay`), **right-aligned, bottom-right after the text block**. Boxes, not numerals. |
 
 **Art focal safe zone:** badges cover x 26–74 and x 350–390 in the top ~170
@@ -122,15 +122,15 @@ template owns shadows).
 | Type badge | `template/badge-{sword\|axe\|lance\|bow\|fangs\|fire\|frost\|lightning\|nature\|holy\|dark}.png` | 96 × 96 (80 × 80 accepted) | 48 × 48 | **Hexagonal plate** (pointy-top), beveled rim, emblem centered. The emblem MAY overflow the hexagon by ~10–15% (baked into the PNG; the renderer never clips badges) — but the artwork's bounding box stays inside the canvas and its optical center stays at canvas center. **All badges share the same 48×48 display size.** |
 | Archetype badge | `template/badge-{offense\|defensive\|healing\|support\|debuff}.png` | 96 × 96 (80 × 80 accepted) | 48 × 48 | **Octagonal plate** (flat top/bottom for clean stacking), same badge language and size as the type badge. |
 | Divider | `template/divider.png` | 600 × 16 | 300 × 8 | Symmetric ornament; horizontally centered flourish. Optional — the renderer draws a plain tier-colored rule when absent. |
-| Card art MASTER | `art-src/cards/<skill_id>.png` | preferred 1024 × 1536, min 840 × 1040 | never shipped | Authoring source only, and deliberately **outside `public/`** (see §4.1). File name is the **exact `SkillDef.id`** (e.g. `arcane_bolt.png`) so the art key is derivable — no hand-maintained name map, no `-anime`/`-spell` suffix variants. |
-| Card art SHIPPED | `public/game-art/cards/<skill_id>.webp` | max 1024 tall, WebP q82 (~95 KB) | cover-fit into `artFrame` | GENERATED from the master by `npm run art:encode` (`scripts/encode-card-art.ts`) — never hand-authored, but **committed** (§4.1). 1024 is 2.4× the tallest real draw (427 design px). Texture key: `card-art:<skill_id>`. **Not loaded at boot**: `cardArtLoader.ts` streams it on first use. |
+| Card art MASTER | `art-src/cards/<catalog-file-stem>.png` | preferred 1024 × 1536, min 840 × 1040 | never shipped | Authoring source only, deliberately **outside `public/`** (see §4.1). `CARD_ART_CATALOG` is the path authority: established entries retain their legacy hyphenated `-anime` stems, while newly added rollout entries may use the exact `SkillDef.id`. Do not infer or rename paths outside that catalogue. |
+| Card art SHIPPED | `public/game-art/cards/<catalog-file-stem>.webp` | max 1024 tall, WebP q68 | cover-fit into `artFrame` | GENERATED from the matching master by `npm run art:encode` (`scripts/encode-card-art.ts`) — never hand-authored, but **committed** (§4.1). 1024 is 2.4× the tallest real draw (427 design px). The q68 setting preserves fine edges at both real profiles while keeping the complete 183-card bright-art catalog inside its unchanged 12 MiB cap. Texture keys and file names come from `CARD_ART_CATALOG`. **Not loaded at boot**: `cardArtLoader.ts` streams it on first use. |
 
 Deprecated once V2 assets land: `card-template-parts.png` (moved to
 `art-src/` 2026-08-30 — nothing loads it),
 `card-template-parts-transparent.png` (monolithic sheets; still loaded by
-`BootScene`), the
-suffixed card-art file names, and the procedurally drawn badge fallbacks in
-V1. Missing card art falls back to `cardArtPlaceholder.ts` — the card's own
+`BootScene`), and the procedurally drawn badge fallbacks in V1. Legacy
+suffixed card-art file names remain valid catalogue-owned paths; they are not
+a migration target. Missing card art falls back to `cardArtPlaceholder.ts` — the card's own
 identity colour washed over the panel navy with its type badge ghosted in,
 NOT a neutral matte — and so does art that is still streaming, deliberately:
 "no art yet" and "art not here yet" must not be two different looks. Never a
@@ -183,7 +183,7 @@ the template's legibility guarantee, not a per-card choice.
 | Role | Face / weight | Color / stroke | Align | Ladder (auto-fit, never moves the box) |
 |---|---|---|---|---|
 | Title | Display, bold | `#ffffff`, stroke `#111722` × 3 | center in `titleBox` | 24 pt / 1 line (≤14 chars) → 22 pt / 1 line (≤24) → 20 pt / 2 lines, line-spacing −5/−5/−6 |
-| Body | Body, regular (keywords bold + semantic color, §5c) | `#f1efe8`, stroke `#111722` × 2 | left in `bodyBox`, top-anchored | 13 pt / 3 lines (density ≤90) → 12 pt / 4 (≤145) → 11 pt / 5; line-spacing +5/+4/+3. Density = `text.length + 28 × (effects − 1)`. |
+| Body | Body, regular (keywords bold + semantic color, §5c) | `#f1efe8`, stroke `#111722` × 2 | left in `bodyBox`, top-anchored | 13 pt / 3 lines (density ≤90) → 12 pt / 4 (≤145) → 11 pt / 5; line-spacing +5/+4/+3. Density = `body.length + 28 × (clauses − 1)`, where `body` is the GENERATED text (`renderSkillText`, markup and all — the braces count) and `clauses` is the POST-MERGE printed clause count (`renderSkillClauses(skill).length`), NOT `effects.length`. The generator collapses the piles the engine itself merges and folds a multi-hit into one counted clause, so the raw action count would over-penalise exactly the cards the merge rule exists to help. |
 | Weight marker | `WT` word: Body bold 9 pt `#f4ead0`; number: Display bold `#ffffff`, stroke `#111722` × 2 | — | left in `wtPlate` footer row, gap 8 | number: 15 pt (1 digit) → 13 pt (2) → 11 pt (3) |
 | Slot label | Body, bold | `#f4ead0` | right-aligned in `slotLabel` (bottom-right, after the text block) | fixed 9 pt word + 12 pt box glyphs, gap 8 |
 
@@ -194,9 +194,11 @@ Ladder rules:
   `selectWtRule`. No measuring-then-nudging.
 - Point sizes scale by the same uniform card scale as geometry, floored at
   13 pt title / 8 pt body-equivalent legibility at the 720×1280 canvas.
-- If a card's text cannot fit 5 lines at the smallest body step, the **card
-  text is too long — fix the text** (style guide caps at two sentences), not
-  the template.
+- If a generated body cannot fit 5 lines at the smallest body step, that is
+  measured overflow on a card whose `effects` list is too dense for the
+  template, not a hand-authoring fix (there is no `text` to edit — see §5c).
+  The only levers are the DoT/thorns pile-merge rule (spec §2.5) and, at the
+  140/150px thumbnail scale, the cued ellipsis §5c already describes.
 
 ---
 
@@ -214,20 +216,62 @@ it shows a plain-language explanation the printed text can't fit.
   **below the card silhouette**, top-anchored and growing downward, so
   explanations never cover any part of the card. Title 13 pt gold caps, body
   11 pt (`glossaryText`).
-- **Copy source**: `src/game/ui/cardGlossary.ts` — pure text derived from the
-  engine's locked mechanics; keep wording in sync with
-  `docs/card-text-style-guide.md` §1.
+- **Copy source**: `src/game/ui/cardGlossary.ts` — a lookup into the keyword
+  registry's `ruleSentence` facet (`src/engine/keywords/text.ts`), never
+  hand-authored prose. `docs/card-text-style-guide.md` is HISTORY (its
+  authored-`text` vocabulary retired 2026-09-06, `docs/INDEX.md`); it is not a
+  wording reference to keep anything in sync with.
+- **Definition order and reuse**: card-specific keyword definitions come first,
+  followed by type/property, Weight, Size, Tier, Power Level, and AoE metadata.
+  Desktop card hover uses the same registry bodies as the full detail views;
+  battle status details resolve their body through the same registry-owned
+  lookup. A rider that names an Exploit or Stack Bonus status also opens that
+  status's canonical entry. Affinity remains its own entry with the approved
+  sentence, never a compound label such as `Burn (Affinity)`.
+- **Plain notation**: `(+ATK)`, `(+MATK)`, `(+DEF)`, `(+MDEF)`, and
+  `(+best stat)` stay on the generated face as scaling notation. They do not
+  create glossary or hover entries.
 
-## 5c. Keyword markup in card text (`{{verb}}`)
+## 5c. Keyword markup in the generated body (`{{verb}}`)
 
-Card `text` in `src/data/content/skills.v1.json` (see its README) may wrap a
-mechanical verb in double
-braces: `'Deal Fire damage +42 (+Magic Power) · {{Burn}} 5 (3 turns).'`
+**NOT AUTHORED (since 2026-09-06).** There is no `text` field on a card. The
+body is GENERATED from `effects` by `renderSkillText`
+(`src/engine/keywords/compose.ts`), and the `{{...}}` markup comes from the
+keyword registry's `faceClause` templates
+(`src/engine/keywords/text.ts`) — one template per `Action` kind, so which
+word is wrapped is decided once per KEYWORD rather than once per card. The
+authoring rule this section used to carry ("only mark real mechanical verbs")
+is now enforced by construction: a kind either always wraps its own name or is
+on a closed exemption list, pinned by
+`tests/engine/keywordRegistryReachability.test.ts`.
 
-- **Authoring**: the braces carry no engine meaning; the display keeps the
-  author's casing, the keyword id is the lowercased content. Only mark real
-  mechanical verbs (poison, burn, stun, guard, negate, cleanse, shield,
-  lifesteal, stagger, slow, combo, shatter, thorns, true).
+A generated body reads e.g. `'Deal 38 (+MATK) Fire damage · {{Burn}} 5.'`
+
+- **The markup is the TAP CUE.** Rule prose is no longer printed on the face;
+  a keyword's coloured word is what invites the tap/hover that reaches its ONE
+  definition (its parameter-free `ruleSentence`, surfaced through
+  `cardGlossaryEntries`). The braces still carry no engine meaning: the
+  display keeps the template's casing and the keyword id is the lowercased
+  content.
+- **TRUNCATION IS CUED, NEVER SILENT.** `FantasyCardTemplateV2.makeBody` used
+  to `destroy()` every word past the visible line count. At the 140px card
+  (`cardDetailOverlay`, `MobileDeckBuild`, `MobileDraft` — `MobileWiki`'s own
+  detail card is 150px, and both `MobileShop` panes are too) the
+  box is 113x25 and the font floor forces two lines, so roughly half the
+  catalog overflows it. The last visible word takes an ellipsis, and every
+  surface that draws a card that small also prints the whole body beside it
+  (`renderCardInfoBox`).
+
+  **`npm run audit:cardface` OWNS THE COUNTS, and this doc deliberately does
+  not restate them.** `CARD_WIDTHS` in
+  `scripts/card-face-truncation-audit.ts` carries a recorded overflow mark per
+  real card width; the gate fails if any overflow renders uncued, or if a
+  count rises above its mark. Those marks move legitimately whenever a face
+  gets longer (they were re-recorded once already, hours after being set, for
+  three wording changes) — which is exactly why a figure written here would be
+  false by the next re-record. The one-off before/after comparison against the
+  AUTHORED text this migration replaced is recorded once, with its date, in
+  `.superpowers/sdd/2026-09-06-card-text-migration/progress.md`.
 - **Clause-aware wrapping**: the body is laid out word-by-word with clause
   grouping — text between ` · ` separators is one clause, and a clause that
   would straddle a line break moves to the next line whole (it only splits
@@ -259,9 +303,11 @@ geometry.
 1. `tests/game/fantasyCardTemplateSpec.test.ts` +
    `fantasyCardTemplateModel.test.ts` green (`npm test`).
 2. `npm run typecheck` and `npm run build` clean.
-3. Eyeball `?view=template` at 720×1280 across: shortest + longest card name,
-   1/2/3-slot cards, 1–3 archetypes, all four tiers, a card with no art
-   (fallback matte), and 1/2/3-digit weights.
+3. Eyeball the genuine Wiki templates at `?scene=desktop-wiki` (1440×900)
+   and `?scene=mwiki` (412×892) across: shortest + longest card name,
+   1/2/3-slot cards, 1–3 archetypes, all four tiers, a delayed art load
+   (fallback matte → illustration), and 1/2/3-digit weights.
 4. Grep the renderer for banned patterns: any identifier matching
    `offset|nudge|ByTier.*x:|centerOffset` in layout code is a review blocker.
-5. Log the change in `docs/codex-handoff.md`.
+5. Log the change in the active `.superpowers/sdd/` task report and
+   `ACTIVE-WORK.md` ledger.

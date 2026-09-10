@@ -270,14 +270,28 @@ describe('run/eliteAffix: the deal is deterministic and spends no Rng draw', () 
           // rebuild at the node's own fightNumber — the ramped package is what
           // rollEncounter ships at fights < 10, and the point of THIS test is
           // that removing the AFFIX (not the ramp) changes nothing.
+          // RE-PINNED AGAIN 2026-09-06 (enemy growth by level): `rankOverride`
+          // is now omitted rather than passed as `unit.rank` — `unit.rank`
+          // already has growth's own tier-up steps folded in, and passing a
+          // TOTAL back in as the title's OWN rank would double-apply growth
+          // on top of it a second time. Letting the title supply its own
+          // rank (as `unit` itself did) reproduces the SAME final rank, since
+          // swapping the affix card for a same-count generic filler card
+          // changes neither deck size nor the rank distribution. Growth's
+          // OWN level is passed as `unit.growthLevel` — the unit's OWN resolved
+          // growth level, NOT the node's (`fightTableEntryForNode(node).level`):
+          // pack members grow at their clamped effective per-body level, so
+          // reusing the node's level here could grant unearned milestones.
           const bare = buildEnemyEncounter(
             unit.enemyId,
             unit.level,
             unit.title,
-            unit.rank,
+            undefined,
             unit.modifiers,
             null,
             node.fightNumber!,
+            undefined,
+            unit.growthLevel,
           );
           expect(bare.enemyId).toBe(unit.enemyId);
           expect(bare.setup.stats).toEqual(unit.setup.stats);
@@ -339,7 +353,12 @@ describe('run/eliteAffix: the affix is visible in previewEncounter BEFORE the fi
           expect(affix).toBe(eliteAffixIdFor(seed, node.fightNumber!));
           // Everything the map/prep UI needs to NAME it, before a card is bought.
           expect(MODIFIER_PRESETS[affix]!.name.length).toBeGreaterThan(0);
-          expect(MODIFIER_PRESETS[affix]!.blurb.length).toBeGreaterThan(0);
+          // The "what it does" half is no longer a hand-written `blurb`: it is
+          // DERIVED from the affix's own fields (`effectOf`,
+          // src/game/ui/affixPresentation.ts) — for these four, the granted
+          // card's own generated face. What still has to be AUTHORED, and so
+          // still has to be checked for presence, is the counter-play answer.
+          expect(MODIFIER_PRESETS[affix]!.answer?.length ?? 0).toBeGreaterThan(0);
         }
       }
     }

@@ -81,3 +81,71 @@ export function eventArtHeight(
 export function eventBodyMaxHeight(storyLimit: number, bodyBoxTop: number, bodyPad: number, floorMin: number): number {
   return Math.max(floorMin, storyLimit - bodyBoxTop - bodyPad * 2);
 }
+
+export interface EventBodyScrollLayout {
+  /** Mask height containing only complete wrapped lines. */
+  viewportHeight: number;
+  /** Positive distance from the initial top to the final line-aligned stop. */
+  maxScroll: number;
+  visibleLineCount: number;
+  /** Glyph-line height plus the configured inter-line spacing. */
+  lineAdvance: number;
+}
+
+/**
+ * Align an overflowing text mask to complete wrapped-line boundaries.
+ * Phaser reports the rendered block's total height rather than a public
+ * line-height metric, so derive the exact glyph-line height by removing its
+ * known inter-line gaps first. The hidden tail is consequently an integral
+ * number of `lineAdvance`s as well: both the initial and final scroll stops
+ * show complete lines, never a clipped row of glyphs.
+ */
+export function eventBodyScrollLayout(
+  naturalHeight: number,
+  maxViewportHeight: number,
+  lineCount: number,
+  lineSpacing: number,
+): EventBodyScrollLayout {
+  const safeLineCount = Math.max(1, Math.floor(lineCount));
+  const safeSpacing = Math.max(0, lineSpacing);
+  const safeNaturalHeight = Math.max(0, naturalHeight);
+  const gapHeight = safeSpacing * Math.max(0, safeLineCount - 1);
+  const glyphLineHeight = Math.max(0, (safeNaturalHeight - gapHeight) / safeLineCount);
+  const lineAdvance = glyphLineHeight + safeSpacing;
+
+  if (safeNaturalHeight <= maxViewportHeight || lineAdvance <= 0) {
+    return {
+      viewportHeight: safeNaturalHeight,
+      maxScroll: 0,
+      visibleLineCount: safeLineCount,
+      lineAdvance,
+    };
+  }
+
+  const visibleLineCount = Math.max(
+    1,
+    Math.min(safeLineCount, Math.floor((Math.max(0, maxViewportHeight) + safeSpacing) / lineAdvance)),
+  );
+  const viewportHeight = glyphLineHeight * visibleLineCount + safeSpacing * Math.max(0, visibleLineCount - 1);
+  const maxScroll = lineAdvance * (safeLineCount - visibleLineCount);
+  return { viewportHeight, maxScroll, visibleLineCount, lineAdvance };
+}
+
+/** Geometry for the persistent scroll thumb beside an overflowing body. */
+export function eventBodyScrollThumb(
+  trackHeight: number,
+  viewportHeight: number,
+  naturalHeight: number,
+  scrollOffset: number,
+  minThumbHeight = 18,
+): { height: number; offset: number } {
+  const safeTrackHeight = Math.max(0, trackHeight);
+  const safeNaturalHeight = Math.max(viewportHeight, naturalHeight, 1);
+  const height = Math.min(
+    safeTrackHeight,
+    Math.max(Math.min(minThumbHeight, safeTrackHeight), safeTrackHeight * (viewportHeight / safeNaturalHeight)),
+  );
+  const maxScroll = Math.max(0, naturalHeight - viewportHeight);
+  const progress = maxScroll === 0 ? 0 : Math.min(1, Math.max(0, scrollOffset / maxScroll));
+  return { height, offset: (safeTrackHeight - height) * progress };
+}

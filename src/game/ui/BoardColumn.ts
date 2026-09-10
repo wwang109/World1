@@ -20,6 +20,11 @@ export interface ColumnPiece {
    * `CardTokenOptions.slotMods`. Omitted by every non-battle caller, exactly
    * like `comboLive` above. */
   slotMods?: { burden?: number; curse?: number };
+  /** Battle-playback-only affinity-gate state for THIS piece — see
+   * `CardTokenOptions.affinityOpen`. Omitted by every non-battle caller
+   * (prep/shop/deck build/draft/wiki have no caster to check a gate against),
+   * exactly like `comboLive`/`slotMods` above. */
+  affinityOpen?: boolean;
 }
 
 export interface BoardColumnOptions {
@@ -85,6 +90,7 @@ export class BoardColumn {
           tier: piece.tier,
           comboLive: piece.comboLive,
           slotMods: piece.slotMods,
+          affinityOpen: piece.affinityOpen,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;

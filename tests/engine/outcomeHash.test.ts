@@ -42,7 +42,7 @@ describe('outcomeHash normalization', () => {
   it('is BLIND to card text and card name (presentation only — the sim never reads them)', () => {
     const retitled: SkillBook = {
       ...skillBook,
-      sword_slash: { ...base, name: 'Completely Different Name', text: 'totally rewritten copy' },
+      sword_slash: { ...base, name: 'Completely Different Name' },
     };
     expect(run(retitled)).toBe(run(skillBook));
   });

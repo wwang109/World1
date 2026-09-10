@@ -73,17 +73,16 @@ type Store = typeof import('../../src/game/runStore');
 /** Walks the STORE (never a hand-built `RunState`) onto a real wave-1 event
  * node: start → draft → commit to the node → draw its event, which is exactly
  * what `create()` does first on both event scenes. */
-function storeOnEventNode(store: Store): RunNode {
-  for (let seed = 1; seed <= 60; seed += 1) {
+function storeOnEventNode(store: Store, eventId: string): RunNode {
+  for (let seed = 1; seed <= 400; seed += 1) {
     store.startRun(seed);
     draftThroughStore(store, seed);
     const node = store.choices().find((n) => n.kind === 'event');
     if (!node) continue;
     store.pickNode(node.id);
-    store.currentEventDef();
-    return node;
+    if (store.currentEventDef()?.id === eventId) return node;
   }
-  throw new Error('no seed in 1..60 offered a wave-1 event node');
+  throw new Error(`no seed in 1..400 drew ${eventId} at a wave-1 event node`);
 }
 
 /** DECK/BAG AND BACK. The HUD's secondary button is `scene.start('…DeckBuild')`
@@ -124,7 +123,7 @@ describe('runStore: an event node resolves its rungs exactly once', () => {
 
   it('THE EXPLOIT: resolve → DECK/BAG → back does not pay out a second time', async () => {
     const store = await import('../../src/game/runStore');
-    storeOnEventNode(store);
+    storeOnEventNode(store, GOLD_DOOR.eventId);
 
     const goldBefore = store.getActiveRun()!.gold;
     const resolvedBefore = store.getActiveRun()!.stats.eventsResolved;
@@ -159,7 +158,7 @@ describe('runStore: an event node resolves its rungs exactly once', () => {
 
   it('a RELOAD does not re-open a resolved event either', async () => {
     const store = await import('../../src/game/runStore');
-    const node = storeOnEventNode(store);
+    const node = storeOnEventNode(store, GOLD_DOOR.eventId);
     const goldBefore = store.getActiveRun()!.gold;
     store.resolveCurrentEventChoice(GOLD_DOOR.eventId, GOLD_DOOR.choiceId);
     const goldAfter = store.getActiveRun()!.gold;
@@ -180,7 +179,7 @@ describe('runStore: an event node resolves its rungs exactly once', () => {
 
   it('the run layer itself refuses a second resolve — the guard is not only in the store', async () => {
     const store = await import('../../src/game/runStore');
-    storeOnEventNode(store);
+    storeOnEventNode(store, GOLD_DOOR.eventId);
     const { resolveEventChoice } = await import('../../src/run/events');
 
     const state = store.getActiveRun()!;
@@ -194,14 +193,19 @@ describe('runStore: an event node resolves its rungs exactly once', () => {
 
   it('a DEFERRED rung left mid-pick re-opens its picker — free, and only until it is answered', async () => {
     const store = await import('../../src/game/runStore');
-    storeOnEventNode(store);
+    const node = storeOnEventNode(store, PICKER_DOOR.eventId);
 
     const goldBefore = store.getActiveRun()!.gold;
     const offer = store.resolveCurrentEventChoice(PICKER_DOOR.eventId, PICKER_DOOR.choiceId);
     expect(offer?.kind, 'the pinned picker door no longer offers a bonusDraft').toBe('bonusDraft');
     const offered = offer!.kind === 'bonusDraft' ? offer.cards.map((c) => c.skillId) : [];
     const resolvedCount = store.getActiveRun()!.stats.eventsResolved;
-    expect(store.currentEventResolution()).toEqual({ ...PICKER_DOOR, pending: true });
+    expect(store.currentEventResolution()).toEqual({
+      ...PICKER_DOOR,
+      contentVersion: 1,
+      instanceId: `event:${node.id}`,
+      pending: true,
+    });
 
     // ---- DECK / BAG mid-pick, then back ----
     reenterEventScreen(store);
@@ -219,7 +223,11 @@ describe('runStore: an event node resolves its rungs exactly once', () => {
     // Answering it closes it for good — a picker must not hand out seconds.
     const picked = offer!.kind === 'bonusDraft' ? offer.cards[0]! : null;
     store.applyCurrentBonusDraftPick(picked!);
-    expect(store.currentEventResolution()).toEqual({ ...PICKER_DOOR });
+    expect(store.currentEventResolution()).toEqual({
+      ...PICKER_DOOR,
+      contentVersion: 1,
+      instanceId: `event:${node.id}`,
+    });
     reenterEventScreen(store);
     expect(store.reopenCurrentEventPick(),
       'the picker re-opened after it had already been answered').toBeUndefined();
@@ -238,24 +246,25 @@ describe('event scenes: the screen asks the RUN before it offers a rung', () => 
   for (const scene of SCENES) {
     it(`${scene} adopts the recorded resolution on every entry`, () => {
       const src = sceneSource(scene);
-      expect(src, 'the scene never asks whether this node already resolved')
-        .toContain('currentEventResolution()');
+      expect(src, 'the scene never reads the committed open/pending/terminal phase')
+        .toContain('currentRunEventViewModel()');
       // `init()` rebuilds `phase` from nothing on every scene.start — the
       // adoption has to run in `create()`, which runs again after it.
       expect(src, 'the resolution is read but never consulted in create()')
-        .toMatch(/if \(this\.phase === 'choosing'\) this\.adoptRecordedResolution\(\);/);
-      expect(src, "the scene has no 'resolved' phase to show a done node in")
-        .toMatch(/'choosing' \| 'resolved'/);
+        .toMatch(/if \(this\.pane\.state\.kind === 'choices'\) this\.adoptRecordedResolution\(view, run\);/);
+      expect(src, 'the scene does not adopt the committed receipt state')
+        .toContain('this.pane.settle()');
       // A resolved node's rungs are drawn LOCKED, never selectable.
-      expect(src, 'a resolved rung is still enabled').toMatch(/enabled: !done && affordable/);
-      // ...and the only thing left to do is leave.
-      expect(src, "the 'resolved' phase has no way forward")
-        .toMatch(/this\.phase === 'resolved'\n?\s*\?\s*\{ label: 'CONTINUE ›'/);
+      expect(src, 'a resolved rung bypasses the committed disabled state').toMatch(/enabled: choice\.enabled/);
+      // A settled receipt uses the same pane-owned exit as a fresh reward.
+      // The real store/re-entry behavior is covered by runEventRewardScene.
+      expect(src, 'the shared receipt pane has no way forward')
+        .toMatch(/this\.pane\.render\([\s\S]*?onContinue: \(\) => this\.continueToMap\(\)/);
     });
 
     it(`${scene} re-opens a paid-for picker instead of dropping it`, () => {
       expect(sceneSource(scene), 'a deferred pick left mid-flight is lost on return')
-        .toContain('reopenCurrentEventPick()');
+        .toContain('reopenCurrentRunEventOffer()');
     });
   }
 });

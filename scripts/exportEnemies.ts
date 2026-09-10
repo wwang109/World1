@@ -21,6 +21,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { enemies } from '../src/data/enemies';
+import type { EnemyDef } from '../src/engine/types';
 import { asciiSafeStringify } from './asciiSafeJson';
 
 const SRC = new URL('../src/data/enemies.ts', import.meta.url);
@@ -97,8 +98,8 @@ const notesById = rescueNotes();
  * axes -> tuning -> payload" convention exportContent.ts/exportGems.ts use:
  *   name (copy) -> notes -> baseDepth/isElite/isBoss (encounter-role axes) ->
  *   elementAffinity/weaponAffinity (type axes, the matchup query) ->
- *   stats/boardSize/pieces (the deck build itself) -> goldReward/xpReward
- *   (economy tuning).
+ *   stats/boardSize/pieces/growth (the deck build itself, plus how it grows
+ *   by level) -> goldReward/xpReward (economy tuning).
  * `id` is NOT here: it is the document's KEY (see the envelope docs on the
  * skills/gems loaders) and the loader puts it back when rebuilding the def.
  */
@@ -107,29 +108,31 @@ const DEF_FIELD_ORDER = [
   'notes',
   'baseDepth', 'isElite', 'isBoss',
   'elementAffinity', 'weaponAffinity',
-  'stats', 'boardSize', 'pieces',
+  'stats', 'boardSize', 'pieces', 'growth',
   'goldReward', 'xpReward',
 ] as const;
+
+/** Pure envelope builder; nested milestone order and duplicate flags survive unchanged. */
+export function enemyDocumentOf(enemy: EnemyDef, notes?: readonly string[]) {
+  // `id` is deliberately dropped from the payload — see DEF_FIELD_ORDER's
+  // doc comment; the loader puts it back when it rebuilds the EnemyDef.
+  const { id, ...rest } = enemy;
+  const source: Record<string, unknown> = { ...(notes ? { notes } : {}), ...rest };
+  const def: Record<string, unknown> = {};
+  for (const key of DEF_FIELD_ORDER) if (source[key] !== undefined) def[key] = source[key];
+  // Anything the field order does not know about still ships, so a new
+  // EnemyDef field can never be silently dropped by this exporter.
+  for (const key of Object.keys(source)) if (!(key in def)) def[key] = source[key];
+  // ONE DOCUMENT PER ENEMY; its versions nested inside, oldest first.
+  // CURRENT is the entry with the HIGHEST `version` (not the last element)
+  // — see the loader (src/data/enemiesContent.ts, not wired up yet).
+  return { id, versions: [{ version: 1, def }] };
+}
 
 const enemyList = Object.values(enemies)
   .slice()
   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-  .map((enemy) => {
-    const notes = notesById.get(enemy.id);
-    // `id` is deliberately dropped from the payload — see DEF_FIELD_ORDER's
-    // doc comment; the loader puts it back when it rebuilds the EnemyDef.
-    const { id, ...rest } = enemy;
-    const source: Record<string, unknown> = { ...(notes ? { notes } : {}), ...rest };
-    const def: Record<string, unknown> = {};
-    for (const key of DEF_FIELD_ORDER) if (source[key] !== undefined) def[key] = source[key];
-    // Anything the field order does not know about still ships, so a new
-    // EnemyDef field can never be silently dropped by this exporter.
-    for (const key of Object.keys(source)) if (!(key in def)) def[key] = source[key];
-    // ONE DOCUMENT PER ENEMY; its versions nested inside, oldest first.
-    // CURRENT is the entry with the HIGHEST `version` (not the last element)
-    // — see the loader (src/data/enemiesContent.ts, not wired up yet).
-    return { id, versions: [{ version: 1, def }] };
-  });
+  .map((enemy) => enemyDocumentOf(enemy, notesById.get(enemy.id)));
 
 const attached = new Set<string>();
 for (const notes of notesById.values()) for (const n of notes) attached.add(n);

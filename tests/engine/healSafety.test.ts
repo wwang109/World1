@@ -38,7 +38,6 @@ function auraCard(id: string, healFlat: number): SkillDef {
     // this card contributes is its aura.
     effects: [{ kind: 'taunt', amount: 0 }],
     aura: { affects: 'adjacent', mods: { healFlat } },
-    text: '',
   };
 }
 
@@ -52,13 +51,13 @@ const book: SkillBook = {
   mend: {
     id: 'mend', name: 'Mend', archetypes: ['support'], property: 'physical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 0,
-    effects: [{ kind: 'heal', power: 5 }], text: '',
+    effects: [{ kind: 'heal', power: 5 }],
   },
   // Chips the hero down so `mend` always has room to heal (no overheal noise).
   peck: {
     id: 'peck', name: 'Peck', archetypes: ['offense'], property: 'physical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'beast', cooldownTurns: 0,
-    effects: [{ kind: 'damage', power: 4 }], text: '',
+    effects: [{ kind: 'damage', power: 4 }],
   },
 } satisfies Record<string, SkillDef>;
 

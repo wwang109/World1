@@ -11,8 +11,74 @@ import {
 import { biomeFor, bandIndexOf, biomeForBand, BIOME_MOB_WEIGHT } from '../../src/run/biome';
 import { biomeCatalog, biomeIds } from '../../src/data/biomes';
 import { enemies } from '../../src/data/enemies';
-import { TITLE_PRESETS, titlePresetFor } from '../../src/run/encounter';
+import {
+  growthStepsAt, maxRankFor, resolveEncounterForEnemy, TITLE_PRESETS, titlePresetFor,
+  type EncounterUnit, type EnemyTitle,
+} from '../../src/run/encounter';
 import { forecastBand, forecastNextBand, renderBandForecast } from '../../src/run/biomeForecast';
+import type { EnemyDef } from '../../src/engine/types';
+
+/**
+ * The rank `resolveEncounterForEnemy` actually stamps for `enemy`/`title`
+ * at `fightNumber`, GROWTH (2026-09-06) included: every 2 levels of
+ * `growthLevel` (the NODE's level — see `resolveEncounterForEnemy`'s doc
+ * comment) spends a step on the enemy's own `growth` list (empty for every
+ * enemy today, so this never adds a card here) or, once that list is
+ * exhausted, on `rank` — capped at the deck's own `maxRankFor` ceiling, same
+ * as the real board. A pure function of the fight spec (title/fightNumber/
+ * growthLevel) and the enemy's own authored board, so asserting it here is
+ * still "no biome can move this number", just no longer JUST the title's own
+ * flat `.rank`.
+ *
+ * Read additions from the resolved board. Each milestone now selects its
+ * first valid fitting candidate or throws; a failed addition is never rank.
+ * The synthetic fixture below exercises a smaller fitting fallback after
+ * title and affix occupancy, followed by the next earned rank step.
+ */
+function expectedRank(enemy: EnemyDef, unit: EncounterUnit, title: EnemyTitle, growthLevel: number, fightNumber: number): number {
+  const preset = titlePresetFor(title, fightNumber);
+  const deckSize = enemy.pieces.length + preset.extraCards;
+  const growthSteps = growthStepsAt(growthLevel);
+  const growthAddCount = unit.setup.pieces.length - deckSize;
+  const rankCeiling = maxRankFor(deckSize + growthAddCount);
+  const baseRank = Math.max(0, Math.min(preset.rank, rankCeiling));
+  const growthRankSteps = Math.max(0, Math.min(growthSteps - growthAddCount, rankCeiling - baseRank));
+  return baseRank + growthRankSteps;
+}
+
+describe('this file\'s own expectedRank mirror does not drift from the resolver\'s slot-fit rule', () => {
+  it('a growth milestone selects its fitting fallback and leaves only later steps for rank', () => {
+    // Five occupied cells after affix/title, then size 3 leaves only two:
+    // the second milestone must choose fireball rather than a size-3 card.
+    const enemy: EnemyDef = {
+      ...enemies.cinder_sprite!,
+      boardSize: 3,
+      pieces: [0, 1, 2].map((slot) => ({ skillId: 'cinder_dart', slot })),
+      growth: [
+        { family: { kind: 'element', type: 'fire' }, purpose: 'reinforce-family', candidates: [{ skillId: 'inferno_eruption' }] },
+        { family: { kind: 'element', type: 'fire' }, purpose: 'reinforce-family', candidates: [{ skillId: 'forgeheart_bastion' }, { skillId: 'fireball' }] },
+      ],
+    };
+    // `rankOverride` left undefined (not 0, unlike `encounter.test.ts`'s own
+    // version of this shape): `expectedRank` mirrors the PRODUCTION roll path
+    // (`rollEncounter` never passes an override either), which resolves
+    // `requestedRank` to the title's own `preset.rank`.
+    const grown = resolveEncounterForEnemy(enemy, 6, 'boss', undefined, [], 'braced', 100);
+    // Ground truth (matches `tests/run/encounter.test.ts`'s own pin on this
+    // exact shape): pre-growth deck is 5 (3 authored + 2 extraCards, the
+    // 'braced' affix card counted inside extraCards same as `expectedRank`'s
+    // own `deckSize`); both earned milestones land through the fitting fallback.
+    const deckSizeBeforeGrowth = enemy.pieces.length + titlePresetFor('boss', 100).extraCards;
+    expect(deckSizeBeforeGrowth).toBe(5);
+    expect(grown.setup.pieces.length).toBe(deckSizeBeforeGrowth + 2);
+    expect(grown.setup.pieces.slice(-2).map((piece) => [piece.skillId, piece.slot])).toEqual([
+      ['inferno_eruption', 5], ['fireball', 8],
+    ]);
+    // Boss rank 4 plus the level-6 step after both additions gives rank 5.
+    expect(grown.rank).toBe(5);
+    expect(grown.rank).toBe(expectedRank(enemy, grown, 'boss', 6, 100));
+  });
+});
 
 /**
  * THE BAND'S MONSTERS, AND THE BOSS IT PROMISES.
@@ -179,11 +245,14 @@ describe('biome bosses: the band\'s boss is a promise, and the same one every ti
         const unit = pack.units[0]!;
         expect(biome.bosses, `${biome.id} fielded off-shortlist boss ${unit.enemyId}`).toContain(unit.enemyId);
         expect(unit.title, 'a boss column did not field the boss title').toBe('boss');
-        // RE-PINNED 2026-09-02 (title depth ramp): the boss rank comes from
+        // RE-PINNED 2026-09-02 (title depth ramp), RE-PINNED AGAIN 2026-09-06
+        // (enemy growth by level): the boss rank comes from
         // `titlePresetFor(boss, fightNumber)` — the fight-5 milestone boss
         // fields rank 0 (measured early-curve fix); fights >= 10 are the flat
-        // TITLE_PRESETS.boss.rank exactly as before.
-        expect(unit.rank).toBe(titlePresetFor('boss', node.fightNumber!).rank);
+        // TITLE_PRESETS.boss.rank exactly as before — PLUS whatever growth
+        // steps this NODE's own level (`unit.level`, a boss column is always
+        // solo so this IS the node's level) has spent (`expectedRank`).
+        expect(unit.rank).toBe(expectedRank(enemies[unit.enemyId]!, unit, 'boss', unit.level, node.fightNumber!));
         const set = perBiome.get(biome.id) ?? new Set<string>();
         set.add(unit.enemyId);
         perBiome.set(biome.id, set);
@@ -231,6 +300,8 @@ describe('a biome has NO combat effect — PL is the balance unit', () => {
     // drawn; the moment one changes a level, a rank, a modifier list or a stat,
     // it is a balance number outside the PL economy and this fails.
     let checked = 0;
+    let soloUnitsChecked = 0;
+    let packUnitsChecked = 0;
     const biomesSeen = new Set<string>();
     for (const seed of SEEDS) {
       const state = startedRun(seed, 22);
@@ -240,22 +311,26 @@ describe('a biome has NO combat effect — PL is the balance unit', () => {
         biomesSeen.add(biomeFor(state.map.seed, node.wave, node.biomeId).id);
         for (const unit of pack.units) {
           expect(unit.modifiers, `${node.id} modifiers drifted`).toEqual(spec.modifiers);
-          // RE-PINNED 2026-09-02 (title depth ramp): rank/levelDelta come from
-          // the fight-number-ramped package (`titlePresetFor`), which equals
-          // the flat TITLE_PRESETS at fights >= 10 — still "the fight spec
-          // alone": the ramp is a pure function of (title, fightNumber), so a
-          // biome still cannot move any of these numbers.
-          expect(unit.rank, `${node.id} rank drifted`).toBe(titlePresetFor(unit.title, node.fightNumber!).rank);
+          // Solos use the node level; packs use their own clamped effective
+          // level. Both recipes remain within the same priced encounter rules.
+          const expectedRecipeLevel = pack.variant === 'solo' ? spec.level : Math.max(1, unit.effectiveLevel);
+          expect(unit.growthLevel, `${node.id} growth recipe drifted`).toBe(expectedRecipeLevel);
+          expect(unit.rank, `${node.id} rank drifted`).toBe(expectedRank(enemies[unit.enemyId]!, unit, unit.title, expectedRecipeLevel, node.fightNumber!));
           expect(unit.effectiveLevel).toBe(unit.level + titlePresetFor(unit.title, node.fightNumber!).levelDelta);
           if (pack.variant === 'solo') {
             expect(unit.level, `${node.id} level drifted from the fight spec`).toBe(spec.level);
             expect(unit.title, `${node.id} title drifted from the fight spec`).toBe(spec.title);
+            soloUnitsChecked += 1;
+          } else {
+            packUnitsChecked += 1;
           }
           checked += 1;
         }
       }
     }
     expect(checked, 'no units were audited').toBeGreaterThan(1000);
+    expect(soloUnitsChecked, 'the solo growth-recipe path was never audited').toBeGreaterThan(0);
+    expect(packUnitsChecked, 'the pack member-growth recipe path was never audited').toBeGreaterThan(0);
     expect(biomesSeen.size, 'the audit only ever saw one biome').toBe(biomeIds.length);
   });
 });

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 import {
   MARKER_CELLS,
   MIN_CELL_PX,
@@ -8,9 +10,7 @@ import {
   snapshotRunRoute,
   type RunRouteColumnSnapshot,
 } from '../../src/game/ui/runRouteLayout';
-import { bandBannerForWave, bandBannerHeight } from '../../src/game/ui/bandBannerViewModel';
-import { runScreenTemplate } from '../../src/game/ui/runScreenTemplate';
-import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../../src/game/layoutProfile';
+import { expeditionRouteTrackModel } from '../../src/game/ui/RunRouteBoard';
 import { createRun, type RunState } from '../../src/run/runState';
 import { ensureWavesThrough } from '../../src/run/runMap';
 
@@ -144,69 +144,27 @@ describe('runRouteLayout: a depth is never drawn smaller than it can be read', (
   });
 });
 
-/**
- * THE LANE THE SCENES ACTUALLY HAND IT. These recompute the two run maps'
- * lane arithmetic from the same constants the scenes use, so the numbers in the
- * fix's report are the numbers the code produces — the mobile lane in
- * particular is what the band banner's height leaves behind.
- */
-describe('the run map lanes, at wave 1 and at wave 10', () => {
-  /** MobileRunMapScene.renderTrail, in numbers. */
-  function mobileTrailLane(run: RunState): { usable: number; cellSize: number; drawn: number } {
-    const t = runScreenTemplate('mobile');
-    const wave = run.map.depths[run.depth]?.[0]?.wave ?? 1;
-    const bannerH = bandBannerHeight(bandBannerForWave(run, wave), 'mobile');
-    const choiceStackH = MOBILE_PROFILE.font.tiny + 8 + 94 * 3 + 10 * 2;
-    const choicesTop = t.contentSlots.choices.y + t.contentSlots.choices.height - choiceStackH;
-    const laneTop = t.regions.content.y + bannerH + 8;
-    const laneH = Math.max(60, choicesTop - 12 - laneTop);
-    const usable = laneH - MOBILE_PROFILE.gap * 2;
-    const layout = runRouteLayout(snapshotRunRoute(run).columns, usable, MIN_CELL_PX.mobile, MARKER_CELLS.mobile);
-    return { usable, cellSize: layout.cellSize, drawn: layout.slots.filter((s) => s.kind === 'column').length };
-  }
-
-  /** DesktopRunMapScene.renderTrail, in numbers. */
-  function desktopTrailLane(run: RunState): { usable: number; cellSize: number; drawn: number } {
-    const area = DESKTOP_PROFILE.canvas.width - DESKTOP_PROFILE.safe.x * 2;
-    const wave = run.map.depths[run.depth]?.[0]?.wave ?? 1;
-    const bannerW = Math.min(360, Math.round(area * 0.28));
-    const usable = area - bannerW - 16 - DESKTOP_PROFILE.gap * 2;
-    void bandBannerHeight(bandBannerForWave(run, wave), 'desktop');
-    const layout = runRouteLayout(snapshotRunRoute(run).columns, usable, MIN_CELL_PX.desktop, MARKER_CELLS.desktop);
-    return { usable, cellSize: layout.cellSize, drawn: layout.slots.filter((s) => s.kind === 'column').length };
-  }
-
-  for (const wave of [1, 10, 20]) {
-    it(`wave ${String(wave)}: both platforms stay above the legibility floor`, () => {
-      const run = runAtWave(7, wave);
-      const mobile = mobileTrailLane(run);
-      const desktop = desktopTrailLane(run);
-      expect(mobile.cellSize).toBeGreaterThanOrEqual(MIN_CELL_PX.mobile);
-      expect(desktop.cellSize).toBeGreaterThanOrEqual(MIN_CELL_PX.desktop);
-      expect(mobile.drawn).toBeGreaterThan(0);
-      expect(desktop.drawn).toBeGreaterThan(0);
-    });
-  }
-
-  it('DESKTOP at wave 10 is untouched — all 36 depths, same cell as before', () => {
-    const run = runAtWave(7, 10);
-    const total = snapshotRunRoute(run).columns.length;
-    expect(total).toBeGreaterThanOrEqual(30);
-    const desktop = desktopTrailLane(run);
-    expect(desktop.drawn).toBe(total);
-    expect(desktop.cellSize).toBeCloseTo(desktop.usable / total, 6);
+describe('approved five-day expedition track', () => {
+  it.each([1, 2, 3, 4, 5, 6, 10])('wave %i has five unambiguous regional-day positions and exactly one current marker', (wave) => {
+    const model = expeditionRouteTrackModel(snapshotRunRoute(runAtWave(7, wave)));
+    expect(model.days.map((day) => day.label)).toEqual([
+      'REGION DAY 1/5', 'REGION DAY 2/5', 'REGION DAY 3/5', 'REGION DAY 4/5', 'REGION DAY 5/5',
+    ]);
+    expect(model.days.filter((day) => day.state === 'current')).toHaveLength(1);
+    expect(model.days.find((day) => day.state === 'current')?.day).toBe(((wave - 1) % 5) + 1);
   });
 
-  it('MOBILE at wave 10 reads: it windows instead of smearing', () => {
-    const run = runAtWave(7, 10);
-    const total = snapshotRunRoute(run).columns.length;
-    const mobile = mobileTrailLane(run);
-    // The regression, in one line: drawing ALL of them in this lane is far
-    // under the floor — 6.1px a depth even after the choice block gives back
-    // the space it never used, and 3.9px in the lane as the banner shipped it.
-    expect(mobile.usable / total).toBeLessThan(MIN_CELL_PX.mobile);
-    expect(mobile.cellSize).toBeGreaterThanOrEqual(MIN_CELL_PX.mobile);
-    expect(mobile.drawn).toBeLessThan(total);
-    expect(mobile.drawn).toBeGreaterThanOrEqual(8);
+  it('distinguishes completed, current, and upcoming positions without exposing absolute depth labels', () => {
+    const model = expeditionRouteTrackModel(snapshotRunRoute(runAtWave(7, 3)));
+    expect(model.currentDay).toBe(3);
+    expect(model.days.map((day) => day.state)).toEqual(['completed', 'completed', 'current', 'upcoming', 'upcoming']);
+    expect(model.days.every((day) => !/^D\d+$/.test(day.label))).toBe(true);
+  });
+
+  it('starts a fresh regional track after day five instead of spilling into a second day group', () => {
+    const model = expeditionRouteTrackModel(snapshotRunRoute(runAtWave(7, 6)));
+    expect(model.currentDay).toBe(1);
+    expect(model.currentLabel).toBe('REGION DAY 1/5');
+    expect(model.days.map((day) => day.state)).toEqual(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
   });
 });

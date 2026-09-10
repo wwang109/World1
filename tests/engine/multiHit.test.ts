@@ -151,7 +151,6 @@ describe('multi-hit: a cast delivers its stat ONCE, split across its hits', () =
         tier: 'bronze',
         weapon: 'sword',
         effects: [{ kind: 'damage', power: 0 }, { kind: 'damage', power: 0 }],
-        text: '',
       },
     };
     expect(firstCastHits(castOnce('twin_zero', { attack: 1 }, { book: bare }))).toEqual([1, 1]);
@@ -206,7 +205,6 @@ describe('multi-hit: interactions the split must not break', () => {
         weapon: 'sword',
         scope: 'all',
         effects: [{ kind: 'damage', power: 5 }, { kind: 'damage', power: 5 }],
-        text: '',
       },
     };
     // ATK 21 splits 11/10. Three foes: hit 1 lands 16 on each, then hit 2 lands 15

@@ -31,7 +31,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'bleed', stacks: 10 }],
-    text: '',
   },
   // Bleed + a long stun, so the victim is bleeding AND never performs.
   bleed_stun: {
@@ -47,7 +46,6 @@ const B: SkillBook = {
       { kind: 'bleed', stacks: 10 },
       { kind: 'stun', turns: 6 },
     ],
-    text: '',
   },
   // Cheap, near-harmless pokes. Two distinct ids so a unit can own two pieces
   // and thus resolve TWO casts inside one global turn.
@@ -61,7 +59,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   poke_b: {
     id: 'poke_b',
@@ -73,7 +70,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   // Unaffordable at the speeds used below: its owner waits forever (cantAfford).
   too_heavy: {
@@ -86,7 +82,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   // Size 3: casting it busies its caster for the next two global turns.
   span3: {
@@ -99,7 +94,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   shield_self: {
     id: 'shield_self',
@@ -111,7 +105,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 40 }],
-    text: '',
   },
 };
 

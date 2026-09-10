@@ -1,5 +1,6 @@
 import { resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
+import { boardAffinities, boardEffectAffinities, cardType, type BoardIdentity } from '../engine/combat/typeIdentity';
 import type { CombatEvent } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
 import type { Archetype, BuffableStat, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
@@ -10,6 +11,7 @@ import type { Allocation } from '../run/leveling';
 import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
+import { ruleEntryByKind } from '../engine/keywords/text';
 
 /**
  * `buildBattleTimeline` folds a `BattleLog` (see `run/resolveBattle`) into a
@@ -136,6 +138,19 @@ export interface BattlePiece {
    * the same generic frame the shop gives that case.
    */
   tier?: SkillTier;
+  /**
+   * Does THIS piece's own type (`cardType` — element if present, else weapon)
+   * match its owning combatant's RESOLVED affinity right now — see
+   * `cardAffinityOpen`/`resolveCombatantAffinity` below? Carried through so an
+   * `affinity: true` clause on the card face (`skillPresentation.ts`'s
+   * `summarizeEffectSegments`) can render its gated payload dimmed when the
+   * gate is shut, exactly parallel to `comboLive` above (a battle-playback-
+   * only boolean baked onto the piece, computed ONCE per combatant here rather
+   * than re-derived by every scene). Always set (never omitted) for a piece
+   * with a real `element`/`weapon`, unlike `tier` — cheap to compute and
+   * harmless on a card with no `affinity`-gated action (nothing reads it).
+   */
+  affinityOpen?: boolean;
 }
 
 export interface BattleTimelineInput {
@@ -145,7 +160,11 @@ export interface BattleTimelineInput {
   enemyId: string;
   enemyLevel: number;
   enemyTitle: EnemyTitle;
+  /** Base recipe rank, before growth and modifier tier overrides. */
   enemyRank: number;
+  enemyGrowthLevel?: number;
+  /** Run ladder rung for depth-ramped elite/boss title packages. */
+  enemyFightNumber?: number;
   /** Modifier ids from MODIFIER_PRESETS (rogue-like affixes); [] = none. */
   enemyModifiers?: readonly string[];
   /** The single-enemy twin of `EnemyFightConfig.affix` — the ELITE AFFIX the
@@ -203,6 +222,68 @@ export interface ComboArchetypeSnap { player: Archetype[]; enemy: Archetype[]; e
  */
 export function isComboLive(skill: SkillDef, lastCastArchetypes: readonly Archetype[]): boolean {
   return skill.archetypes.some((a) => lastCastArchetypes.includes(a));
+}
+
+/**
+ * The two RESOLVED-affinity fields a combatant carries — element/weapon, both
+ * optional and independent (a board can hold neither, either, or both). This
+ * is the RESOLVED output of `resolveCombatantAffinity` below and the shape
+ * `cardAffinityOpen` reads to judge a single card's gate.
+ */
+export interface AffinityHolder {
+  elementAffinity?: Element;
+  weaponAffinity?: WeaponType;
+  effectAffinities: readonly BoardIdentity[];
+}
+
+/**
+ * A combatant's RESOLVED affinity, straight from the board — mirrors
+ * `initCombatant`'s exact rule (`combat/state.ts`) now that THE BOARD IS THE
+ * ONLY SOURCE (2026-09-06 ruling, `docs/board-type-identity.md`): "affinity
+ * are just passive buffs based on the board … there should be no hardcoded
+ * enemy that break the rule." `CombatantSetup.elementAffinity`/
+ * `.weaponAffinity` are `@deprecated` and IGNORED by the engine — this mirror
+ * ignores them too, on purpose, rather than letting an authored value win.
+ *
+ * Both axes are independent tallies (`boardAffinities`,
+ * `engine/combat/typeIdentity.ts`): a board can earn an element affinity, a
+ * weapon affinity, both, or neither. Reviving an authored-wins branch here
+ * would dim a clause that is actually firing on the real engine — a card
+ * whose own axis the board earned would read closed on the face while the
+ * served log shows it hitting. That was a real, shipped bug: `sworn_edge`
+ * (weapon: sword) on a 3-fire + 3-sword board read `affinityOpen: false`
+ * while the engine's own `boardAffinities` had already opened the sword axis.
+ *
+ * No event in the log carries a combatant's resolved affinity (nothing needs
+ * it besides this display), so it is recomputed here rather than read off one
+ * — safe to repeat because `boardAffinities` depends only on each card's own
+ * `element`/`weapon`, a field tier/gem resolution never touches (the same
+ * invariant `initCombatant` itself relies on) — so running it again over
+ * `resolveDisplaySkill`'s output cannot disagree with the engine's own run
+ * over `resolveEffectiveSkill`'s output.
+ */
+export function resolveCombatantAffinity(skills: SkillDef[]): AffinityHolder {
+  const { element, weapon } = boardAffinities(skills);
+  return {
+    elementAffinity: element,
+    weaponAffinity: weapon,
+    effectAffinities: boardEffectAffinities(skills),
+  };
+}
+
+/**
+ * Does `skill`'s own type (`cardType` — element if present, else weapon) match
+ * one of `affinity`'s two resolved fields? The card-face mirror of the
+ * engine's cast-time gate check (`affinityOpen`, `combat/interpreter.ts`) for
+ * an `AffinityGated` action (`engine/types.ts`) — used ONLY to pick a face's
+ * DISPLAY state (dim vs normal, see `CardTokenOptions.affinityOpen`), never to
+ * decide whether an action actually fires. A typeless card (test-only, see
+ * `typeIdentity.ts`) can never read open, matching the engine's own gate.
+ */
+export function cardAffinityOpen(skill: SkillDef, affinity: AffinityHolder): boolean {
+  const type = cardType(skill);
+  if (type === undefined) return false;
+  return affinity.effectAffinities.some((active) => active.kind === type.kind && active.type === type.type);
 }
 
 /**
@@ -473,30 +554,21 @@ function propertyWord(p: Property | undefined): string {
  * performance, so there is nothing honest to count.
  */
 function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
-  const turnWord = (n: number): string => `${n} turn${n === 1 ? '' : 's'}`;
+  let kind: Parameters<typeof ruleEntryByKind>[0];
   switch (e.status) {
-    case 'guard':
-      return `-${e.pct ?? 0}% incoming ${propertyWord(e.property)} damage, ${turnWord(e.turns)}.`;
-    case 'negate': {
-      const charges = e.charges ?? 1;
-      return `Fully blocks the next ${charges} ${propertyWord(e.property)} hit${charges === 1 ? '' : 's'}.`;
-    }
-    case 'ward': {
-      const charges = e.charges ?? 1;
-      return `Prevents the next ${charges} incoming poison/burn/bleed/debuff/expose application${charges === 1 ? '' : 's'} before it lands — does not stop stuns or buffs.`;
-    }
-    case 'expose':
-      return `+${e.pct ?? 0}% damage taken from direct hits, ${turnWord(e.turns)}.`;
-    case 'buff':
-    case 'debuff': {
-      const stat = e.stat ? STAT_TOKEN[e.stat] : '?';
-      const sign = e.status === 'buff' ? '+' : '-';
-      const value = e.pct !== undefined ? `${e.pct}%` : `${e.amount ?? 0}`;
-      return `${sign}${value} ${stat}, ${turnWord(e.turns)}.`;
-    }
-    default:
-      return undefined;
+    case 'poison': kind = 'poison'; break;
+    case 'burn': kind = 'burn'; break;
+    case 'bleed': kind = 'bleed'; break;
+    case 'stun': kind = 'stun'; break;
+    case 'guard': kind = 'guard'; break;
+    case 'negate': kind = 'negate'; break;
+    case 'ward': kind = 'ward'; break;
+    case 'expose': kind = 'expose'; break;
+    case 'buff': kind = 'buffStat'; break;
+    case 'debuff': kind = 'debuffStat'; break;
+    case 'thorns': kind = 'thorns'; break;
   }
+  return ruleEntryByKind(kind)?.body;
 }
 
 /**
@@ -642,13 +714,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const hero = heroEncounter.setup;
   const teamConfigs: readonly EnemyFightConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam
-    : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
+    : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, growthLevel: input.enemyGrowthLevel, fightNumber: input.enemyFightNumber, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
   // `cfg.affix` is the elite affix (see `EnemyFightConfig`): the board rendered
   // mid-battle must contain the affix card the service actually resolved with,
   // or the enemy's card column would disagree with its own event log. Same
   // rule for `cfg.deck` (sandbox custom foe deck): the rendered board must be
   // the SAME custom board the service re-resolved from this identical config.
-  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, undefined, cfg.deck ?? null));
+  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, cfg.fightNumber, cfg.deck ?? null, cfg.growthLevel));
   const foeSetups = encs.map((e) => e.setup);
   const heroName = hero.name;
   const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
@@ -668,6 +740,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const s = resolveDisplaySkill(base, p);
     heroPieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); heroSkills.push(s);
   }
+  // The hero's RESOLVED affinity is purely the board's own derived identity,
+  // computed once the whole board is known (see `resolveCombatantAffinity`'s
+  // doc comment — the board is the only source for every combatant, hero or
+  // foe alike).
+  const heroAffinity = resolveCombatantAffinity(heroSkills);
+  for (const piece of heroPieces) piece.affinityOpen = cardAffinityOpen(piece.skill, heroAffinity);
   const statLineOf = (s: { attack: number; magicPower: number; armor: number; magicResist: number; speed: number }): string =>
     `${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`;
   const foes: FoeModel[] = foeSetups.map((setup) => {
@@ -694,6 +772,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       const s = resolveDisplaySkill(base, p);
       pieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); skills.push(s);
     }
+    // `EnemyDef.elementAffinity`/`.weaponAffinity` are `@deprecated` and
+    // IGNORED by the engine (`docs/board-type-identity.md`) — this mirror
+    // reads only the resolved `skills`, never `setup`'s authored fields, so
+    // it can never disagree with what the engine actually opened.
+    const foeAffinity = resolveCombatantAffinity(skills);
+    for (const piece of pieces) piece.affinityOpen = cardAffinityOpen(piece.skill, foeAffinity);
     return {
       name: setup.name,
       stats: { attack: setup.stats.attack, magicPower: setup.stats.magicPower, armor: setup.stats.armor, magicResist: setup.stats.magicResist },

@@ -34,85 +34,85 @@ const book: SkillBook = {
   wardOne: {
     id: 'wardOne', name: 'Ward One', archetypes: ['defensive'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 99,
-    effects: [{ kind: 'ward', charges: 1 }], text: '{{Ward}} 1.',
+    effects: [{ kind: 'ward', charges: 1 }],
   },
   wardTwo: {
     id: 'wardTwo', name: 'Ward Two', archetypes: ['defensive'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 99,
-    effects: [{ kind: 'ward', charges: 2 }], text: '{{Ward}} 2.',
+    effects: [{ kind: 'ward', charges: 2 }],
   },
   wardThree: {
     id: 'wardThree', name: 'Ward Three', archetypes: ['defensive'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 99,
-    effects: [{ kind: 'ward', charges: MAX_WARD_CHARGES }], text: '{{Ward}} 3.',
+    effects: [{ kind: 'ward', charges: MAX_WARD_CHARGES }],
   },
   // cooldown 0 = recasts every rotation, which is what exercises the apply-time
   // clamp and the "a ward never wards itself" rule.
   wardOneQuick: {
     id: 'wardOneQuick', name: 'Ward Quick', archetypes: ['defensive'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 0,
-    effects: [{ kind: 'ward', charges: 1 }], text: '{{Ward}} 1.',
+    effects: [{ kind: 'ward', charges: 1 }],
   },
   wardTwoQuick: {
     id: 'wardTwoQuick', name: 'Ward Two Quick', archetypes: ['defensive'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 0,
-    effects: [{ kind: 'ward', charges: 2 }], text: '{{Ward}} 2.',
+    effects: [{ kind: 'ward', charges: 2 }],
   },
 
   // ── the afflictions (all offensive, so they land on the warded unit)
   venom: {
     id: 'venom', name: 'Venom', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'nature', cooldownTurns: 99,
-    effects: [{ kind: 'poison', stacks: 3 }], text: '{{Poison}} 3.',
+    effects: [{ kind: 'poison', stacks: 3 }],
   },
   venomFive: {
     id: 'venomFive', name: 'Venom Five', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'nature', cooldownTurns: 99,
-    effects: [{ kind: 'poison', stacks: 5 }], text: '{{Poison}} 5.',
+    effects: [{ kind: 'poison', stacks: 5 }],
   },
   venomQuick: {
     id: 'venomQuick', name: 'Venom Quick', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'nature', cooldownTurns: 0,
-    effects: [{ kind: 'poison', stacks: 3 }], text: '{{Poison}} 3.',
+    effects: [{ kind: 'poison', stacks: 3 }],
   },
   hex: {
     id: 'hex', name: 'Hex', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 30, turns: 3 }], text: '-30% DEF.',
+    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 30, turns: 3 }],
   },
   bash: {
     id: 'bash', name: 'Bash', archetypes: ['debuff'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'axe', cooldownTurns: 99,
-    effects: [{ kind: 'stun', turns: 1 }], text: '{{Stun}}.',
+    effects: [{ kind: 'stun', turns: 1 }],
   },
   mark: {
     id: 'mark', name: 'Mark', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'expose', pct: 30, turns: 3 }], text: 'Expose 30%.',
+    effects: [{ kind: 'expose', pct: 30, turns: 3 }],
   },
 
   // ── self BUFFS a warded unit casts on itself (ward must not touch these)
   bramble: {
     id: 'bramble', name: 'Bramble', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'thorns', stacks: 3 }], text: '{{Thorns}} 3.',
+    effects: [{ kind: 'thorns', stacks: 3 }],
   },
   aegis: {
     id: 'aegis', name: 'Aegis', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'guard', property: 'physical', pct: 30, turns: 3 }], text: 'Guard 30%.',
+    effects: [{ kind: 'guard', property: 'physical', pct: 30, turns: 3 }],
   },
   rally: {
     id: 'rally', name: 'Rally', archetypes: ['support'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 99,
-    effects: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 3 }], text: '+20% ATK.',
+    effects: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 3 }],
   },
 
   // ── a harmless opponent: heals itself, never afflicts anything
   mend: {
     id: 'mend', name: 'Mend', archetypes: ['healing'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'holy', cooldownTurns: 0,
-    effects: [{ kind: 'heal', power: 4 }], text: 'Restore 4 HP.',
+    effects: [{ kind: 'heal', power: 4 }],
   },
 } satisfies Record<string, SkillDef>;
 

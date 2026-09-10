@@ -24,7 +24,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 100 }],
-    text: '',
   },
   healTrue: {
     id: 'healTrue',
@@ -36,7 +35,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'heal', power: 30 }],
-    text: '',
   },
 };
 
@@ -51,7 +49,6 @@ const SUPPORT_SKILL: SkillDef = {
   rarity: 'common',
   tier: 'bronze',
   effects: [],
-  text: '',
 };
 
 function unit(name: string, stats: Partial<CombatantSetup['stats']> = {}): CombatantSetup {

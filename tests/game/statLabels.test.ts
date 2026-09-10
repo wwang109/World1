@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { gemStatSuffix, STAT_KEYS, STAT_LONG_NAME, STAT_TOKEN } from '../../src/game/ui/statLabels';
-import { STAT_LABELS, statHoverEntry } from '../../src/game/ui/statGlossary';
+import {
+  gemStatSuffix, STAT_KEYS, STAT_LABELS, STAT_LONG_NAME, STAT_TOKEN, statHoverEntry,
+} from '../../src/game/ui/statLabels';
 
 describe('statLabels — the single canonical source of stat tokens', () => {
   it('matches the locked stat model: HP, ATK, MATK, DEF, MDEF, SPD', () => {
@@ -28,7 +29,7 @@ describe('statLabels — the single canonical source of stat tokens', () => {
     expect(tokens).not.toContain('ARM');
   });
 
-  describe('statGlossary — keyed by the canonical tokens, not a synonym', () => {
+  describe('stat definitions — keyed by the canonical tokens, not a synonym', () => {
     it('STAT_LABELS is exactly STAT_KEYS mapped through STAT_TOKEN, in order', () => {
       expect(STAT_LABELS).toEqual(STAT_KEYS.map((k) => STAT_TOKEN[k]));
     });

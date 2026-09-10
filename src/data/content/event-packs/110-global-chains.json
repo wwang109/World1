@@ -1,0 +1,483 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "last_light_at_roads_end",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Last Light at Road's End",
+            "body": "After the last defeat, a lone lantern burns where the road divides. Its keeper offers strength for the safer path—or a spark for the unlit one.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": { "storyId": "last_light_at_roads_end", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "lives.current", "args": { "op": "eq", "value": 1 } },
+                { "fact": "combat.recentLoss", "args": { "withinDepth": 3 } },
+                { "not": { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "archetypes": ["healing"] } } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_healing_card",
+                  "label": "Carry a healer's lesson",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["healing"] }], "maxTier": "bronze" }
+                },
+                { "id": "take_recovery_gold", "label": "Take the keeper's road money", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 } },
+                {
+                  "id": "risk_last_road",
+                  "label": "Risk the unlit road",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 1 },
+                  "callback": {
+                    "callbackId": "last_light_secret_route",
+                    "eventId": "last_light_secret_route",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": ["omen"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 12, "fallback": "discard" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_light_secret_route",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Unlit Road",
+            "body": "The lantern's spark reveals a hidden mile between the known roads. It offers one last cache before the darkness closes again.",
+            "theme": "omen",
+            "rarity": "secret",
+            "story": { "storyId": "last_light_at_roads_end", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "last_light_secret_route" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_last_cache",
+                  "label": "Take the last cache",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["healing"] }], "maxTier": "diamond" },
+                  "mutations": [{ "op": "completeStory", "storyId": "last_light_at_roads_end" }]
+                },
+                {
+                  "id": "walk_for_strength",
+                  "label": "Walk it for strength",
+                  "cost": 0,
+                  "outcome": { "kind": "grantLevel" },
+                  "mutations": [{ "op": "completeStory", "storyId": "last_light_at_roads_end" }]
+                },
+                {
+                  "id": "turn_back",
+                  "label": "Turn back alive",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "last_light_at_roads_end" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mirror_of_the_board",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Mirror of the Board",
+            "body": "A road-forge holds a mirror wide enough for your whole formation. It reflects a single shared purpose more clearly than any face.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": { "storyId": "mirror_of_the_board", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                {
+                  "any": [
+                    { "fact": "board.isMonoType", "args": { "typeKind": "weapon" } },
+                    { "fact": "board.isMonoType", "args": { "typeKind": "element" } }
+                  ]
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "board",
+                    "count": 1,
+                    "tierAtLeast": "gold",
+                    "match": { "archetypes": ["offense", "defensive", "healing", "support", "debuff"] }
+                  }
+                },
+                { "fact": "run.tally", "args": { "stat": "bossesCleared", "op": "gte", "value": 1 } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [{ "as": "mono_type", "source": "board.monoType" }],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "perfect_reflection",
+                  "label": "Perfect the reflection",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "boundSubject": { "slot": "mono_type" } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                {
+                  "id": "take_affinity_gem",
+                  "label": "Take an affinity gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "boundSubject": {
+                      "slot": "mono_type",
+                      "cases": [
+                        { "when": { "typeKind": "weapon", "type": "sword" }, "filter": [{ "ids": ["follow_through_echo", "bramble_sliver", "iron_bulwark_echo"] }] },
+                        { "when": { "typeKind": "weapon", "type": "axe" }, "filter": [{ "ids": ["armor_break_echo", "shield_splitter_echo", "rending_sliver"] }] },
+                        { "when": { "typeKind": "weapon", "type": "lance" }, "filter": [{ "ids": ["ward_of_silence_echo", "millstone_sliver", "crippling_strike_echo"] }] },
+                        { "when": { "typeKind": "weapon", "type": "bow" }, "filter": [{ "ids": ["concussive_shot_echo", "weak_point_sliver", "swift_charm"] }] },
+                        { "when": { "typeKind": "weapon", "type": "beast" }, "filter": [{ "ids": ["venom_fang_echo", "leeching_fang_echo", "battle_howl_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "fire" }, "filter": [{ "ids": ["fireball_echo", "empowering_core", "mana_ward_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "frost" }, "filter": [{ "ids": ["frost_ward_echo", "mana_ward_echo", "time_crystal_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "lightning" }, "filter": [{ "ids": ["time_crystal_echo", "battle_howl_echo", "quickening_sliver"] }] },
+                        { "when": { "typeKind": "element", "type": "nature" }, "filter": [{ "ids": ["bramble_sliver", "second_wind_echo", "time_crystal_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "holy" }, "filter": [{ "ids": ["mending_light_echo", "purify_echo", "ward_of_silence_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "dark" }, "filter": [{ "ids": ["hex_of_frailty_echo", "blunting_sliver", "slow_hex_echo"] }] }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "enter_mirror",
+                  "label": "Enter the mirror road",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 1 },
+                  "callback": {
+                    "callbackId": "mirror_transformation",
+                    "eventId": "mirror_transformation",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": ["forge"],
+                    "priority": 700,
+                    "bind": [{ "as": "mono_type", "source": "board.monoType" }],
+                    "expiry": { "expiresAfterNodes": 20, "fallback": "discard" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mirror_transformation",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Beyond the Board's Mirror",
+            "body": "The reflection returns at another forge, still holding the affinity it witnessed. One final transformation waits behind the silvered road.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": { "storyId": "mirror_of_the_board", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "mirror_transformation" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": ["mono_type"],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "transform_card",
+                  "label": "Transform the reflection",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "boundSubject": { "slot": "mono_type" } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "mirror_of_the_board" }]
+                },
+                {
+                  "id": "take_mirror_gem",
+                  "label": "Take the reflected gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "boundSubject": {
+                      "slot": "mono_type",
+                      "cases": [
+                        { "when": { "typeKind": "weapon", "type": "sword" }, "filter": [{ "ids": ["follow_through_echo", "bramble_sliver", "iron_bulwark_echo"] }] },
+                        { "when": { "typeKind": "weapon", "type": "axe" }, "filter": [{ "ids": ["armor_break_echo", "shield_splitter_echo", "rending_sliver"] }] },
+                        { "when": { "typeKind": "weapon", "type": "lance" }, "filter": [{ "ids": ["ward_of_silence_echo", "millstone_sliver", "crippling_strike_echo"] }] },
+                        { "when": { "typeKind": "weapon", "type": "bow" }, "filter": [{ "ids": ["concussive_shot_echo", "weak_point_sliver", "swift_charm"] }] },
+                        { "when": { "typeKind": "weapon", "type": "beast" }, "filter": [{ "ids": ["venom_fang_echo", "leeching_fang_echo", "battle_howl_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "fire" }, "filter": [{ "ids": ["fireball_echo", "empowering_core", "mana_ward_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "frost" }, "filter": [{ "ids": ["frost_ward_echo", "mana_ward_echo", "time_crystal_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "lightning" }, "filter": [{ "ids": ["time_crystal_echo", "battle_howl_echo", "quickening_sliver"] }] },
+                        { "when": { "typeKind": "element", "type": "nature" }, "filter": [{ "ids": ["bramble_sliver", "second_wind_echo", "time_crystal_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "holy" }, "filter": [{ "ids": ["mending_light_echo", "purify_echo", "ward_of_silence_echo"] }] },
+                        { "when": { "typeKind": "element", "type": "dark" }, "filter": [{ "ids": ["hex_of_frailty_echo", "blunting_sliver", "slow_hex_echo"] }] }
+                      ]
+                    }
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "mirror_of_the_board" }]
+                },
+                {
+                  "id": "break_mirror",
+                  "label": "Break the mirror",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "mirror_of_the_board" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "card_that_remembered",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Card That Remembered",
+            "body": "One skill has followed your victories and struck the final blow against a great foe. At a roadside shrine, the card begins to remember more than ink.",
+            "theme": "omen",
+            "rarity": "secret",
+            "story": { "storyId": "card_that_remembered", "stage": "capstone", "role": "capstone" },
+            "eligibility": { "fact": "combat.signatureReady", "args": { "winsAtLeast": 3, "bossFinisher": true } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [{ "as": "signature_card_id", "source": "signature.cardId" }],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "awaken_capstone",
+                  "label": "Awaken the remembered art",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 1 },
+                  "callback": {
+                    "callbackId": "signature_card_capstone",
+                    "eventId": "signature_card_capstone",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": ["forge"],
+                    "priority": 700,
+                    "bind": [{ "as": "signature_card_id", "source": "signature.cardId" }],
+                    "expiry": { "expiresAfterNodes": 20, "fallback": { "outcome": { "kind": "grantGold", "amount": 1 } } }
+                  }
+                },
+                {
+                  "id": "upgrade_signature",
+                  "label": "Upgrade the signature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "boundSubject": { "slot": "signature_card_id" } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "take_signature_gem", "label": "Take a gem that answers", "cost": 0, "outcome": { "kind": "gemChoice", "filter": [{ "all": true }] } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "signature_card_capstone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Remembered Art",
+            "body": "At the next forge, the bound card names the victories that shaped it. Its answer is a final refinement—or permission to rest.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": { "storyId": "card_that_remembered", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "signature_card_capstone" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": ["signature_card_id"],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "perfect_signature",
+                  "label": "Perfect the remembered card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "boundSubject": { "slot": "signature_card_id" } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "card_that_remembered" }]
+                },
+                {
+                  "id": "take_answering_gem",
+                  "label": "Take its answering gem",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "all": true }] },
+                  "mutations": [{ "op": "completeStory", "storyId": "card_that_remembered" }]
+                },
+                {
+                  "id": "let_memory_rest",
+                  "label": "Let the memory rest",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "card_that_remembered" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cartographers_missing_road",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Cartographer's Missing Road",
+            "body": "A cartographer compares your traveled lands to a map with one deliberate blank. The absent road points toward a biome you have not yet crossed.",
+            "theme": "market",
+            "rarity": "rare",
+            "story": { "storyId": "cartographers_missing_road", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "journey.visitedBiomes", "args": { "op": "gte", "value": 3 } },
+                { "fact": "journey.completedChains", "args": { "op": "gte", "value": 2 } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [{ "as": "destination_biome", "source": "journey.futureBiome", "candidates": "unvisited_catalog" }],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "mark_missing_road",
+                  "label": "Mark the missing road",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 1 },
+                  "callback": {
+                    "callbackId": "missing_road_destination",
+                    "eventId": "missing_road_destination",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": ["cache"],
+                    "priority": 700,
+                    "bind": [{ "as": "destination_biome", "source": "journey.futureBiome", "candidates": "unvisited_catalog" }],
+                    "expiry": { "expiresAfterNodes": 20, "fallback": "discard" }
+                  }
+                },
+                { "id": "study_map", "label": "Study the map", "cost": 0, "outcome": { "kind": "grantLevel" } },
+                { "id": "sell_map", "label": "Sell the map", "cost": 0, "outcome": { "kind": "grantGold", "amount": 5 } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "missing_road_destination",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Missing Road",
+            "body": "The cartographer's mark appears beneath your feet in the biome it named. For a moment, the road opens onto a cache hidden outside every common map.",
+            "theme": "cache",
+            "rarity": "rare",
+            "story": { "storyId": "cartographers_missing_road", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "missing_road_destination" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": ["destination_biome"],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "open_hidden_map",
+                  "label": "Open the hidden route",
+                  "cost": 0,
+                  "outcome": { "kind": "grantMapInfo", "bandsAhead": 3 },
+                  "mutations": [{ "op": "completeStory", "storyId": "cartographers_missing_road" }]
+                },
+                {
+                  "id": "claim_road_cache",
+                  "label": "Claim the road cache",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [{ "archetypes": ["offense", "defensive", "healing", "support", "debuff"] }],
+                    "maxTier": "bronze"
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "cartographers_missing_road" }]
+                },
+                {
+                  "id": "leave_road_missing",
+                  "label": "Leave it missing",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "cartographers_missing_road" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { renderSkillText } from '../../src/engine/keywords/compose';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyTier, autoScaleTier, resolveEffectiveSkill } from '../../src/engine/cards';
@@ -88,9 +89,35 @@ function preMigrationBook(): Record<string, SkillDef> {
     );
   }
   const document = JSON.parse(raw) as unknown;
+  const doc = document as { cards: { id: string; versions: { version: number; def: Record<string, unknown> }[] }[] };
+  // THE SCHEMA MOVED UNDER THIS DOCUMENT, and a historical snapshot cannot be
+  // expected to satisfy a later contract. The 2026-09-06 keyword-registry
+  // migration REMOVED `text` from `SkillDef`/`TierUpgrade` — the card face is
+  // generated from `effects` now — so every def in this pre-migration document
+  // carries a field the current validator (rightly) rejects as unknown.
+  //
+  // Dropped here rather than by loosening the validator, and dropped NARROWLY
+  // (only `text`, only at the two places it was ever legal), so the validation
+  // below still means what it meant: everything the schema DID require of this
+  // document then, it still requires now. `text` is also exactly the field this
+  // comparison never depended on — the bar is resolved effects/aura/weight/
+  // price, and the FACE is compared as generated output from those, below.
+  for (const entry of doc.cards) {
+    for (const version of entry.versions) {
+      delete version.def['text'];
+      const ups = version.def['tierUpgrades'] as Record<string, Record<string, unknown>> | undefined;
+      if (!ups) continue;
+      for (const tier of Object.keys(ups)) {
+        delete ups[tier]!['text'];
+        // A block that carried NOTHING but text is not an override at all; the
+        // validator refuses an empty one, and the migration deleted 62 of them.
+        if (Object.keys(ups[tier]!).length === 0) delete ups[tier];
+      }
+      if (Object.keys(ups).length === 0) delete version.def['tierUpgrades'];
+    }
+  }
   const problems = validateSkillDocument(document);
   expect(problems, `the PRE-migration document must itself be valid: ${JSON.stringify(problems.slice(0, 5))}`).toEqual([]);
-  const doc = document as { cards: { id: string; versions: { version: number; def: Record<string, unknown> }[] }[] };
   const book: Record<string, SkillDef> = {};
   for (const entry of doc.cards) {
     const current = entry.versions.reduce((a, b) => (b.version > a.version ? b : a));
@@ -137,7 +164,10 @@ function observable(skill: SkillDef): unknown {
     speedWeight: skill.speedWeight,
     cooldownTurns: skill.cooldownTurns,
     scope: skill.scope,
-    text: skill.text,
+    // THE FACE IS GENERATED, so the observable is what the generator prints
+    // from this kit — a stronger claim than the old stored string, because it
+    // cannot agree by both sides having been hand-edited the same way.
+    text: renderSkillText(skill),
     property: skill.property,
     size: skill.size,
     element: skill.element,
@@ -222,8 +252,8 @@ describe('Q1 migration: the one-definition ladder reproduces the deleted restate
     let compared = 0;
     for (const id of MIGRATED) {
       for (const tier of TIER_ORDER) {
-        const before = applyTier(BEFORE[id]!, tier).text;
-        const after = applyTier(skillBook[id]!, tier).text;
+        const before = renderSkillText(applyTier(BEFORE[id]!, tier));
+        const after = renderSkillText(applyTier(skillBook[id]!, tier));
         compared += 1;
         if (before !== after) drifted.push(`${id}@${tier}\n  before: ${before}\n  after : ${after}`);
       }

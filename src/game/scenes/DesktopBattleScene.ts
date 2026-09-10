@@ -21,7 +21,7 @@ import {
   DESKTOP_HP_BLOCK, desktopHpBlockLayout,
   type HpBlockLabel, type HpBlockLabelKey,
 } from '../ui/battleHpBlockLayout';
-import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_LABELS, statHoverEntry } from '../ui/statLabels';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';

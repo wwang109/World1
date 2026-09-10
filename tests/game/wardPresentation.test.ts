@@ -67,7 +67,7 @@ describe('ward presentation', () => {
     expect(line.text).not.toContain('1 charges');
   });
 
-  it('explains ward in explainStatus: the charge count, what it covers, and that it does not stop stuns', () => {
+  it('keeps the charge count on the event row and uses the parameter-free Ward definition', () => {
     const events: CombatEvent[] = [
       { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'ward', charges: 2, turns: 0 },
       { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
@@ -76,7 +76,8 @@ describe('ward presentation', () => {
     const lines = allLines(buildBattleTimeline(BASE, log));
     const line = lines.find((l) => l.text.includes('Ward'))!;
     expect(line.detail).toBeDefined();
-    expect(line.detail).toContain('2');
+    expect(line.text).toContain('2 charges');
+    expect(line.detail).not.toMatch(/\d/);
     expect(line.detail).toMatch(/poison|burn|bleed|debuff|expose/);
     expect(line.detail).toMatch(/not.*stun|stun.*not/i);
   });

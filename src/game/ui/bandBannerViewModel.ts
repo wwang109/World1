@@ -36,21 +36,36 @@
  *             drops the line (or draws an empty chip) reintroduces exactly the
  *             bug 3881717 closed, so `lines` is never empty for any kind.
  *
- * `card` is the FULL read, and it is `renderBandForecast` itself — the pinned
- * production renderer (`tests/run/biomeForecastCounter.test.ts` holds it
- * character-for-character over 12 seeds x 6 bands), not a second copy of it.
- * The banner is a SUMMARY of that card, so the two cannot drift about what is
- * true; the test asserts the summary agrees with the card line by line.
+ * `card` is the FULL read — every fact `renderBandForecast` (the terminal
+ * serializer, still pinned character-for-character by
+ * `tests/run/biomeForecastCounter.test.ts` over 12 seeds x 6 bands) prints,
+ * composed HERE from the same `bandForecastRows` list rather than by reading
+ * that serializer's own output (refactored 2026-09-06; see
+ * `bandForecastCardLines` below and `src/run/bandForecastRows.ts`'s module
+ * doc). Both renderers currently choose the identical sentence-case wording,
+ * so `card` stays byte-identical to `renderBandForecast(f).split('\n')`
+ * (`tests/game/bandForecastRows.test.ts` proves it on every sweep this file's
+ * own tests use) — but the Phaser side no longer depends on a string built for
+ * a monospaced terminal to get there. The banner is a SUMMARY of that same
+ * card, so the two cannot drift about what is true; the test below asserts
+ * the summary agrees with the card line by line.
  */
 
-import { forecastWave, renderBandForecast, type BandForecast } from '../../run/biomeForecast';
+import { forecastWave, type BandForecast } from '../../run/biomeForecast';
+import {
+  BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
+  type BandForecastClaim, type BandForecastRow,
+} from '../../run/bandForecastRows';
 import type { RunState } from '../../run/runState';
 import { ELEMENT_COLOR, UI, WEAPON_COLOR } from '../theme';
+import { biomeArtKey } from './runArtKeys';
+import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
+import { expeditionDay } from './travelDay';
 
 /** Longest line the phone format allows (CLAUDE.md, USER-LOCKED 2026-08-25) —
  * the same 28 the forecast card is composed at, so a banner line and a card
  * line wrap at the same place. */
-export const BAND_LINE_WIDTH = 28;
+export const BAND_LINE_WIDTH = BAND_FORECAST_LINE_WIDTH;
 
 /** How certain the claim is. See the module doc. */
 export type BandClaimKind = 'definite' | 'unsure' | 'none';
@@ -85,6 +100,10 @@ export interface BandBannerBoss {
 }
 
 export interface BandBannerViewModel {
+  /** Stable catalog identity used for exact biome artwork and audits. */
+  biomeId: string;
+  /** Exact texture key; unknown biome IDs fail in `biomeArtKey`, never fall back. */
+  artKey: string;
   /** 'THE ARROWFELL'. */
   name: string;
   /** 'bow' — the raw type. The ONLY input to the band's hairline and its lean
@@ -94,13 +113,13 @@ export interface BandBannerViewModel {
   leanType: string;
   /** 'BOW' — the chip. */
   leanChip: string;
-  /** 'WAVES 1-5'. */
+  /** 'REGION DAYS 1–5'; the field name stays compatible with existing renderers. */
   waveRange: string;
   boss: BandBannerBoss;
   bossClaim: BandCounterClaim;
   mobsClaim: BandCounterClaim;
-  /** The whole forecast card — `renderBandForecast`, split to lines. It is the
-   * card, not the banner, that NAMES THE MOBS: see `bandBannerBlocks`. */
+  /** The whole forecast card, as lines — see `bandForecastCardLines` below. It
+   * is the card, not the banner, that NAMES THE MOBS: see `bandBannerBlocks`. */
   card: readonly string[];
 }
 
@@ -167,18 +186,128 @@ function bossOf(f: BandForecast): BandBannerBoss {
   return { resolved: false, headline: 'ONE OF THESE:', sub: '', entries };
 }
 
+// ---------------------------------------------------------------------------
+// THE FULL CARD — the Phaser-side twin of `biomeForecast.ts#renderBandForecast`.
+//
+// Both walk the SAME `bandForecastRows(f)` list (`src/run/bandForecastRows.ts`)
+// so the terminal serializer and this one can never disagree about which
+// facts exist — only, deliberately, about how each says a counter claim: this
+// module's `claim()` above upper-cases the BANNER's summary sentence, while
+// `cardClaimLines` below keeps the CARD's sentence case, matching what
+// `renderBandForecast` has always printed. That is why `cardClaimLines` and
+// `cardBossEntryCounterLine` are NOT calls into `biomeForecast.ts` — they are
+// this renderer's OWN composition, so the redesign that gives the card its
+// own typography changes only the functions in THIS file.
+// ---------------------------------------------------------------------------
+
+/** A `'claim'` row, in the CARD's own words — sentence case, the same 28-wide
+ * flip `biomeForecast.ts#counterSentence` uses. Byte-identical to that
+ * function's output today (proven by `tests/game/bandForecastRows.test.ts`),
+ * on purpose: this task changes ONLY where the lines come from, not what they
+ * say. */
+function cardClaimLines(claim: BandForecastClaim): string[] {
+  if (claim.kind === 'unsure') return ['no counter is sure.'];
+  if (claim.types.length === 0) return ['nothing counters', `${claim.subject}.`];
+  const list = claim.types.join(' and ');
+  const head = `${list} ${claim.types.length === 1 ? 'hits' : 'hit'} ${claim.subject.split(' ')[0]!}`;
+  const tail = `${claim.subject.split(' ').slice(1).join(' ')} for +50%.`;
+  if (head.length <= BAND_LINE_WIDTH && tail.length <= BAND_LINE_WIDTH) return [head, tail];
+  return [`+50% on ${claim.subject}:`, `${list}.`];
+}
+
+/** A `'bossEntryCounter'` row, in the CARD's own words — lower case, slash
+ * joined, matching `biomeForecast.ts#candidateCounter`'s output. */
+function cardBossEntryCounterLine(types: readonly string[]): string {
+  return types.length === 0 ? 'nothing counters it' : `${types.join('/')} +50%`;
+}
+
+/** ONE row -> its card line(s). Exhaustive over `BandForecastRowStyle`: the
+ * `never` check in `default` makes an unhandled new style a COMPILE ERROR,
+ * the Phaser twin of `biomeForecast.ts#rowToAsciiLines`'s own exhaustive
+ * switch. Exported so `tests/game/bandForecastRows.test.ts` can assert
+ * totality directly, the same way it does for the ASCII side. */
+export function rowToCardLines(row: BandForecastRow): string[] {
+  const prefix = '  '.repeat(BAND_FORECAST_ROW_INDENT[row.style]);
+  switch (row.style) {
+    case 'name':
+    case 'meta':
+    case 'tagline':
+    case 'heading':
+    case 'bossName':
+    case 'bossSub':
+    case 'bossIntro':
+    case 'bossUnresolved':
+    case 'bossEntry':
+    case 'entry':
+      return [`${prefix}${row.text}`];
+    case 'blank':
+      return [''];
+    case 'bossEntryCounter':
+      return [`${prefix}${cardBossEntryCounterLine(row.types)}`];
+    case 'claim':
+      return cardClaimLines(row.claim);
+    default: {
+      const exhaustive: never = row;
+      return exhaustive;
+    }
+  }
+}
+
+/** The full forecast card, as lines — walks `bandForecastRows` DIRECTLY
+ * rather than reading `renderBandForecast`'s own output split back into lines
+ * (the pre-refactor shape this replaces: `renderBandForecast(f).split('\n')`).
+ * The Phaser overlay (`RunRouteBoard.ts#renderBandReadOverlay`) still joins
+ * this array and word-wraps it exactly as it always has — THAT rendering
+ * change is the follow-up task; this one only stops the view model depending
+ * on a string built for a monospaced terminal to reach the same lines. */
+function bandForecastCardLines(f: BandForecast): readonly string[] {
+  const lines: string[] = [];
+  for (const row of bandForecastRows(f)) lines.push(...rowToCardLines(row));
+  return lines;
+}
+
 /** The banner model for one forecast. Pure. */
 export function bandBannerViewModel(f: BandForecast): BandBannerViewModel {
   return {
+    biomeId: f.biomeId,
+    artKey: biomeArtKey(f.biomeId),
     name: f.name.toUpperCase(),
     leanType: f.lean.type,
     leanChip: f.leanLabel,
-    waveRange: `WAVES ${f.fromWave}-${f.throughWave}`,
+    waveRange: `REGION DAYS ${expeditionDay(f.fromWave)}–${expeditionDay(f.throughWave)}`,
     boss: bossOf(f),
     bossClaim: bossClaimOf(f),
     mobsClaim: mobsClaimOf(f),
-    card: renderBandForecast(f).split('\n'),
+    card: bandForecastCardLines(f),
   };
+}
+
+export type BandBannerBackdropLayer =
+  | {
+    kind: 'image';
+    textureKey: string;
+    bounds: { x: number; y: number; width: number; height: number };
+    alpha: number;
+  }
+  | {
+    kind: 'scrim';
+    bounds: { x: number; y: number; width: number; height: number };
+    color: number;
+    alpha: number;
+  };
+
+/** Ordered background layers for the Phaser renderer. The art fills the
+ * existing banner rect; a light navy veil keeps color visible while the
+ * renderer outlines the text locally to retain contrast on bright landmarks. */
+export function bandBannerBackdropLayers(
+  vm: Pick<BandBannerViewModel, 'artKey'>,
+  rect: { x: number; y: number; w: number; h: number },
+): readonly BandBannerBackdropLayer[] {
+  const bounds = { x: rect.x, y: rect.y, width: rect.w, height: rect.h };
+  return [
+    { kind: 'image', textureKey: vm.artKey, bounds, alpha: 1 },
+    { kind: 'scrim', bounds, color: UI.panelMuted, alpha: BRIGHT_ART_TREATMENT.biome.scrimAlpha },
+  ];
 }
 
 /** The banner model for the band `wave` falls in. Reads the run, never
@@ -207,7 +336,7 @@ export function bandBannerForWave(run: RunState, wave: number): BandBannerViewMo
 //
 // NO "MOBS" HEADING. The banner used to print a MOBS heading over a block that
 // contained no mob names — they are only in the forecast card, behind
-// `READ THE BAND ›`. The mob claim NAMES ITS OWN SUBJECT ("... THESE MOBS ..."),
+// `EXPLORE REGION ›`. The mob claim NAMES ITS OWN SUBJECT ("... THESE MOBS ..."),
 // which is the whole point of 3881717, so the heading added no information and
 // promised a list that was not under it; listing the names instead would cost
 // four to six lines of the same mobile map lane this layout exists to protect.
@@ -232,8 +361,8 @@ export interface BandBannerMetrics {
 }
 
 export const BAND_BANNER_METRICS: Record<BandBannerMode, BandBannerMetrics> = {
-  desktop: { pad: 14, name: 18, lean: 11, wave: 11, heading: 10, bossName: 15, sub: 10, claim: 12, button: 26, lineGap: 4, blockGap: 8 },
-  mobile: { pad: 8, name: 13, lean: 9, wave: 9, heading: 8, bossName: 12, sub: 9, claim: 10, button: 24, lineGap: 3, blockGap: 7 },
+  desktop: { pad: 14, name: 18, lean: 11, wave: 11, heading: 10, bossName: 15, sub: 10, claim: 12, button: 26, lineGap: 9, blockGap: 8 },
+  mobile: { pad: 8, name: 13, lean: 9, wave: 9, heading: 8, bossName: 12, sub: 9, claim: 10, button: 24, lineGap: 7, blockGap: 7 },
 };
 
 /** Colour of a COUNTER type — element first, then weapon (the two key spaces
@@ -330,7 +459,7 @@ export function bandBannerLayout(vm: BandBannerViewModel, mode: BandBannerMode):
   rule();
   claimBlock(vm.mobsClaim);
 
-  push('button', 'READ THE BAND ›', m.button, UI.textAccent, 0);
+  push('button', 'EXPLORE REGION ›', m.button, UI.textAccent, 0);
   return { metrics: m, rows, height: cursor + m.pad };
 }
 

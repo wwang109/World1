@@ -27,7 +27,6 @@ function makeSkill(overrides: Partial<SkillDef>): SkillDef {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal 20 damage.',
     ...overrides,
   };
 }
@@ -92,18 +91,15 @@ describe('summarizeEffects — AoE face marker', () => {
       id: 'test_cleave',
       name: 'Cleave',
       effects: [{ kind: 'damage', power: 20 }],
-      text: 'Deal 20 damage.',
       tierUpgrades: {
-        silver: { effects: [{ kind: 'damage', power: 30 }], text: 'Deal 30 damage.' },
+        silver: { effects: [{ kind: 'damage', power: 30 }] },
         gold: {
           scope: 'all',
           effects: [{ kind: 'damage', power: 25 }, { kind: 'shield', power: 7 }],
-          text: 'Deal 25 damage to ALL foes. Gain 7 shield.',
         },
         diamond: {
           scope: 'all',
           effects: [{ kind: 'damage', power: 25 }, { kind: 'shield', power: 17 }],
-          text: 'Deal 25 damage to ALL foes. Gain 17 shield.',
         },
       },
     });
@@ -146,7 +142,7 @@ describe('AoE targeting — glossary/hover explanation', () => {
   it('the glossary/hover entry reflects the EFFECTIVE scope at a higher tier too', () => {
     const CLEAVE: SkillDef = makeSkill({
       tierUpgrades: {
-        gold: { scope: 'all', effects: [{ kind: 'damage', power: 25 }], text: 'Deal 25 damage to ALL foes.' },
+        gold: { scope: 'all', effects: [{ kind: 'damage', power: 25 }] },
       },
     });
     expect(cardGlossaryEntries(applyTier(CLEAVE, 'bronze')).some((e) => e.title === 'AoE targeting')).toBe(false);

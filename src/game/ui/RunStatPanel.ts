@@ -5,8 +5,7 @@ import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '
 import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, currentRunPieces, heroAllocationScratchCost } from '../runStore';
 import { FONT, SCREEN, textRole, textRoleSize, UI } from '../theme';
 import { addHoverTipZone } from './hoverTip';
-import { statHoverEntry } from './statGlossary';
-import { STAT_TOKEN } from './statLabels';
+import { statHoverEntry, STAT_TOKEN } from './statLabels';
 
 /**
  * Run Mode's stat/level allocation overlay — the one place a player spends

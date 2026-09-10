@@ -1,16 +1,37 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef } from '../../src/data/events';
+import { describe, expect, it } from 'vitest';
+import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef, type EventOutcomeSpec } from '../../src/data/events';
 import type { CardFilter } from '../../src/data/shopTypes';
 import { skillBook } from '../../src/data/skills';
-import { EVENT_CHOICE_SIZE, isEventChoiceUsable, resolveEventChoice, rollEventForNode } from '../../src/run/events';
 import {
-  applyDraftResult, availableChoices, chooseNode, createRun, leaveEvent, leaveShop,
+  EVENT_CHOICE_SIZE,
+  eventSelectionIdsForCatalog,
+  isEventChoiceUsable,
+  resolveEventChoice,
+  resolveEventOutcomeSpec,
+  rollEventForNode,
+  type EventSelectionContent,
+} from '../../src/run/events';
+import { recordEventInstance } from '../../src/run/eventInstances';
+import {
+  applyDraftResult, availableChoices, chooseNode, createRun, currentEventNode, leaveEvent, leaveShop,
   recordBattleResult, rollEncounter, shopStockDepthForWave, type RunNode, type RunState,
 } from '../../src/run/runState';
 import { DRAFT_SET_KEYS, rollStartDraft } from '../../src/run/draft';
 import { battleGoldReward, cardMatchesFilter, rollShopStock } from '../../src/run/shop';
 import { cardType, IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
 import type { SkillDef } from '../../src/engine/types';
+
+const frozenLookup = (eventId: string, contentVersion: number): EventDef | undefined => (
+  contentVersion === 1 ? eventCatalog[eventId] : undefined
+);
+const frozenContent: EventSelectionContent<EventDef> = {
+  catalog: eventCatalog,
+  orderedIds: eventSelectionIdsForCatalog(eventCatalogIds),
+  currentVersionOf: () => 1,
+};
+const rollFrozen = (state: RunState, node: RunNode) => (
+  rollEventForNode(state, node, frozenLookup, frozenContent)
+);
 
 /**
  * ARE THE EVENT LAYER'S CARD REWARDS STEERABLE?
@@ -141,7 +162,15 @@ function stateAtFirstEvent(seed: number): RunState {
 
 /** Cards a resolved card-granting outcome actually offered the player. */
 function offeredCards(state: RunState, eventId: string, choice: EventChoiceDef): SkillDef[] {
-  const { outcome } = resolveEventChoice({ ...state, gold: Math.max(5, choice.cost ?? 0) }, eventId, choice.id);
+  const node = currentEventNode(state);
+  if (!node) throw new Error('offeredCards requires an active event node');
+  const committed = recordEventInstance({ ...state, gold: Math.max(5, choice.cost ?? 0) }, node.id, {
+    eventId,
+    contentVersion: 1,
+    instanceId: `reward-door:${node.id}:${eventId}`,
+    drawnDepth: node.depth,
+  });
+  const { outcome } = resolveEventChoice(committed, eventId, choice.id);
   if (outcome.kind === 'bonusDraft') return outcome.cards.map((c) => skillBook[c.skillId]!);
   if (outcome.kind === 'grantCard') return [skillBook[outcome.skillId]!];
   return [];
@@ -238,14 +267,8 @@ describe('run/events: no pool is narrower than the offer it deals', () => {
   });
 
   describe('the silent failure this lint exists for', () => {
-    // Synthetic catalog entry, same rig `tests/run/events.test.ts` uses for the
-    // cardChoice throw: `resolveEventChoice` looks its event up in the plain,
-    // mutable `eventCatalog` record, so the REAL resolver can be pointed at a
-    // filter no shipped event carries.
-    const RIGGED_ID = '__qa_rigged_bonus_draft_narrow__';
-    afterEach(() => {
-      delete (eventCatalog as Record<string, EventDef>)[RIGGED_ID];
-    });
+    // The synthetic spec goes through the same pure outcome seam production
+    // uses, without mutating the frozen catalog singleton.
 
     it('a bonusDraft over a too-narrow pool deals a SHORT offer and throws nothing — which is why the catalog is linted', () => {
       // THE FIXTURE POOL: beast + healing. See the twin rig in
@@ -266,16 +289,14 @@ describe('run/events: no pool is narrower than the offer it deals', () => {
         narrow.length,
         `beast+healing is no longer shorter than the mini-draft width (${named}) — pick another structurally narrow filter, do NOT raise the number`,
       ).toBeLessThan(OBSERVED_DRAFT_WIDTH);
-      (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
-        id: RIGGED_ID,
-        title: 'QA rig',
-        body: '',
-        theme: 'training',
-        choices: [
-          { id: 'narrow', label: '', outcome: { kind: 'bonusDraft', filter: [{ weapons: ['beast'], archetypes: ['healing'] }] } },
-        ],
+      const state = stateAtFirstEvent(4);
+      const node = currentEventNode(state)!;
+      const spec: EventOutcomeSpec = {
+        kind: 'bonusDraft',
+        filter: [{ weapons: ['beast'], archetypes: ['healing'] }],
       };
-      const cards = offeredCards(stateAtFirstEvent(4), RIGGED_ID, eventCatalog[RIGGED_ID]!.choices[0]!);
+      const { outcome } = resolveEventOutcomeSpec(state, node, 'narrow', spec);
+      const cards = outcome.kind === 'bonusDraft' ? outcome.cards.map((card) => skillBook[card.skillId]!) : [];
       expect(cards).toHaveLength(narrow.length); // 2, not 5 — no error raised
       expect(cards.length).toBeLessThan(OBSERVED_DRAFT_WIDTH);
       // Which is precisely what the catalog-wide lint above would have caught:
@@ -415,7 +436,7 @@ describe('the event layer can supply an identity, and reading the doors is what 
         rollShopStock(node.shopId!, node.shopSeed!, shopStockDepthForWave(node.wave));
         state = leaveShop(state);
       } else if (node.kind === 'event') {
-        const rolled = rollEventForNode(state, node);
+        const rolled = rollFrozen(state, node);
         state = rolled.state;
         const usable = rolled.event.choices.filter(
           (c) => isEventChoiceUsable(state, c) && c.outcome.kind !== 'nothing',
@@ -429,7 +450,7 @@ describe('the event layer can supply an identity, and reading the doors is what 
           }
         }
         if (pick) {
-          const resolved = resolveEventChoice(state, rolled.event.id, pick.id);
+          const resolved = resolveEventChoice(state, rolled.event.id, pick.id, frozenLookup);
           let n = 0;
           if (resolved.outcome.kind === 'bonusDraft') {
             n = resolved.outcome.cards.filter((c) => typeKeyOf(skillBook[c.skillId]!) === type).length;

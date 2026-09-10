@@ -16,6 +16,14 @@ Every feature ships on BOTH (user-locked both-platforms rule —
 scene, never a stretched twin. The old 720×1280 portrait canvas and its
 `?view=` routes are GONE (first-gen UI deleted).
 
+Profile selection happens at boot. Explicit `?ui=desktop|mobile` wins, followed
+by a forced `?scene=` profile; otherwise a viewport at most 900 CSS px wide
+and with width/height at most 1.25 selects the compact/mobile composition,
+including a **900×900 fine-pointer window**. Coarse-pointer phones still use
+mobile. Ordinary widescreen desktop remains desktop. Resize then reload to
+reselect a profile; resizing alone does not switch scenes. For the 900×900
+policy check, omit `?ui=` and profile-forcing `?scene=` overrides.
+
 ## Launch routes (`src/game/devLaunch.ts`)
 
 Scenes launch via `?scene=`:
@@ -78,14 +86,15 @@ real browser, both viewports:
 1. Walks the LIVE `window.__game` scene graph on every run screen, collects
    visible Text world-bounds, and flags text outside the canvas, overlapping
    text pairs, and missing required HUD strings
-   (DAY/WAVE/GOLD/LV/LIVES/BOSSES).
+   (`STOP N`, `DAY N/5`, GOLD/LV/LIVES/BOSSES; mobile abbreviates only the
+   latter gold/lives/boss labels to G/♥/B).
 2. Drives an actual playthrough (Map → Draft → Map → node → Deck Build →
    RETIRE → end summary) using exact-text clicks only, screenshotting every
    screen.
 3. BATTLE (in run context) uses a REDUCED required-strings set (2026-08-04
    decision, `renderRunStatsStrip` + `runScreenTemplate`'s `statsOnly` chrome,
    docs/design-locked.md): the stats string
-   (DAY/WAVE/GOLD/LV/LIVES/BOSSES) plus the title `BATTLE`, but no banked-PL
+   (`STOP N`, `DAY N/5`, GOLD/LV/LIVES/BOSSES) plus the title `BATTLE`, but no banked-PL
    badge text and no action-role button labels (back/DECK·BAG/RETIRE/primary)
    — battle never renders those, by design, so the audit must not flag their
    absence there the way it would on every other run screen.
@@ -95,6 +104,33 @@ Run: `npm run audit:hud -- [outDir]` (or `npx tsx scripts/run-hud-audit.ts
 non-zero** on any violation or hard failure — it is a gate, not a report. It
 cannot live inside `npm test`, which has no servers and no browser; the pure
 half of its geometry is covered there by `tests/game/maskedTextAudit.test.ts`.
+
+The audit's required-stat vocabulary is exercised by
+`tests/scripts/runHudAuditVocabulary.test.ts` without launching its browser
+walkthrough. The test rejects old absolute-day/wave labels on either profile,
+requires both progress values, validates days 1–5, and retains the other stats.
+The full audit starts and retires a run: use a controlled browser context, never
+the player's current saved run as disposable verification state.
+
+### Travel UI verification
+
+Capture matching run states at **1440×900, 412×892 and 900×900**. The square
+window must use the boot-selected compact profile without a forced scene/UI
+override. Compare the same event, region and progress against the approved
+travel reference; the exact receipt and preview identity matter as much as layout.
+
+- Confirm `EXPEDITION ROUTE`, five-day region progress, days-until-boss copy,
+  and the shared `STOP N` / `DAY N/5` HUD remain readable.
+- Exercise every ordinary event/shop option, exact preview title/art and concise
+  legacy `MET REQUIREMENTS`, then committed `RETURN TO EVENT` and reload.
+  Existing event outcome screens and shop behavior remain their own surfaces.
+- Verify homogeneous EASY/MEDIUM/HARD choices and the mandatory day-5 boss:
+  arrival, true persisted reload/re-entry, then `FACE THE BOSS` to existing Run Prep.
+- Open/close `RUN LEDGER`, `EXPLORE REGION` (current forecast), and separate
+  earned future `MAP INTEL`; exercise intel scroll and existing HUD overlays.
+- Check hover/press during card entrance, dense receipt bounds, actual art crops,
+  console/layout failures, and inactive controls beneath overlays. Preserve the
+  audit's geometry, overlap, navigation and screenshot-distinctness checks.
 
 ### Masks (2026-08-31)
 
@@ -188,6 +224,73 @@ third read `HOME`, which Windows only sets under Git Bash — so `npm run
 art:encode` threw from cmd/PowerShell. Scan for whatever revision is unpacked;
 never write a username or a revision number into the path.
 
+## Card-face truncation audit (`scripts/card-face-truncation-audit.ts`)
+
+Guards one invariant on `CardToken`'s `segmentedLine`: a too-narrow effects
+line may cut a whole segment, but that cut must NEVER be silent. The
+regression this exists to catch (2026-09-06): `skillPresentation.ts` added an
+`Nt` duration suffix to `guard`/`expose`/`buffStat`/`debuffStat`, tipping 143
+tier-resolved variants that pair a duration effect with another segment into
+overflowing on real card-face widths — the renderer dropped the excess
+segment with no marker at all (`frostbind_litany[gold]` read as
+`-25% MATK 2t · -25% MDEF 2t`, its CLEANSE simply gone). Fixed by ellipsising
+the TAIL segment in place instead of dropping it, and by always marking a
+drop that happens anyway; this script is the standing proof that stays true.
+
+Same Chromium/HMR-pinning infra as the audits above, but a different SHAPE:
+it does not click through a playthrough. `CardToken.ts` is Phaser-backed and
+genuinely cannot be imported into a vitest test (this repo's vitest is
+`environment: 'node'`, no canvas/jsdom — confirmed by direct import throwing
+`ReferenceError: window is not defined`), so instead it dynamically
+`import()`s the ACTUAL, unmodified `CardToken`/`skillBook`/`applyTier` off the
+live Vite dev server, builds a real token off-canvas for every
+duration+multi-effect tier variant in the book on all five real surfaces that
+ship one (mobile battle effects/compact, desktop battle, shop owned
+board/bag, mobile prep/deckbuild/wiki), and reads the ACTUAL rendered `Text`
+children. Nothing here reimplements `segmentedLine`'s width arithmetic — that
+duplicate (`segmentedLineSurvivors`, once in
+`tests/game/cardTokenSpec.test.ts`) is exactly what an earlier audit caught
+disagreeing with the real proportional-font renderer, and was deleted.
+
+Run: `npm run audit:cardface -- [outDir]` (or `npx tsx
+scripts/card-face-truncation-audit.ts [outDir]`) with dev (:5173) already
+running — it does not need the battle API. **It exits non-zero** the moment
+any surface renders even one whole-segment drop with no "…" cue; it also
+hard-fails if the duration+multi-effect population ever reads 0 (a green
+audit that checked nothing). `[outDir]` also gets a
+`card-face-truncation-report.json` with the full per-surface counts.
+
+## Continue the Codex session from a phone
+
+This is an app-level connection, separate from serving the game. In the
+desktop app, open **Settings → Connections → Control this PC → Set up/Add**,
+approve remote access, then scan the QR code with the latest ChatGPT mobile app
+while signed into the same account and workspace. Keep the latest desktop app
+open and the computer awake and online while using the phone. Do not expose the Codex App Server directly to a
+network; use the product's Remote connection (or an approved VPN) instead.
+
+Official setup and security details:
+<https://learn.chatgpt.com/es-419/docs/remote-connections>
+
+## Open the development game on a phone
+
+The phone and development computer must be on the same trusted local network.
+Run the two existing services on the computer:
+
+```text
+npm run api
+npm run dev
+```
+
+Find the computer's local IPv4 address, then open
+`http://<computer-ip>:5173` on the phone. Vite already listens on the local
+network. In development, the browser now derives the battle API as
+`http://<computer-ip>:8787`, so battle and damage-preview requests return to
+the computer instead of incorrectly targeting the phone's own `localhost`.
+`VITE_BATTLE_API` still overrides this address when a different service origin
+is intentional. If Windows Firewall prompts for either service, allow access
+only on the trusted/private network.
+
 ## Screenshot capture recipe
 
 - Chromium for Playwright: whatever `scripts/chromiumPath.ts` resolves, or
@@ -199,9 +302,47 @@ never write a username or a revision number into the path.
 - Viewport = the platform profile: `{1440, 900}` or `{412, 892}`.
 - Navigate straight to a `?scene=` URL (plus dial params), wait ~1-2s for the
   scene to settle, then `page.screenshot(...)`.
-- Synthetic canvas clicks are unreliable headless — prefer driving the scene
-  via `window.__game.scene.getScene(key)` in `page.evaluate`, or exact-text
-  bound clicks the way `run-hud-audit.ts` does.
+- Synthetic canvas clicks DO work headless — a 2026-09-06 re-check found the
+  earlier claim here (that they were "unreliable" and had to be routed around
+  via `window.__game.scene.getScene(key)`) FALSE. The real bug was a
+  coordinate-space mismatch in the probe, not the click mechanism. Scene text
+  and rect positions are DESIGN coordinates, while `page.mouse.click` and
+  `page.click` want CSS pixels. The current camera writes the UI scale × the
+  backing-store device-pixel ratio into `cameras.main.zoom`, so convert through
+  the canvas CSS bounds and backing-store dimensions; multiplying by zoom alone
+  is wrong on high-DPI displays:
+
+  ```js
+  const box = canvas.getBoundingClientRect();
+  const cssX = box.x + designX * camera.zoom * box.width / canvas.width;
+  const cssY = box.y + designY * camera.zoom * box.height / canvas.height;
+  await page.mouse.click(cssX, cssY);
+  ```
+
+  This is a zero-origin camera conversion: `designX`/`designY` are the scene
+  point, `camera.zoom` maps it into backing-store pixels, and the final ratios
+  map backing-store pixels into the canvas's CSS rectangle. For these scenes,
+  an exact design-sized CSS viewport (`1440x900` desktop or `412x892` mobile)
+  makes design and CSS coordinates equal at every backing-store DPR because
+  the zoom and backing-width/height ratio cancel. Camera zoom itself is `1`
+  only in the effective backing-store DPR-1 case; at DPR 2 it is `2` while the
+  converted design coordinate is still the same CSS coordinate.
+
+  At DPR 1 on the exact desktop profile, the simple case is therefore
+  `canvas.width=1440`, `canvas.height=900`, `box.width=1440`, `box.height=900`,
+  `camera.zoom=1`: a design point `(593, 797.5)` is clicked at CSS `(593,
+  797.5)`. Keep the conversion above in probes so the same recipe remains
+  correct when the backing store is denser.
+
+  Worked DPR-2 verification (route:
+  `/?scene=desktop-runevent&eventFixture=ruined_anvil&layoutAudit=1`, viewport
+  `1440x900`): the `ruined_anvil` merge row center is design `(593, 797.5)`;
+  Chromium reports `camera.zoom=2`, backing `2880x1800`, and CSS bounds
+  `(0,0,1440,900)`. The conversion yields CSS `(593, 797.5)`, and that click
+  opens `MERGE — CARDS LEAVE YOUR BOARD` with `CANCEL` and `MERGE` present.
+  The DPR-1 run opens the same confirmation from the same CSS point. Do not
+  use `(designX * zoom, designY * zoom)` by itself: at DPR 2 that would click
+  `(1186, 1595)` and miss the row.
 
 ```js
 // Run under tsx (`npx tsx one-off.ts`) so the shared resolver is importable.
@@ -212,7 +353,10 @@ const browser = await chromium.launch({
   executablePath: resolveChromiumPath('one-off'),
   args: ['--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 900 },
+  deviceScaleFactor: 1,
+});
 await page.goto('http://localhost:5173/?scene=desktop-runmap&seed=7', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 await page.screenshot({ path: 'runmap-desktop.png' });

@@ -3,8 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import type { SkillDef } from '../../engine/types';
-import type { DraftCard } from '../../run/draft';
+import type { SkillDef, SkillTier } from '../../engine/types';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, TEXT_SHRINK_FLOOR_PX, TIER_COLOR, textRoleFor, UI } from '../theme';
@@ -15,9 +14,16 @@ import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone, attachHoverTip } from './hoverTip';
 import { cardHoverEntries } from './cardHoverEntries';
 import { renderCardDetailOverlay } from './cardDetailOverlay';
-import { gemChipLines, gemHoverEntry } from './gemGlossary';
+import { gemChipLines, gemHoverEntries } from './gemPresentation';
 import { addRunArt, choiceArtKey } from './runArt';
-import { cardRowIdeal, centeredBox, layoutFeatureGrid, rowIdeal, type Box } from './runRewardGeometry';
+import {
+  cardRowIdeal,
+  centeredBox,
+  layoutRewardPickerWindow,
+  rowIdeal,
+  type Box,
+  type RewardPickerWindow,
+} from './runRewardGeometry';
 import {
   layoutMergePicker, mergeChipIdeal,
   type MergeCandidateEntry, type MergeSpentEntry, type RunMergeViewModel,
@@ -25,6 +31,27 @@ import {
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
+import { tierUpgradePreview } from './tierUpgradePreview';
+
+// Local to the persistent event outcome pane: brighter teal-navy, warm gold and
+// ivory. Do not propagate this treatment to choosing, shop or global chrome.
+export const EVENT_REWARD_COLORS = {
+  ...UI,
+  panelAlt: 0x213d4d,
+  panelMuted: 0x1b303f,
+  chip: 0xd5aa55,
+  chipDark: 0x294859,
+  border: 0xd5aa55,
+  text: '#fff0c9',
+  textBright: '#fff0c9',
+  textDim: '#d6b77b',
+  textSoft: '#d6b77b',
+  textMuted: '#c5b58e',
+  textDisabled: '#c5b58e',
+  textAccent: '#e3b966',
+};
+type RewardColors = typeof EVENT_REWARD_COLORS;
+const rewardColors = (template: RunScreenTemplate): RewardColors => template.eventOutcomePane ? EVENT_REWARD_COLORS : UI;
 
 /**
  * Ideal (never-exceeded) feature-visual sizes per platform — the renderer
@@ -110,7 +137,7 @@ function renderFeatureBackdrop(scene: Phaser.Scene, rect: Rect, box: Box, color:
 
 /**
  * Draws ONE gem chip's visual — background plate, rarity marker, and the SAME
- * three facts `gemHoverEntry` (ui/gemGlossary.ts) puts in a desktop hover tip:
+ * three facts `gemHoverEntries` (ui/gemPresentation.ts) puts in a desktop hover tip:
  * the gem's NAME, its RARITY + kind, and WHAT IT DOES. Extracted (2026-08-18)
  * so `renderBigFeature`'s solo gem feature and `renderRunGemChoicePicker` /
  * `renderRunSellGemPicker`'s grid cells share the IDENTICAL chip rather than
@@ -136,13 +163,10 @@ function renderFeatureBackdrop(scene: Phaser.Scene, rect: Rect, box: Box, color:
  * small type must not shrink with its container — 9px is the floor, and a
  * fraction of a shrunken cell would go under it.
  *
- * DEGRADES INSTEAD OF OVERFLOWING. `layoutFeatureGrid` scales cells down
- * uniformly when a picker has more rows than fit (the sell picker maps the
- * WHOLE gem pouch, which is unbounded), so each row is drawn only if the
- * remaining height inside the chip can actually hold it, and each is
- * `auditTextBlock`-clamped to that remainder. A cramped chip loses the tail of
- * its effect text rather than spilling out of its plate — and loses it on BOTH
- * platforms, never on the phone alone.
+ * PAGES INSTEAD OF COLLAPSING. The sell picker maps the WHOLE gem pouch, which
+ * is unbounded. `layoutRewardPickerWindow` keeps a readable minimum row height
+ * and exposes the remaining authored-order options through the shared pager;
+ * `auditTextBlock` still clamps each line inside its visible chip.
  *
  * `priceLabel` (added 2026-08-20 for `renderRunSellGemPicker`) draws a small
  * right-aligned gold-colored tag ("SELL 2g") inside the chip's own right
@@ -155,8 +179,9 @@ function renderGemChip(
   gem: GemDef,
   platform: RunTemplatePlatform,
   priceLabel?: string,
+  colors: RewardColors = UI,
 ): void {
-  scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelAlt, 0.9)
+  scene.add.rectangle(box.x, box.y, box.w, box.h, colors.panelAlt, 0.9)
     .setOrigin(0, 0)
     .setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
   const markerSize = box.h * 0.2;
@@ -167,7 +192,7 @@ function renderGemChip(
   let priceW = 0;
   if (priceLabel) {
     const priceText = scene.add.text(box.x + box.w - 10, box.y + box.h / 2, priceLabel, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(box.h * 0.18)}px`, color: UI.textAccent,
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(box.h * 0.18)}px`, color: colors.textAccent,
     }).setOrigin(1, 0.5);
     priceW = priceText.width + 12;
   }
@@ -181,31 +206,31 @@ function renderGemChip(
   const lines = gemChipLines(gem);
   let cursor = box.y + pad;
   const gemName = scene.add.text(textX, cursor, lines.name, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: UI.text,
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: colors.text,
     wordWrap: { width: textW },
   }).setOrigin(0, 0);
   auditTextBlock(gemName, { name: 'Run reward gem name', maxWidth: textW, maxHeight: Math.max(namePx, chipBottom - cursor), minFontSize: 9 });
   cursor += gemName.height + 2;
 
   // RARITY + KIND — the hover tip's own title suffix and body prefix, in the
-  // words `gemHoverEntry` already uses so the two surfaces cannot drift.
+  // words `gemHoverEntries` already uses so the two surfaces cannot drift.
   const metaStyle = textRoleFor(platform, 'kicker');
   const metaLineH = Number.parseFloat(metaStyle.fontSize) * 1.4;
   if (chipBottom - cursor >= metaLineH) {
     const meta = scene.add.text(textX, cursor, lines.meta, {
-      ...metaStyle, wordWrap: { width: textW },
+      ...metaStyle, ...(colors !== UI ? { color: colors.textSoft } : {}), wordWrap: { width: textW },
     }).setOrigin(0, 0);
     auditTextBlock(meta, { name: 'Run reward gem rarity', maxWidth: textW, maxHeight: chipBottom - cursor, minFontSize: 9 });
     cursor += meta.height + 2;
   }
 
-  // WHAT IT DOES — the same `stripCardTextMarkup(gem.text)` the shop shelf and
+  // WHAT IT DOES — the same generated `renderGemText(gem)` the shop shelf and
   // the hover tip print, so all three surfaces say one thing about one gem.
   const effectStyle = textRoleFor(platform, 'micro');
   const effectLineH = Number.parseFloat(effectStyle.fontSize) * 1.4;
   if (chipBottom - cursor >= effectLineH) {
     const effect = scene.add.text(textX, cursor, lines.effect, {
-      ...effectStyle, wordWrap: { width: textW }, lineSpacing: 1,
+      ...effectStyle, ...(colors !== UI ? { color: colors.textDim } : {}), wordWrap: { width: textW }, lineSpacing: 1,
     }).setOrigin(0, 0);
     auditTextBlock(effect, { name: 'Run reward gem effect', maxWidth: textW, maxHeight: chipBottom - cursor, minFontSize: 9 });
   }
@@ -213,15 +238,15 @@ function renderGemChip(
 
 /**
  * Renders the resolved-outcome screen's ONE big feature visual (card/gem/
- * icon) into `rect`, backed by `renderFeatureBackdrop`. CENTERED (not
- * top-anchored — contrast the grids' own `layoutFeatureGrid` centering,
- * which this now matches) since `rect` (`runScreenTemplate.ts`'s
+ * icon) into `rect`, backed by `renderFeatureBackdrop`. CENTERED, unlike the
+ * interactive picker grids' explicit top alignment, since `rect`
+ * (`runScreenTemplate.ts`'s
  * `reward.outcome.feature`) is generously sized on both platforms and a
  * centered subject reads as the deliberate focal point the identity band +
  * text column now point at, rather than a token pinned to the top of a
  * mostly-empty box.
  */
-function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect): void {
+function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect, colors: RewardColors = UI): void {
   if (feature.kind === 'card') {
     // THE CARD AS SUBJECT (see the ideal-sizes doc block above): the same
     // `FantasyCardTemplateV2` the ⓘ inspect overlay, the wiki and the shop's
@@ -236,9 +261,35 @@ function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, fe
     const base = FANTASY_CARD_TEMPLATE_SPEC.baseSize;
     const scale = Math.min(rect.width / base.width, rect.height / base.height);
     const box = centeredBox(rect, base.width * scale, base.height * scale);
-    new FantasyCardTemplateV2(scene, box.x + box.w / 2, box.y + box.h / 2, feature.skill, {
+    const card = new FantasyCardTemplateV2(scene, box.x + box.w / 2, box.y + box.h / 2, feature.skill, {
       width: box.w, height: box.h, tier: feature.skill.tier, glossary: false,
     });
+    // THE REWARD FACE HAS TO BE LOOKABLE-UP TOO. This branch built the card and
+    // returned, so the one screen that HANDS the player a card was the one
+    // screen with no route to a keyword's rule — the same defect the Wiki and
+    // both Shop panes were fixed for, found in a third place by auditing
+    // reachability PER SITE instead of per file (the `cardHoverEntries` at
+    // `attachCardHoverTip` below and the `renderCardDetailOverlay` calls in the
+    // picker grids belong to different functions, and crediting them here is
+    // exactly the inference that hid this).
+    //
+    // ONE ROUTE, BOTH PLATFORMS: `attachHoverTip` is documented as covering
+    // both by design — "Desktop: mouse hover (`pointerover`/`pointerout`).
+    // Mobile: tap (touch fires `pointerdown`/`pointerover` too, so the same
+    // wiring works)" (hoverTip.ts) — and it carries `cardHoverEntries`, which
+    // is `cardGlossaryEntries`' brief form: every keyword definition this card
+    // opens, and after the same file's gated-hover fix that now includes a
+    // gated keyword's own rule rather than only its gate.
+    //
+    // NOT the detail overlay for mobile, deliberately: `renderCardDetailOverlay`
+    // delegates its whole teardown to a caller-supplied `onClose`, which the
+    // pickers satisfy from their own `inspectedIndex`/`onInspect` state.
+    // `renderRunRewardPanel` takes neither, so wiring it here would mean
+    // widening this module's public options AND editing the two run-event
+    // scenes that call it — scenes another agent is live in. A tip needs no
+    // state and no close contract.
+    card.setInteractive({ useHandCursor: true });
+    attachHoverTip(scene, card, { x: box.x, y: box.y, w: box.w, h: box.h }, cardHoverEntries(feature.skill));
     return;
   }
   if (feature.kind === 'gem') {
@@ -247,16 +298,16 @@ function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, fe
     const box = centeredBox(rect, ideal.w * scale, ideal.h * scale);
     const gem = feature.gem;
     renderFeatureBackdrop(scene, rect, box, GEM_RARITY_COLOR[gem.rarity]);
-    renderGemChip(scene, box, gem, platform);
-    addHoverTipZone(scene, { x: box.x, y: box.y, w: box.w, h: box.h }, [gemHoverEntry(gem)]);
+    renderGemChip(scene, box, gem, platform, undefined, colors);
+    addHoverTipZone(scene, { x: box.x, y: box.y, w: box.w, h: box.h }, gemHoverEntries(gem));
     return;
   }
   // `icon` — the fallback feature for gold/level/nothing/upgrade outcomes: a
   // bigger version of the same top-of-panel icon, so the slot is never blank.
   const size = Math.min(FEATURE_ICON_SIZE_SOLO[platform], rect.width, rect.height);
   const box = centeredBox(rect, size, size);
-  renderFeatureBackdrop(scene, rect, box, UI.chip);
-  addRunArt(scene, iconKey, { x: box.x, y: box.y, width: box.w, height: box.h }, 0.9);
+  renderFeatureBackdrop(scene, rect, box, colors.chip);
+  addRunArt(scene, iconKey, { x: box.x, y: box.y, width: box.w, height: box.h }, colors === UI ? 0.9 : 1);
 }
 
 /**
@@ -309,14 +360,14 @@ function renderIdentityRow(
  * still `auditTextBlock`-guarded against `rect`'s own bounds, so centering
  * the block can never push either line outside its declared rect.
  */
-function renderRewardText(scene: Phaser.Scene, platform: RunTemplatePlatform, rect: Rect, model: RunRewardViewModel, font: LayoutProfile['font']): void {
+function renderRewardText(scene: Phaser.Scene, platform: RunTemplatePlatform, rect: Rect, model: RunRewardViewModel, font: LayoutProfile['font'], colors: RewardColors = UI): void {
   const centered = platform === 'mobile';
   const align = centered ? 'center' : 'left';
   const originX = centered ? 0.5 : 0;
   const textX = centered ? rect.x + rect.width / 2 : rect.x;
 
   const headlineText = scene.add.text(textX, 0, model.headline, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${font.title}px`, color: UI.text,
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${font.title}px`, color: colors.text,
     align, wordWrap: { width: rect.width },
   }).setOrigin(originX, 0);
   auditTextBlock(headlineText, { name: 'Run reward headline', maxWidth: rect.width, maxHeight: rect.height, minFontSize: 12 });
@@ -324,7 +375,7 @@ function renderRewardText(scene: Phaser.Scene, platform: RunTemplatePlatform, re
   let detailText: Phaser.GameObjects.Text | undefined;
   if (model.detail) {
     detailText = scene.add.text(textX, 0, model.detail, {
-      fontFamily: FONT.body, fontSize: `${font.small}px`, color: UI.textDim,
+      fontFamily: FONT.body, fontSize: `${font.small}px`, color: colors.textDim,
       align, wordWrap: { width: rect.width },
     }).setOrigin(originX, 0);
     auditTextBlock(detailText, {
@@ -339,10 +390,10 @@ function renderRewardText(scene: Phaser.Scene, platform: RunTemplatePlatform, re
   if (detailText) detailText.setY(top + headlineText.height + gap);
 }
 
-function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfile['font'], onContinue: () => void): void {
-  const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.chip, 1)
+function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfile['font'], onContinue: () => void, colors: RewardColors = UI): void {
+  const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, colors.chip, 1)
     .setOrigin(0, 0)
-    .setStrokeStyle(2, UI.border, 0.9)
+    .setStrokeStyle(2, colors.border, colors === UI ? 0.9 : 1)
     .setInteractive({ useHandCursor: true });
   const label = scene.add.text(rect.x + rect.width / 2, rect.y + rect.height / 2, 'CONTINUE ›', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.name + 1}px`, color: UI.textOnChip,
@@ -352,8 +403,8 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
   // This is the most-pressed button in a run, so it is the one where a dead
   // click was most noticeable.
   attachButtonFeel(scene, btn, {
-    fill: UI.chip,
-    hover: UI.chipDark,
+    fill: colors.chip,
+    hover: colors === UI ? UI.chipDark : 0xe4bd72,
     follow: [label],
     onPress: () => { playSfx('uiClick'); onContinue(); },
   });
@@ -362,58 +413,30 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
 /** The reward panel's background plate — identical on the resolved-outcome
  * screen and the bonus-draft/upgrade-card pickers (all three own the WHOLE
  * panel, see `runScreenTemplate.ts`'s `reward` doc). */
-function renderPanelBackground(scene: Phaser.Scene, panel: Rect): void {
-  scene.add.rectangle(panel.x, panel.y, panel.width, panel.height, UI.panelMuted, 0.94)
+function renderPanelBackground(scene: Phaser.Scene, panel: Rect, colors: RewardColors = UI): void {
+  scene.add.rectangle(panel.x, panel.y, panel.width, panel.height, colors.panelAlt, colors === UI ? 0.94 : 1)
     .setOrigin(0, 0)
-    .setStrokeStyle(2, UI.chip, 0.6);
+    .setStrokeStyle(2, colors.chip, colors === UI ? 0.6 : 1);
 }
 
-/**
- * THE reward-outcome renderer — one component shared by `DesktopRunEventScene`
- * and `MobileRunEventScene` (differing only in which platform's template they
- * pass in). Reads `template.contentSlots.reward.outcome`'s declared rects
- * (identity/text/feature, plus the shared `panel`/`buttons`) and places every
- * part into its rect — no cursor, no per-`EventOutcome`-kind layout branch.
- * Fits by construction: `feature` is sized to (and clamped by) its own rect.
- *
- * Task #41 density pass (2026-08-08): this used to stack a tiny centered
- * icon, a headline, an optional detail, and a modest top-anchored feature in
- * ONE column — correct geometry, but a single card/gem/icon in that shape
- * read as sparse (see `runScreenTemplate.ts`'s `reward.outcome` doc for the
- * full before/after rationale). Now: an `identity` row ties the reward back
- * to the event that produced it, `text` and `feature` share the panel's
- * width instead of one column wasting the other's share of it (DESKTOP:
- * side by side; MOBILE: stacked, but `feature` is now much bigger — see
- * `runScreenTemplate.ts`), and `feature` itself renders at a dedicated,
- * larger SOLO size with a spotlight backdrop (`renderBigFeature`) instead of
- * the grid's cramped ideal. The `panel`'s own size is UNCHANGED (still
- * `REWARD_PANEL_MAX_W`/`_H` on desktop, still content-filling on mobile) —
- * this is a composition change, not a resize.
- *
- * CONTINUE lives in the template's separately-reserved `buttons` row on
- * DESKTOP ONLY (`template.platform === 'desktop'`) — its primary go-forward
- * action sits in the HEADER (`runScreenTemplate`'s `actions` region,
- * top-right), physically far from this panel, so a bottom-anchored confirm
- * right under the content it confirms earns its own button there. On MOBILE
- * this used to ALSO draw a second CONTINUE into `buttons`, stacking two
- * identical buttons — the HUD's thumb-reachable footer (`renderRunHud`'s
- * `primary` role) already puts one right below it, calling the exact same
- * handler — a thumb's-width apart for no reason (task #33, 2026-08-07 fix).
- * Mobile's `buttons` rect is zero-height (`runScreenTemplate.ts`'s
- * `REWARD_BUTTON_H`), so skipping the draw here leaves no dead gap: the
- * panel already extends to fill the space that reservation would have cost.
- *
- * The "PICK ONE TO KEEP" bonus-draft picker and the "CHOOSE A CARD TO
- * UPGRADE" upgrade-card picker (`renderRunBonusDraftPicker`/
- * `renderRunUpgradeCardPicker` below) are this module's other two
- * reward-screen renderers. They deliberately keep the ORIGINAL flat
- * `icon`/`headline`/`feature` stacked shape (untouched by this pass) — a
- * 4-5 card grid already needs the wide, short `feature` row that shape
- * gives it, and reads full on its own; only their icon row picked up the
- * same `renderIdentityRow` treatment (see `renderPickHeader`) for
- * consistency. Neither draws a `buttons` CONTINUE on either platform
- * (picking a card IS the confirm action), so they needed no change there.
- */
+/** One persistent outcome plate/header for choices, pickers and receipts.
+ * The scene renders its unchanged story/art alongside this pane. */
+export function renderRunEventOutcomePane(scene: Phaser.Scene, template: RunScreenTemplate): void {
+  const pane = template.eventOutcomePane;
+  if (!pane) return;
+  renderPanelBackground(scene, template.contentSlots.reward.panel, rewardColors(template));
+  const header = pane.header;
+  const label = scene.add.text(header.x, header.y, 'EVENT OUTCOME', {
+    ...textRoleFor(template.platform, 'kicker'), color: EVENT_REWARD_COLORS.textAccent,
+  });
+  auditTextBlock(label, { name: 'Event outcome heading', maxWidth: header.width * 0.55, maxHeight: header.height, minFontSize: 9 });
+}
+
+/** Shared reward contents. Event callers supply eventOutcomePane slots, so
+ * this renderer adds no background/identity shell and owns one pane-local
+ * CONTINUE on either platform. Card/gem/icon subjects and their inspections
+ * are unchanged. Non-event template callers retain their original treatment. */
+
 export function renderRunRewardPanel(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
@@ -423,14 +446,15 @@ export function renderRunRewardPanel(
   const { panel, buttons } = template.contentSlots.reward;
   const { identity, text, feature } = template.contentSlots.reward.outcome;
 
-  renderPanelBackground(scene, panel);
-  renderIdentityRow(scene, identity, model.iconKey, opts.eventTitle, opts.font, 'Run reward event identity');
-  renderRewardText(scene, template.platform, text, model, opts.font);
-  renderBigFeature(scene, template.platform, model.feature, model.iconKey, feature);
-  // Desktop only — see the module doc above for why mobile does not repeat
-  // the HUD footer's CONTINUE here.
-  if (template.platform === 'desktop') {
-    renderContinueButton(scene, buttons, opts.font, opts.onContinue);
+  if (!template.eventOutcomePane) {
+    renderPanelBackground(scene, panel);
+    renderIdentityRow(scene, identity, model.iconKey, opts.eventTitle, opts.font, 'Run reward event identity');
+  }
+  renderRewardText(scene, template.platform, text, model, opts.font, rewardColors(template));
+  renderBigFeature(scene, template.platform, model.feature, model.iconKey, feature, rewardColors(template));
+  // Events always own their exit here, never in a second HUD action.
+  if (template.eventOutcomePane || template.platform === 'desktop') {
+    renderContinueButton(scene, buttons, opts.font, opts.onContinue, rewardColors(template));
   }
 }
 
@@ -453,12 +477,68 @@ function renderPickHeader(
   auditName: string,
 ): void {
   const { panel, icon, headline } = template.contentSlots.reward;
-  renderPanelBackground(scene, panel);
-  renderIdentityRow(scene, icon, iconKey, eventTitle, font, `${auditName} identity`);
+  if (!template.eventOutcomePane) {
+    renderPanelBackground(scene, panel);
+    renderIdentityRow(scene, icon, iconKey, eventTitle, font, `${auditName} identity`);
+  }
   const label = scene.add.text(headline.x + headline.width / 2, headline.y, title, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${font.title}px`, color: UI.textAccent, align: 'center',
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${font.title}px`, color: rewardColors(template).textAccent, align: 'center',
   }).setOrigin(0.5, 0);
   auditTextBlock(label, { name: auditName, maxWidth: headline.width - 64, maxHeight: headline.height, minFontSize: 10 });
+}
+
+interface RewardPickerPagingOptions {
+  page: number;
+  onPageChange: (page: number) => void;
+}
+
+/** Draws the navigation returned by `layoutRewardPickerWindow`. The scene owns
+ * the page integer and rebuilds through the shared scene-rebuild idiom; this
+ * renderer only reports the requested destination page. Disabled boundary
+ * controls are intentionally inert. */
+function renderPickerPager(
+  scene: Phaser.Scene,
+  pickerWindow: RewardPickerWindow,
+  platform: RunTemplatePlatform,
+  onPageChange: (page: number) => void,
+  colors: RewardColors = UI,
+): void {
+  const { pager } = pickerWindow;
+  if (!pager) return;
+
+  const renderControl = (box: Box, labelText: string, enabled: boolean, page: number): void => {
+    const control = scene.add.rectangle(box.x, box.y, box.w, box.h, enabled ? colors.panelAlt : colors.panelMuted, enabled ? 1 : 0.55)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, enabled ? colors.chip : colors.border, enabled ? 0.9 : 0.45);
+    const label = scene.add.text(box.x + box.w / 2, box.y + box.h / 2, labelText, {
+      ...textRoleFor(platform, 'label'),
+      color: enabled ? colors.textBright : colors.textDisabled,
+    }).setOrigin(0.5);
+    auditControlLabel(control, label, { name: `Run reward picker ${labelText}`, horizontalPadding: 8, verticalPadding: 5, minFontSize: 8 });
+    if (!enabled) return;
+    control.setInteractive({ useHandCursor: true });
+    attachButtonFeel(scene, control, {
+      fill: colors.panelAlt,
+      hover: colors.chipDark,
+      follow: [label],
+      onPress: () => { playSfx('uiClick'); onPageChange(page); },
+    });
+  };
+
+  renderControl(pager.previous, '‹ PREVIOUS', pickerWindow.canPrevious, pickerWindow.page - 1);
+  renderControl(pager.next, 'NEXT ›', pickerWindow.canNext, pickerWindow.page + 1);
+  const indicator = scene.add.text(
+    pager.indicator.x + pager.indicator.w / 2,
+    pager.indicator.y + pager.indicator.h / 2,
+    `PAGE ${pickerWindow.page + 1} / ${pickerWindow.pageCount}`,
+    { ...textRoleFor(platform, 'kicker'), color: colors.textMuted },
+  ).setOrigin(0.5);
+  auditTextBlock(indicator, {
+    name: 'Run reward picker page indicator',
+    maxWidth: pager.indicator.w,
+    maxHeight: pager.indicator.h,
+    minFontSize: 8,
+  });
 }
 
 /**
@@ -536,7 +616,7 @@ function renderPickableCardRow(
  * math (which had already drifted — see the module doc above and
  * `runRewardGeometry.ts`'s doc comment). Uses `renderPickHeader` (panel/icon/
  * headline = "PICK ONE TO KEEP"), then fills `feature` with a
- * `layoutFeatureGrid` of `cards.length` full-width CARD ROWS —
+ * `layoutRewardPickerWindow` of authored-order full-width CARD ROWS —
  * `cardRowIdeal` is the same row shape the upgrade-card and merge pickers'
  * grids use, so all three pickers read as the same shape at the same visual
  * weight, and as the same shape the deck/bag/board/shelf already draw. No `detail` row (the picker never has one) — left
@@ -553,25 +633,28 @@ function renderPickableCardRow(
 export function renderRunBonusDraftPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
-  cards: readonly DraftCard[],
+  cards: readonly RunRewardCardOption[],
   opts: {
     font: LayoutProfile['font'];
     eventTitle: string;
-    onPick: (card: DraftCard) => void;
+    onPick: (card: RunRewardCardOption) => void;
     inspectedIndex?: number | null;
     onInspect?: (index: number | null) => void;
-  },
+  } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('bonusDraft'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
 
   const { feature } = template.contentSlots.reward;
   const ideal = cardRowIdeal(feature, template.platform);
-  const cells = layoutFeatureGrid(feature, cards.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
+  const pickerWindow = layoutRewardPickerWindow('bonusDraft', template.platform, feature, cards.length, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
   let inspecting: SkillDef | undefined;
-  cards.forEach((card, i) => {
-    const cell = cells[i];
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const i = pickerWindow.startIndex + localIndex;
+    const card = cards[i];
+    if (!card) return;
     const skill = skillBook[card.skillId];
-    if (!cell || !skill) return;
+    if (!skill) return;
     const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
     const hit = renderPickableCardRow(scene, cell, cell, shown, () => opts.onPick(card),
       opts.onInspect ? () => opts.onInspect?.(i) : undefined);
@@ -583,12 +666,27 @@ export function renderRunBonusDraftPicker(
   }
 }
 
+/** A card offered by an event picker. Unlike the start-draft `DraftCard`, an
+ * event offer persists its actual tier and may legitimately be Silver+; the
+ * renderer therefore consumes this neutral, widened shape. */
+export interface RunRewardCardOption {
+  skillId: string;
+  tier: SkillTier;
+}
+
+/** A persisted upgrade target can outlive a temporary deck/bag arrangement.
+ * Keep the offered instance visible even when its card can no longer be
+ * rendered, so reopening never silently drops one of the committed options. */
+export type RunRewardUpgradeOption =
+  | (UpgradeCardOption & { available?: true })
+  | { instanceId: string; available: false; fallbackLabel: string };
+
 /** Small label-strip height (per platform) reserved ABOVE each card in the
  * upgrade-card picker's grid, showing its "BRONZE → SILVER" tier jump —
- * folded straight into `layoutFeatureGrid`'s ideal HEIGHT (see
+ * folded straight into the picker window's ideal HEIGHT (see
  * `renderRunUpgradeCardPicker` below), so it scales down by the exact same
  * uniform factor as the card sharing its cell and can never grow the grid
- * past what `layoutFeatureGrid` already fits inside `feature`. */
+ * past what its bounded page already fits inside `feature`. */
 const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22, mobile: 18 };
 
 /**
@@ -597,12 +695,12 @@ const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22,
  * `MobileRunEventScene` for a resolved `upgradeCardPick` outcome
  * (`src/run/events.ts`'s deferred-pick shape mirrors `bonusDraft`'s: roll the
  * eligible set now, resolve which one on tap). Same `renderPickHeader` +
- * `layoutFeatureGrid` shape as the bonus-draft picker, with one addition:
+ * `layoutRewardPickerWindow` shape as the bonus-draft picker, with one addition:
  * unlike a fresh bonus-draft card, every option here is something the player
  * ALREADY owns, so the tier the tap commits to needs to be legible up front
  * rather than only implied — each cell reserves a small
  * `UPGRADE_TIER_LABEL_H` strip above its card for "FROM → TO", computed by
- * folding that strip into the grid's ideal HEIGHT (so `layoutFeatureGrid`'s
+ * folding that strip into the grid's ideal HEIGHT (so the shared grid's
  * one uniform scale factor governs both the card and its label together,
  * never just the card) rather than drawing it as a separate, unscaled
  * overlay that could grow past a shrunk cell.
@@ -614,14 +712,14 @@ const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22,
 export function renderRunUpgradeCardPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
-  options: readonly UpgradeCardOption[],
+  options: readonly RunRewardUpgradeOption[],
   opts: {
     font: LayoutProfile['font'];
     eventTitle: string;
-    onPick: (option: UpgradeCardOption) => void;
+    onPick: (option: RunRewardUpgradeOption) => void;
     inspectedIndex?: number | null;
     onInspect?: (index: number | null) => void;
-  },
+  } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('upgradeCard'), 'CHOOSE A CARD TO UPGRADE', opts.eventTitle, opts.font, 'Run reward upgrade picker title');
 
@@ -629,12 +727,35 @@ export function renderRunUpgradeCardPicker(
   const cardIdeal = cardRowIdeal(feature, template.platform);
   const labelH = UPGRADE_TIER_LABEL_H[template.platform];
   const idealH = cardIdeal.h + labelH;
-  const cells = layoutFeatureGrid(feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform]);
+  const pickerWindow = layoutRewardPickerWindow('upgradeCard', template.platform, feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
   let inspecting: SkillDef | undefined;
-  options.forEach((option, i) => {
-    const cell = cells[i];
-    const base = skillBook[option.skillId];
-    if (!cell || !base) return;
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const i = pickerWindow.startIndex + localIndex;
+    const option = options[i];
+    if (!option) return;
+    if (!('skillId' in option)) {
+      const fallbackStyle = textRoleFor(template.platform, 'label', { ink: 'alarm' });
+      const fallback = scene.add.rectangle(cell.x, cell.y, cell.w, cell.h, UI.panelAlt, 0.98)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, UI.bad, 0.8)
+        .setInteractive({ useHandCursor: true });
+      const label = scene.add.text(cell.x + cell.w / 2, cell.y + cell.h / 2, option.fallbackLabel, {
+        ...fallbackStyle,
+        align: 'center',
+        wordWrap: { width: Math.max(1, cell.w - 24) },
+      }).setOrigin(0.5);
+      auditTextBlock(label, { name: 'Run reward unavailable upgrade option', maxWidth: Math.max(1, cell.w - 24), maxHeight: Math.max(1, cell.h - 16), minFontSize: 8 });
+      attachButtonFeel(scene, fallback, {
+        fill: UI.panelAlt,
+        hover: UI.badSoft,
+        follow: [label],
+        onPress: () => opts.onPick(option),
+      });
+      return;
+    }
+    const preview = tierUpgradePreview(option.skillId, option.from, option.to);
+    if (!preview.available) return;
     // `layoutFeatureGrid` scales width/height UNIFORMLY off the same ideal
     // aspect ratio, so this one ratio recovers exactly how much the label
     // strip itself shrank alongside the card sharing its cell.
@@ -642,10 +763,12 @@ export function renderRunUpgradeCardPicker(
     const cellLabelH = labelH * scale;
     const cardH = cell.h - cellLabelH;
     const cx = cell.x + cell.w / 2;
-    const shown = option.from === base.tier ? base : applyTier(base, option.from);
+    const tierStep = `${option.from.toUpperCase()} → ${option.to.toUpperCase()}`;
+    const previewCue = preview.conditionalTrade ? 'CONDITIONAL PREVIEW' : 'PREVIEW';
 
-    const tierLabel = scene.add.text(cx, cell.y + cellLabelH / 2, `${option.from.toUpperCase()} → ${option.to.toUpperCase()}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(8, Math.round(11 * scale))}px`, color: UI.textAccent, align: 'center',
+    const tierLabel = scene.add.text(cx, cell.y + cellLabelH / 2, `${previewCue} · ${tierStep}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(8, Math.round(11 * scale))}px`,
+      color: preview.conditionalTrade ? `#${UI.bad.toString(16).padStart(6, '0')}` : rewardColors(template).textAccent, align: 'center',
     }).setOrigin(0.5);
     auditTextBlock(tierLabel, { name: 'Run reward upgrade tier label', maxWidth: cell.w, maxHeight: Math.max(1, cellLabelH), minFontSize: 7 });
 
@@ -653,10 +776,10 @@ export function renderRunUpgradeCardPicker(
     // is not part of the row), while the PICK surface stays the whole cell so
     // the label is tappable too.
     const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH, w: cell.w, h: cardH };
-    const hit = renderPickableCardRow(scene, cell, cardCell, shown, () => opts.onPick(option),
+    const hit = renderPickableCardRow(scene, cell, cardCell, preview.toSkill, () => opts.onPick(option),
       opts.onInspect ? () => opts.onInspect?.(i) : undefined);
-    attachCellHoverTip(scene, template, hit, cardCell, shown);
-    if (opts.inspectedIndex === i) inspecting = shown;
+    attachCellHoverTip(scene, template, hit, cardCell, preview.toSkill);
+    if (opts.inspectedIndex === i) inspecting = preview.toSkill;
   });
   if (inspecting) {
     renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
@@ -670,7 +793,7 @@ export function renderRunUpgradeCardPicker(
  * `gemChoicePick` outcome (`src/run/events.ts`'s `{kind:'gemChoicePick',
  * options}` — gem ids only, no display metadata; resolved against `gemBook`
  * here, same as every other surface that only carries a gem id). Same
- * `renderPickHeader` + `layoutFeatureGrid` shape as the other two pickers,
+ * `renderPickHeader` + `layoutRewardPickerWindow` shape as the other two pickers,
  * with `renderGemChip` (the SAME chip visual `renderBigFeature`'s solo gem
  * feature draws, as a full-width row at the grid's own `FEATURE_GEM_CHIP_H`
  * instead of the solo `_SOLO` size) filling each cell instead of a `CardToken`.
@@ -691,32 +814,74 @@ export function renderRunGemChoicePicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   gemIds: readonly string[],
-  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (gemId: string) => void },
+  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (gemId: string) => void } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('gemChoicePick'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward gem choice title');
 
   const { feature } = template.contentSlots.reward;
   const ideal = rowIdeal(feature, FEATURE_GEM_CHIP_H[template.platform]);
-  const cells = layoutFeatureGrid(feature, gemIds.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
-  gemIds.forEach((gemId, i) => {
-    const cell = cells[i];
+  const pickerWindow = layoutRewardPickerWindow('gemChoice', template.platform, feature, gemIds.length, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const gemId = gemIds[pickerWindow.startIndex + localIndex];
+    if (!gemId) return;
     const gem = gemBook[gemId];
-    if (!cell || !gem) return;
+    if (!gem) return;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    renderGemChip(scene, box, gem, template.platform);
+    renderGemChip(scene, box, gem, template.platform, undefined, rewardColors(template));
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(gemId); });
-    if (template.platform === 'desktop') {
-      attachHoverTip(scene, hit, box, [gemHoverEntry(gem)]);
-    }
+    attachGemCellInspect(scene, template, hit, box, gem);
+  });
+}
+
+/**
+ * THE GEM PICK CELL'S INSPECT AFFORDANCE — a desktop hover tip, a mobile ⓘ.
+ *
+ * WHY IT EXISTS (2026-09-07, review 2). Both gem pickers wired
+ * `attachHoverTip` behind `template.platform === 'desktop'`, so on a phone the
+ * `GEM EFFECT` block — and with it the fact that `empowering_core`'s `+6
+ * damage` lands on EVERY hit — was unreachable before an IRREVERSIBLE pick.
+ * The chip already prints the gem's own parameters (`renderGemChip`); what the
+ * phone had no route to was the definitions.
+ *
+ * The tap cannot be borrowed: on these cells a tap COMMITS the pick. So mobile
+ * gets the same shape the two CARD pickers use — a small badge in the cell's
+ * corner, added AFTER the pick rect so Phaser's `topOnly` dispatch puts it
+ * ABOVE (see `renderPickableCardRow`'s doc for that ordering guarantee), with
+ * `stopPropagation` as the belt to that braces. `textRoleFor` supplies the
+ * glyph's style, so this adds no `fontSize` literal to a file whose ratchet
+ * budget is exactly spent.
+ */
+function attachGemCellInspect(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  pickTarget: Phaser.GameObjects.GameObject,
+  box: Box,
+  gem: GemDef,
+): void {
+  const entries = gemHoverEntries(gem);
+  if (template.platform === 'desktop') {
+    attachHoverTip(scene, pickTarget, box, entries);
+    return;
+  }
+  const size = 22;
+  const cx = box.x + box.w - size / 2 - 4;
+  const cy = box.y + size / 2 + 4;
+  const badge = scene.add.rectangle(cx, cy, size, size, UI.chip, 0.92)
+    .setOrigin(0.5).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
+  scene.add.text(cx, cy, 'i', textRoleFor(template.platform, 'micro', { ink: 'onAccent' })).setOrigin(0.5);
+  attachHoverTip(scene, badge, { x: box.x, y: box.y, w: box.w, h: box.h }, entries);
+  badge.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+    event.stopPropagation();
   });
 }
 
 /**
  * The "PICK ONE TO SELL" pouch-gem picker — `sellGem`'s counterpart to
  * `renderRunGemChoicePicker` above, reusing its EXACT shell (`renderPickHeader`
- * + `layoutFeatureGrid` + `renderGemChip`) so a "gain a gem"/"sell a gem"
+ * + `layoutRewardPickerWindow` + `renderGemChip`) so a "gain a gem"/"sell a gem"
  * picker read as visually related, not two unrelated overlays. The only real
  * difference is `renderGemChip`'s new optional `priceLabel` (a "SELL Ng" tag
  * per chip, since — unlike `gemChoicePick`'s freshly-rolled candidates, which
@@ -729,25 +894,25 @@ export function renderRunSellGemPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   options: readonly SellGemOption[],
-  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (option: SellGemOption) => void },
+  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (option: SellGemOption) => void } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('sellGemPick'), 'PICK ONE TO SELL', opts.eventTitle, opts.font, 'Run reward sell-gem choice title');
 
   const { feature } = template.contentSlots.reward;
   const ideal = rowIdeal(feature, FEATURE_GEM_CHIP_H[template.platform]);
-  const cells = layoutFeatureGrid(feature, options.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
-  options.forEach((option, i) => {
-    const cell = cells[i];
+  const pickerWindow = layoutRewardPickerWindow('sellGem', template.platform, feature, options.length, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const option = options[pickerWindow.startIndex + localIndex];
+    if (!option) return;
     const gem = gemBook[option.gemId];
-    if (!cell || !gem) return;
+    if (!gem) return;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    renderGemChip(scene, box, gem, template.platform, `SELL ${option.price}g`);
+    renderGemChip(scene, box, gem, template.platform, `SELL ${option.price}g`, rewardColors(template));
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
-    if (template.platform === 'desktop') {
-      attachHoverTip(scene, hit, box, [gemHoverEntry(gem)]);
-    }
+    attachGemCellInspect(scene, template, hit, box, gem);
   });
 }
 
@@ -766,12 +931,12 @@ export function renderRunSellGemPicker(
  * left rail in `UI.bad` — the palette's "this is a loss" colour, the same one
  * the RETIRE action uses — because nothing else on a reward screen ever
  * subtracts. Every internal offset is a fraction of `box`'s own height, the
- * same rule `renderGemChip` follows, so the chip scales with whatever
- * `layoutFeatureGrid` hands it.
+ * same rule `renderGemChip` follows, so the chip scales with whatever the
+ * shared reward-picker window hands it.
  */
-function renderMergeSpentChip(scene: Phaser.Scene, box: Box, entry: MergeSpentEntry): void {
+function renderMergeSpentChip(scene: Phaser.Scene, box: Box, entry: MergeSpentEntry, colors: RewardColors = UI): void {
   const rail = Math.max(3, Math.round(box.h * 0.09));
-  scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelMuted, 0.92)
+  scene.add.rectangle(box.x, box.y, box.w, box.h, colors.panelMuted, 0.92)
     .setOrigin(0, 0)
     .setStrokeStyle(1, TIER_COLOR[entry.tier], 0.85);
   scene.add.rectangle(box.x, box.y, rail, box.h, UI.bad, 0.9).setOrigin(0, 0);
@@ -786,10 +951,10 @@ function renderMergeSpentChip(scene: Phaser.Scene, box: Box, entry: MergeSpentEn
   const namePx = Math.max(9, Math.round(box.h * 0.30));
   const metaPx = Math.max(8, Math.round(box.h * 0.23));
   const name = scene.add.text(textX, box.y + box.h * 0.28, entry.name, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: UI.text,
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: colors.text,
   }).setOrigin(0, 0.5);
   const meta = scene.add.text(textX, box.y + box.h * 0.71, `${entry.tierLabel} · ${entry.whereLabel}`, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${metaPx}px`, color: UI.textSoft,
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${metaPx}px`, color: colors.textSoft,
   }).setOrigin(0, 0.5);
   auditTextBlock(name, { name: 'Run merge spent card name', maxWidth: textW, maxHeight: box.h * 0.5, minFontSize: 8 });
   auditTextBlock(meta, { name: 'Run merge spent card place', maxWidth: textW, maxHeight: box.h * 0.45, minFontSize: 7 });
@@ -845,7 +1010,7 @@ export function renderRunMergeCardsPicker(
     onPick: (candidate: MergeCandidateEntry) => void;
     inspectedIndex?: number | null;
     onInspect?: (index: number | null) => void;
-  },
+  } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), model.title, opts.eventTitle, opts.font, 'Run reward merge picker title');
 
@@ -853,7 +1018,7 @@ export function renderRunMergeCardsPicker(
   const bands = layoutMergePicker(detail, feature, template.platform, model.spent.length);
 
   // ---- what LEAVES ----
-  const spentTop = renderMergeBandCaption(scene, bands.spent, model.spentCaption, opts.font, UI.textSoft, 'Run reward merge spent caption');
+  const spentTop = renderMergeBandCaption(scene, bands.spent, model.spentCaption, opts.font, rewardColors(template).textSoft, 'Run reward merge spent caption');
   const spentRect: Rect = {
     x: bands.spent.x,
     y: spentTop,
@@ -861,15 +1026,15 @@ export function renderRunMergeCardsPicker(
     height: Math.max(0, bands.spent.y + bands.spent.height - spentTop),
   };
   const chipIdeal = mergeChipIdeal(spentRect, template.platform);
-  const chipCells = layoutFeatureGrid(spentRect, model.spent.length, chipIdeal.w, chipIdeal.h, GRID_GAP[template.platform]);
-  model.spent.forEach((entry, i) => {
-    const cell = chipCells[i];
-    if (!cell) return;
-    renderMergeSpentChip(scene, cell, entry);
+  const spentWindow = layoutRewardPickerWindow('mergeSpent', template.platform, spentRect, model.spent.length, chipIdeal.w, chipIdeal.h, GRID_GAP[template.platform], 0);
+  spentWindow.cells.forEach((cell, localIndex) => {
+    const entry = model.spent[spentWindow.startIndex + localIndex];
+    if (!entry) return;
+    renderMergeSpentChip(scene, cell, entry, rewardColors(template));
   });
 
   // ---- what ARRIVES ----
-  const pickTop = renderMergeBandCaption(scene, bands.candidates, model.pickCaption, opts.font, UI.textAccent, 'Run reward merge pick caption');
+  const pickTop = renderMergeBandCaption(scene, bands.candidates, model.pickCaption, opts.font, rewardColors(template).textAccent, 'Run reward merge pick caption');
   const gridRect: Rect = {
     x: bands.candidates.x,
     y: pickTop,
@@ -877,11 +1042,13 @@ export function renderRunMergeCardsPicker(
     height: Math.max(0, bands.candidates.y + bands.candidates.height - pickTop),
   };
   const cardIdeal = cardRowIdeal(gridRect, template.platform);
-  const cells = layoutFeatureGrid(gridRect, model.candidates.length, cardIdeal.w, cardIdeal.h, GRID_GAP[template.platform]);
+  const pickerWindow = layoutRewardPickerWindow('mergeCandidates', template.platform, gridRect, model.candidates.length, cardIdeal.w, cardIdeal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
   let inspecting: SkillDef | undefined;
-  model.candidates.forEach((candidate, i) => {
-    const cell = cells[i];
-    if (!cell) return;
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const i = pickerWindow.startIndex + localIndex;
+    const candidate = model.candidates[i];
+    if (!candidate) return;
     const hit = renderPickableCardRow(scene, cell, cell, candidate.skill, () => opts.onPick(candidate),
       opts.onInspect ? () => opts.onInspect?.(i) : undefined);
     attachCellHoverTip(scene, template, hit, cell, candidate.skill);

@@ -30,7 +30,7 @@ const TIERS = ['bronze', 'silver', 'gold', 'diamond'] as readonly string[];
 const PROFILE_FIELDS = ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed'] as const;
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY and live on the envelope. */
-const DEF_FIELDS = new Set(['notes', 'name', 'blurb', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards']);
+const DEF_FIELDS = new Set(['notes', 'name', 'answer', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards']);
 
 /**
  * A `cards` list's ceiling. An affix installs cards IN PLACE OF the title's
@@ -107,7 +107,25 @@ function validateBonusProfile(raw: unknown, where: string, problems: ContentProb
 
 function validateDef(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
   req(raw, 'name', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', where, problems);
-  req(raw, 'blurb', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', where, problems);
+  // NO `blurb`. A hand-written "what this affix does" sentence was a third
+  // copy of the same defect the card faces carried: four of the six affixes
+  // ARE a card (`cards: ['braced_pike']`), so the chip now renders that card's
+  // OWN generated face (`effectOf`, src/game/ui/affixPresentation.ts) and the
+  // other two describe themselves from `forceTier` / `bonusPL`.
+  //
+  // `answer` is what survives, because it is the one genuinely affix-specific
+  // editorial judgement — a claim about the whole card pool that no field can
+  // derive. REQUIRED on a behavioural affix and REFUSED on an escalation
+  // modifier: an affix with no answer ships a chip that names a threat and no
+  // counter, and an escalation modifier is never dealt as a readable identity,
+  // so an answer on one is an answer nothing will ever print.
+  opt(raw, 'answer', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', where, problems);
+  if (raw.affix === true && (typeof raw.answer !== 'string' || raw.answer.trim() === '')) {
+    problems.push({ where, message: 'a behavioural affix must carry a non-empty answer — a chip that names a threat and no counter is not a preview' });
+  }
+  if (raw.affix !== true && raw.answer !== undefined) {
+    problems.push({ where, message: 'answer belongs to a behavioural affix (affix: true); an escalation modifier is never dealt as a readable identity, so nothing would print it' });
+  }
   opt(raw, 'notes', (v) => Array.isArray(v) && v.every((n) => typeof n === 'string'), 'an array of strings', where, problems);
 
   opt(raw, 'bonusPL', inRange(1, MAX_BONUS_PL), 'an integer 1..' + String(MAX_BONUS_PL), where, problems);

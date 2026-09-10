@@ -1,5 +1,6 @@
 import { CARD_TARGETING_KINDS, MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderFeedsKind, riderReadsResource } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
+import { KEYWORD_TEXT } from '../engine/keywords/text';
 
 /**
  * RUNTIME SCHEMA VALIDATION for the JSON content documents.
@@ -37,7 +38,7 @@ import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from
  *
  * COMPLETENESS, not just shape. The document is the single source that must carry
  * everything needed to SHOW what a card does, so anything that would leave a card
- * unrenderable or mechanically ambiguous is rejected: missing text, a magical card
+ * unrenderable or mechanically ambiguous is rejected: a magical card
  * with no element, an aura with no mods. Deeper card-text drift (magnitudes and
  * stat tokens agreeing with the effects) is a SECOND gate — tests/engine/cardText.test.ts
  * — which runs against the loaded book and is deliberately not duplicated here.
@@ -74,7 +75,7 @@ const DEF_FIELDS = new Set([
   'notes',
   'name', 'archetypes', 'property', 'size', 'speedWeight', 'cooldownTurns',
   'rarity', 'tier', 'element', 'weapon', 'effects', 'scope', 'aura', 'special',
-  'tierUpgrades', 'text',
+  'tierUpgrades', 'flavor',
 ]);
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -747,12 +748,11 @@ function validateAura(raw: unknown, where: string, problems: ContentProblem[]): 
   }
 }
 
-const TIER_UPGRADE_FIELDS = new Set(['effects', 'aura', 'speedWeight', 'cooldownTurns', 'scope', 'text']);
+const TIER_UPGRADE_FIELDS = new Set(['effects', 'aura', 'speedWeight', 'cooldownTurns', 'scope']);
 
 function validateTierUpgrade(raw: unknown, where: string, problems: ContentProblem[]): void {
   if (!isObj(raw)) { problems.push({ where, message: 'tier upgrade must be an object' }); return; }
-  const changesEffects = Array.isArray(raw.effects);
-  if (changesEffects) (raw.effects as unknown[]).forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems, { list: 'tierUpgrade' }));
+  if (Array.isArray(raw.effects)) (raw.effects as unknown[]).forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems, { list: 'tierUpgrade' }));
   if (raw.aura !== undefined) validateAura(raw.aura, where, problems);
   opt(raw, 'speedWeight', inRange(0, 200), 'an integer 0..200', where, problems);
   opt(raw, 'cooldownTurns', inRange(0, 99), 'an integer 0..99', where, problems);
@@ -762,15 +762,10 @@ function validateTierUpgrade(raw: unknown, where: string, problems: ContentProbl
   // `resolveTargets` and `powerLevelDeci` exactly as if it had been authored at
   // card level. A field the validator ignores is how a silent zero ships.
   opt(raw, 'scope', (v) => v === 'one' || v === 'all', 'one or all', where, problems);
-  // A tier that changes what the card DOES must say so, or the card face lies at
-  // that tier. Changing SCOPE is the loudest such change there is — "hits every
-  // foe" is a different ability, not a bigger number — so it demands text on the
-  // same terms as an effects swap. (Magnitude/stat-token drift is a separate,
-  // deeper gate — see tests/engine/cardText.test.ts.)
-  const changesFace = changesEffects || raw.scope !== undefined;
-  if (changesFace && (typeof raw.text !== 'string' || raw.text.trim() === '')) {
-    problems.push({ where, message: 'a tier upgrade that changes effects or scope must carry non-empty text — otherwise the card face shows the wrong numbers at that tier' });
-  }
+  // THE "MUST CARRY TEXT" RULE IS GONE, and could not survive the migration:
+  // a tier block that changes effects or scope now re-renders its own face
+  // from those effects (`renderSkillText`, engine/keywords/compose.ts), so
+  // there is nothing left for an author to forget.
   if (Object.keys(raw).length === 0) {
     problems.push({ where, message: 'empty tier upgrade — remove it or give it something to override' });
   }
@@ -779,12 +774,72 @@ function validateTierUpgrade(raw: unknown, where: string, problems: ContentProbl
   }
 }
 
+/**
+ * EVERY WORD THAT NAMES A KEYWORD, derived from the registry rather than
+ * hand-listed — the union of each kind`s glossary title and its
+ * `displayToken`, reduced to words of 4+ letters (so "bonus", "of" and
+ * "the" do not ban ordinary prose). Used by the `flavor` check below: the
+ * one field still open to hand-authoring must not be able to name a
+ * mechanic, least of all one the card does not carry.
+ */
+const KEYWORD_NAME_WORDS: readonly string[] = (() => {
+  const words = new Set<string>();
+  for (const kind of Object.keys(KEYWORD_TEXT) as (keyof typeof KEYWORD_TEXT)[]) {
+    const row = KEYWORD_TEXT[kind];
+    for (const part of row.ruleTitle.split(/[^A-Za-z]+/)) {
+      if (part.length >= 4) words.add(part.toLowerCase());
+    }
+    if (typeof row.displayToken === 'string' && row.displayToken.length >= 4) {
+      words.add(row.displayToken.toLowerCase());
+    }
+  }
+  return [...words].sort();
+})();
+
 function validateDef(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
-  // RENDER-REQUIRED. A card with no name or no text cannot be shown by the card
-  // face, the wiki detail pane or the shop shelf — that is an incompleteness, not
-  // a style nit, so it is rejected rather than tolerated.
+  // RENDER-REQUIRED. A card with no name cannot be shown by the card face, the
+  // wiki detail pane or the shop shelf — that is an incompleteness, not a style
+  // nit, so it is rejected rather than tolerated.
   req(raw, 'name', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', where, problems);
-  req(raw, 'text', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string (the card must be able to SHOW what it does)', where, problems);
+  // NO `text` FIELD. The card's mechanical body is GENERATED from `effects`
+  // (`renderSkillText`, engine/keywords/compose.ts), so "the card must be able
+  // to SHOW what it does" is now true by construction rather than by an
+  // author remembering to type it — and the drift that authoring produced
+  // (six different wordings of poison's tick rule across 41 cards) is not
+  // expressible. `flavor` is the one authored string that survives, and it is
+  // validated MECHANICALLY INERT just below.
+  //
+  // FLAVOR: optional trailing colour. No digit, no `%`, no `{{...}}` token —
+  // so it can never assert a claim `effects` does not back, and can never go
+  // stale when a number moves at a higher tier. A generator has no access to
+  // a card's colour, which is the whole (and only) reason this field exists.
+  opt(raw, 'flavor', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', where, problems);
+  if (typeof raw.flavor === 'string') {
+    if (/\d/.test(raw.flavor)) {
+      problems.push({ where, message: 'flavor must contain no digit — a number on the face must come from effects, or it will silently go stale at a higher tier' });
+    }
+    if (raw.flavor.includes('%')) {
+      problems.push({ where, message: 'flavor must contain no "%" — a percentage is a mechanical claim and belongs in effects' });
+    }
+    if (/\{\{[^{}]+\}\}/.test(raw.flavor)) {
+      problems.push({ where, message: 'flavor must carry no {{keyword}} markup — a keyword token on the face is generated from effects, so an authored one would invite a tap the card cannot answer' });
+    }
+    // ...AND IT MAY NOT NAME A KEYWORD AT ALL, marked up or not. All four
+    // shipped flavour lines broke exactly this, and three named a keyword the
+    // card DOES NOT HAVE: `overgrowth` (heal + shield) said "A thorned bark
+    // ward", `gutting_cleave` (shieldBreak + bleed + damage) said "Opening the
+    // guard". A flavour line naming a mechanic the card lacks is worse than no
+    // flavour line — it is the drift this migration removed, re-authored by
+    // hand in the one field still open to hand-authoring.
+    //
+    // The word list is DERIVED FROM THE REGISTRY (`KEYWORD_NAME_WORDS`), so a
+    // 37th keyword is covered without editing this.
+    for (const word of KEYWORD_NAME_WORDS) {
+      if (new RegExp(`\\b${word}\\b`, 'i').test(raw.flavor)) {
+        problems.push({ where, message: 'flavor names the keyword "' + word + '" — flavour is colour, never a mechanic. A keyword on the face is generated from effects (and a card that does not carry it would be describing something it cannot do)' });
+      }
+    }
+  }
   req(raw, 'property', (v) => PROPERTIES.includes(v as string), PROPERTIES.join('|'), where, problems);
   req(raw, 'rarity', (v) => RARITIES.includes(v as string), RARITIES.join('|'), where, problems);
   req(raw, 'tier', (v) => TIERS.includes(v as string), TIERS.join('|'), where, problems);

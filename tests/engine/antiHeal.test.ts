@@ -44,7 +44,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'heal', power: 100 }],
-    text: '',
   },
   // TRUE heal — flat and IRREDUCIBLE by identity.
   mendTrue100: {
@@ -57,7 +56,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'heal', power: 100 }],
-    text: '',
   },
   // Tiny magical heals for the rounding boundaries.
   mend1: { ...heal('mend1', 1) },
@@ -78,7 +76,6 @@ const BOOK: SkillBook = {
       { kind: 'damage', power: 100 },
       { kind: 'lifesteal', pct: 50 },
     ],
-    text: '',
   },
   // Shield GAIN — not healing, must be untouched by the rule.
   plate100: {
@@ -91,7 +88,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 100 }],
-    text: '',
   },
   // 3 charges: enough to strip one 1-stack DoT + one debuff + one expose.
   purge3: {
@@ -104,7 +100,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'cleanse', charges: 3 }],
-    text: '',
   },
   // For the end-to-end fight: the foe poisons, the hero heals itself.
   poison_apply: {
@@ -117,7 +112,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'poison', stacks: 4 }],
-    text: '',
   },
 };
 
@@ -132,7 +126,6 @@ function heal(id: string, power: number): SkillDef {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'heal', power }],
-    text: '',
   };
 }
 

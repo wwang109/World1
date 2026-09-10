@@ -1,5 +1,11 @@
 import { enemies } from '../data/enemies';
+import { skillBook } from '../data/skills';
+import { cardOfferableAtTier } from '../engine/types';
 import { defaultTitleFor, ELITE_AFFIX_IDS, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
+import { DRAFT_SET_KEYS } from '../run/draft';
+import { resolveEventChoice, rollEventForNode } from '../run/events';
+import { applyDraftResult, createRun, currentStartDraft, type RunBagSlot, type RunNode, type RunState } from '../run/runState';
+import { recordEventInstance } from '../run/eventInstances';
 import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
@@ -7,6 +13,27 @@ export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mba
   | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
   | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
   | 'desktop-runevent' | 'mrunevent';
+
+export const DEV_EVENT_FIXTURE_IDS = [
+  'bell_beneath_ice',
+  'the_second_toll',
+  'the_bell_unbound',
+  'feathered_cairn',
+  'far_sight_queued',
+  'far_sight_due',
+  'far_sight_reloaded',
+  'far_sight_follow_mark',
+  'far_sight_take_cache',
+  'far_sight_ignore_mark',
+  'map_intel_2',
+  'map_intel_3',
+  // The catalog's two mergeCards doors (schema-1) — see `withMergeableBronzeTrio`
+  // below for why reaching either of these ALSO arms the board, or the rung
+  // renders LOCKED and the merge confirm this fixture exists to reach is never seen.
+  'ember_pit',
+  'ruined_anvil',
+] as const;
+export type DevEventFixtureId = (typeof DEV_EVENT_FIXTURE_IDS)[number];
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
@@ -28,6 +55,9 @@ export interface DevLaunchConfig {
   affix: string | null;
   /** `?gold=N` dev override for the starting wallet, clamped 0..MAX_GOLD. */
   gold: number;
+  /** Development-only `?eventFixture=<Bell id>` selector for reproducible
+   * run-event screenshot routes. Production builds always resolve this null. */
+  eventFixtureId: DevEventFixtureId | null;
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -118,6 +148,20 @@ function parseGold(value: string | null): number {
   return Number.isFinite(numeric) && value !== null ? Math.max(0, Math.min(MAX_GOLD, Math.floor(numeric))) : demoState.gold;
 }
 
+function parseDevEventFixture(value: string | null): DevEventFixtureId | null {
+  return DEV_EVENT_FIXTURE_IDS.find((id) => id === value) ?? null;
+}
+
+/**
+ * Capture-only WebGL stability switch. Keeping the environment flag as an
+ * explicit argument makes the production/default decision independently
+ * testable and prevents a query string alone from changing renderer cost in
+ * a shipped build.
+ */
+export function shouldPreserveDrawingBufferForLayoutAudit(isDev: boolean, search: string): boolean {
+  return isDev && readSearchParam(search).get('layoutAudit') === '1';
+}
+
 function parseTitle(value: string | null, fallback: EnemyTitle): EnemyTitle {
   return value && (ENEMY_TITLES as string[]).includes(value.toLowerCase()) ? (value.toLowerCase() as EnemyTitle) : fallback;
 }
@@ -204,7 +248,153 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     enemyModifiers,
     affix,
     gold: parseGold(params.get('gold')),
+    eventFixtureId: import.meta.env.DEV ? parseDevEventFixture(params.get('eventFixture')) : null,
   };
+}
+
+function draftedDevRun(seed: number): RunState {
+  const drafted = createRun(seed);
+  const hand = currentStartDraft(drafted);
+  const picks = Object.fromEntries(DRAFT_SET_KEYS.map((key) => [key, hand[key][0]!.skillId]));
+  return applyDraftResult(drafted, picks);
+}
+
+/** The smallest deterministic change that arms a `mergeCards` rung ENABLED
+ * rather than LOCKED ("need 3 cards of one grade") — three owned BRONZE
+ * copies of the same size-1 skill, in the bag's own first three slots (the
+ * board is cleared so nothing else can also match and complicate which trio
+ * gets read). No `Rng` involved: the skill id is a static catalog lookup.
+ * `bagSlots` is PADDED to at least 3 entries rather than assumed to already
+ * hold that many — a freshly drafted run's bag is sized to what the draft
+ * actually placed there (as few as 0 slots, the rest of the picks landing on
+ * the board), so mapping the existing array in place silently did nothing
+ * when it was shorter than 3. Every `?eventFixture=` route reaching
+ * `ember_pit` or `ruined_anvil` — the catalog's two mergeCards doors —
+ * applies this so the merge confirm those fixtures exist to reach is never
+ * hidden behind a locked row. */
+function withMergeableBronzeTrio(state: RunState): RunState {
+  const trioSkillId = Object.values(skillBook).find((skill) => skill.size === 1 && cardOfferableAtTier(skill, 'bronze'))?.id;
+  if (trioSkillId === undefined) throw new Error('withMergeableBronzeTrio: no bronze-offerable size-1 skill in the catalog');
+  const bagSlots: RunBagSlot[] = [...state.bagSlots];
+  while (bagSlots.length < 3) bagSlots.push(null);
+  for (let index = 0; index < 3; index += 1) {
+    bagSlots[index] = { instanceId: `dev-merge-trio-${index}`, skillId: trioSkillId, tier: 'bronze' };
+  }
+  return { ...state, pieces: [], bagSlots };
+}
+
+/** Park a fixture on a node already present in its map. Keeping the scalar
+ * depth aligned with `currentNodeId` matters to every source-relative run
+ * reader (callbacks, forecasts, and normal map progression), not only the
+ * event resolver. */
+function parkDevRunOnEventNode(state: RunState, node: RunNode): RunState {
+  return { ...state, depth: node.depth, currentNodeId: node.id };
+}
+
+/** Development-only copy of Task 4's concrete map-node installer. It replaces
+ * no production map data: fixture state is strictly in-memory and its map
+ * depths are cloned before the literal delivery node is installed. */
+function installDevEventNode(state: RunState, node: RunNode): RunState {
+  const depths = state.map.depths.map((column) => [...column]);
+  while (depths.length <= node.depth) depths.push([]);
+  depths[node.depth] = [node];
+  return parkDevRunOnEventNode({ ...state, map: { ...state.map, depths } }, node);
+}
+
+function firstDevEventNode(state: RunState, seed: number): RunNode {
+  const eventNode = state.map.depths.flat().find((node) => node.kind === 'event');
+  if (!eventNode) throw new Error(`buildDevEventFixture: seed ${seed} has no event node`);
+  return eventNode;
+}
+
+function featheredCairnSource(state: RunState, seed: number): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
+    eventId: 'feathered_cairn',
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
+}
+
+function farSightQueued(state: RunState, seed: number): RunState {
+  return resolveEventChoice(featheredCairnSource(state, seed), 'feathered_cairn', 'read_feathers').state;
+}
+
+function farSightDue(state: RunState, seed: number): RunState {
+  const queued = farSightQueued(state, seed);
+  const source = firstDevEventNode(state, seed);
+  const dueNode: RunNode = {
+    id: 'dev-far-sight-due',
+    depth: source.depth + 2,
+    wave: source.wave + 2,
+    kind: 'event',
+    eventSeed: 0,
+    eventTheme: 'omen',
+    biomeId: 'arrowfell',
+  };
+  const installed = installDevEventNode(queued, dueNode);
+  const delivered = rollEventForNode(installed, dueNode);
+  if (delivered.event.id !== 'feathered_cairn_far_sight') {
+    throw new Error(`buildDevEventFixture: expected Far Sight, got ${delivered.event.id}`);
+  }
+  return delivered.state;
+}
+
+/** Build the complete in-memory run needed to open one audited event state.
+ * This is dev-launch data, never scene logic: fixture recipes call the same
+ * create/draft/record/resolve/roll seams as a player run and never persist. */
+export function buildDevEventFixture(eventId: DevEventFixtureId, seed = 1103): RunState {
+  const active = draftedDevRun(seed);
+
+  if (eventId === 'feathered_cairn') return featheredCairnSource(active, seed);
+  if (eventId === 'far_sight_queued' || eventId === 'map_intel_2') return farSightQueued(active, seed);
+
+  if (eventId === 'far_sight_due') return farSightDue(active, seed);
+  if (eventId === 'far_sight_reloaded') return JSON.parse(JSON.stringify(farSightDue(active, seed))) as RunState;
+  if (eventId === 'far_sight_follow_mark' || eventId === 'map_intel_3') {
+    return resolveEventChoice(farSightDue(active, seed), 'feathered_cairn_far_sight', 'follow_mark').state;
+  }
+  if (eventId === 'far_sight_take_cache') {
+    return resolveEventChoice(farSightDue(active, seed), 'feathered_cairn_far_sight', 'take_cache').state;
+  }
+  if (eventId === 'far_sight_ignore_mark') {
+    return resolveEventChoice(farSightDue(active, seed), 'feathered_cairn_far_sight', 'ignore_mark').state;
+  }
+
+  // ember_pit / ruined_anvil each offer a mergeCards rung — arm the board
+  // with a mergeable bronze trio before parking on the node, or the rung
+  // renders LOCKED ("need 3 cards of one grade") and the merge confirm this
+  // fixture exists to reach is never seen (see `withMergeableBronzeTrio`'s
+  // own doc comment for why this is deterministic and Rng-free).
+  const withBoard = eventId === 'ember_pit' || eventId === 'ruined_anvil'
+    ? withMergeableBronzeTrio(active)
+    : active;
+  const eventNode = firstDevEventNode(withBoard, seed);
+
+  // Only the bell chain's own two CALLBACK ids need a synthetic past-deed
+  // resolution installed ahead of time (their content reads
+  // `eventResolutions.stage1`/`stage2` to word the recap line and gate a
+  // choice) — every other id reaching this fallback (`bell_beneath_ice`
+  // itself, `ember_pit`, `ruined_anvil`) starts with none.
+  const eventResolutions = eventId === 'the_second_toll' || eventId === 'the_bell_unbound'
+    ? {
+        stage1: { eventId: 'bell_beneath_ice', contentVersion: 1, instanceId: 'event:stage1', choiceId: 'prise_it_free' },
+        ...(eventId === 'the_bell_unbound'
+          ? { stage2: { eventId: 'the_second_toll', contentVersion: 1, instanceId: 'event:stage2', choiceId: 'answer_the_bell' } }
+          : {}),
+      }
+    : {};
+
+  return recordEventInstance({
+    ...parkDevRunOnEventNode(withBoard, eventNode),
+    eventResolutions,
+  }, eventNode.id, {
+    eventId,
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
 }
 
 export function applyDevLaunchConfig(search = window.location.search): DevLaunchConfig {

@@ -138,7 +138,8 @@ export interface GemAppended {
  * never lands.
  *
  * PRICING: the effect behind the gate prices on its OWN family's terms, and the
- * gate applies a REFUND on top (`PRICE.affinityPayoffNum/Den`, 4/5) — because
+ * gate applies a HALF-PRICE REFUND on top
+ * (`PRICE.affinityPayoffNum/Den`, 1/2) — because
  * meeting it costs board freedom. See that constant for the derivation.
  *
  * A CARD MUST HAVE A TYPE to gate anything (`validateSkillContent`): a typeless
@@ -1132,8 +1133,6 @@ export interface TierUpgrade {
    * higher tier. The validator makes that unrepresentable instead of latent.
    */
   scope?: 'one' | 'all';
-  /** Overrides the card text at this tier. */
-  text?: string;
 }
 
 /** Authored per-tier overrides, keyed by the (non-bronze) target tier. */
@@ -1187,7 +1186,24 @@ export interface SkillDef {
    * designer wants to hand-shape.
    */
   tierUpgrades?: TierUpgrades;
-  text: string;
+  /**
+   * OPTIONAL TRAILING COLOUR — the one part of a card's face a generator has
+   * no access to, appended after every generated clause.
+   *
+   * There is no `text` field any more. A card's whole mechanical body is
+   * GENERATED from `effects` by `renderSkillText`
+   * (`src/engine/keywords/compose.ts`), reading the keyword registry's
+   * `faceClause` facet — this card's own parameters as keyword tokens — while
+   * every mechanism sentence lives exactly once, in that keyword's
+   * `ruleSentence`, reached by tap/hover. That removal is what the field's
+   * absence encodes: 450 authored strings restating "ticks at end of turn" in
+   * six different wordings could not be kept honest, and did not stay honest.
+   *
+   * MECHANICALLY INERT BY VALIDATION (`validateSkillContent`): no digit, no
+   * `%`, no `{{...}}` token — so a flavour line can never assert a claim
+   * `effects` does not back, and can never go stale when a number moves.
+   */
+  flavor?: string;
 }
 
 export type SkillBook = Record<string, SkillDef>;
@@ -1501,9 +1517,21 @@ export interface CombatantSetup {
    * policy applies. Ignored by AoE (`scope: 'all'`) cards.
    */
   focus?: number;
-  /** Takes +50% from the element that beats this, −25% from the one it beats. */
+  /**
+   * @deprecated IGNORED BY THE ENGINE since 2026-09-06. Affinity is a passive
+   * buff derived from the BOARD and from nothing else (user ruling: "affinity
+   * are just passive buffs based on the board … there should be no hardcoded
+   * enemy that break the rule"). `initCombatant` (combat/state.ts) fills both
+   * axes from `boardAffinities` (combat/typeIdentity.ts) and never reads these.
+   *
+   * Kept only so the not-yet-migrated copy sites — `scaleMonsterToLevel`
+   * (src/run/leveling.ts), `scripts/fight.ts`, `scripts/balance.ts` — still
+   * compile while the authored values are stripped from enemy content. Setting
+   * one does nothing; to give a unit an affinity, put 3+ cards of that type on
+   * its board.
+   */
   elementAffinity?: Element;
-  /** Same rule against the weapon triangle. */
+  /** @deprecated IGNORED BY THE ENGINE — see `elementAffinity` above. */
   weaponAffinity?: WeaponType;
 }
 
@@ -1559,6 +1587,23 @@ export interface CombatConfig {
  */
 export type CombatOutcome = 'win' | 'loss';
 
+export type GrowthFamily =
+  | { readonly kind: 'element'; readonly type: Element }
+  | { readonly kind: 'weapon'; readonly type: WeaponType };
+
+export interface EnemyGrowthCandidate {
+  readonly skillId: string;
+  /** Explicit permission to add a card already on the resolved board. */
+  readonly allowDuplicate?: true;
+}
+
+export interface EnemyGrowthMilestone {
+  readonly family: GrowthFamily;
+  readonly purpose: 'complete-affinity' | 'reinforce-family';
+  /** Authored preference order; resolve the first valid fitting candidate. */
+  readonly candidates: readonly EnemyGrowthCandidate[];
+}
+
 export interface EnemyDef {
   id: string;
   name: string;
@@ -1571,6 +1616,15 @@ export interface EnemyDef {
   pieces: BoardPiece[];
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
+  /**
+   * Fixed family-matched additions, normally one or two milestones. Every two
+   * levels earn one step: milestones first, then leftmost round-robin rank.
+   * The run resolver must select a valid candidate or throw; an unfit earned
+   * milestone never disappears or becomes rank. Empty/omitted growth is
+   * tier-only (roster exceptions are owned by the content-validation tests).
+   * See docs/superpowers/specs/2026-09-08-enemy-growth-content-threat-design.md.
+   */
+  growth?: readonly EnemyGrowthMilestone[];
   goldReward: number;
   xpReward: number;
 }

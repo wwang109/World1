@@ -285,11 +285,12 @@ always exactly 1 — packs are enemy-side only).
 fight — **derived instead from the game's own pack-frequency constants**
 (`src/run/encounter.ts`, `src/run/runState.ts`): every 5-fight cadence block
 is 2 normal + 2 elite + 1 boss, boss nodes never roll a pack, and
-`PACK_VARIANT_WEIGHTS` rolls the remaining 4-in-5 at solo/pair/trio 70/20/10.
-The steady-state expected foe count: `1/5*1 + 4/5*(0.7*1+0.2*2+0.1*3) = 1.32`.
+`PACK_VARIANT_WEIGHTS` rolls the remaining 4-in-5 at solo/pair/trio 64/32/4.
+The steady-state expected foe count: `1/5*1 + 4/5*(0.64*1+0.32*2+0.04*3) = 1.32`.
 This is a ceiling on the honest number, not the number itself — pack rolls
-fall back to solo below a level threshold (measured: pair unaffordable below
-level 9 elite / 17 normal, trio below 31 elite / 39 normal), so real play
+fall back to solo below a level threshold — and `firstAffordable` in
+`tests/run/packFights.test.ts` owns the verified live floors: normal pair 6,
+normal trio 18, elite pair 2, and elite trio 10. Real play therefore
 skews more solo than 1.32 implies; quantifying exactly how much more would
 require assuming a typical run length, which is the winrate-shaped tuning
 input this project's "PL, not winrate" rule (CLAUDE.md) forbids. Full

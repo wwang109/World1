@@ -1,5 +1,7 @@
 import { OFFENSIVE_KINDS } from '../../engine/balance';
-import { tierResolved, type BuffableStat, type SkillDef } from '../../engine/types';
+import { renderCtxOf } from '../../engine/keywords/compose';
+import { CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf } from '../../engine/keywords/text';
+import { tierResolved, weightOf, type BuffableStat, type SkillDef } from '../../engine/types';
 import { STAT_TOKEN } from './statLabels';
 
 interface AuraModifierShape {
@@ -29,13 +31,29 @@ export function isAoeSkill(skill: SkillDef): boolean {
   return skill.scope === 'all' && skill.effects.some((action) => OFFENSIVE_KINDS.has(action.kind));
 }
 
+/**
+ * An aura's three mods, in words — READ FROM THE REGISTRY (2026-09-06).
+ *
+ * The three long words (`damage` / `healing` / `weight`) and the three compact
+ * ones (`DMG` / `HEAL` / `WT`) used to be typed here, and a Core gem's
+ * `StatGemMods.card` bundle carries THE SAME THREE MODS (it is AuraMods-shaped
+ * by design, see `engine/types.ts#StatGemMods`). Rather than let a gem invent a
+ * second wording for `damageFlat`, both now read `CARD_MOD_TEXT`
+ * (`engine/keywords/text.ts`) — one reference for the whole game, the same rule
+ * every keyword already follows. Output is byte-identical: `faceClause` is the
+ * same `signed(v) + ' ' + word` this function always produced.
+ */
 export function formatAuraModifiers(mods: AuraModifierShape, compact = false): string {
   // FLAT damage/heal (no %).
-  return [
-    mods.damageFlat === undefined ? '' : `${signed(mods.damageFlat)} ${compact ? 'DMG' : 'damage'}`,
-    mods.healFlat === undefined ? '' : `${signed(mods.healFlat)} ${compact ? 'HEAL' : 'healing'}`,
-    mods.weightDelta === undefined ? '' : `${signed(mods.weightDelta)} ${compact ? 'WT' : 'weight'}`,
-  ].filter(Boolean).join(' · ');
+  return CARD_MOD_KEYS
+    .map((key) => {
+      const value = mods[key];
+      if (value === undefined) return '';
+      return compact
+        ? `${signed(value)} ${CARD_MOD_TEXT[key].compactToken}`
+        : CARD_MOD_TEXT[key].faceClause(value);
+    })
+    .filter(Boolean).join(' · ');
 }
 
 /** Human-readable "which cards this aura reaches" — direction + range + filter. */
@@ -98,16 +116,27 @@ function statContribution(property: SkillDef['property'], stats: ScalingStats, r
   }
 }
 
+/**
+ * One face number plus whether ITS OWN printed value folded in a live-stat
+ * contribution — the `calculated` half of `EffectSegment` (see that
+ * interface's doc comment for the exact rule this flag follows and why it
+ * covers only the live-stat term, not tier/gem folding too).
+ */
+interface ScaledText {
+  text: string;
+  calculated: boolean;
+}
+
 /** `DMG 37` — the summed EFFECTIVE number (base + live stat) when stats are known and contribute; else the bare base number. */
 function scaledLabel(
   label: string, base: number, property: SkillDef['property'],
   stats: ScalingStats | undefined, statScales: boolean, role: ScalingRole,
-): string {
+): ScaledText {
   if (stats && statScales) {
     const contribution = statContribution(property, stats, role);
-    if (contribution) return `${label} ${base + contribution}`;
+    if (contribution) return { text: `${label} ${base + contribution}`, calculated: true };
   }
-  return `${label} ${base}`;
+  return { text: `${label} ${base}`, calculated: false };
 }
 
 /**
@@ -135,13 +164,25 @@ function scalingStatKey(property: 'physical' | 'magical', role: ScalingRole): Bu
  * not a live total). TRUE effects ignore `mode` entirely — the flat/summed
  * number from `scaledLabel` (unchanged behavior) plus a `(T)` marker so a
  * flat TRUE number is never mistaken for a scaling one.
+ *
+ * `calculated` (2026-09-06) rides along on the same return so callers can tag
+ * the `EffectSegment` without recomputing anything — see that field's doc
+ * comment. `'composition'` mode is ALWAYS `calculated: false`: it prints the
+ * authored base and the scaling STAT NAME as two visibly separate pieces
+ * (`DMG 20 +ATK`), which already shows the flat-vs-scaling split without a
+ * colour — there is no folded-together number on this line to mark.
  */
 function effectLine(
   label: string, base: number, property: SkillDef['property'],
   stats: ScalingStats | undefined, statScales: boolean, mode: SkillFaceMode, role: ScalingRole,
-): string {
-  if (property === 'true') return `${scaledLabel(label, base, property, stats, statScales, role)} (T)`;
-  if (mode === 'composition' && statScales) return `${label} ${base} +${STAT_TOKEN[scalingStatKey(property, role)]}`;
+): ScaledText {
+  if (property === 'true') {
+    const scaled = scaledLabel(label, base, property, stats, statScales, role);
+    return { text: `${scaled.text} (T)`, calculated: scaled.calculated };
+  }
+  if (mode === 'composition' && statScales) {
+    return { text: `${label} ${base} +${STAT_TOKEN[scalingStatKey(property, role)]}`, calculated: false };
+  }
   return scaledLabel(label, base, property, stats, statScales, role);
 }
 
@@ -170,33 +211,105 @@ function effectLine(
 export interface EffectSegment {
   text: string;
   keyword?: string;
+  /**
+   * Render this segment as a differently colored continuation of the previous
+   * segment, separated by one space instead of the normal middle dot. This is
+   * used by affinity badges so `FIRE:` and its independently dimmable payload
+   * remain one grammatical `FIRE: PAYLOAD` clause.
+   */
+  joinWithPrevious?: boolean;
+  /**
+   * CALCULATED-NUMBER FLAG (2026-09-06, `theme.ts`'s `UI.textCalculated`).
+   * True when this segment's own printed number is the card's flat resolved
+   * base PLUS the caster's live scaling stat, folded in by `scaledLabel` right
+   * here — i.e. the SAME card (same tier, same gems, same fight) prints a
+   * DIFFERENT number for a different caster's Attack/Magic Power/Armor/Magic
+   * Resist. Renderers (`CardToken.ts`'s `effectFaceSegments`) tint a
+   * `calculated` segment in `UI.textCalculated` instead of its usual colour so
+   * a player can tell "this is MY number" from "this is what's printed on the
+   * card" at a glance.
+   *
+   * DELIBERATELY NARROWER than "differs from the true authored-bronze value
+   * for ANY reason" — tier scaling and gem folding are the other two ways a
+   * printed number can move (see the feature request this flag was added
+   * for), and both are ALREADY folded into `raw`/`base` before this module
+   * ever sees them (`applyTier` / `resolveEffectiveSkill` /
+   * `resolveDisplaySkill`, `engine/cards.ts`). By the time
+   * `summarizeEffectSegments` runs, the pre-scale/pre-gem value is gone — this
+   * module has no authored number left to diff against, and guessing "was
+   * this number changed" by comparing it to something is exactly the
+   * renderer-side re-derivation this codebase keeps getting bitten by (see
+   * `cardTextMarkup.ts`'s own doc block on the same failure mode). The
+   * live-stat term is also the one of the three that is NOT fixed once a card
+   * is owned: tier and gems bake in once, at purchase/socket time, and stay
+   * constant for that card copy; the live-stat term moves every time the
+   * caster's OWN stat does (buffs, debuffs, curses, gear later) — the number a
+   * player must actually re-read on every card, every turn.
+   *
+   * Only ever set by `scaledLabel` (via `effectLine`) — the one function in
+   * this module that folds a stat into a printed number at all (DMG / HEAL /
+   * SHLD / ATTUNED SHLD). Every other token (PSN, BRN, AOE, STUN, the stat
+   * buff/debuff riders, …) prints an authored/tier-resolved field verbatim and
+   * is never flagged, `'composition'` mode is never flagged either (see
+   * `effectLine`'s doc comment) — both stay at their existing colour
+   * (keyword colour if they have one, the line's neutral fallback otherwise),
+   * unchanged from before this flag existed.
+   */
+  calculated?: boolean;
+  /**
+   * AFFINITY-GATE CLOSED FLAG. Set ONLY on the PAYLOAD half of an
+   * `affinity: true` badge (see the `action.affinity === true` block below,
+   * which splits the badge into a `TYPE:` label segment and a payload segment
+   * so a renderer can dim the second without touching the first — the exact
+   * split the user asked for: "the FIRE: part as normal color but the next
+   * fire +16 should show as greyed out"). `true` only when the caller's
+   * `affinityOpen` argument is EXACTLY `false` (the gate is shut on THIS
+   * caster right now); `undefined`/`true` both leave it unset, so a segment
+   * renders in its ordinary keyword colour whenever the gate is open OR the
+   * caller has no caster to check at all (deck build / shop / wiki — see
+   * `summarizeEffectSegments`'s `affinityOpen` parameter doc). The label
+   * segment never carries this flag: the gate's NAME is not what closed, only
+   * its payoff. Renderers (`CardToken.ts`'s `effectFaceSegments`) tint a
+   * `gateClosed` segment in `UI.textDisabled` — the same tone `comboLive`
+   * already uses for "not live right now" — ahead of every other colour rule.
+   */
+  gateClosed?: boolean;
 }
 
-/**
- * Compact face names for the statuses a CONDITIONAL RIDER (`exploit` /
- * `stackBonus`) can key off. Deliberately the SAME abbreviations those statuses
- * already use as their own face tokens above (PSN / BRN / BLD / THORN), so a
- * player reads one word for one status wherever it appears; `stun` / `debuff` /
- * `expose` are spelled the way their own tokens spell them too.
- */
-const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
-  poison: 'PSN',
-  burn: 'BRN',
-  bleed: 'BLD',
-  stun: 'STUN',
-  debuff: 'DEBUFF',
-  expose: 'EXPOSE',
-  thorns: 'THORN',
-};
+/** Visible joiner before a rich effect segment. */
+export function effectSegmentJoiner(segment: Pick<EffectSegment, 'joinWithPrevious'>, index: number): string {
+  if (index === 0) return '';
+  return segment.joinWithPrevious ? ' ' : ' · ';
+}
+
+// The compact status abbreviations a conditional rider borrows (PSN / BRN /
+// BLD / THORN / STUN / DEBUFF / EXPOSE) moved into the keyword registry
+// (`src/engine/keywords/text.ts`) with the badges that use them, so one status
+// reads as one word in the badge, the card body and the scaffolder alike.
 
 /**
  * The structured form behind `summarizeEffects()` — same tokens, same order,
  * each one tagged with its keyword id (see `EffectSegment`) instead of being
- * pre-joined into one flat string. `summarizeEffects()` below is now a thin
- * `.map(text).join(' · ')` over this; CardToken's segmented line renderer
- * uses THIS form directly so it can color each token independently.
+ * pre-joined into one flat string. `summarizeEffects()` below joins these
+ * with the shared `effectSegmentJoiner`; CardToken uses the same joiner while
+ * retaining separate text nodes so each token can keep its own color.
+ *
+ * `affinityOpen` (2026-09-06) is the CASTER'S resolved affinity-gate state for
+ * THIS card's own type — a battle-context fact this module cannot know on its
+ * own (whether a gate is open depends on the CASTER's board identity, not the
+ * card), so it is a PLAIN BOOLEAN PASSED IN, never re-derived here from
+ * `skill.element`/`skill.weapon` plus some ambient combatant. The caller (a
+ * battle scene, via `CardToken`/`BoardColumn` — see `battleTimeline.ts`'s
+ * `cardAffinityOpen`) computes it once against the real fight; this function
+ * only decides how to PRINT a state it is told. Tri-state, matching
+ * `EffectSegment.gateClosed`'s doc comment: `false` dims the gated payload
+ * (the gate is shut on this caster right now); `true` or `undefined` (the
+ * default — deck build / shop / wiki, anywhere there is no caster to check a
+ * gate against) both print normally, because "unknown" is not "closed".
  */
-export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): EffectSegment[] {
+export function summarizeEffectSegments(
+  raw: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed', affinityOpen?: boolean,
+): EffectSegment[] {
   /**
    * TIER LOCKS RESOLVED HERE TOO, idempotently (`tierResolved`,
    * engine/types.ts): a line locked above `skill.tier` does not exist on this
@@ -214,20 +327,24 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
   // because an all-board +5 and an adjacent +15 price the same and the face
   // must not present them as the same kind of card — that PL argument is
   // still true, but the user judged it a bad trade for a face token nobody
-  // could decode on sight. Reach now lives in exactly two places: the full
-  // card text every aura card carries ("Passive: adjacent Offense cards deal
-  // +15 damage." / "Passive: ALL board cards deal +6 damage.", see
-  // skills.v1.json), and the wiki detail pane that renders that text verbatim
-  // (`shown.text` in DesktopWikiScene.ts / MobileWikiScene.ts). No keyword
-  // color: `aura` names a card MECHANIC (how the mod is delivered), not a
-  // status/keyword like poison or guard with its own color elsewhere to
-  // match (no card's flavor text ever wraps `{{aura}}` — the six aura cards'
-  // text above has no markup at all) — same reasoning that leaves AOE/DMG/
-  // HEAL/buffStat/debuffStat neutral, so this token stays neutral too.
-  if (skill.aura) {
-    return [{ text: `AURA ${formatAuraModifiers(skill.aura.mods, true)}` }];
-  }
-
+  // could decode on sight.
+  //
+  // WHERE REACH LIVES NOW (rewritten 2026-09-06 — this comment described the
+  // pre-migration world and was invalidated by it): `auraClause` in
+  // `src/engine/keywords/compose.ts` generates the reach sentence from
+  // `AuraDef` itself ("Passive: adjacent Offense cards get +15 damage" /
+  // "Passive: ALL cards get +6 damage" — the mod words come from
+  // `CARD_MOD_TEXT`, the same table this file's own `formatAuraModifiers` and
+  // every gem chip read, since 2026-09-07), and it reaches a player through
+  // the card BODY that
+  // clause is part of — i.e. `renderSkillText`, drawn on the face by
+  // `FantasyCardTemplateV2` and in full by `renderCardInfoBox` on every detail
+  // surface (both Wiki panes, both Shop panes, DeckBuild, Draft). There is no
+  // authored `text` field any more, and no card carries a `flavor`.
+  //
+  const auraSegment: EffectSegment | undefined = skill.aura
+    ? { text: `AURA ${formatAuraModifiers(skill.aura.mods, true)}` }
+    : undefined;
   const segments: EffectSegment[] = [];
   // AoE is load-bearing the way aura reach used to be (see the aura branch
   // above, before the 2026-08-20 ruling dropped that one from the face): a
@@ -240,6 +357,9 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
   let heal = 0;
   let shield = 0;
   const extras: EffectSegment[] = [];
+  // The registry needs the card around the action (its type, property,
+  // reach) to render a badge — built once, never per action.
+  const ctx = renderCtxOf(skill);
   for (const action of skill.effects) {
     // AFFINITY, handled ONCE for every keyword. The action is rendered by its own
     // case below exactly as an ungated one would be, then — if it is gated — that
@@ -255,194 +375,45 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
     const beforeDamage = damage;
     const beforeHeal = heal;
     const beforeShield = shield;
+    // THE COMPACT BADGE, LOOKED UP RATHER THAN SWITCHED ON.
+    //
+    // This was a 36-arm `switch (action.kind)` with no `assertNever` — the
+    // shape that let `attunedShield` print NOTHING on any face for nine days
+    // (2026-08-30) and that left `taunt`'s badge un-tinted despite
+    // `KEYWORD_TEXT_COLOR.taunt` existing. Every badge now comes from the
+    // keyword registry's `faceToken` facet
+    // (`src/engine/keywords/text.ts`), whose mapped type makes a missing kind
+    // a `tsc` error, and which the generated card BODY reads too — so badge
+    // and body cannot drift into two vocabularies.
+    //
+    // THREE KINDS STAY LOCAL, and only because they need something the pure
+    // layer must not have: `damage`/`heal`/`shield` ACCUMULATE into the
+    // face's big number and then fold in the caster's LIVE stat via
+    // `effectLine` (`stats`/`mode` — battle-context, not card data). Their
+    // registry rows exist and are used by the card body; this function's
+    // headline is the one place that needs the live fold.
     switch (action.kind) {
       case 'damage': damage += action.power; break;
       case 'heal': heal += action.power; break;
       case 'shield': shield += action.power; break;
-      case 'poison': extras.push({ text: `PSN ${action.stacks}`, keyword: 'poison' }); break;
-      case 'burn': extras.push({ text: `BRN ${action.stacks}`, keyword: 'burn' }); break;
-      case 'bleed': extras.push({ text: `BLD ${action.stacks}`, keyword: 'bleed' }); break;
-      // User ruling (2026-08-19): a stun denies the victim's next ACTION
-      // whenever it happens — a pending stun survives untouched while
-      // something else keeps the victim from acting (still building
-      // readiness, on cooldown), it does not tick down on a real-time clock.
-      // "STUN 1" used to read like a 1-TURN duration (the number was the lie);
-      // this face token drops the number entirely rather than reintroduce it
-      // in a different shape.
-      // User ruling (2026-08-20): drop the "NEXT ACTION" qualifier too — bare
-      // "STUN" is enough on the card face. `action.turns` still exists on the
-      // action (content is capped at 1 by `MAX_STUN_PER_CARD`, so it is never
-      // anything but a single performance in practice) and has no honest
-      // one-line face phrasing at this width anyway; the full rule text lives
-      // in the tap-to-expand glossary (`cardGlossary.ts`).
-      case 'stun': extras.push({ text: 'STUN', keyword: 'stun' }); break;
-      case 'thorns': extras.push({ text: `THORN ${action.stacks}`, keyword: 'thorns' }); break;
-      case 'buffStat': extras.push({ text: `+${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
-      case 'debuffStat': extras.push({ text: `-${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
-      case 'expose': extras.push({ text: `EXPOSE ${action.pct}%`, keyword: 'expose' }); break;
-      // ATTUNED SHIELD — plating tuned to this card's OWN type (`cardType`, never
-      // authored separately, see engine/types.ts), which the wall then spends at
-      // TWO damage per point against that type and one-for-one against
-      // everything else. This case was entirely missing until 2026-08-30, so the
-      // keyword printed NOTHING on any card face on either platform: `oathplate`
-      // (its only affinity-gated user) rendered the gate's own label with an
-      // empty payload after it — the literal string `SHLD 14 · SWORD: ` — and
-      // `bulwark_of_the_line`/`riposte_guard`/`emberguard` simply dropped the
-      // bigger half of their kit off the face.
-      //
-      // NOT folded into the `shield` accumulator above: a card can carry BOTH
-      // (oathplate is 14 plain + 8 attuned) and they are different currencies,
-      // so summing them would print a wall the card never builds. Same
-      // `effectLine` treatment as the plain shield line, because the interpreter
-      // gives it the same `scaleDefStat` add (interpreter.ts's `attunedShield`
-      // case) — so composition mode shows `+DEF` and summed mode adds the live
-      // stat, exactly as `SHLD` does. Then the two facts that make it a
-      // different card from a plain shield: the RATE and the TYPE it is tuned
-      // to. Takes the `attuned` keyword colour the flavour text's own
-      // `{{Attuned}}` markup already uses, so the face token and the card text
-      // highlight the same word in the same colour.
+      // ATTUNED SHIELD gets the same `effectLine` treatment as the plain
+      // shield line (the interpreter gives it the same `scaleDefStat` add),
+      // so composition mode shows `+DEF` and summed mode adds the live stat —
+      // then the two facts that make it a different card from a plain shield:
+      // the RATE and the TYPE it is tuned to.
       case 'attunedShield': {
         const attunedType = skill.element ?? skill.weapon;
         const attunedLine = effectLine('ATTUNED SHLD', action.power, skill.property, stats, skill.property !== 'true', mode, 'defense');
         extras.push({
-          text: attunedType === undefined ? attunedLine : `${attunedLine} (2x vs ${attunedType.toUpperCase()})`,
+          text: attunedType === undefined ? attunedLine.text : `${attunedLine.text} (2x vs ${attunedType.toUpperCase()})`,
           keyword: 'attuned',
+          calculated: attunedLine.calculated,
         });
         break;
       }
-      // A guard covers ONE property, carried by the ACTION (not by the card —
-      // a gem can graft a differently-typed guard onto any card), so the face
-      // token names it: P.GUARD / M.GUARD / T.GUARD, mirroring the battle
-      // log's P./M./T.SHIELD pool tokens. A bare "GUARD 20%" told the player
-      // nothing about which damage it actually stops.
-      case 'guard': extras.push({ text: `${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.GUARD ${action.pct}%`, keyword: 'guard' }); break;
-      // A negate covers ONE property, carried by the ACTION exactly like guard
-      // above — same gap, same fix: P.NEGATE / M.NEGATE / T.NEGATE, mirroring
-      // the battle log's negateToken (battleTimeline.ts).
-      case 'negate': extras.push({ text: `${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`, keyword: 'negate' }); break;
-      case 'cleanse': extras.push({ text: `CLEANSE ${action.charges}`, keyword: 'cleanse' }); break;
-      // A ward has NO property axis (unlike guard/negate above) — afflictions
-      // carry no attacker property to match — so the face token is unqualified.
-      case 'ward': extras.push({ text: `WARD ×${action.charges}`, keyword: 'ward' }); break;
-      case 'taunt': extras.push({ text: 'TAUNT' }); break;
-      case 'lifesteal': extras.push({ text: `LSTEAL ${action.pct}%`, keyword: 'lifesteal' }); break;
-      case 'shieldBreak': extras.push({ text: `SHATTER ${action.amount}`, keyword: 'shatter' }); break;
-      // User ruling (2026-08-20): the face token may say COMBO — the user's
-      // own word for this mechanic — ON THE CONDITION that battle playback
-      // greys it out whenever the combo isn't actually live (see CardToken's
-      // `comboLive` option and `battleTimeline.ts`'s `isComboLive`/
-      // `comboArchetypesByTurn`, which together supply that state). Outside
-      // a fight (draft/shop/deck build/wiki) there is no "previous cast" to
-      // be live against, so the token always renders in its normal
-      // `KEYWORD_TEXT_COLOR.combo` color there — see those call sites.
-      case 'comboBonus': extras.push({ text: `COMBO +${action.amount}`, keyword: 'combo' }); break;
-      // CHAIN — the type-axis twin. The badge names the PARTNER TYPE, because
-      // that (not the number) is the thing the player has to plan the board
-      // around: "CHAIN +8 AFTER SWORD" is actionable, a bare "CHAIN +8" is not.
-      // NOT wired to the combo badge's live/greyed-out treatment (CardToken's
-      // `comboLive`, fed by battleTimeline's `isComboLive`): that machinery reads
-      // ARCHETYPES per turn and would need a parallel last-cast-TYPE feed. The
-      // badge is honest as static text meanwhile; the live state is a follow-up.
-      case 'chainBonus': extras.push({ text: `CHAIN +${action.amount} AFTER ${action.after.toUpperCase()}`, keyword: 'chain' }); break;
-      // The chip names the TYPE whose next cast collects, taken from the card
-      // itself — the action carries no type of its own.
-      case 'empowerNext': {
-        const ownType = skill.element ?? skill.weapon;
-        // Reads "NEXT" first, because landing on a FUTURE cast is the whole
-        // difference between this and every other bonus-damage badge on a face.
-        extras.push({ text: `NEXT ${ownType === undefined ? '' : `${ownType.toUpperCase()} `}+${action.amount}`, keyword: 'charge' });
-        break;
-      }
-      // The two CONDITIONAL BONUS-DAMAGE riders (engine/types.ts). Both print
-      // the flat number they actually add and the status they key off — no
-      // invented noun for the mechanic, and no "x2": the engine adds a FLAT
-      // bonus (a multiplier was rejected, see the `exploit` docs), so the face
-      // must not imply one. Each token borrows the COLOR of the status it reads
-      // (`KEYWORD_TEXT_COLOR.poison` etc.), which is the whole tell a player
-      // needs: this number lights up when that status is on the board.
-      case 'exploit': extras.push({ text: `+${action.amount} vs ${STATUS_TOKEN[action.status]}`, keyword: action.status === 'debuff' ? undefined : action.status }); break;
-      // `per` per stack, and the CAP, because the cap is what the effect is
-      // actually worth (and what it is priced on). `of` is spelled as the pile's
-      // owner — YOUR stacks vs the target's — since the two play completely
-      // differently.
-      case 'stackBonus': extras.push({
-        text: `+${action.per}/${STATUS_TOKEN[action.status]}${action.of === 'caster' ? '' : ' ON FOE'} (cap ${action.cap})`,
-        keyword: action.status,
-      }); break;
-      // SHIELD BURST — the number it can spend, and WHOSE shield it is, because
-      // "SHLD" on a face otherwise reads as plating GAINED. `SPEND` names the
-      // direction in a word the player already understands from the glossary
-      // entry, and the token borrows the existing `shield` color (no new palette
-      // entry for a keyword that trades in the same currency).
-      case 'shieldBurst': extras.push({ text: `SPEND SHLD ${action.cap}`, keyword: 'shield' }); break;
-      // TAX BONUS — `per` per taxed card and the CAP, the same two numbers
-      // `stackBonus` prints and for the same reason (the cap is what it is worth
-      // and what it is priced on). "TAXED" is the noun the tempo keywords already
-      // use on the face (SLOW +N / BURDEN +N WT are the taxes), so no new one is
-      // invented; the token borrows `slow`'s color, the family both taxes share.
-      case 'taxBonus': extras.push({ text: `+${action.per}/TAXED CARD (cap ${action.cap})`, keyword: 'slow' }); break;
-      // WARD RELEASE — `shieldBurst`'s token one currency over, and worded the same
-      // way for the same reason: "WARD" alone on a face reads as charges GAINED, so
-      // `SPEND` names the direction. Both numbers print (`per` is what one charge is
-      // worth, the cap is what it is worth in total and what it is priced on), and
-      // the token borrows the existing `ward` color — same currency, no new palette
-      // entry.
-      case 'wardRelease': extras.push({ text: `SPEND WARD +${action.per}/CHG (cap ${action.cap})`, keyword: 'ward' }); break;
-      // DESPERATION — the flat bonus and the gate, in the shortest honest form.
-      // "HALF HP" is the whole condition and it is a RULE, not a card value, so it
-      // reads as words rather than a number the player might mistake for tunable.
-      // Borrows `bleed`'s red: the palette's one HP-colored entry, and the tell here
-      // is "this lights up when your own bar is low".
-      case 'desperation': extras.push({ text: `+${action.amount} BELOW HALF HP`, keyword: 'bleed' }); break;
-      // OVERHEAL SHIELD — the cap is the only plannable number (how much wasted
-      // healing actually banks). "OVERHEAL" is the noun the combat log already uses
-      // for the wasted remainder of a heal (`heal.overheal`), so nothing new is
-      // invented; borrows `shield`'s color, since plating is what it produces.
-      case 'overhealShield': extras.push({ text: `OVERHEAL -> SHLD ${action.cap}`, keyword: 'shield' }); break;
-      // CLEANSE CONVERT — `per` per stack cleansed and the cap, the `stackBonus`
-      // reading. "HP" rather than "damage" because this one pays out in healing, and
-      // it borrows `cleanse`'s color: the keyword it is strapped to is the tell.
-      case 'cleanseConvert': extras.push({ text: `+${action.per} HP/CLEANSED (cap ${action.cap})`, keyword: 'cleanse' }); break;
-      case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
-      // BURDEN — the weight tax at CARD scope, so its number is the SAME weight
-      // SLOW prints above and it carries the same WT unit. (User ruling
-      // 2026-08-20, on the token this replaces: "I been seeing splash +6 band,
-      // what does that even mean." The unit was the fix then; the 2026-08-21
-      // split makes the KEYWORD honest too — the +N WT belongs to the tax, which
-      // is `burden`, not to the spreader.)
-      case 'burden': extras.push({ text: `BURDEN +${action.weight} WT`, keyword: 'burden' }); break;
-      // CURSE — the same shape one currency over: how much LESS the cursed card
-      // hits for, and for how long. `-N DMG` rather than a bare number because
-      // the sign is the whole point (every other DMG token on a face is damage
-      // dealt), and the `Nt` turn suffix is the form expose/guard already use.
-      case 'curse': extras.push({ text: `CURSE -${action.amount} DMG ${action.turns}t`, keyword: 'curse' }); break;
-      // SPLASH — NO NUMBER AT ALL, because the spreader has none (see its docs in
-      // engine/types.ts). A bare `SPLASH` token beside `BURDEN +6 WT` reads as
-      // "that burden, spread", which is exactly what the card does; printing a
-      // weight here is the misread the keyword split undid. The shape it names
-      // (the anchor plus its edge-to-edge neighbours: 3 pieces mid-board, 2 at a
-      // board edge, 1 on a lone card — it never wraps) is real and still
-      // explained in full, just not on the compact face: it lives in
-      // `cardGlossary.ts`'s `splash` entry (tap-to-expand) and
-      // `combat/splash.ts`. "×3" would be wrong here for the reason the old
-      // comment gave — the engine doesn't guarantee a fixed count.
-      case 'splash': extras.push({ text: 'SPLASH', keyword: 'splash' }); break;
-      case 'disrupt': extras.push({ text: `STAG ${action.amount}`, keyword: 'disrupt' }); break;
-      // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
-      // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):
-      // it prints a SHARE of a stat instead of a flat number. This case was
-      // entirely missing, so a card carrying only a `statStrike` (e.g. a bare
-      // Echo socket) fell through every branch above and rendered as
-      // `'PASSIVE'` — the face advertised the gem's weight cost (folded into
-      // the printed WEIGHT already) but hid the second hit that weight paid
-      // for. `echoHostPower` repeats a share of the WHOLE attack (this card's
-      // own base + the caster's stat, see the action's own doc); a bare
-      // `statStrike` (no current card content uses this form) shares the
-      // caster's stat alone — both print the same terse `1/N` share the card
-      // text already uses ("repeats at half strength").
-      case 'statStrike': {
-        const capNote = action.cap ? ` (cap ${action.cap})` : '';
-        extras.push({ text: `${action.echoHostPower ? 'ECHO' : 'STRIKE'} 1/${action.shareOf}${capNote}` });
+      default: {
+        const token = faceTokenOf(action, ctx);
+        extras.push(token.keyword === undefined ? { text: token.text } : { text: token.text, keyword: token.keyword });
         break;
       }
     }
@@ -457,9 +428,17 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
       for (let i = beforeExtras; i < extras.length; i += 1) parts.push(extras[i]!.text);
       extras.length = beforeExtras;
       const ownType = skill.element ?? skill.weapon;
+      // TWO segments, not one: the `TYPE:` label (never dims — the gate's NAME
+      // isn't what closed) and the payload (dims when `affinityOpen === false`
+      // — see `EffectSegment.gateClosed`'s doc comment for the exact rule and
+      // why this is a caller-supplied boolean rather than something computed
+      // here from `skill.element`/`skill.weapon` alone).
+      extras.push({ text: `${ownType === undefined ? 'AFFINITY' : ownType.toUpperCase()}:`, keyword: 'affinity' });
       extras.push({
-        text: `${ownType === undefined ? 'AFFINITY' : ownType.toUpperCase()}: ${parts.join(' ')}`,
+        text: parts.join(' '),
         keyword: 'affinity',
+        gateClosed: affinityOpen === false,
+        joinWithPrevious: true,
       });
     }
   }
@@ -471,18 +450,38 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
   // token rendered the useless "DEF 96 +DEF". The label names the OUTPUT, the
   // token names the STAT; they must not be the same word.
   const shieldLabel = 'SHLD';
-  if (damage) segments.push({ text: effectLine('DMG', damage, property, stats, true, mode, 'offense') });
-  if (heal) segments.push({ text: effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense') });
+  if (damage) {
+    const line = effectLine('DMG', damage, property, stats, true, mode, 'offense');
+    segments.push({ text: line.text, calculated: line.calculated });
+  }
+  if (heal) {
+    const line = effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense');
+    segments.push({ text: line.text, calculated: line.calculated });
+  }
   // Shield gets the 'shield' keyword color (KEYWORD_TEXT_COLOR) — unlike bare
   // DMG/HEAL, a typed shield IS one of the markup keywords the flavor-text
-  // renderer already colors, so this token can actually match it.
-  if (shield) segments.push({ text: effectLine(shieldLabel, shield, property, stats, property !== 'true', mode, 'defense'), keyword: 'shield' });
+  // renderer already colors, so this token can actually match it. Renderers
+  // resolve keyword color OVER `calculated` when both are set (see
+  // `CardToken.ts`'s `effectFaceSegments`) — the shield-blue identity stays
+  // stable rather than flickering to the calculated colour on a caster whose
+  // Armor/Magic Resist happens to be nonzero — so `calculated` is still
+  // carried here (never lost) even though it wins nothing on THIS token today.
+  if (shield) {
+    const line = effectLine(shieldLabel, shield, property, stats, property !== 'true', mode, 'defense');
+    segments.push({ text: line.text, keyword: 'shield', calculated: line.calculated });
+  }
+  const weightReduction = skill.size * 10 - weightOf(skill);
+  if (weightReduction > 0) segments.push({ text: `LIGHTWEIGHT ${weightReduction}` });
+  else if (weightReduction < 0) segments.push({ text: `HEAVY ${-weightReduction}` });
   segments.push(...extras);
+  if (auraSegment) segments.push(auraSegment);
   return segments.length > 0 ? segments : [{ text: 'PASSIVE' }];
 }
 
-export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): string {
-  return summarizeEffectSegments(skill, stats, mode).map((segment) => segment.text).join(' · ');
+export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed', affinityOpen?: boolean): string {
+  return summarizeEffectSegments(skill, stats, mode, affinityOpen)
+    .map((segment, index) => `${effectSegmentJoiner(segment, index)}${segment.text}`)
+    .join('');
 }
 
 export function describeAura(skill: SkillDef): string | null {

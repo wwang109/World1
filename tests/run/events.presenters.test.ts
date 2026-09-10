@@ -8,6 +8,8 @@
 //                          and the wording share ONE body and cannot drift.
 //   - `eventRecapLine`     rung 2: the one-line "your past choice" recap a
 //                          chain payoff opens its body with.
+//   - `eventRarityLabel`   the discovered non-common rarity shown beside the
+//                          title after an event has actually been drawn.
 //   - `derivedChoiceFamily` rung 3: the resolved family a `filterFrom` door
 //                          names on its label ("— FROST"), wrapping the
 //                          exported `derivedChoiceFilter` so no scene ever
@@ -22,6 +24,7 @@ import {
   choiceLockReason,
   derivedChoiceFamily,
   eventRecapLine,
+  eventRarityLabel,
   isEventChoiceUsable,
 } from '../../src/run/events';
 import {
@@ -64,7 +67,13 @@ function withResolution(state: RunState, eventId: string, choiceId: string, pend
     ...state,
     eventResolutions: {
       ...(state.eventResolutions ?? {}),
-      [`synthetic-${eventId}-${choiceId}`]: { eventId, choiceId, ...(pending ? { pending: true } : {}) },
+      [`synthetic-${eventId}-${choiceId}`]: {
+        eventId,
+        contentVersion: 1,
+        instanceId: `event:synthetic-${eventId}-${choiceId}`,
+        choiceId,
+        ...(pending ? { pending: true } : {}),
+      },
     },
   };
 }
@@ -219,11 +228,11 @@ describe('run/events: choiceLockReason is the worded twin of isEventChoiceUsable
   it("boardIdentity dark rung teaches the threshold; the biome doors' no-node fallback stays worded", () => {
     const blazon = choiceOf('banner_scribe', 'blazon');
     const bare: RunState = { ...base, gold: 5, pieces: [], bagSlots: bagWithBronze(0) };
-    expect(choiceLockReason(bare, blazon)).toBe('no 3-of-a-kind on your board');
+    expect(choiceLockReason(bare, blazon)).toBe('need 3 cards of one type');
     // Off an event node a biome-sourced door cannot read the land at all.
     const localMake = choiceOf('the_lands_measure', 'local_make');
     expect(currentEventNode(bare)).toBeUndefined();
-    expect(choiceLockReason(bare, localMake)).toBe('the land cannot be read');
+    expect(choiceLockReason(bare, localMake)).toBe('not available right now');
   });
 
   it('on the counterless (bow-lean) band the dark hunter door names what nothing counters', () => {
@@ -245,7 +254,7 @@ describe('run/events: choiceLockReason is the worded twin of isEventChoiceUsable
     expect(choiceLockReason({ ...base, gemInventory: ['bramble_sliver'] }, sell)).toBeNull();
     const merge = choiceOf('ruined_anvil', 'beat_together');
     const cardless: RunState = { ...base, gold: 5, pieces: [], bagSlots: bagWithBronze(0) };
-    expect(choiceLockReason(cardless, merge)).toBe('no mergeable trio');
+    expect(choiceLockReason(cardless, merge)).toBe('need 3 cards of one grade');
     expect(choiceLockReason({ ...cardless, bagSlots: bagWithBronze(3) }, merge)).toBeNull();
   });
 });
@@ -286,11 +295,21 @@ describe('run/events: eventRecapLine words the past a chain payoff is paying off
       .toBe('The road has taken 1 of your lives.');
   });
 
+  it('a met requiresAll payoff recounts each resolution in authored order', () => {
+    const afterBell = withResolution(base, 'bell_beneath_ice', 'prise_it_free');
+    const twoStageState = withResolution(afterBell, 'the_second_toll', 'answer_the_bell');
+    expect(eventRecapLine(twoStageState, eventCatalog.the_bell_unbound!)).toBe(
+      'You chose "Prise the frost bell free" at The Bell Beneath the Ice, then "Answer with your own name" at The Second Toll.',
+    );
+  });
+
   it('null everywhere else: ungated events, and a gated event whose gate is (somehow) unmet', () => {
     expect(eventRecapLine(base, eventCatalog.wandering_tutor!)).toBeNull();
     expect(eventRecapLine(base, eventCatalog.the_lands_measure!)).toBeNull();
     expect(eventRecapLine(base, eventCatalog.tutors_return!)).toBeNull(); // gate unmet
     expect(eventRecapLine(base, eventCatalog.factors_ledger!)).toBeNull(); // bar unmet
+    const onlyFirstBell = withResolution(base, 'bell_beneath_ice', 'prise_it_free');
+    expect(eventRecapLine(onlyFirstBell, eventCatalog.the_bell_unbound!)).toBeNull(); // conjunction unmet: reveal nothing
   });
 
   it('every gated catalog event HAS a recap the moment its gate is met — no silent payoff', () => {
@@ -301,10 +320,16 @@ describe('run/events: eventRecapLine words the past a chain payoff is paying off
       the_reckoning: withResolution(base, 'crossroads_shrine', 'tithe'),
       factors_ledger: { ...base, stats: { ...base.stats, goldSpent: 12 } },
       pyre_watch: { ...base, stats: { ...base.stats, livesLost: 1 } },
+      the_second_toll: withResolution(base, 'bell_beneath_ice', 'prise_it_free'),
+      the_bell_unbound: withResolution(
+        withResolution(base, 'bell_beneath_ice', 'prise_it_free'),
+        'the_second_toll',
+        'answer_the_bell',
+      ),
     };
     const gatedIds = eventCatalogIds.filter((id) => {
       const ev = eventCatalog[id]!;
-      return ev.requires !== undefined || ev.requiresTally !== undefined;
+      return ev.requires !== undefined || ev.requiresTally !== undefined || ev.requiresAll !== undefined;
     });
     for (const id of gatedIds) {
       const state = opened[id];
@@ -314,6 +339,15 @@ describe('run/events: eventRecapLine words the past a chain payoff is paying off
       expect(recap!.length).toBeGreaterThan(0);
       expect(recap).not.toContain('\n');
     }
+  });
+});
+
+describe('run/events: eventRarityLabel reveals only discovered non-common rarity', () => {
+  it('uppercases uncommon and secret, while common or absent stays quiet', () => {
+    expect(eventRarityLabel(eventCatalog.bell_beneath_ice!)).toBe('UNCOMMON');
+    expect(eventRarityLabel(eventCatalog.the_bell_unbound!)).toBe('SECRET');
+    expect(eventRarityLabel(eventCatalog.wandering_tutor!)).toBeNull();
+    expect(eventRarityLabel({ ...eventCatalog.wandering_tutor!, rarity: 'common' })).toBeNull();
   });
 });
 

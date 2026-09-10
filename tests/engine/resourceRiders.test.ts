@@ -49,7 +49,7 @@ function card(id: string, effects: Action[], extra: Partial<SkillDef> = {}): Ski
   return {
     id, name: id, archetypes: ['offense'], property: 'physical', weapon: 'sword',
     size: 1, speedWeight: 10, rarity: 'common', tier: 'bronze', cooldownTurns: 0,
-    effects, text: '', ...extra,
+    effects, ...extra,
   };
 }
 
@@ -498,7 +498,7 @@ describe('validateSkillContent enforces the ordering rule for both new riders', 
       versions: [{
         version: 1,
         def: {
-          name: 'Probe', text: 'x 4 12 16', archetypes: ['offense'], property: 'physical', weapon: 'sword',
+          name: 'Probe', archetypes: ['offense'], property: 'physical', weapon: 'sword',
           size: 1, rarity: 'common', tier: 'bronze', effects, ...extra,
         },
       }],

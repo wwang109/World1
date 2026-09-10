@@ -12,16 +12,34 @@ import type { BattleTimelineInput } from './battleTimeline';
  * imports, so nothing from the engine survives into the build.
  */
 
+/**
+ * Resolves the battle-service origin without assuming the game is opened on
+ * the development computer. A phone visiting Vite through the computer's LAN
+ * address must call that same computer, not the phone's own `localhost`.
+ */
+export function battleApiBaseUrl(
+  explicitUrl: string | undefined,
+  isDev: boolean,
+  pageHostname: string | undefined,
+): string {
+  if (explicitUrl !== undefined) return explicitUrl;
+  if (!isDev) return '';
+  return `http://${pageHostname || 'localhost'}:8787`;
+}
+
 // Dev talks to the local tsx server; production is same-origin (Cloudflare
 // Pages Functions in functions/ serve /battle and /damage-band).
-const BASE_URL: string = (import.meta.env?.VITE_BATTLE_API as string | undefined)
-  ?? (import.meta.env?.DEV ? 'http://localhost:8787' : '');
+const BASE_URL = battleApiBaseUrl(
+  import.meta.env?.VITE_BATTLE_API as string | undefined,
+  Boolean(import.meta.env?.DEV),
+  typeof window === 'undefined' ? undefined : window.location.hostname,
+);
 
 /** Prep info → request payload. The foe list is the multi-foe team when present. */
 export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
   const foes: BattleFoeConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam.map((c) => ({
-      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
+      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, growthLevel: c.growthLevel, fightNumber: c.fightNumber, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
       // Custom foe deck (sandbox): the recipe rides the request like every
       // other dial — the service re-resolves it, the client never ships a
       // resolved board. Copied so the payload is detached from live state.
@@ -32,6 +50,8 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
       level: input.enemyLevel,
       title: input.enemyTitle,
       rank: input.enemyRank,
+      growthLevel: input.enemyGrowthLevel,
+      fightNumber: input.enemyFightNumber,
       modifiers: [...(input.enemyModifiers ?? [])],
       affix: input.enemyAffix ?? null,
     }];

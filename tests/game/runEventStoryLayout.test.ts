@@ -8,7 +8,10 @@ import {
   eventChoiceBlockHeight,
   eventStoryLimit,
 } from '../../src/game/ui/runEventStoryLayout';
+import * as eventStoryLayout from '../../src/game/ui/runEventStoryLayout';
 import { runScreenTemplate } from '../../src/game/ui/runScreenTemplate';
+import { eventRarityLabel, eventRecapLine } from '../../src/run/events';
+import { createRun, type RunState } from '../../src/run/runState';
 
 // ---------------------------------------------------------------------------
 // Unit tests for the pure helpers (no Phaser, no catalog data).
@@ -89,6 +92,73 @@ describe('eventBodyMaxHeight', () => {
 
 const ALL_EVENTS = Object.values(eventCatalog);
 
+const BELL_STAGE_EXPECTATIONS = [
+  {
+    id: 'bell_beneath_ice',
+    title: 'The Bell Beneath the Ice',
+    rarity: 'UNCOMMON',
+    body: 'Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it.',
+    recap: null,
+    choices: [
+      'Prise the frost bell free',
+      'Ring it beneath the ice',
+      'Leave it sleeping',
+    ],
+  },
+  {
+    id: 'the_second_toll',
+    title: 'The Second Toll',
+    rarity: 'RARE',
+    body: 'The bell you cut from the ice sounds once inside your pack, though nothing has touched it. Across the white distance, a cairn answers.',
+    recap: 'You chose "Prise the frost bell free" at The Bell Beneath the Ice.',
+    choices: [
+      'Answer with your own name',
+      'Bind the clapper shut',
+      'Leave the bell at the cairn',
+    ],
+  },
+  {
+    id: 'the_bell_unbound',
+    title: 'The Bell Unbound',
+    rarity: 'SECRET',
+    body: 'In the Emberwaste the Frostmarch bell finally thaws. Steam curls from its silver throat, and it speaks the name you once gave it.',
+    recap: 'You chose "Prise the frost bell free" at The Bell Beneath the Ice, then "Answer with your own name" at The Second Toll.',
+    choices: [
+      'Temper its Frost voice in the coals',
+      'Sell the silver tongue',
+      'Let it ring and walk away',
+    ],
+  },
+] as const;
+
+function bellState(stageIndex: number): RunState {
+  const state = createRun(1103);
+  if (stageIndex === 0) return state;
+  return {
+    ...state,
+    eventResolutions: {
+      stage1: { eventId: 'bell_beneath_ice', contentVersion: 1, instanceId: 'event:stage1', choiceId: 'prise_it_free' },
+      ...(stageIndex >= 2
+        ? { stage2: { eventId: 'the_second_toll', contentVersion: 1, instanceId: 'event:stage2', choiceId: 'answer_the_bell' } }
+        : {}),
+    },
+  };
+}
+
+describe('Bell stage presentation inputs — exact shared data', () => {
+  for (const [stageIndex, expected] of BELL_STAGE_EXPECTATIONS.entries()) {
+    it(`stage ${stageIndex + 1} supplies its exact title, discovered rarity, recap, body, and three ordered decisions`, () => {
+      const event = eventCatalog[expected.id]!;
+      expect(event.title).toBe(expected.title);
+      expect(eventRarityLabel(event)).toBe(expected.rarity);
+      expect(eventRecapLine(bellState(stageIndex), event)).toBe(expected.recap);
+      expect(event.body).toBe(expected.body);
+      expect(event.choices.map((choice) => choice.label)).toEqual(expected.choices);
+      expect(event.choices).toHaveLength(3);
+    });
+  }
+});
+
 describe('DesktopRunEventScene story layout — every catalog event', () => {
   const F = DESKTOP_PROFILE.font;
   const rowH = runChoicePanelMinHeight(F); // must match DesktopRunEventScene.renderChoicePanel
@@ -97,6 +167,11 @@ describe('DesktopRunEventScene story layout — every catalog event', () => {
   const py = runScreenTemplate('desktop').regions.content.y + 10; // DesktopRunEventScene.panelGeometry
   const maxBottom = DESKTOP_PROFILE.canvas.height - DESKTOP_PROFILE.safe.bottom;
   const floorMin = py + 200;
+  const captionCapH = F.small * 3 + 12;
+  const cursorAfterCaption = py + captionCapH + 14;
+  const titleReserve = F.title * 2 + 14;
+  const bodyPad = 20;
+  const bodyTextFloor = 80;
 
   it('sanity: the catalog only ever offers 2-3 choices (the case this fix targets)', () => {
     const counts = new Set(ALL_EVENTS.map((e) => e.choices.length));
@@ -108,17 +183,37 @@ describe('DesktopRunEventScene story layout — every catalog event', () => {
     it(`"${event.title}" (${event.choices.length} choices, body ${event.body.length} chars): choice block is fully reserved, not floor-clamped`, () => {
       const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
       const storyLimit = eventStoryLimit(maxBottom, 0, reserveBelowH, bottomGap, floorMin);
+      const rarityReserve = eventRarityLabel(event) === null ? 0 : F.small + 6;
+      const artH = eventArtHeight(
+        storyLimit,
+        cursorAfterCaption,
+        titleReserve + rarityReserve,
+        16,
+        bodyPad,
+        bodyTextFloor,
+        260,
+        90,
+      );
+      const worstBodyBoxTop = cursorAfterCaption + artH + 16 + titleReserve + rarityReserve;
+      const bodyTextH = eventBodyMaxHeight(storyLimit, worstBodyBoxTop, bodyPad, bodyTextFloor);
+      const bodyPanelBottom = worstBodyBoxTop + bodyPad * 2 + bodyTextH;
 
       // The floor never binds for real catalog content — if it did, the
       // choice block's reservation would have been silently shrunk below
       // what the rows actually need, defeating the fix.
       expect(storyLimit).toBe(maxBottom - reserveBelowH - bottomGap);
 
+      // The worst-case title and discovered-rarity rows are part of the
+      // pre-body cursor. The body keeps its readable floor and remains inside
+      // the story ceiling before the decision block is placed.
+      expect(bodyTextH).toBeGreaterThanOrEqual(bodyTextFloor);
+      expect(bodyPanelBottom).toBeLessThanOrEqual(storyLimit);
+
       // The reserved choice block, placed right after `storyLimit` (the same
       // `bodyBoxTop + bodyBoxH + bottomGap` cursor `renderStory` returns as
       // `contentTop`), always ends AT OR BEFORE the canvas's safe bottom
       // edge — never past it.
-      expect(storyLimit + bottomGap + reserveBelowH).toBeLessThanOrEqual(maxBottom);
+      expect(bodyPanelBottom + bottomGap + reserveBelowH).toBeLessThanOrEqual(maxBottom);
     });
   }
 });
@@ -142,14 +237,18 @@ describe('MobileRunEventScene story layout — every catalog event', () => {
   const captionCapH = F.tiny * 4 + 8;
   const titleCapH = F.title * 2;
   const artH = Math.round((MOBILE_PROFILE.canvas.width - 24) * 0.5);
-  const worstBodyBoxTop = runScreenTemplate('mobile').regions.content.y + captionCapH + 8 + artH + 10 + titleCapH + 8;
+  const storyTop = runScreenTemplate('mobile').regions.content.y;
 
   for (const event of ALL_EVENTS) {
     it(`"${event.title}" (${event.choices.length} choices): the reserved choice block fits above the fixed footer even in the worst-case story column`, () => {
       const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
-      const budget = Math.max(70, maxBottom - worstBodyBoxTop - 14 - reserveBelowH);
+      const rarityReserve = eventRarityLabel(event) === null ? 0 : F.small + 6;
+      const worstBodyBoxTop = storyTop + captionCapH + 8 + artH + 10 + titleCapH + 8 + rarityReserve;
+      const rawBudget = maxBottom - worstBodyBoxTop - 14 - reserveBelowH;
+      const budget = Math.max(70, rawBudget);
 
       // The 70px floor must not bind — see the doc comment above.
+      expect(rawBudget).toBeGreaterThan(70);
       expect(budget).toBeGreaterThan(70);
 
       // With the floor not binding, the body box is capped to EXACTLY this
@@ -159,6 +258,77 @@ describe('MobileRunEventScene story layout — every catalog event', () => {
       expect(choiceTop + reserveBelowH).toBeLessThanOrEqual(maxBottom);
     });
   }
+
+  it('keeps three touch decisions and the outcome continue control reachable without crossing HUD chrome', () => {
+    const template = runScreenTemplate('mobile');
+    const threeDecisionRowsH = eventChoiceBlockHeight(3, rowH, rowGap);
+    const lastDecisionBottom = maxBottom;
+    const firstDecisionTop = lastDecisionBottom - threeDecisionRowsH;
+    const continueControl = template.actionSlots.primary;
+
+    expect(rowH).toBeGreaterThanOrEqual(44);
+    expect(firstDecisionTop).toBeGreaterThanOrEqual(template.regions.content.y);
+    expect(lastDecisionBottom).toBeLessThanOrEqual(template.regions.footer.y - 10);
+    expect(continueControl.height).toBeGreaterThanOrEqual(44);
+    expect(continueControl.y).toBeGreaterThanOrEqual(lastDecisionBottom);
+    expect(continueControl.y + continueControl.height).toBeLessThanOrEqual(MOBILE_PROFILE.canvas.height);
+    expect(template.regions.content.y).toBeGreaterThanOrEqual(
+      template.regions.actions.y + template.regions.actions.height,
+    );
+  });
+});
+
+describe('eventBodyScrollLayout', () => {
+  it('clips overflow only at complete wrapped-line boundaries', () => {
+    const api = eventStoryLayout as typeof eventStoryLayout & {
+      eventBodyScrollLayout?: (
+        naturalHeight: number,
+        maxViewportHeight: number,
+        lineCount: number,
+        lineSpacing: number,
+      ) => {
+        viewportHeight: number;
+        maxScroll: number;
+        visibleLineCount: number;
+        lineAdvance: number;
+      };
+    };
+    expect(api.eventBodyScrollLayout).toBeTypeOf('function');
+
+    // Seven 16px glyph lines plus six 4px gaps need 136px. A 112px
+    // arbitrary mask would slice line six; the aligned viewport shows five.
+    const scroll = api.eventBodyScrollLayout!(136, 112, 7, 4);
+    expect(scroll).toEqual({
+      viewportHeight: 96,
+      maxScroll: 40,
+      visibleLineCount: 5,
+      lineAdvance: 20,
+    });
+    expect(scroll.viewportHeight + scroll.maxScroll).toBe(136);
+    expect(scroll.maxScroll % scroll.lineAdvance).toBe(0);
+  });
+});
+
+describe('eventBodyScrollThumb', () => {
+  it('reaches the track endpoints for initial and fully scrolled proof', () => {
+    const api = eventStoryLayout as typeof eventStoryLayout & {
+      eventBodyScrollThumb?: (
+        trackHeight: number,
+        viewportHeight: number,
+        naturalHeight: number,
+        scrollOffset: number,
+        minThumbHeight?: number,
+      ) => { height: number; offset: number };
+    };
+    expect(api.eventBodyScrollThumb).toBeTypeOf('function');
+
+    const initial = api.eventBodyScrollThumb!(96, 96, 136, 0);
+    const fullyScrolled = api.eventBodyScrollThumb!(96, 96, 136, 40);
+
+    expect(initial.height).toBeCloseTo(96 * (96 / 136), 6);
+    expect(initial.offset).toBe(0);
+    expect(fullyScrolled.offset).toBeCloseTo(96 - fullyScrolled.height, 6);
+  });
 });
 
 // ---------------------------------------------------------------------------

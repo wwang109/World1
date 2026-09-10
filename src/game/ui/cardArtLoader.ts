@@ -4,16 +4,17 @@ import { CARD_ART_CATALOG, cardArtUrl } from './cardArtCatalog';
 /**
  * Card art streaming — the ONE place a card-art texture is fetched.
  *
- * WHY. `BootScene` used to queue every catalogue entry before the first
- * screen opened: 72 files, 165 MB, ~450 MB of VRAM if every texture resolved,
- * and seconds of black canvas before a menu that shows no cards at all. Art
- * now loads on first use — a card asks for its texture when it renders, and
- * shows `cardArtPlaceholder.ts` in the meantime.
+ * WHY. The original eager loader queued the then-entire 72-entry catalogue
+ * before the first screen opened: 165 MB, ~450 MB of VRAM if every texture
+ * resolved, and seconds of black canvas before a menu that shows no cards at
+ * all. Art now loads on first use — a card asks for its texture when it
+ * renders, and shows `cardArtPlaceholder.ts` in the meantime.
  *
  * The whole contract is `whenCardArtReady`. It is deliberately fire-and-
  * forget: a caller that never gets its callback simply keeps the placeholder,
- * which is the same thing that happens for the 94 skills with no art at all.
- * There is no error path a card face has to render differently.
+ * which is also the behavior used if a future content pass temporarily adds
+ * a skill before its catalogue entry. There is no error path a card face has
+ * to render differently.
  *
  * Two facts make this safe with several scenes alive at once:
  *   - `TextureManager` is GAME-wide, so a texture one scene streamed in is

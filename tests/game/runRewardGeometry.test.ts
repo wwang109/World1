@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../../src/game/layoutProfile';
 import { TOKEN_COMPACT_HEIGHT } from '../../src/game/ui/cardTokenSpec';
+import * as rewardGeometry from '../../src/game/ui/runRewardGeometry';
 import { cardRowIdeal, centeredBox, FEATURE_CARD_ROW_H, layoutFeatureGrid, type Box } from '../../src/game/ui/runRewardGeometry';
 import { runScreenTemplate, type Rect } from '../../src/game/ui/runScreenTemplate';
 
@@ -15,6 +17,35 @@ function within(inner: Box, outer: Rect): boolean {
 
 function overlaps(a: Box, b: Box): boolean {
   return a.x < b.x + b.w - 1e-6 && b.x < a.x + a.w - 1e-6 && a.y < b.y + b.h - 1e-6 && b.y < a.y + a.h - 1e-6;
+}
+
+type RewardPickerKind = 'bonusDraft' | 'upgradeCard' | 'gemChoice' | 'sellGem' | 'mergeSpent' | 'mergeCandidates';
+interface RewardPickerWindowProbe {
+  cells: Box[];
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  startIndex: number;
+  endIndex: number;
+  canPrevious: boolean;
+  canNext: boolean;
+  pager: null | { previous: Box; indicator: Box; next: Box };
+}
+type RewardPickerWindowFn = (
+  kind: RewardPickerKind,
+  platform: 'desktop' | 'mobile',
+  rect: Rect,
+  count: number,
+  idealW: number,
+  idealH: number,
+  gap: number,
+  requestedPage: number,
+) => RewardPickerWindowProbe;
+
+function rewardPickerWindowFn(): RewardPickerWindowFn | undefined {
+  return (rewardGeometry as typeof rewardGeometry & {
+    layoutRewardPickerWindow?: RewardPickerWindowFn;
+  }).layoutRewardPickerWindow;
 }
 
 describe('centeredBox', () => {
@@ -61,6 +92,19 @@ describe('layoutFeatureGrid', () => {
     const rect: Rect = { x: 20, y: 30, width: 400, height: 300 };
     const [cell] = layoutFeatureGrid(rect, 1, 100, 150, 8);
     expect(cell).toEqual(centeredBox(rect, 100, 150));
+  });
+
+  it('top alignment pins a sparse grid to the feature band while the default remains centered', () => {
+    const rect: Rect = { x: 20, y: 30, width: 400, height: 300 };
+    const centered = layoutFeatureGrid(rect, 2, 400, 50, 10);
+    const topAligned = layoutFeatureGrid(rect, 2, 400, 50, 10, 'top');
+
+    expect(centered[0]!.y).toBe(125);
+    expect(topAligned[0]!.y).toBe(rect.y);
+    expect(topAligned[1]!.y).toBe(90);
+    expect(topAligned.map(({ x, w, h }) => ({ x, w, h }))).toEqual(
+      centered.map(({ x, w, h }) => ({ x, w, h })),
+    );
   });
 
   it('a WIDE rect (plenty of spare width) puts every item on one row, unscaled', () => {
@@ -199,8 +243,9 @@ describe('layoutFeatureGrid', () => {
       it(`${platform}: ${count} real picker cards stack as ${count} full-width rows — no wrap, no orphan`, () => {
         const feature = runScreenTemplate(platform).contentSlots.reward.feature;
         const ideal = cardRowIdeal(feature, platform);
-        const cells = layoutFeatureGrid(feature, count, ideal.w, ideal.h, GRID_GAP[platform]);
+        const cells = layoutFeatureGrid(feature, count, ideal.w, ideal.h, GRID_GAP[platform], 'top');
         expect(cells).toHaveLength(count);
+        expect(cells[0]!.y).toBeCloseTo(feature.y, 6);
         for (const cell of cells) {
           expect(within(cell, feature)).toBe(true);
           // Full width of the band, at the ideal height: unscaled, so the rows
@@ -224,5 +269,100 @@ describe('layoutFeatureGrid', () => {
         }
       });
     }
+  }
+});
+
+describe('layoutRewardPickerWindow', () => {
+  const PICKER_KINDS: readonly RewardPickerKind[] = [
+    'bonusDraft',
+    'upgradeCard',
+    'gemChoice',
+    'sellGem',
+    'mergeSpent',
+    'mergeCandidates',
+  ];
+
+  it('is the top-aligned behavior seam shared by all six interactive picker grids', () => {
+    const layoutWindow = rewardPickerWindowFn();
+    expect(layoutWindow).toBeTypeOf('function');
+    if (!layoutWindow) return;
+
+    const rect: Rect = { x: 20, y: 30, width: 400, height: 300 };
+    for (const kind of PICKER_KINDS) {
+      const window = layoutWindow(kind, 'desktop', rect, 2, rect.width, 84, 10, 0);
+      expect(window.cells).toHaveLength(2);
+      expect(window.cells[0]!.y, kind).toBe(rect.y);
+      expect(window.pager, kind).toBeNull();
+    }
+
+    const panelSource = readFileSync(new URL('../../src/game/ui/RunRewardPanel.ts', import.meta.url), 'utf8');
+    for (const kind of PICKER_KINDS) {
+      expect(panelSource, kind).toContain(`layoutRewardPickerWindow('${kind}'`);
+    }
+    expect(panelSource.match(/layoutRewardPickerWindow\('/g)).toHaveLength(PICKER_KINDS.length);
+  });
+
+  it('keeps the fixed three-card merge cost fully visible instead of paging its compact non-interactive chips', () => {
+    const layoutWindow = rewardPickerWindowFn();
+    expect(layoutWindow).toBeTypeOf('function');
+    if (!layoutWindow) return;
+
+    const spentRect: Rect = { x: 26, y: 275, width: 360, height: 133 };
+    const window = layoutWindow('mergeSpent', 'mobile', spentRect, 3, spentRect.width, 40, 8, 0);
+    expect(window.pageCount).toBe(1);
+    expect(window.pager).toBeNull();
+    expect(window.cells).toHaveLength(3);
+    expect(window.cells.every((cell) => cell.h > 0 && within(cell, spentRect))).toBe(true);
+  });
+
+  for (const platform of ['desktop', 'mobile'] as const) {
+    it(`${platform}: pages 20 valid upgrades and 63 valid sell options without tiny, clipped, duplicated, or unreachable rows`, () => {
+      const layoutWindow = rewardPickerWindowFn();
+      expect(layoutWindow).toBeTypeOf('function');
+      if (!layoutWindow) return;
+
+      const feature = runScreenTemplate(platform).contentSlots.reward.feature;
+      const gap = platform === 'desktop' ? 12 : 8;
+      const upgradeIdeal = cardRowIdeal(feature, platform);
+      const upgradeH = upgradeIdeal.h + (platform === 'desktop' ? 22 : 18);
+      const cases = [
+        { kind: 'upgradeCard' as const, count: 20, idealH: upgradeH },
+        { kind: 'sellGem' as const, count: 63, idealH: 84 },
+      ];
+
+      for (const dense of cases) {
+        const first = layoutWindow(dense.kind, platform, feature, dense.count, feature.width, dense.idealH, gap, 0);
+        expect(first.pageCount, dense.kind).toBeGreaterThan(1);
+        expect(first.pageSize, dense.kind).toBe(platform === 'desktop' ? 5 : 6);
+        expect(first.pager, dense.kind).not.toBeNull();
+        expect(first.pager!.previous.h, dense.kind).toBeGreaterThanOrEqual(40);
+        expect(first.pager!.next.h, dense.kind).toBeGreaterThanOrEqual(40);
+
+        const reached: number[] = [];
+        for (let page = 0; page < first.pageCount; page += 1) {
+          const window = layoutWindow(dense.kind, platform, feature, dense.count, feature.width, dense.idealH, gap, page);
+          expect(window.page).toBe(page);
+          expect(window.cells).toHaveLength(window.endIndex - window.startIndex);
+          expect(window.cells[0]!.y).toBe(feature.y);
+          expect(window.canPrevious).toBe(page > 0);
+          expect(window.canNext).toBe(page < first.pageCount - 1);
+          for (let localIndex = 0; localIndex < window.cells.length; localIndex += 1) {
+            const cell = window.cells[localIndex]!;
+            reached.push(window.startIndex + localIndex);
+            expect(within(cell, feature)).toBe(true);
+            expect(cell.h, `${dense.kind} page ${page}`).toBeGreaterThanOrEqual(64);
+            expect(cell.y + cell.h).toBeLessThanOrEqual(window.pager!.previous.y - gap + 1e-6);
+          }
+          for (let i = 0; i < window.cells.length; i += 1) {
+            for (let j = i + 1; j < window.cells.length; j += 1) {
+              expect(overlaps(window.cells[i]!, window.cells[j]!)).toBe(false);
+            }
+          }
+        }
+
+        expect(reached).toEqual(Array.from({ length: dense.count }, (_unused, index) => index));
+        expect(new Set(reached).size).toBe(dense.count);
+      }
+    });
   }
 });

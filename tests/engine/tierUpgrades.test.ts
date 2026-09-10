@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { renderSkillText } from '../../src/engine/keywords/compose';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import {
   auraModsDeci,
@@ -88,13 +89,16 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
     const authored = {
       ...base,
       tierUpgrades: {
-        silver: { effects: [{ kind: 'damage' as const, power: 99 }], text: 'authored' },
+        silver: { effects: [{ kind: 'damage' as const, power: 99 }] },
       },
     };
     const scaled = applyTier(authored, 'silver');
     expect(scaled.tier).toBe('silver');
     expect(scaled.effects).toEqual([{ kind: 'damage', power: 99 }]);
-    expect(scaled.text).toBe('authored');
+    // The face follows the authored effects with nothing to author: it is
+    // generated from them (`renderSkillText`), so an override cannot ship a
+    // number its prose contradicts.
+    expect(renderSkillText(scaled)).toBe('Deal 99 (+ATK) Sword damage.');
   });
 
   it('DoT sink cards grow their stacks toward the cap (venom_fang / fireball / rupturing_strike)', () => {
@@ -299,7 +303,6 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
       property: 'physical', weapon: 'sword', size: 1, rarity: 'common', tier: 'bronze',
       scope: 'all',
       effects: [{ kind: 'damage', power: 15 }],
-      text: 'Deal 15 (+ATK) Sword damage to every foe.',
     };
     for (const tier of ['silver', 'gold', 'diamond'] as const) {
       const scaled = applyTier(aoeBase, tier);
@@ -327,7 +330,6 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
         archetypes: ['offense'], property: 'physical', weapon: 'sword',
         size: 1, rarity: 'common', tier: 'bronze', cooldownTurns: 8,
         effects: [{ kind: 'damage', power: 1 }],
-        text: 'Deal 1 physical damage.',
       };
       // The base (Bronze) card is invalid content on its own: cooldownTurns
       // 8 exceeds MAX_COOLDOWN_TURNS (6) — named at authoring time.
@@ -369,7 +371,6 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
         size: 1, rarity: 'common', tier: 'bronze',
         effects: [{ kind: 'damage', power: 1 }],
         aura: { affects: 'adjacent', reach: 0, mods: { damageFlat: -4 } },
-        text: 'Deal 1 physical damage. Passive: adjacent cards -4 damage.',
       };
       const scaled = autoScaleTier(base, 'silver');
       const auraPart = powerLevelBreakdown(scaled).find((p) => p.label === 'aura');
@@ -403,7 +404,6 @@ describe('the FOURTH mirror, closed: the tier scaler prices through powerLevelDe
     id: 'probe', name: 'Probe', archetypes: ['offense'], property: 'physical', weapon: 'sword',
     size: 1, rarity: 'common', tier: 'bronze',
     effects: [{ kind: 'damage', power: 30 }],
-    text: 'Deal 30 damage.',
     ...over,
   });
 

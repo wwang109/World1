@@ -198,7 +198,7 @@ export function renderRunChoicePanel(
     runChoicePanelLayout(bounds, opts.font, model.image !== undefined);
   const imageGap = imageSize > 0 ? 8 : 0;
   const actionCopy = model.enabled ? 'SELECT' : 'LOCKED';
-  const fill = model.enabled ? UI.panel : UI.panelMuted;
+  const fill = model.enabled ? UI.panelAlt : UI.panelMuted;
   const alpha = model.enabled ? 0.95 : 0.56;
   const panel = scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, fill, alpha)
     .setOrigin(0, 0)

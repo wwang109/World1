@@ -3,6 +3,7 @@ import {
   assignRankTiers,
   buildAutoHeroSetup,
   buildEnemyEncounter,
+  resolveEncounterForEnemy,
   defaultTitleFor,
   maxRankFor,
   MAX_TIER_STEPS,
@@ -13,6 +14,285 @@ import {
   type EnemyTitle,
 } from '../../src/run/encounter';
 import { enemies } from '../../src/data/enemies';
+import { HERO_BOARD_SLOTS } from '../../src/data/heroes';
+import type { EnemyDef, EnemyGrowthMilestone } from '../../src/engine/types';
+
+const fireGrowth = (...skillIds: string[]): EnemyGrowthMilestone => ({
+  family: { kind: 'element', type: 'fire' }, purpose: 'reinforce-family',
+  candidates: skillIds.map((skillId) => ({ skillId })),
+});
+const growthFixture = (growth: readonly EnemyGrowthMilestone[], pieces = [
+  { skillId: 'cinder_dart', slot: 0 }, { skillId: 'scorching_brand', slot: 1 },
+]): EnemyDef => ({ ...enemies.cinder_sprite!, id: 'growth_fixture', pieces, boardSize: 10, growth });
+
+describe('ordered growth milestones', () => {
+  it('takes the first valid candidate, preserving source order and data', () => {
+    const enemy = growthFixture([fireGrowth('fireball', 'ember_lash')]);
+    const before = JSON.stringify(enemy);
+    const result = resolveEncounterForEnemy(enemy, 2);
+    expect(result.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ['cinder_dart', 0], ['scorching_brand', 1], ['fireball', 2],
+    ]);
+    expect(JSON.stringify(enemy)).toBe(before);
+    expect(resolveEncounterForEnemy(enemy, 2)).toEqual(result);
+  });
+
+  it('selects a smaller fallback at the next contiguous free slot', () => {
+    const enemy = growthFixture([fireGrowth('inferno_eruption', 'fireball', 'ember_lash')], [
+      { skillId: 'cinder_dart', slot: 0 }, { skillId: 'scorching_brand', slot: 8 },
+    ]);
+    const unit = resolveEncounterForEnemy(enemy, 2);
+    expect(unit.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ['cinder_dart', 0], ['scorching_brand', 8], ['ember_lash', 9],
+    ]);
+    expect(unit.rank).toBe(0);
+  });
+
+  it.each([
+    ['ordinary duplicate', 'cinder_dart'], ['wrong family', 'sword_slash'], ['unknown card', 'missing_card'],
+  ])('rejects %s and tries the next candidate', (_case, rejected) => {
+    const unit = resolveEncounterForEnemy(growthFixture([fireGrowth(rejected, 'ember_lash')]), 2);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual(['cinder_dart', 'scorching_brand', 'ember_lash']);
+  });
+
+  it('allows an explicitly marked duplicate', () => {
+    const milestone = { ...fireGrowth(), candidates: [{ skillId: 'cinder_dart', allowDuplicate: true as const }] };
+    const unit = resolveEncounterForEnemy(growthFixture([milestone]), 2);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual(['cinder_dart', 'scorching_brand', 'cinder_dart']);
+  });
+
+  it('completes a weapon affinity using its declared axis', () => {
+    const unit = resolveEncounterForEnemy(growthFixture([{
+      family: { kind: 'weapon', type: 'axe' }, purpose: 'complete-affinity',
+      candidates: [{ skillId: 'stunning_smash' }],
+    }], [{ skillId: 'armor_break', slot: 0 }, { skillId: 'hemorrhage', slot: 1 }]), 2);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual(['armor_break', 'hemorrhage', 'stunning_smash']);
+  });
+
+  it.each([
+    ['already active', ['cinder_dart', 'scorching_brand', 'fireball']],
+    ['too few matching cards', ['cinder_dart']],
+    ['tied production affinity', ['cinder_dart', 'scorching_brand', 'frost_shackle', 'frost_shackle', 'frost_shackle']],
+  ])('rejects a false affinity completion: %s', (_case, ids) => {
+    const milestone = { ...fireGrowth('ember_lash'), purpose: 'complete-affinity' as const };
+    const enemy = growthFixture([milestone], ids.map((skillId, slot) => ({ skillId, slot })));
+    expect(() => resolveEncounterForEnemy(enemy, 2)).toThrow(/does-not-complete-affinity/);
+  });
+
+  it('rejects reinforcement of a family absent from the board', () => {
+    const enemy = growthFixture([fireGrowth('ember_lash')], [{ skillId: 'sword_slash', slot: 0 }]);
+    expect(() => resolveEncounterForEnemy(enemy, 2)).toThrow(/family-not-present/);
+  });
+
+  it('throws structured diagnostics for every rejected candidate without granting a rank step', () => {
+    const enemy = growthFixture([fireGrowth('missing_card', 'sword_slash', 'cinder_dart', 'inferno_eruption')], [
+      { skillId: 'cinder_dart', slot: 0 }, { skillId: 'scorching_brand', slot: 8 },
+    ]);
+    expect(() => resolveEncounterForEnemy(enemy, 6)).toThrow(/growth_fixture/);
+    try { resolveEncounterForEnemy(enemy, 6); } catch (error) {
+      expect(error).toMatchObject({
+        name: 'EnemyGrowthResolutionError', enemyId: 'growth_fixture', milestoneIndex: 0,
+        growthLevel: 6, occupiedSlots: 2,
+        rejections: [
+          { skillId: 'missing_card', reason: 'unknown' },
+          { skillId: 'sword_slash', reason: 'wrong-family' },
+          { skillId: 'cinder_dart', reason: 'duplicate' },
+          { skillId: 'inferno_eruption', reason: 'does-not-fit' },
+        ],
+      });
+      expect(String(error)).toMatch(/milestone 0.*level 6.*occupied 2/);
+    }
+  });
+
+  it('rejects an earned empty milestone', () => {
+    expect(() => resolveEncounterForEnemy(growthFixture([fireGrowth()]), 2)).toThrow(/milestone 0/);
+  });
+
+  it.each([
+    [1, 1, 2, 0], [1, 2, 3, 0], [1, 4, 3, 1], [1, 6, 3, 2],
+    [2, 1, 2, 0], [2, 2, 3, 0], [2, 4, 4, 0], [2, 6, 4, 1],
+  ])('%i milestones at level %i yield %i cards and rank %i', (count, level, cards, rank) => {
+    const unit = resolveEncounterForEnemy(growthFixture([fireGrowth('ember_lash'), fireGrowth('fireball')].slice(0, count)), level);
+    expect(unit.setup.pieces).toHaveLength(cards);
+    expect(unit.rank).toBe(rank);
+    expect(unit.setup.pieces.map((p) => p.tier ?? 'bronze')).toEqual(Array.from({ length: cards }, (_, i) => i < rank ? 'silver' : 'bronze'));
+  });
+});
+
+describe('authored growth intent with transient title and affix cards', () => {
+  const swordCompletion = (...skillIds: string[]): EnemyGrowthMilestone => ({
+    family: { kind: 'weapon', type: 'sword' }, purpose: 'complete-affinity',
+    candidates: skillIds.map((skillId) => ({ skillId })),
+  });
+  const swords = [{ skillId: 'twin_slash', slot: 0 }, { skillId: 'iron_riposte', slot: 1 }];
+
+  it.each(['elite', 'boss'] as const)('keeps authored completion when %s filler already activates the family', (title) => {
+    const enemy = growthFixture([swordCompletion('bastion_stance')], swords);
+    const unit = resolveEncounterForEnemy(enemy, 2, title, 0, [], null, 100);
+    expect(unit.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ['twin_slash', 0], ['iron_riposte', 1], ['sword_slash', 2],
+      ...(title === 'boss' ? [['venom_fang', 3]] : []),
+      ['bastion_stance', title === 'boss' ? 4 : 3],
+    ]);
+    expect(resolveEncounterForEnemy(enemy, 2, title, 0, [], null, 100)).toEqual(unit);
+  });
+
+  it('keeps authored completion when the matching affix already activates the family', () => {
+    const enemy = growthFixture([{
+      family: { kind: 'weapon', type: 'lance' }, purpose: 'complete-affinity',
+      candidates: [{ skillId: 'phalanx_thrust' }],
+    }], [{ skillId: 'lance_thrust', slot: 0 }, { skillId: 'piercing_reach', slot: 1 }]);
+    const unit = resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], 'braced', 100);
+    expect(unit.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ['lance_thrust', 0], ['piercing_reach', 1], ['braced_pike', 2], ['phalanx_thrust', 3],
+    ]);
+  });
+
+  it('rejects a filler duplicate and selects the next completion candidate', () => {
+    const enemy = growthFixture([swordCompletion('sword_slash', 'bastion_stance')], swords);
+    const unit = resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], null, 100);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual([
+      'twin_slash', 'iron_riposte', 'sword_slash', 'bastion_stance',
+    ]);
+  });
+
+  it('rejects an affix duplicate and selects the next completion candidate', () => {
+    const enemy = growthFixture([{
+      family: { kind: 'weapon', type: 'lance' }, purpose: 'complete-affinity',
+      candidates: [{ skillId: 'braced_pike' }, { skillId: 'phalanx_thrust' }],
+    }], [{ skillId: 'lance_thrust', slot: 0 }, { skillId: 'piercing_reach', slot: 1 }]);
+    const unit = resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], 'braced', 100);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual([
+      'lance_thrust', 'piercing_reach', 'braced_pike', 'phalanx_thrust',
+    ]);
+  });
+
+  it('honors explicit duplicate permission for a title card', () => {
+    const milestone = { ...swordCompletion(), candidates: [{ skillId: 'sword_slash', allowDuplicate: true as const }] };
+    const unit = resolveEncounterForEnemy(growthFixture([milestone], swords), 2, 'elite', 0, [], null, 100);
+    expect(unit.setup.pieces.map((p) => p.skillId)).toEqual([
+      'twin_slash', 'iron_riposte', 'sword_slash', 'sword_slash',
+    ]);
+  });
+
+  it('uses final-board capacity even when the authored completion would fit', () => {
+    const enemy = growthFixture([swordCompletion('bastion_stance')], [
+      { skillId: 'twin_slash', slot: 0 }, { skillId: 'iron_riposte', slot: 8 },
+    ]);
+    expect(resolveEncounterForEnemy(enemy, 2).setup.pieces.at(-1)?.slot).toBe(9);
+    expect(() => resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], null, 100)).toThrow(/does-not-fit/);
+  });
+
+  it.each([
+    ['too few authored cards', ['twin_slash']],
+    ['already active authored board', ['twin_slash', 'iron_riposte', 'void_pierce']],
+    ['more than three authored cards', ['twin_slash', 'iron_riposte', 'void_pierce', 'follow_through']],
+  ])('rejects false completion despite title context: %s', (_case, ids) => {
+    const enemy = growthFixture([swordCompletion('bastion_stance')], ids.map((skillId, slot) => ({ skillId, slot })));
+    expect(() => resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], null, 100)).toThrow(/does-not-complete-affinity/);
+  });
+
+  it('includes earlier growth in later completion intent without including filler', () => {
+    const enemy = growthFixture([
+      { ...swordCompletion('iron_riposte'), purpose: 'reinforce-family' },
+      swordCompletion('bastion_stance'),
+    ], [{ skillId: 'twin_slash', slot: 0 }]);
+    const unit = resolveEncounterForEnemy(enemy, 4, 'elite', 0, [], null, 100);
+    expect(unit.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ['twin_slash', 0], ['sword_slash', 1], ['iron_riposte', 2], ['bastion_stance', 3],
+    ]);
+    expect(unit.rank).toBe(0);
+  });
+
+  it('rejects a second completion after an earlier growth card activated the authored family', () => {
+    const enemy = growthFixture([swordCompletion('bastion_stance'), swordCompletion('void_pierce')], swords);
+    expect(() => resolveEncounterForEnemy(enemy, 4, 'elite', 0, [], null, 100))
+      .toThrow(/milestone 1.*does-not-complete-affinity/);
+  });
+
+  it('rejects reinforcement when only an affix introduces that family', () => {
+    const enemy = growthFixture([{
+      family: { kind: 'weapon', type: 'lance' }, purpose: 'reinforce-family',
+      candidates: [{ skillId: 'lance_thrust' }],
+    }]);
+    expect(() => resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], 'braced', 100)).toThrow(/family-not-present/);
+  });
+
+  it('rejects reinforcement when only title filler introduces that family', () => {
+    const enemy = growthFixture([{ ...swordCompletion('bastion_stance'), purpose: 'reinforce-family' }], [
+      { skillId: 'armor_break', slot: 0 },
+    ]);
+    expect(() => resolveEncounterForEnemy(enemy, 2, 'elite', 0, [], null, 100)).toThrow(/family-not-present/);
+  });
+});
+
+describe('enemy growth repair contracts', () => {
+  it('keeps custom-deck and forced-tier echoes separate from base recipe rank', () => {
+    const forced = buildEnemyEncounter('cinder_sprite', 4, 'normal', 1, ['diamond']);
+    expect(forced.baseRank).toBe(1);
+    expect(forced.rank).toBe(6);
+    const custom = buildEnemyEncounter('cinder_sprite', 4, 'normal', 4, ['diamond'], null, undefined,
+      [{ skillId: 'cinder_dart', slot: 0 }], 100);
+    expect(custom.baseRank).toBe(0);
+    expect(custom.rank).toBe(3);
+    expect(custom.setup.pieces).toHaveLength(1);
+    expect(custom.setup.stats).toEqual(scaleMonsterToLevel(enemies.cinder_sprite!, 4).stats);
+  });
+
+  it('retains the base rank in a distinguishing level-4 recipe round trip', () => {
+    const prep = buildEnemyEncounter('cinder_sprite', 4, 'normal', 0);
+    expect(prep.rank).toBe(2);
+    expect(prep.setup.pieces.map((p) => p.tier)).toEqual(['silver', 'silver']);
+    const wrong = buildEnemyEncounter(prep.enemyId, prep.level, prep.title, prep.rank);
+    expect(wrong.rank).toBe(4);
+    expect(wrong.setup.pieces.map((p) => p.tier)).toEqual(['gold', 'gold']);
+    expect(prep.baseRank).toBe(0);
+    expect(prep.growthLevel).toBe(4);
+    const rebuilt = buildEnemyEncounter(prep.enemyId, prep.level, prep.title, prep.baseRank, prep.modifiers, prep.affix, undefined, null, prep.growthLevel);
+    expect(rebuilt.setup).toEqual(prep.setup);
+  });
+
+  it('resolves every milestone after authored, affix and title occupancy, then caps later rank', () => {
+    expect(skillBook.inferno_eruption!.size).toBe(3);
+    expect(skillBook.cinder_dart!.size).toBe(1);
+    expect(skillBook.braced_pike!.size).toBe(1);
+    const enemy = { ...enemies.cinder_sprite!, boardSize: 3,
+      pieces: [0, 1, 2].map((slot) => ({ skillId: 'cinder_dart', slot })),
+      growth: [fireGrowth('inferno_eruption'), fireGrowth('forgeheart_bastion', 'fireball')],
+    };
+    const baseline = resolveEncounterForEnemy(enemy, 1, 'boss', 0, [], 'braced', 100);
+    expect(baseline.setup.pieces).toHaveLength(5);
+    const grown = resolveEncounterForEnemy(enemy, 6, 'boss', 0, [], 'braced', 100);
+    expect(grown.setup.boardSize).toBeLessThanOrEqual(HERO_BOARD_SLOTS);
+    expect(grown.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ...baseline.setup.pieces.map((p) => [p.skillId, p.slot]), ['inferno_eruption', 5], ['fireball', 8],
+    ]);
+    expect(grown.setup.boardSize).toBe(10);
+    expect(grown.rank).toBe(1);
+    for (const piece of grown.setup.pieces) {
+      expect(piece.slot).toBeGreaterThanOrEqual(0);
+      expect(piece.slot + skillBook[piece.skillId]!.size).toBeLessThanOrEqual(HERO_BOARD_SLOTS);
+    }
+    const capped = resolveEncounterForEnemy(enemy, 100, 'boss', 0, [], 'braced', 100);
+    expect(capped.rank).toBe(21);
+    expect(capped.setup.pieces.map((p) => p.tier)).toEqual(Array(7).fill('diamond'));
+    expect(capped.setup.stats).toEqual(scaleMonsterToLevel(enemy, 104, 1250).stats);
+  });
+
+  it('adds two ordered cards before the next cadence step raises rank', () => {
+    const enemy = { ...enemies.cinder_sprite!, growth: [fireGrowth('cinder_dart'), fireGrowth('ember_lash')] };
+    const second = resolveEncounterForEnemy(enemy, 4, 'normal', 0);
+    expect(second.setup.pieces.map((p) => [p.skillId, p.slot])).toEqual([
+      ...enemy.pieces.map((p) => [p.skillId, p.slot]), ['cinder_dart', 2], ['ember_lash', 3],
+    ]);
+    expect(second.rank).toBe(0);
+    const next = resolveEncounterForEnemy(enemy, 6, 'normal', 0);
+    expect(next.setup.pieces.map((p) => p.tier)).toEqual(['silver', 'bronze', 'bronze', 'bronze']);
+    expect(next.rank).toBe(1);
+    expect(next.setup.stats).toEqual(enemy.stats);
+  });
+});
+
 import { skillBook } from '../../src/data/skills';
 import { applyTier } from '../../src/engine/cards';
 import { powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
@@ -38,7 +318,8 @@ describe('run/encounter: buildEnemyEncounter', () => {
   it('level 5 matches scaleMonsterToLevel output', () => {
     const knight = enemies.knight!;
     const unit = buildEnemyEncounter('knight', 5);
-    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(knight, 5).stats);
+    // Fixture facts: two tier increases cost 100 deci, taken from the stat budget.
+    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(knight, 5, 100).stats);
     expect(unit.level).toBe(5);
   });
 
@@ -56,17 +337,20 @@ describe('run/encounter: buildEnemyEncounter', () => {
     const unit = buildEnemyEncounter('giant_rat', 3);
     expect(unit.title).toBe('normal');
     expect(unit.effectiveLevel).toBe(3);
-    expect(unit.rank).toBe(0);
-    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, 3).stats);
+    // Fixture facts: giant_rat has no authored additions; one tier increase costs 50 deci.
+    expect(unit.rank).toBe(1);
+    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, 3, 50).stats);
     expect(unit.setup.pieces.length).toBe(enemies.giant_rat!.pieces.length);
-    expect(unit.setup.pieces.every((piece) => !piece.tier)).toBe(true);
+    expect(unit.setup.pieces.some((piece) => piece.tier)).toBe(true);
   });
 
   it('applies the title level delta to the effective level, keeping requested level for display', () => {
     const elite = buildEnemyEncounter('giant_rat', 5, 'elite');
     expect(elite.level).toBe(5);
     expect(elite.effectiveLevel).toBe(5 + TITLE_PRESETS.elite.levelDelta);
-    expect(elite.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, elite.effectiveLevel).stats);
+    // GROWTH (2026-09-06) is keyed to the REQUESTED level (5, `buildEnemyEncounter`'s
+    // `growthLevel` default), not the title-shifted effective level.
+    expect(elite.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, elite.effectiveLevel, 100).stats);
   });
 
   it('Mob applies its full -4 level delta WITHOUT flooring at 1 (feeds a negative PL spend)', () => {
@@ -201,21 +485,23 @@ describe('run/encounter: titlePresetFor (the title depth ramp)', () => {
 
   it('buildEnemyEncounter consumes the ramp when given a fightNumber, and the flat package when not', () => {
     const base = enemies.giant_rat!.pieces.length; // 2
-    // Milestone boss #1: authored kit only, no tiers, +1 effective level.
+    // Milestone boss #1: authored kit only, +1 effective level. GROWTH
+    // (2026-09-06) still spends growthStepsAt(5) = 2 rank steps at this
+    // requested level (giant_rat has no growth list) — "no tiers" is no
+    // longer true on its own, so this checks the DERIVED rank instead.
     const rampedBoss = buildEnemyEncounter('giant_rat', 5, 'boss', undefined, [], null, 5);
     expect(rampedBoss.effectiveLevel).toBe(6);
-    expect(rampedBoss.rank).toBe(0);
+    expect(rampedBoss.rank).toBe(2);
     expect(rampedBoss.setup.pieces).toHaveLength(base);
-    expect(rampedBoss.setup.pieces.every((p) => !p.tier)).toBe(true);
     // The SAME call without a fightNumber is the flat (pre-ramp) package.
     const flatBoss = buildEnemyEncounter('giant_rat', 5, 'boss');
     expect(flatBoss.effectiveLevel).toBe(5 + TITLE_PRESETS.boss.levelDelta);
-    expect(flatBoss.rank).toBe(TITLE_PRESETS.boss.rank);
+    expect(flatBoss.rank).toBe(6);
     expect(flatBoss.setup.pieces).toHaveLength(base + TITLE_PRESETS.boss.extraCards);
-    // Early elite: +1 card, +1 level, rank 0.
+    // Early elite: +1 card, +1 level, PLUS growth's own rank steps.
     const rampedElite = buildEnemyEncounter('giant_rat', 3, 'elite', undefined, [], null, 3);
     expect(rampedElite.effectiveLevel).toBe(4);
-    expect(rampedElite.rank).toBe(0);
+    expect(rampedElite.rank).toBe(1);
     expect(rampedElite.setup.pieces).toHaveLength(base + 1);
     // Deep fight: ramp = flat, byte-identical setups.
     const deepRamped = buildEnemyEncounter('giant_rat', 30, 'boss', undefined, [], null, 30);
@@ -317,8 +603,14 @@ describe('run/encounter: enemy modifiers', () => {
   });
 
   it('diamond does not touch stats', () => {
-    const bare = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2);
-    const diamond = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2, ['diamond']);
+    // Level 1 (growthStepsAt(1) === 0) — GROWTH (2026-09-06) otherwise makes
+    // `diamond` touch stats INDIRECTLY (a `forceTier` override makes growth's
+    // own tier-up steps free — see `growthBoardDeltaDeci`'s doc comment — so
+    // a level where growth actually spends a step prices `bare` and
+    // `diamond` differently). This test is specifically about `diamond`'s
+    // OWN, direct effect, so it stays at a level growth cannot touch.
+    const bare = buildEnemyEncounter('bandit_duelist', 1, 'elite', 2);
+    const diamond = buildEnemyEncounter('bandit_duelist', 1, 'elite', 2, ['diamond']);
     expect(diamond.setup.stats).toEqual(bare.setup.stats);
   });
 
@@ -336,8 +628,10 @@ describe('run/encounter: enemy modifiers', () => {
   });
 
   it('modifiers stack (diamond + swift)', () => {
-    const bare = buildEnemyEncounter('giant_rat', 2, 'normal', 0);
-    const both = buildEnemyEncounter('giant_rat', 2, 'normal', 0, ['diamond', 'swift']);
+    // Level 1 (growthStepsAt(1) === 0) — see 'diamond does not touch stats'
+    // above for why this test stays off growth's own level dependence.
+    const bare = buildEnemyEncounter('giant_rat', 1, 'normal', 0);
+    const both = buildEnemyEncounter('giant_rat', 1, 'normal', 0, ['diamond', 'swift']);
     expect(both.setup.stats.speed).toBe(bare.setup.stats.speed + 4);
     for (const piece of both.setup.pieces) expect(piece.tier).toBe('diamond');
   });

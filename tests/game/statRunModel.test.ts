@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   capabilityStatRun, deckMetaStatRun, foeSecondaryStatRun, ledgerStatRows,
-  livesAreCritical, pouchStatRun, runProgressStatRun, statDeltaInk, statLabelInk,
+  livesAreCritical, pouchStatRun, runBossCountdownModel, runProgressStatRun, statDeltaInk, statLabelInk,
   statRunPlainText, statSegmentRoles, statValueInk,
   type StatKind, type StatSegment,
 } from '../../src/game/ui/statRunModel';
@@ -119,52 +119,51 @@ describe('statRunModel: density -> which size pair a segment draws at', () => {
 describe('statRunModel: the run HUD strip', () => {
   const facts = { day: 3, wave: 2, gold: 137, heroLevel: 4, lives: 2, bossesCleared: 1 };
 
-  it('shows the SAME six stats in the SAME order on both platforms', () => {
+  it('shows the SAME seven stats in the SAME order on both platforms', () => {
     const m = runProgressStatRun(facts, true);
     const d = runProgressStatRun(facts, false);
     expect(m.segments.map((s) => s.kind)).toEqual(d.segments.map((s) => s.kind));
     expect(m.segments.map((s) => s.value)).toEqual(d.segments.map((s) => s.value));
-    expect(m.segments).toHaveLength(6);
+    expect(m.segments).toHaveLength(7);
   });
 
   it('GOLD and LIVES are the two leads; everything else is demoted', () => {
     const s = runProgressStatRun(facts, true).segments;
     const leads = s.filter((x) => x.tone === 'lead').map((x) => x.label);
     expect(leads).toEqual(['G', '♥']);
-    expect(s.filter((x) => x.tone === 'quiet')).toHaveLength(4);
+    expect(s.filter((x) => x.tone === 'quiet')).toHaveLength(5);
   });
 
-  it('the mobile line is not one character wider than the flat string it replaced', () => {
-    // The hierarchy on the phone strip is bought out of TONE, not out of extra
-    // characters — ~28 chars is the whole budget (CLAUDE.md, USER-LOCKED).
-    // This is the exact string `RunProgressStrip.statsStripText` shipped.
-    const shipped = 'D3 · W2 · G137 · LV4 · ♥2 · B1';
-    const built = runProgressStatRun(facts, true).segments
-      .map((s) => `${s.label}${s.value}`)
-      .join(' · ');
-    expect(built).toBe(shipped);
+  it('distinguishes absolute DAY, REGION DAY, and STOP on both HUD profiles', () => {
+    for (const compact of [true, false]) {
+      const built = runProgressStatRun({ ...facts, day: 23, wave: 6 }, compact);
+      expect(built.segments.slice(0, 3).map((s) => [s.label, s.value]))
+        .toEqual([['STOP', '23'], ['DAY', '6'], ['REGION DAY', '1/5']]);
+      expect(statRunPlainText(built)).not.toContain('WAVE');
+      expect(runProgressStatRun({ ...facts, day: 22, wave: 5 }, compact).segments[2]?.value).toBe('5/5');
+    }
   });
 
   it('LIVES goes alarm at EXACTLY 1 — not at 0, which is the pre-run state', () => {
     expect(livesAreCritical(1)).toBe(true);
     expect(livesAreCritical(0)).toBe(false);
     expect(livesAreCritical(3)).toBe(false);
-    const lastLife = runProgressStatRun({ ...facts, lives: 1 }, true).segments[4]!;
-    const preRun = runProgressStatRun({ ...facts, lives: 0 }, true).segments[4]!;
+    const lastLife = runProgressStatRun({ ...facts, lives: 1 }, true).segments[5]!;
+    const preRun = runProgressStatRun({ ...facts, lives: 0 }, true).segments[5]!;
     expect(statValueInk(lastLife)).toBe('alarm');
     expect(statValueInk(preRun)).toBe('vital');
   });
 
   it('LIVES 3 and LIVES 1 do not look alike — the user’s "a zero is not neutral" rule', () => {
-    const three = runProgressStatRun({ ...facts, lives: 3 }, true).segments[4]!;
-    const one = runProgressStatRun({ ...facts, lives: 1 }, true).segments[4]!;
+    const three = runProgressStatRun({ ...facts, lives: 3 }, true).segments[5]!;
+    const one = runProgressStatRun({ ...facts, lives: 1 }, true).segments[5]!;
     expect(statValueInk(three)).not.toBe(statValueInk(one));
   });
 
   it('GOLD does not read the same as BOSSES — the complaint in one assertion', () => {
     const s = runProgressStatRun(facts, true).segments;
-    const gold = s[2]!;
-    const bosses = s[5]!;
+    const gold = s[3]!;
+    const bosses = s[6]!;
     expect(statValueInk(gold)).not.toBe(statValueInk(bosses));
     expect(statLabelInk(gold)).not.toBe(statLabelInk(bosses));
     expect(statSegmentRoles(gold, 'roomy').value).not.toBe(statSegmentRoles(bosses, 'roomy').value);
@@ -179,7 +178,7 @@ describe('statRunModel: the run HUD strip', () => {
 
   it('LV gains a `+N` delta in the GAIN ink when PL is banked — both platforms', () => {
     for (const compact of [true, false]) {
-      const lv = runProgressStatRun({ ...facts, bankedPL: 3 }, compact).segments[3]!;
+      const lv = runProgressStatRun({ ...facts, bankedPL: 3 }, compact).segments[4]!;
       expect(lv.label).toBe('LV');
       expect(lv.delta).toBe('+3');
       expect(statDeltaInk(lv)).toBe('gain');
@@ -188,9 +187,9 @@ describe('statRunModel: the run HUD strip', () => {
 
   it('no delta at zero/absent banked — nothing is owed, so nothing is added', () => {
     // Absent covers the two hand-built pre-run snapshots (EMPTY_HUD_SNAPSHOT).
-    expect(runProgressStatRun(facts, true).segments[3]!.delta).toBeUndefined();
-    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, true).segments[3]!.delta).toBeUndefined();
-    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, false).segments[3]!.delta).toBeUndefined();
+    expect(runProgressStatRun(facts, true).segments[4]!.delta).toBeUndefined();
+    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, true).segments[4]!.delta).toBeUndefined();
+    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, false).segments[4]!.delta).toBeUndefined();
   });
 
   it('the delta is the ONLY thing banked PL changes about the line', () => {
@@ -328,11 +327,17 @@ describe('statRunModel: the run ledger', () => {
     const rows = ledgerStatRows(facts);
     expect(rows.map(([l, r]) => [l.label, r.label])).toEqual([
       ['FIGHTS WON', 'FIGHTS LOST'],
-      ['BOSSES CLEARED', 'DEEPEST WAVE'],
+      ['BOSSES CLEARED', 'DAYS REACHED'],
       ['GOLD EARNED', 'GOLD SPENT'],
       ['DAMAGE DEALT', 'DAMAGE TAKEN'],
       ['HEALING DONE', 'PURCHASES'],
     ]);
+  });
+
+  it('DAYS REACHED keeps absolute progress after the region day resets', () => {
+    const reached = ledgerStatRows({ ...facts, deepestWave: 12 })[1]![1];
+    expect(reached.label).toBe('DAYS REACHED');
+    expect(reached.value).toBe('12');
   });
 
   it('what you EARNED no longer reads the same as what you SPENT or what was TAKEN', () => {
@@ -349,5 +354,18 @@ describe('statRunModel: the run ledger', () => {
   it('the ten cells are no longer ten identical numbers', () => {
     const inks = new Set(ledgerStatRows(facts).flat().map((s) => statValueInk(s)));
     expect(inks.size).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('boss exploration countdown', () => {
+  it.each([
+    [1, '4 DAYS UNTIL BOSS', false],
+    [4, '1 DAY UNTIL BOSS', false],
+    [5, 'BOSS TODAY', true],
+    [6, '4 DAYS UNTIL BOSS', false],
+    [9, '1 DAY UNTIL BOSS', false],
+    [10, 'BOSS TODAY', true],
+  ] as const)('wave %i shows %s with the correct urgency', (wave, headline, bossNow) => {
+    expect(runBossCountdownModel(wave)).toEqual({ headline, sub: 'BOSS ON DAY 5', bossNow });
   });
 });

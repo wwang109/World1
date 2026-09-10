@@ -1,10 +1,10 @@
 import type { BuffableStat, SkillTier } from '../engine/types';
 
 // Enemy MODIFIERS — rogue-like affixes an encounter can stack on top of an
-// enemy's (level + rank + extra cards). This is CONTENT (names, blurbs, and
-// the tuning values behind each affix), authored here rather than in the
-// run-layer resolver that consumes it (`src/run/encounter.ts`). That module
-// still owns the MECHANISM — how a `bonusPL`/`bonusProfile` pair gets
+// enemy's (level + rank + extra cards). This is CONTENT (names, counter-play
+// answers, and the tuning values behind each affix), authored here rather than
+// in the run-layer resolver that consumes it (`src/run/encounter.ts`). That
+// module still owns the MECHANISM — how a `bonusPL`/`bonusProfile` pair gets
 // auto-spent through the level-up PL economy, how `forceTier` overrides
 // rank assignment after the fact, and how a `cards` list is installed onto
 // the enemy's deck; this module owns only the DATA those mechanisms read.
@@ -73,8 +73,25 @@ export interface EnemyModifierPreset {
   id: string;
   /** Display name, e.g. chip label. */
   name: string;
-  /** One-line effect description for UI. */
-  blurb: string;
+  /**
+   * WHAT ANSWERS THIS AFFIX — the one clause a player can act on while looking
+   * at their board. Genuinely affix-specific EDITORIAL: it is a claim about the
+   * whole card pool ("magical or TRUE hits", "build light"), which nothing in
+   * the data can derive, so it is authored. Required on a behavioural affix
+   * (`affix: true`), absent on an escalation modifier, which is never dealt as
+   * a readable identity and so has nothing to answer.
+   *
+   * AUTHORED ONCE, HERE. It used to exist twice: as a prose `Answered by:`
+   * NOTE in the comment above each preset, and hand-compressed a second time
+   * into `ANSWER` in `src/game/ui/affixPresentation.ts` — two copies of one
+   * editorial judgement, free to drift. The comment stays as the DERIVATION
+   * (which cards, and why); this field is the line the chip prints.
+   *
+   * Kept inside `ANSWER_LINE_BUDGET` (60 chars incl. its `ANSWER · ` label) by
+   * `tests/game/affixPresentation.test.ts`: a two-line answer once pushed the
+   * sandbox prep panel past its own bottom edge.
+   */
+  answer?: string;
   /** Extra PL auto-spent (allocateMonsterPL) against `bonusProfile` after level scaling. */
   bonusPL?: number;
   bonusProfile?: ModifierStatBonus;
@@ -113,14 +130,13 @@ export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
   braced: {
     id: 'braced',
     name: 'BRACED',
-    blurb: 'Braced Pike - takes 20% less physical damage while braced',
+    answer: 'magical or TRUE hits, or expose to pay the tax',
     affix: true,
     cards: ['braced_pike'],
   },
   diamond: {
     id: 'diamond',
     name: 'DIAMOND-POWERED',
-    blurb: 'Every card upgraded to Diamond tier',
     forceTier: 'diamond',
   },
   // AFFIX — taxes TEMPO, and it is the one tax that never decays with depth:
@@ -138,7 +154,7 @@ export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
   hobbling: {
     id: 'hobbling',
     name: 'HOBBLING',
-    blurb: 'Hamstring - slows your next action by +16 weight',
+    answer: 'build light — cleanse cannot touch this slow',
     affix: true,
     cards: ['hamstring'],
   },
@@ -152,14 +168,13 @@ export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
   leeching: {
     id: 'leeching',
     name: 'LEECHING',
-    blurb: 'Leeching Fang - heals 45% of the damage it deals',
+    answer: 'DoT, debuff or expose each cut it 20% — or burst',
     affix: true,
     cards: ['leeching_fang'],
   },
   swift: {
     id: 'swift',
     name: 'SWIFT',
-    blurb: '+8 PL of pure Speed (+4 SPD)',
     bonusPL: 8,
     bonusProfile: { speed: 1 },
   },
@@ -184,7 +199,7 @@ export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
   venomous: {
     id: 'venomous',
     name: 'VENOMOUS',
-    blurb: 'Second Bite - poison that bypasses shields, and bites harder once it lands',
+    answer: 'cleanse or ward — it bypasses shields',
     affix: true,
     cards: ['second_bite'],
   },

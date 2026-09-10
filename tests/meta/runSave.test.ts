@@ -4,8 +4,10 @@ import {
   loadRun,
   RUN_SAVE_BACKUP_KEY,
   RUN_SAVE_STORAGE_KEY,
+  RUN_SAVE_V1_STORAGE_KEY,
   saveRun,
   SCHEMA_VERSION,
+  type RunStateV1,
   type StorageDriver,
 } from '../../src/meta/runSave';
 import {
@@ -29,26 +31,9 @@ import {
   rollEventForNode,
 } from '../../src/run/events';
 import { gemBook } from '../../src/data/gems';
+import { eventCatalogFromJson } from '../../src/data/eventsContent';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
-
-/** In-memory fake `StorageDriver` — same seam/idiom as
- * `tests/meta/lifetimeStats.test.ts`'s fake: `src/meta` never touches
- * `localStorage` itself, so this fake exercises the exact same get/set
- * contract a real browser driver would. */
-function fakeStorage(initial: Record<string, string> = {}): StorageDriver {
-  const map = new Map(Object.entries(initial));
-  return {
-    get: (key) => map.get(key) ?? null,
-    set: (key, value) => { map.set(key, value); return true; },
-  };
-}
-
-function fakeQuotaExceededStorage(): StorageDriver {
-  return {
-    get: () => null,
-    set: () => false,
-  };
-}
+import { fakeQuotaExceededStorage, fakeStorage } from '../fixtures/storage';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -57,6 +42,10 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
     picks[key] = draft[key][0]!.skillId;
   }
   return picks;
+}
+
+function startedRun(seed: number): RunState {
+  return applyDraftResult(createRun(seed), draftPicksFor(seed));
 }
 
 /** Builds a real, mid-run `RunState` — drafted, has walked into a shop node,
@@ -153,6 +142,7 @@ describe('meta/runSave: an event-granted gem survives reload at every step of th
 
     // The node's OWN drawn event (idempotent memo), reloaded before choosing.
     const drawn = rollEventForNode(at.state, node);
+    if (!('choices' in drawn.event)) throw new Error('seed contract must draw legacy gem event');
     let state = reload(storage, drawn.state);
     const rung = drawn.event.choices.find((c) => c.outcome.kind === 'gemChoice');
     expect(rung).toBeDefined(); // seed contract — see SEED above
@@ -209,6 +199,7 @@ describe('meta/runSave: an event-granted gem survives reload at every step of th
     // save layer, so every real v1 blob carries it.
     const at = stateAtFirstEventNode(SEED);
     const drawn = rollEventForNode(at.state, at.node);
+    if (!('choices' in drawn.event)) throw new Error('seed contract must draw legacy gem event');
     const {
       held: _held,
       draft: _draft,
@@ -248,6 +239,47 @@ describe('meta/runSave: load with nothing stored', () => {
 });
 
 describe('meta/runSave: save/load round-trip', () => {
+  it('loads a pre-migration schema-v1 event ledger whose event and choice IDs resolve in the JSON catalog', () => {
+    const {
+      eventCallbackQueue: _callbacks,
+      completedStoryIds: _completedStories,
+      eventCallbackResolutionIds: _callbackResolutions,
+      mapIntelByBand: _mapIntel,
+      appliedMapInfoSourceIds: _mapInfoSources,
+      combatFactLedger: _combatFacts,
+      revengeFactLedger: _revengeFacts,
+      signatureFactLedger: _signatureFacts,
+      journeyFactLedger: _journeyFacts,
+      eventBindingReservations: _reservations,
+      eventMaterializations: _materializations,
+      storyStateV3: _storyState,
+      ...v1Base
+    } = createRun(42);
+    const historicalRun: RunStateV1 = {
+      ...v1Base,
+      eventInstances: { 'node-1': 'wandering_tutor', 'node-2': 'fences_offer' },
+      eventResolutions: {
+        'node-1': { eventId: 'wandering_tutor', choiceId: 'pay' },
+        'node-2': { eventId: 'fences_offer', choiceId: 'take_stone', pending: true },
+      },
+    };
+    const preMigrationSave = JSON.stringify({ schemaVersion: 1, run: historicalRun });
+    const storage = fakeStorage({ [RUN_SAVE_V1_STORAGE_KEY]: preMigrationSave });
+    const loaded = loadRun(storage)!;
+
+    expect(SCHEMA_VERSION).toBe(3);
+    expect(loaded.eventInstances).toMatchObject({
+      'node-1': { eventId: 'wandering_tutor', contentVersion: 1, instanceId: 'legacy:node-1' },
+      'node-2': { eventId: 'fences_offer', contentVersion: 1, instanceId: 'legacy:node-2' },
+    });
+
+    for (const resolution of Object.values(loaded.eventResolutions ?? {})) {
+      const event = eventCatalogFromJson[resolution.eventId];
+      expect(event, resolution.eventId).toBeDefined();
+      expect(event!.choices.some((choice) => choice.id === resolution.choiceId), `${resolution.eventId}/${resolution.choiceId}`).toBe(true);
+    }
+  });
+
   it('round-trips a real mid-run state byte-exactly', () => {
     const storage = fakeStorage();
     const run = midRunState(12345);
@@ -280,6 +312,81 @@ describe('meta/runSave: save/load round-trip', () => {
     const run = createRun(42);
     saveRun(storage, run);
     expect(loadRun(storage)).toEqual(run);
+  });
+});
+
+describe('meta/runSave: Bell chain resolutions survive between stages without a schema change', () => {
+  function withResolution(state: RunState, key: string, eventId: string, choiceId: string, pending = false): RunState {
+    return {
+      ...state,
+      eventResolutions: {
+        ...(state.eventResolutions ?? {}),
+        [key]: {
+          eventId,
+          contentVersion: 1,
+          instanceId: `event:${key}`,
+          choiceId,
+          ...(pending ? { pending: true } : {}),
+        },
+      },
+    };
+  }
+
+  function reload(state: RunState): RunState {
+    const storage = fakeStorage();
+    expect(saveRun(storage, state)).toEqual({ ok: true });
+    expect(SCHEMA_VERSION).toBe(3);
+    return loadRun(storage)!;
+  }
+
+  function matchingDraw(state: RunState, eventId: string, theme: RunNode['eventTheme'], biomeId: string): number {
+    const seed = Array.from({ length: 256 }, (_unused, value) => value).find((eventSeed) => {
+      const node: RunNode = { id: `save-probe-${eventId}-${eventSeed}`, depth: 1, wave: 1, kind: 'event', eventSeed, eventTheme: theme, biomeId };
+      return rollEventForNode(state, node).event.id === eventId;
+    });
+    expect(seed, `${eventId} had no deterministic real draw in seeds 0..255`).toBeDefined();
+    return seed!;
+  }
+
+  function expectDraw(state: RunState, eventId: string, theme: RunNode['eventTheme'], biomeId: string): void {
+    const eventSeed = matchingDraw(state, eventId, theme, biomeId);
+    const node: RunNode = { id: `save-hit-${eventId}`, depth: 1, wave: 1, kind: 'event', eventSeed, eventTheme: theme, biomeId };
+    expect(rollEventForNode(state, node).event.id).toBe(eventId);
+  }
+
+  it('a reloaded exact stage-1 resolution opens stage 2, while the sibling choice stays closed', () => {
+    const base = startedRun(81);
+    const exact = reload(withResolution(base, 'bell-1', 'bell_beneath_ice', 'prise_it_free'));
+    expectDraw(exact, 'the_second_toll', 'omen', 'frostmarch');
+
+    const sibling = reload(withResolution(base, 'bell-1', 'bell_beneath_ice', 'ring_it_here'));
+    for (let eventSeed = 0; eventSeed <= 255; eventSeed++) {
+      const node: RunNode = { id: `save-closed-stage2-${eventSeed}`, depth: 1, wave: 1, kind: 'event', eventSeed, eventTheme: 'omen', biomeId: 'frostmarch' };
+      expect(rollEventForNode(sibling, node).event.id).not.toBe('the_second_toll');
+    }
+  });
+
+  it('reloading after both exact resolutions opens stage 3 and preserves both ledger entries', () => {
+    const afterStage1 = reload(withResolution(startedRun(82), 'bell-1', 'bell_beneath_ice', 'prise_it_free'));
+    const afterStage2 = reload(withResolution(afterStage1, 'bell-2', 'the_second_toll', 'answer_the_bell'));
+
+    expect(afterStage2.eventResolutions).toMatchObject({
+      'bell-1': { eventId: 'bell_beneath_ice', choiceId: 'prise_it_free' },
+      'bell-2': { eventId: 'the_second_toll', choiceId: 'answer_the_bell' },
+    });
+    expectDraw(afterStage2, 'the_bell_unbound', 'forge', 'emberwaste');
+  });
+
+  it('a pending reloaded stage-1 cardChoice is already committed and opens stage 2', () => {
+    const pending = reload(withResolution(startedRun(83), 'bell-1', 'bell_beneath_ice', 'prise_it_free', true));
+    expect(pending.eventResolutions?.['bell-1']).toEqual({
+      eventId: 'bell_beneath_ice',
+      contentVersion: 1,
+      instanceId: 'event:bell-1',
+      choiceId: 'prise_it_free',
+      pending: true,
+    });
+    expectDraw(pending, 'the_second_toll', 'omen', 'frostmarch');
   });
 });
 

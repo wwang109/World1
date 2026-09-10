@@ -64,7 +64,6 @@ function card(id: string, effects: SkillDef['effects'], extra: Partial<SkillDef>
     rarity: 'common',
     tier: 'bronze',
     effects,
-    text: '',
     ...extra,
   };
 }

@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { gemPowerLevel, instancePowerLevelDeci, powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import { gemCatalogOrder } from '../ui/gemGlossary';
+import { gemCatalogOrder } from '../ui/gemPresentation';
 import {
   ARCHETYPE_COLOR,
   FONT,
@@ -18,6 +18,8 @@ import { CardToken } from '../ui/CardToken';
 import { BoardColumn } from '../ui/BoardColumn';
 import { templateBadgeTextureKey } from '../ui/cardArtPresentation';
 import type { SkillDef } from '../../engine/types';
+import { renderGemText } from '../../engine/keywords/gemText';
+import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 
 type KitTab = 'system' | 'card' | 'tokens' | 'gem-a' | 'gem-b' | 'gem-c';
 
@@ -340,7 +342,7 @@ export class UiKitScene extends Phaser.Scene {
       this.keep(this.add.text(px + 32, dy + 38, `${selected.rarity.toUpperCase()} · ${selected.kind === 'stat' ? 'stat mod' : 'effect rider'} · +${gemPowerLevel(selected)} gem PL`, {
         fontSize: '10px', color: `#${GEM_RARITY_COLOR[selected.rarity].toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold',
       }));
-      this.keep(this.add.text(px + 32, dy + 60, selected.text, {
+      this.keep(this.add.text(px + 32, dy + 60, stripCardTextMarkup(renderGemText(selected)), {
         fontSize: '12px', color: UI.text, fontFamily: FONT.body, wordWrap: { width: pw - 80 },
       }));
       this.keep(this.add.text(px + 32, dy + 108, `${host.name}: PL ${hostPl} → ${instancePowerLevelDeci(host, { gem: selected }) / 10}`, {
@@ -354,7 +356,7 @@ export class UiKitScene extends Phaser.Scene {
         const y = bodyY + index * 96;
         this.keep(this.add.rectangle(px + 16, y, pw - 32, 86, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6));
         this.gemRowCore(px + 16, y, gem, pw - 32);
-        this.keep(this.add.text(px + 48, y + 44, gem.text, {
+        this.keep(this.add.text(px + 48, y + 44, stripCardTextMarkup(renderGemText(gem)), {
           fontSize: '11px', color: UI.text, fontFamily: FONT.body, wordWrap: { width: pw - 96 }, maxLines: 2,
         }));
       });
@@ -387,7 +389,7 @@ export class UiKitScene extends Phaser.Scene {
       this.keep(this.add.text(dx + 18, bodyY + 44, `${selected.rarity.toUpperCase()} · ${selected.kind === 'stat' ? 'stat mod' : 'effect rider'} · +${gemPowerLevel(selected)} gem PL`, {
         fontSize: '10px', color: `#${GEM_RARITY_COLOR[selected.rarity].toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold',
       }));
-      this.keep(this.add.text(dx + 18, bodyY + 72, selected.text, {
+      this.keep(this.add.text(dx + 18, bodyY + 72, stripCardTextMarkup(renderGemText(selected)), {
         fontSize: '12px', color: UI.text, fontFamily: FONT.body, wordWrap: { width: dw - 36 }, lineSpacing: 4,
       }));
       this.keep(this.add.text(dx + 18, bodyY + 180, `${host.name}\nPL ${hostPl} → ${instancePowerLevelDeci(host, { gem: selected }) / 10}`, {

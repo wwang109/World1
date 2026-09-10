@@ -27,7 +27,7 @@
 // order must never depend on insertion order.
 
 import type { Element, WeaponType } from '../engine/types';
-import type { EventTheme } from './events';
+import type { EventTheme } from './eventTypes';
 
 /** The type a biome leans into — the whole reason a player reads its name. */
 export type BiomeLean =
@@ -128,8 +128,12 @@ export interface BiomeDef {
 // `hollow_crown` in the Hallowfield, `rime_tyrant` in the Howlmoor,
 // `thornpike_marshal` in the Swornhold) because those bosses had no band of
 // their own; each has now gone home. `greenwood_sovereign` is deliberately in
-// TWO shortlists — it is the only dual-affinity boss (nature + bow), so it is
-// genuinely both the Thornwild's and the Arrowfell's.
+// TWO shortlists — it USED TO BE the only dual-affinity boss (nature + bow),
+// genuinely both the Thornwild's and the Arrowfell's. STALE AS OF 2026-09-06:
+// affinity is board-derived only now, no authored override, and this boss's
+// own 3-card board is 3/3 bow, 0/3 nature — it derives bow alone, so it is
+// genuinely the Arrowfell's only; its Thornwild membership is THEME now, not
+// a matchup claim (see its own comment in `enemies.ts`).
 //
 // EACH `shops` LIST NOW OPENS ON ITS OWN SINGLE-TYPE STALL, and with eleven
 // bands that alone satisfies the coverage invariant below — priority 1 no
@@ -153,13 +157,18 @@ const defs: BiomeDef[] = [
     // choosing a route (this is the one band where the type wheel offers no
     // shortcut), not an empty line that reads like a bug.
     mobs: ['cordon_archer', 'deadeye_stalker', 'greenwood_ranger', 'hunter'],
-    // `greenwood_sovereign` is the bow boss AND the roster's only dual-affinity
-    // one (nature + bow) — so unlike its mobs it CAN be countered, by fire off
-    // its nature half. It sits in the Thornwild's shortlist too, honestly: it is
-    // both. `deadeye_stalker` is the pure-bow champion and takes nothing extra
-    // from anything, which makes this the catalog's only SPLIT shortlist (the
-    // two faces disagree about their counters) — see `BossCounterRead` in
-    // `src/run/biomeForecast.ts`, which refuses to promise a type it cannot.
+    // `greenwood_sovereign` is the bow boss and USED TO BE the roster's only
+    // dual-affinity one (nature + bow) — unlike its mobs it could be
+    // countered, by fire off its nature half. STALE AS OF 2026-09-06: affinity
+    // is board-derived only now, and this boss's own board is 3/3 bow, 0/3
+    // nature, so it derives bow alone and is now counter-proof like its mobs
+    // (see its own comment in `enemies.ts` — OPEN for a design decision). It
+    // still sits in the Thornwild's shortlist too, for theme, not for a
+    // matchup claim any more. `deadeye_stalker` is the pure-bow champion and
+    // takes nothing extra from anything, which makes this the catalog's only
+    // SPLIT shortlist (the two faces disagree about their counters) — see
+    // `BossCounterRead` in `src/run/biomeForecast.ts`, which refuses to
+    // promise a type it cannot.
     bosses: ['deadeye_stalker', 'greenwood_sovereign'],
     shops: ['fletchers_loft', 'wildworks', 'assassins_den'],
     eventThemes: ['cache', 'market'],
@@ -355,10 +364,16 @@ const defs: BiomeDef[] = [
     // them, not fire) and `rogue` (lance). `blight_shambler` was AUTHORED for
     // the middle tier those borrowed members were covering.
     //
-    // `stone_beetle` STAYS and is on-type: its `elementAffinity: 'nature'` is a
-    // creature-level matchup identity (its shell), not a claim about its cards
-    // — see its own note in `enemies.ts` — and matchup reads the DEFENDER's
-    // affinity, so "fire hits these mobs for +50%" is literally true of it.
+    // `stone_beetle` STAYS despite carrying NO type affinity at all any more.
+    // Its `elementAffinity: 'nature'` used to be an authored creature-level
+    // identity (its shell) rather than a claim about its cards; the
+    // 2026-09-06 ruling (affinity is board-derived only, no authored
+    // override — see `enemyDerivedAffinity` in `src/data/enemyAffinity.ts`) removes that
+    // override outright, and its own 3-card board never reaches 3-of-one-type
+    // on either axis (sword 1 + beast 2, both below `IDENTITY_THRESHOLD = 3`)
+    // — so nothing gets +50% against it any more. It stays in the Thornwild
+    // for THEME (a nature warden creature), not for a matchup promise; see
+    // its own note in `enemies.ts`.
     //
     // STAFFED 2026-08-26 (second pass): the list ran 2/0/1/0, so fights 5-8 and
     // everything past 16 fell back to the depth pool. `thicket_shaman` and
@@ -367,8 +382,11 @@ const defs: BiomeDef[] = [
     // deepest mob cleanses four of them per cast.
     mobs: ['blight_shambler', 'rotwood_ancient', 'stone_beetle', 'thicket_shaman', 'toxic_druid'],
     // `bramble_matriarch` is the nature boss. `greenwood_sovereign` stays here
-    // as well as in the Arrowfell: it is nature AND bow, and its nature half is
-    // what fire farms, so it is honestly a face of both bands.
+    // as well as in the Arrowfell for THEME (a wood lord over both bands), but
+    // as of 2026-09-06 it is bow ONLY (board-derived, no authored nature any
+    // more — see its own comment in `enemies.ts`): it is no longer true that
+    // fire farms it via a nature half, so its Thornwild membership is no
+    // longer a matchup claim, just a shared setting.
     bosses: ['bramble_matriarch', 'greenwood_sovereign'],
     shops: ['grovekeep', 'wildworks', 'alchemist'],
     eventThemes: ['cache', 'recruit'],

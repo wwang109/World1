@@ -39,6 +39,23 @@ export interface FantasyCardTemplateV2Options {
  * from FANTASY_CARD_TEMPLATE_SPEC scaled by ONE uniform factor — no per-tier,
  * per-card, or per-element pixel offsets (see docs/card-template-spec.md §1).
  */
+/**
+ * PHASER OBJECT NAMES for the card`s two TEXT surfaces, exported so an
+ * out-of-process audit can find them exactly rather than by guessing at child
+ * order or font family.
+ *
+ * `scripts/card-face-truncation-audit.ts` (GATE 2) has to read the words each
+ * one really holds, and both of its first heuristics were wrong: "the first
+ * child Container whose children are all Text" is the WEIGHT PLATE (2 Texts),
+ * not the body (up to 11); and "the Text whose fontFamily contains Cinzel"
+ * matched nothing, because `FONT.display` is a Georgia stack. Those two
+ * mistakes reported every card at every width as fully overflowing and every
+ * title as intact — a gate answering confidently and wrongly, which is worse
+ * than no gate. A name cannot be wrong.
+ */
+export const FANTASY_CARD_BODY_NAME = 'fantasy-card-body';
+export const FANTASY_CARD_TITLE_NAME = 'fantasy-card-title';
+
 export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
   private readonly cardScale: number;
   private glossaryTip?: Phaser.GameObjects.Container;
@@ -171,6 +188,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const texts: Phaser.GameObjects.Text[] = [];
     let cursorY = 0;
     for (const entry of entries) {
+      const hasBody = entry.body.trim().length > 0;
       const title = scene.add.text(left + pad, 0, entry.title.toUpperCase(), {
         fontFamily: FONT.body,
         fontStyle: 'bold',
@@ -178,16 +196,19 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
         color: '#ffd98a',
         wordWrap: { width: wrapWidth, useAdvancedWrap: true },
       }).setOrigin(0, 0).setData('offset', cursorY);
-      cursorY += title.height + this.px(2);
-      const bodyText = scene.add.text(left + pad, 0, entry.body, {
-        fontFamily: FONT.body,
-        fontSize: `${Math.max(8, this.px(spec.glossaryText.bodyFontSize))}px`,
-        color: '#f1efe8',
-        wordWrap: { width: wrapWidth, useAdvancedWrap: true },
-        lineSpacing: this.px(2),
-      }).setOrigin(0, 0).setData('offset', cursorY);
-      cursorY += bodyText.height + this.px(10);
-      texts.push(title, bodyText);
+      cursorY += title.height + this.px(hasBody ? 2 : 10);
+      texts.push(title);
+      if (hasBody) {
+        const bodyText = scene.add.text(left + pad, 0, entry.body, {
+          fontFamily: FONT.body,
+          fontSize: `${Math.max(8, this.px(spec.glossaryText.bodyFontSize))}px`,
+          color: '#f1efe8',
+          wordWrap: { width: wrapWidth, useAdvancedWrap: true },
+          lineSpacing: this.px(2),
+        }).setOrigin(0, 0).setData('offset', cursorY);
+        cursorY += bodyText.height + this.px(10);
+        texts.push(bodyText);
+      }
       if (cursorY > box.h - pad * 2) break;
     }
 
@@ -619,8 +640,35 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
         stroke: '#111722',
         strokeThickness: Math.max(1, this.px(2)),
       },
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 0).setName(FANTASY_CARD_TITLE_NAME);
     title.setLineSpacing(layout.lineSpacing);
+    /**
+     * THE TITLE GETS THE SAME CUE THE BODY DOES (2026-09-06, audit).
+     *
+     * Phaser's own `maxLines` truncates with NO marker, so at the 140px card
+     * "Bramble Covenant" wraps to two lines under `title-medium`'s one-line
+     * budget and simply renders "Bramble" — a card silently displaying a
+     * DIFFERENT CARD'S plausible name. The body was fixed for exactly this and
+     * the title was left doing it, on the same thumbnail, in the same frame.
+     *
+     * Measured with Phaser's OWN wrapper (`getWrappedText`) rather than a
+     * character-width estimate: re-deriving the wrap is the mistake
+     * `segmentedLineSurvivors` was deleted for making, and the real
+     * proportional metrics are what decide this.
+     */
+    const wrapped = title.getWrappedText(model.title);
+    if (wrapped.length > layout.maxLines) {
+      const kept = wrapped.slice(0, layout.maxLines).map((line) => line.trimEnd());
+      let last = kept[kept.length - 1] ?? '';
+      const head = kept.slice(0, -1);
+      const fits = (candidate: string): boolean =>
+        title.getWrappedText([...head, candidate].join('\n')).length <= layout.maxLines;
+      // Shed a word at a time first (a title cut mid-word reads as a typo),
+      // then characters if a single word is itself too long for the line.
+      while (last.includes(' ') && !fits(`${last}…`)) last = last.slice(0, last.lastIndexOf(' ')).trimEnd();
+      while (last.length > 1 && !fits(`${last}…`)) last = last.slice(0, -1).trimEnd();
+      title.setText([...head, `${last}…`].join('\n'));
+    }
     return title;
   }
 
@@ -654,7 +702,12 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     // the box height — not just the ladder — bounds the visible line count.
     const maxLines = Math.min(rule.maxLines, Math.max(1, Math.floor(region.h / lineHeight)));
     const strokeThickness = Math.max(1, Math.round(1.5 * this.cardScale));
-    const container = scene.add.container(0, 0);
+    // NAMED so an audit can find it EXACTLY. `scripts/card-face-truncation-audit.ts`
+    // has to read the words this container actually holds, and its first attempt
+    // guessed "the first child Container whose children are all Text" — which is
+    // the WEIGHT PLATE (2 Texts), not the body (11). Every card at every width
+    // then read as fully overflowing. A name costs nothing and cannot be wrong.
+    const container = scene.add.container(0, 0).setName(FANTASY_CARD_BODY_NAME);
     const left = -halfW + region.x;
     const top = -halfH + region.y;
 
@@ -687,7 +740,46 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
 
     let cursorX = 0;
     let line = 0;
+    /**
+     * Words the box has no room for. They used to be `destroy()`ed and that was
+     * the end of it — a SILENT LOSS, and the worst kind: at the 140px card
+     * (`cardDetailOverlay`, `MobileDeckBuild`, `MobileDraft`; cardScale
+     * 0.333 — `MobileWiki`'s detail card and both `MobileShop` panes are 150px,
+     * one step up and no better off) the box is 113x25 and the 8px font floor pins
+     * `lineHeight` to 11, so `maxLines` collapses to TWO whatever the ladder
+     * says — and `bramble_covenant` lost `{{Poison}} 8.` on a dangling em dash
+     * with nothing on screen to say so.
+     *
+     * THE 140px CARD CANNOT BE MADE TO FIT, and that was measured rather than
+     * assumed: roughly half of the 732 card/tier pairs overflow there, and the
+     * two geometry levers available recover exactly ONE of them (dropping the
+     * keep-a-clause-whole rule at <=2 lines; plus the 6 units of slack between
+     * `bodyBox` and the footer row). Three lines would need zero
+     * leading under an 8px font, and the font floor exists because 4px — what
+     * the proportional ladder actually asks for at this scale — is not text.
+     * It is a THUMBNAIL; every surface that draws one also prints the whole
+     * body beside it (`renderCardInfoBox` on the three overlays,
+     * `renderSkillText` verbatim on both Wiki detail panes).
+     *
+     * So the fix is not to fit it, it is to STOP LYING ABOUT IT: the last word
+     * that did fit gets an ellipsis, which is the cue that sends a player to
+     * the full text already on the same screen.
+     *
+     * THE EXACT COUNTS LIVE IN ONE PLACE, and it is not this comment:
+     * `CARD_WIDTHS` in `scripts/card-face-truncation-audit.ts` (GATE 2,
+     * `npm run audit:cardface`) records an overflow mark per real card width
+     * and fails if any overflow goes uncued or a count creeps above its mark.
+     * Those marks move whenever a face gets longer, so a number written here
+     * would go stale silently — which it did, within hours, the first time it
+     * was written into four places at once. The one-off comparison against the
+     * AUTHORED text this migration replaced (it overflowed the 140px card on
+     * materially MORE pairs than the generated text does) is recorded once, with
+     * its date, in `.superpowers/sdd/2026-09-06-card-text-migration/progress.md`
+     * — not restated here, for the same reason.
+     */
     const clipped: Phaser.GameObjects.Text[] = [];
+    /** The last word actually placed — the one that carries the cue. */
+    let lastPlaced: Phaser.GameObjects.Text | undefined;
     for (const clause of clauses) {
       if (clause.length === 0) continue;
       const clauseWidth = clause.reduce((sum, word) => sum + word.width, 0) + spaceWidth * (clause.length - 1);
@@ -706,10 +798,19 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
         }
         wordText.setPosition(left + cursorX, top + line * lineHeight);
         container.add(wordText);
+        lastPlaced = wordText;
         cursorX += wordText.width + spaceWidth;
       }
     }
     for (const wordText of clipped) wordText.destroy();
+    // THE CUE. Appended to the last word that fitted rather than drawn as a
+    // separate object, so it cannot itself be pushed onto a line that does not
+    // exist. A trailing '·' separator is replaced rather than decorated — a
+    // dangling "· …" reads as a missing clause where "…" reads as more text.
+    if (clipped.length > 0 && lastPlaced !== undefined) {
+      const tail = lastPlaced.text;
+      lastPlaced.setText(tail === '·' || tail.endsWith('—') ? '…' : `${tail.replace(/[.,·]$/, '')}…`);
+    }
     return container;
   }
 }

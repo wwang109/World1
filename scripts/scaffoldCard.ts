@@ -18,9 +18,10 @@
  * Cooldown is deliberately NOT a lever: shortening it concentrates play into a
  * one-or-two-card deck. Weight only shifts WHEN a card fires.
  *
- * The emitted `text` is built from per-keyword phrase templates that match
- * docs/card-text-style-guide.md, so the card-text drift guard passes without
- * hand-editing.
+ * A card carries NO authored text. Its face is generated from `effects` by
+ * `renderSkillText` (src/engine/keywords/compose.ts), so this script prints
+ * the exact face the game will draw at every tier rather than emitting a
+ * string an author then has to keep honest.
  *
  * KNOWN-INFEASIBLE SOLO KITS: `lifesteal` alone caps at 60% = 40 deci, under
  * every budget, so it refuses cleanly — pair it with a scalable sink.
@@ -53,6 +54,7 @@ import {
   WEIGHT_MIN,
 } from '../src/engine/balance';
 import { applyTier } from '../src/engine/cards';
+import { renderSkillText } from '../src/engine/keywords/compose';
 import { MAX_WARD_CHARGES, weightOf, type Action, type Archetype, type Element, type Property, type SkillDef, type SkillTier, type WeaponType } from '../src/engine/types';
 import { validateSkillDocument } from '../src/data/validateSkillContent';
 
@@ -136,7 +138,6 @@ const base: SkillDef = {
   id, name, archetypes, property, size, rarity: 'common', tier,
   ...(element ? { element } : {}), ...(weapon ? { weapon } : {}),
   effects: keywords.map(seedAction),
-  text: '',
 };
 
 const clone = (s: SkillDef): SkillDef => JSON.parse(JSON.stringify(s)) as SkillDef;
@@ -204,65 +205,20 @@ function solve(card: SkillDef): SkillDef | null {
   return card;
 }
 
-// ── text from phrase templates (docs/card-text-style-guide.md) ──────────────
-const STAT_TOKEN: Record<string, string> = { attack: 'ATK', magicPower: 'MATK', armor: 'DEF', magicResist: 'MDEF', speed: 'SPD' };
-function typeWord(): string {
-  const w = element ?? weapon ?? '';
-  return w.charAt(0).toUpperCase() + w.slice(1);
-}
-function damageToken(): string {
-  return property === 'physical' ? '(+ATK)' : property === 'magical' ? '(+MATK)' : '(+best stat)';
-}
-function defToken(): string {
-  return property === 'magical' ? '(+MDEF)' : '(+DEF)';
-}
-function phrase(a: Action): string {
-  switch (a.kind) {
-    case 'damage':
-      return property === 'true'
-        ? `Deal ${a.power} (+best stat) TRUE damage — ignores DEF/MDEF`
-        : `Deal ${a.power} ${damageToken()} ${typeWord()} damage`;
-    case 'heal': return property === 'true' ? `Restore ${a.power} HP` : `Restore ${a.power} ${defToken()} HP`;
-    case 'shield':
-      return property === 'true'
-        ? `Gain ${a.power} TRUE shield`
-        : `Gain ${a.power} ${defToken()} ${property} shield`;
-    case 'poison': return `{{Poison}} ${a.stacks}`;
-    case 'burn': return `{{Burn}} ${a.stacks}`;
-    case 'bleed': return `{{Bleed}} ${a.stacks}`;
-    // PHYSICAL since 2026-08-21 (user ruling; see `reflectThorns` in
-    // src/engine/combat/interpreter.ts and §9 of docs/combat-model-spec.md) —
-    // the reflect hits the attacker's armor first. The 25 already-authored
-    // thorns cards + 2 gems still print the old "as TRUE damage" phrasing and
-    // need a content copy sweep (content-designer); this template is the source
-    // of the phrase, so it stops minting the false rule here.
-    case 'thorns': return `{{Thorns}} ${a.stacks} — attackers take the stack count as physical damage per hit (their DEF applies)`;
-    case 'stun': return `{{Stun}} the enemy's next performance`;
-    case 'buffStat': return `+${a.pct}% ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;
-    case 'debuffStat': return `-${a.pct}% enemy ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;
-    case 'expose': return `Enemy takes +${a.pct}% damage (${a.turns} turns)`;
-    case 'guard': return `-${a.pct}% incoming ${a.property} damage (${a.turns} turns)`;
-    case 'negate': return `{{Negate}} the next ${a.charges > 1 ? `${a.charges} ${a.property} attacks` : `${a.property} attack`}`;
-    case 'cleanse': return `{{Cleanse}} ${a.charges} ailment${a.charges > 1 ? 's' : ''}`;
-    case 'ward': return `{{Ward}} ${a.charges} — prevent the next ${a.charges > 1 ? `${a.charges} ailments` : 'ailment'} outright`;
-    case 'slow': return `Enemy's next action is +${a.weight} heavier`;
-    case 'burden': return `{{Burden}} +${a.weight} weight on the card the enemy is about to play`;
-    case 'curse': return `{{Curse}} the card the enemy is about to play deals ${a.amount} less damage for ${a.turns} turns`;
-    case 'splash': return `{{Splash}} — and on the cards either side of it`;
-    case 'disrupt': return `{{Disrupt}} ${a.amount} banked readiness`;
-    case 'lifesteal': return `{{Lifesteal}} ${a.pct}% of damage dealt`;
-    case 'shieldBreak': return `{{Shatter}} ${a.amount} enemy shield`;
-    case 'comboBonus': return `{{Combo}} +${a.amount} damage (previous cast shared an archetype)`;
-    default: return '';
-  }
-}
-function textOf(card: SkillDef): string {
-  const parts = card.effects.map(phrase).filter((p) => p.length > 0);
-  const weightNote = card.speedWeight !== undefined && card.speedWeight !== card.size * 10
-    ? ` Lighter stance (weight ${card.speedWeight}).`
-    : '';
-  return parts.join(' · ') + '.' + weightNote;
-}
+// ── no local phrase templates ───────────────────────────────────────
+//
+// This file used to carry its own `phrase()` / `textOf()` / `STAT_TOKEN` /
+// `typeWord()` / `damageToken()` / `defToken()` — a second, private copy of
+// the card-text grammar whose `default` arm returned the empty string. It had
+// NO CASE AT ALL for 12 of the 36 Action kinds (`attunedShield`, `taunt`,
+// `chainBonus`, `empowerNext`, `exploit`, `stackBonus`, `taxBonus`,
+// `shieldBurst`, `wardRelease`, `desperation`, `overhealShield`,
+// `cleanseConvert`), so an author scaffolding any rider shipped since
+// 2026-08-21 got a card with a silently incomplete face and had to hand-write
+// the clause — which is precisely the mechanism that produced the drift the
+// keyword registry exists to remove. There is nothing to emit here now: the
+// face is GENERATED from `effects` at render time, so a scaffolded card's
+// text is correct the moment its effects are.
 
 // ── solve, audit with the REAL gates, emit ──────────────────────────────────
 const solved = solve(clone(base));
@@ -270,7 +226,11 @@ if (!solved) {
   console.error(`could not land exactly on ${TIER_BUDGET_DECI[tier] / 10} PL with keywords [${keywords.join(', ')}] — try a different mix or size`);
   process.exit(1);
 }
-solved.text = textOf(solved);
+console.log('=== GENERATED FACE (via renderSkillText — the real generator) ===');
+for (const t of TIERS) {
+  if (TIERS.indexOf(t) < TIERS.indexOf(tier)) continue;
+  console.log(`  ${t.padEnd(8)} ${renderSkillText(t === tier ? solved : applyTier(solved, t))}`);
+}
 
 console.log('=== AUDIT (via src/engine/balance.ts — the real gates) ===');
 const auditFailures: string[] = [];

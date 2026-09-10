@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "names_under_stone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Names Under Stone",
+            "body": "Beyond Duskbarrow's fallen lord, a mile of grave markers leans toward the road. One stone speaks a name that only a bearer of dark craft could answer.",
+            "theme": "omen",
+            "rarity": "rare",
+            "biomeIds": ["duskbarrow"],
+            "story": { "storyId": "names_under_stone", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "combat.biomeBossDefeated", "args": { "biomeId": "duskbarrow" } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["dark"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "raise_dark_name",
+                  "label": "Raise the dark name",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["dark"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                {
+                  "id": "take_grave_silver",
+                  "label": "Take the grave silver",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 4 },
+                  "mutations": [{ "op": "set", "key": "grave_path", "value": "opened" }],
+                  "callback": {
+                    "callbackId": "names_under_stone_answer",
+                    "eventId": "names_under_stone_answer",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": ["omen"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 20, "fallback": "discard" }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the names buried",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "names_under_stone_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grave Answers",
+            "body": "Three roads later, the stolen silver rings against a nameless marker. The earth answers in a voice that has followed beneath every mile.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": { "storyId": "names_under_stone", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "names_under_stone_answer" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "answer_name",
+                  "label": "Answer the buried name",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["dark"] }], "maxTier": "bronze" },
+                  "mutations": [
+                    { "op": "set", "key": "grave_path", "value": "answered" },
+                    { "op": "completeStory", "storyId": "names_under_stone" }
+                  ]
+                },
+                {
+                  "id": "take_silver",
+                  "label": "Take the last grave silver",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 3 },
+                  "mutations": [{ "op": "completeStory", "storyId": "names_under_stone" }]
+                },
+                {
+                  "id": "close_stone",
+                  "label": "Close the stone",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "names_under_stone" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

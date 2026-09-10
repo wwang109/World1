@@ -1,5 +1,10 @@
 import type { EnemyDef } from '../engine/types';
 
+// AUTHORED GROWTH (2026-09-09): all 59 kits learn one existing family card
+// at level 2, with fixed fitting fallback order. Level 4 onward buys gradual
+// tiers. Completion intent uses the floor board; title/affix cards still count
+// toward actual fit and duplicate rejection. Base pieces/stats stay the floor.
+
 // Demo enemy presets, authored at a Bronze / lowest-level FLOOR: every card
 // here is Bronze, every board is small (2-3 cards, no gems, no tier
 // overrides). Tier/board/HP difficulty (bigger boards, tier-ups, HP/stat
@@ -43,7 +48,7 @@ import type { EnemyDef } from '../engine/types';
 // docs/enemy-design.md for the goldReward before/after table.
 export const enemies: Record<string, EnemyDef> = {
   // --- Basic floor: 2-3 Bronze cards, one mechanic each. ---
-  // THIEF read (2026-08-18 theme pass): the roster's fastest, lightest board
+  // THIEF floor read (2026-08-18 theme pass): the roster's fastest, lightest board
   // — 2 cards, no size-2/3 card, no defensive investment — wins by chip
   // damage (a bite plus a poison tick) rather than one big hit. Cards
   // unchanged; this is a naming/reporting pass, not a re-kit.
@@ -52,12 +57,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Giant Rat',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'beast',
     boardSize: 2,
     pieces: [
       { skillId: 'savage_bite', slot: 0 },
       { skillId: 'venom_fang', slot: 1 },
     ],
+    // Growth: Keep the light poison-chip identity; a compact bite fallback handles the venomous affix duplicate.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'second_bite' },
+        { skillId: 'packline_flank' },
+      ],
+    }],
     goldReward: 12,
     xpReward: 8,
   },
@@ -84,18 +97,35 @@ export const enemies: Record<string, EnemyDef> = {
   // card added at its own audited budget, no hand-tuning; goldReward bumped
   // 15 -> 17 for the added board strength (see docs/enemy-design.md's
   // before/after table).
+  //
+  // 2026-09-06 RULING UPDATE: the creature-level "nature is its shell, not its
+  // cards" identity described two paragraphs up is exactly the kind of
+  // hardcoded, board-independent affinity the "affinity are just passive
+  // buffs based on the board" ruling closes — there is no creature-flavour
+  // affinity any more, only board-derived buffs. `elementAffinity: 'nature'`
+  // is REMOVED below, and this board (sword 1 + beast 2, both under
+  // `IDENTITY_THRESHOLD = 3`) derives NEITHER axis at the floor. Its authored
+  // level-2 growth completes beast, the family its cards actually establish.
+  // It keeps its Thornwild membership (`src/data/biomes.ts`) for theme only.
   stone_beetle: {
     id: 'stone_beetle',
     name: 'Stone Beetle',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'nature',
     boardSize: 4,
     pieces: [
       { skillId: 'iron_bulwark', slot: 0 },
       { skillId: 'savage_bite', slot: 2 },
       { skillId: 'barbed_rampart', slot: 3 },
     ],
+    // Growth: Complete its actual beast family while reinforcing the armored shell.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'ironhide' },
+      ],
+    }],
     goldReward: 17,
     xpReward: 11,
   },
@@ -111,13 +141,21 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Ember Imp',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'fire',
     boardSize: 4,
     pieces: [
       { skillId: 'fireball', slot: 0 },
       { skillId: 'cinder_dart', slot: 2 },
       { skillId: 'ember_lash', slot: 3 },
     ],
+    // Growth: Keep every added card a burn-bearing attack.
+    growth: [{
+      family: { kind: 'element', type: 'fire' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'wildfire_surge' },
+        { skillId: 'scorching_brand' },
+      ],
+    }],
     goldReward: 18,
     xpReward: 12,
   },
@@ -152,13 +190,21 @@ export const enemies: Record<string, EnemyDef> = {
     baseDepth: 1,
     isElite: true,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'sword',
     boardSize: 3,
     pieces: [
       { skillId: 'sword_slash', slot: 0 },
       { skillId: 'follow_through', slot: 1 },
       { skillId: 'bramble_ward', slot: 2 },
     ],
+    // Growth: Deepen the duelist counter and parry plan.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'riposte_guard' },
+        { skillId: 'iron_riposte' },
+      ],
+    }],
     goldReward: 30,
     xpReward: 20,
   },
@@ -184,13 +230,21 @@ export const enemies: Record<string, EnemyDef> = {
     baseDepth: 1,
     isBoss: true,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'beast',
     boardSize: 3,
     pieces: [
       { skillId: 'nettle_lash', slot: 0 },
       { skillId: 'venom_fang', slot: 1 },
       { skillId: 'leeching_fang', slot: 2 },
     ],
+    // Growth: Add a poison payoff to the existing venom and lifesteal pack leader.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'second_bite' },
+        { skillId: 'blooded_fang' },
+      ],
+    }],
     goldReward: 60,
     xpReward: 40,
   },
@@ -209,13 +263,21 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Seraph',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'holy',
     boardSize: 4,
     pieces: [
       { skillId: 'mending_light', slot: 0 },
       { skillId: 'judgment_light', slot: 2 },
       { skillId: 'ward_of_silence', slot: 3 },
     ],
+    // Growth: Protect the existing guardian and healing rotation.
+    growth: [{
+      family: { kind: 'element', type: 'holy' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'aegis_of_the_unbroken' },
+        { skillId: 'warding_prayer' },
+      ],
+    }],
     goldReward: 20,
     xpReward: 13,
   },
@@ -237,13 +299,21 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Knight',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'sword',
     boardSize: 3,
     pieces: [
       { skillId: 'sword_slash', slot: 0 },
       { skillId: 'iron_riposte', slot: 1 },
       { skillId: 'war_banner', slot: 2 },
     ],
+    // Growth: Deepen the existing attack-buff and defensive sword identity.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'standard_of_the_ninth' },
+        { skillId: 'oathplate' },
+      ],
+    }],
     goldReward: 22,
     xpReward: 15,
   },
@@ -260,12 +330,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Mage',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'lightning',
     boardSize: 2,
     pieces: [
       { skillId: 'static_jolt', slot: 0 },
       { skillId: 'arcane_bolt', slot: 1 },
     ],
+    // Growth: Pure damage blaster; deliberate repeat preserves identity in compact contexts.
+    growth: [{
+      family: { kind: 'element', type: 'lightning' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'gathering_storm' },
+        { skillId: 'arcane_bolt', allowDuplicate: true },
+      ],
+    }],
     goldReward: 19,
     xpReward: 13,
   },
@@ -289,13 +367,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Hunter',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'bow',
     boardSize: 3,
     pieces: [
       { skillId: 'rapid_volley', slot: 0 },
       { skillId: 'concussive_shot', slot: 1 },
       { skillId: 'piercing_arrow', slot: 2 },
     ],
+    // Growth: Maintain the expose window for the volley rotation.
+    growth: [{
+      family: { kind: 'weapon', type: 'bow' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'marksmans_creed' },
+      ],
+    }],
     goldReward: 17,
     xpReward: 11,
   },
@@ -329,13 +414,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Lancer',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'lance',
     boardSize: 4,
     pieces: [
       { skillId: 'piercing_reach', slot: 0 },
       { skillId: 'crippling_strike', slot: 1 },
       { skillId: 'hamstring', slot: 3 },
     ],
+    // Growth: Deepen the reach skirmisher action-tax pattern.
+    growth: [{
+      family: { kind: 'weapon', type: 'lance' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'ironmarch_tithe' },
+      ],
+    }],
     goldReward: 20,
     xpReward: 13,
   },
@@ -365,13 +457,21 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Berserker',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'axe',
     boardSize: 6,
     pieces: [
       { skillId: 'crushing_blow', slot: 0 },
       { skillId: 'iron_maiden', slot: 3 },
       { skillId: 'cornered_beast', slot: 5 },
     ],
+    // Growth: Read the existing thorns pile; compact fallback protects the wounded brute.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'thorn_reckoning' },
+        { skillId: 'champions_challenge' },
+      ],
+    }],
     goldReward: 24,
     xpReward: 16,
   },
@@ -393,13 +493,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Necromancer',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'dark',
     boardSize: 3,
     pieces: [
       { skillId: 'hex_of_frailty', slot: 0 },
       { skillId: 'shadow_bolt', slot: 1 },
       { skillId: 'dulling_hex', slot: 2 },
     ],
+    // Growth: Extend the existing dark debuff and curse pressure.
+    growth: [{
+      family: { kind: 'element', type: 'dark' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'ruinous_hex' },
+      ],
+    }],
     goldReward: 22,
     xpReward: 15,
   },
@@ -425,13 +532,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Cleric',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'holy',
     boardSize: 4,
     pieces: [
       { skillId: 'mending_light', slot: 0 },
       { skillId: 'sanctified_bulwark', slot: 2 },
       { skillId: 'penitent_mending', slot: 3 },
     ],
+    // Growth: Add a healing and shield conversion to the pure support kit.
+    growth: [{
+      family: { kind: 'element', type: 'holy' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'sanctuary_overflow' },
+      ],
+    }],
     goldReward: 18,
     xpReward: 12,
   },
@@ -468,13 +582,20 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Toxic Druid',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'nature',
     boardSize: 3,
     pieces: [
       { skillId: 'thorn_bite', slot: 0 },
       { skillId: 'poison_bloom', slot: 1 },
       { skillId: 'blooming_vine', slot: 2 },
     ],
+    // Growth: Add an actual payoff for the three existing poison appliers.
+    growth: [{
+      family: { kind: 'element', type: 'nature' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'blight_feast' },
+      ],
+    }],
     goldReward: 16,
     xpReward: 11,
   },
@@ -495,7 +616,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'bleed_reaver',
     name: 'Reaver',
     baseDepth: 1,
-    weaponAffinity: 'axe',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -503,6 +623,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'hemorrhage', slot: 2 },
       { skillId: 'armor_break', slot: 3 },
     ],
+    // Growth: Pay off the bleed already applied by both opening attacks.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'bleed_executioner' },
+      ],
+    }],
     goldReward: 19,
     xpReward: 13,
   },
@@ -524,13 +652,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'warbreaker',
     name: 'Warbreaker',
     baseDepth: 1,
-    weaponAffinity: 'axe',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'shockwave_slam', slot: 0 },
       { skillId: 'shield_splitter', slot: 1 },
     ],
+    // Growth: Give the existing burden opener its on-family weight-tax payoff.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'deadweight_toll' },
+      ],
+    }],
     goldReward: 22,
     xpReward: 15,
   },
@@ -555,13 +690,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'thorn_beast',
     name: 'Thornback',
     baseDepth: 1,
-    weaponAffinity: 'beast',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
       { skillId: 'bulwark_thicket', slot: 0 },
       { skillId: 'savage_bite', slot: 3 },
     ],
+    // Growth: Keep the counter-punch identity with another thorns-bearing bite.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'nettle_lash' },
+      ],
+    }],
     goldReward: 27,
     xpReward: 18,
   },
@@ -588,7 +730,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Sentinel',
     baseDepth: 1,
     isElite: true,
-    weaponAffinity: 'sword',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -596,6 +737,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'iron_bulwark', slot: 1 },
       { skillId: 'sword_slash', slot: 3 },
     ],
+    // Growth: Extend the sentinel protection stack with wards and recovery.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'sanctum_thorn' },
+        { skillId: 'oathplate' },
+      ],
+    }],
     goldReward: 32,
     xpReward: 21,
   },
@@ -627,13 +777,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'venom_stalker',
     name: 'Venom Stalker',
     baseDepth: 1,
-    weaponAffinity: 'beast',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'venom_fang', slot: 0 },
       { skillId: 'second_bite', slot: 1 },
     ],
+    // Growth: Support the repeated poison-bite race with a same-family attack.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'leeching_fang' },
+        { skillId: 'packline_flank' },
+      ],
+    }],
     goldReward: 25,
     xpReward: 17,
   },
@@ -655,7 +813,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'pyre_acolyte',
     name: 'Pyre Acolyte',
     baseDepth: 1,
-    elementAffinity: 'fire',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -663,6 +820,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'ember_lash', slot: 1 },
       { skillId: 'burn_detonator', slot: 2 },
     ],
+    // Growth: Supply more burn to the existing detonator.
+    growth: [{
+      family: { kind: 'element', type: 'fire' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'wildfire_rite' },
+        { skillId: 'scorching_brand' },
+      ],
+    }],
     goldReward: 26,
     xpReward: 17,
   },
@@ -686,13 +852,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'shield_warden',
     name: 'Shield Warden',
     baseDepth: 1,
-    weaponAffinity: 'sword',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'iron_bulwark', slot: 0 },
       { skillId: 'aegis_charge', slot: 2 },
     ],
+    // Growth: Supply more sword plating for the shield-burst payoff.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'riposte_guard' },
+        { skillId: 'oathplate' },
+      ],
+    }],
     goldReward: 29,
     xpReward: 19,
   },
@@ -715,13 +889,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'blood_duelist',
     name: 'Bloodletter',
     baseDepth: 1,
-    weaponAffinity: 'axe',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'rupturing_strike', slot: 0 },
       { skillId: 'bleed_executioner', slot: 1 },
     ],
+    // Growth: Add another bleed source for the existing executioner.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'gutting_cleave' },
+        { skillId: 'cleaving_creed' },
+      ],
+    }],
     goldReward: 33,
     xpReward: 22,
   },
@@ -796,13 +978,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'rime_wisp',
     name: 'Rime Wisp',
     baseDepth: 1,
-    elementAffinity: 'frost',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'glacial_spike', slot: 0 },
       { skillId: 'slow_hex', slot: 1 },
     ],
+    // Growth: Complete frost through another direct tempo-denial card.
+    growth: [{
+      family: { kind: 'element', type: 'frost' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'deep_freeze' },
+        { skillId: 'frost_shackle' },
+      ],
+    }],
     goldReward: 13,
     xpReward: 9,
   },
@@ -821,7 +1011,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'hoarfrost_adept',
     name: 'Hoarfrost Adept',
     baseDepth: 1,
-    elementAffinity: 'frost',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -829,6 +1018,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'mind_frost', slot: 1 },
       { skillId: 'mana_ward', slot: 2 },
     ],
+    // Growth: Extend the anti-caster debuff pattern and add cleanup.
+    growth: [{
+      family: { kind: 'element', type: 'frost' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'frostbind_litany' },
+      ],
+    }],
     goldReward: 24,
     xpReward: 16,
   },
@@ -850,7 +1047,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'glacial_warden',
     name: 'Glacial Warden',
     baseDepth: 1,
-    elementAffinity: 'frost',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -858,6 +1054,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'frost_ward', slot: 2 },
       { skillId: 'glacial_spike', slot: 3 },
     ],
+    // Growth: Recover behind the existing magical guard and speed denial.
+    growth: [{
+      family: { kind: 'element', type: 'frost' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'hibernation' },
+      ],
+    }],
     goldReward: 32,
     xpReward: 21,
   },
@@ -877,13 +1081,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'arc_adept',
     name: 'Arc Adept',
     baseDepth: 1,
-    elementAffinity: 'lightning',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'thunder_step', slot: 0 },
       { skillId: 'chain_spark', slot: 1 },
     ],
+    // Growth: Escalate the existing speed and hostile tempo race.
+    growth: [{
+      family: { kind: 'element', type: 'lightning' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'storm_surge' },
+        { skillId: 'storm_tithe' },
+      ],
+    }],
     goldReward: 15,
     xpReward: 10,
   },
@@ -904,7 +1116,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'tempest_herald',
     name: 'Tempest Herald',
     baseDepth: 1,
-    elementAffinity: 'lightning',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -912,6 +1123,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'arc_cascade', slot: 2 },
       { skillId: 'storm_guard', slot: 3 },
     ],
+    // Growth: Extend both sides of the existing speed and action-tax race.
+    growth: [{
+      family: { kind: 'element', type: 'lightning' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'storm_tithe' },
+      ],
+    }],
     goldReward: 30,
     xpReward: 20,
   },
@@ -931,13 +1150,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'grave_acolyte',
     name: 'Grave Acolyte',
     baseDepth: 1,
-    elementAffinity: 'dark',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'poison_ritual', slot: 0 },
       { skillId: 'siphon_life', slot: 1 },
     ],
+    // Growth: Extend the existing self-sustaining cleanse and lifesteal loop.
+    growth: [{
+      family: { kind: 'element', type: 'dark' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'graveside_rite' },
+      ],
+    }],
     goldReward: 16,
     xpReward: 11,
   },
@@ -962,7 +1188,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'barrow_wight',
     name: 'Barrow Wight',
     baseDepth: 1,
-    elementAffinity: 'dark',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -970,6 +1195,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'swift_march', slot: 1 },
       { skillId: 'soul_rend', slot: 2 },
     ],
+    // Growth: Protect the existing true-damage and recovery rotation.
+    growth: [{
+      family: { kind: 'element', type: 'dark' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'nullshroud' },
+      ],
+    }],
     goldReward: 33,
     xpReward: 22,
   },
@@ -991,13 +1224,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'cordon_archer',
     name: 'Cordon Archer',
     baseDepth: 1,
-    weaponAffinity: 'bow',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'marksman_shot', slot: 0 },
       { skillId: 'evasive_cordon', slot: 2 },
     ],
+    // Growth: Recover behind the existing ward and charge the next heavy shot.
+    growth: [{
+      family: { kind: 'weapon', type: 'bow' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'steady_draw' },
+      ],
+    }],
     goldReward: 21,
     xpReward: 14,
   },
@@ -1019,7 +1259,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'deadeye_stalker',
     name: 'Deadeye Stalker',
     baseDepth: 1,
-    weaponAffinity: 'bow',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -1027,6 +1266,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'spotters_mark', slot: 1 },
       { skillId: 'hunter_shot', slot: 2 },
     ],
+    // Growth: Add another volley to the existing marked-arrow offense.
+    growth: [{
+      family: { kind: 'weapon', type: 'bow' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'massed_volley' },
+        { skillId: 'enfilade_volley' },
+      ],
+    }],
     goldReward: 31,
     xpReward: 21,
   },
@@ -1045,13 +1293,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'pike_conscript',
     name: 'Pike Conscript',
     baseDepth: 1,
-    weaponAffinity: 'lance',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'lance_thrust', slot: 0 },
       { skillId: 'braced_pike', slot: 1 },
     ],
+    // Growth: Keep the hit-and-hold lance identity.
+    growth: [{
+      family: { kind: 'weapon', type: 'lance' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'impaling_charge' },
+        { skillId: 'rearguard_pike' },
+      ],
+    }],
     goldReward: 14,
     xpReward: 9,
   },
@@ -1074,7 +1330,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'phalanx_veteran',
     name: 'Phalanx Veteran',
     baseDepth: 1,
-    weaponAffinity: 'lance',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -1082,6 +1337,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'impaling_charge', slot: 1 },
       { skillId: 'bramblemend', slot: 3 },
     ],
+    // Growth: Layer lance plating onto the established guard and thorns line.
+    growth: [{
+      family: { kind: 'weapon', type: 'lance' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'bulwark_of_the_line' },
+        { skillId: 'rearguard_pike' },
+      ],
+    }],
     goldReward: 28,
     xpReward: 19,
   },
@@ -1105,7 +1369,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'vigil_keeper',
     name: 'Vigil Keeper',
     baseDepth: 1,
-    elementAffinity: 'holy',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -1113,6 +1376,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'warding_prayer', slot: 2 },
       { skillId: 'purging_strike', slot: 3 },
     ],
+    // Growth: Extend the established ward, cleanse, and recovery plan.
+    growth: [{
+      family: { kind: 'element', type: 'holy' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'penitent_mending' },
+      ],
+    }],
     goldReward: 31,
     xpReward: 21,
   },
@@ -1138,7 +1409,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'blight_shambler',
     name: 'Blight Shambler',
     baseDepth: 1,
-    elementAffinity: 'nature',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
@@ -1146,6 +1416,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'blight_feast', slot: 1 },
       { skillId: 'overgrowth', slot: 2 },
     ],
+    // Growth: Maintain poison for Blight Feast while banking more protection.
+    growth: [{
+      family: { kind: 'element', type: 'nature' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'bramble_covenant' },
+      ],
+    }],
     goldReward: 28,
     xpReward: 19,
   },
@@ -1235,13 +1513,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'cinder_sprite',
     name: 'Cinder Sprite',
     baseDepth: 1,
-    elementAffinity: 'fire',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'kindling_rite', slot: 0 },
       { skillId: 'scorching_brand', slot: 1 },
     ],
+    // Growth: Open Kindling Rite and give its charge another light burn attack.
+    growth: [{
+      family: { kind: 'element', type: 'fire' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'ember_lash' },
+      ],
+    }],
     goldReward: 14,
     xpReward: 9,
   },
@@ -1264,43 +1549,61 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'sworn_recruit',
     name: 'Sworn Recruit',
     baseDepth: 1,
-    weaponAffinity: 'sword',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'twin_slash', slot: 0 },
       { skillId: 'bastion_stance', slot: 1 },
     ],
+    // Growth: Keep the simple sword offense behind its plain shield.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'sworn_edge' },
+        { skillId: 'sword_slash' },
+        { skillId: 'void_pierce' },
+      ],
+    }],
     goldReward: 15,
     xpReward: 10,
   },
 
   // RUST MARAUDER -- AXE, tier 0. The Ironmoot was the catalog's best-staffed
   // band and still opened on nothing: its lightest member, `bleed_reaver`, is
-  // tier 1. Rustbind Hex hits 14 (+ATK) and, because this mob's own
-  // `weaponAffinity` IS axe, its {{Affinity}} half opens for -30% enemy ATK (2
-  // turns) -- the gate is the mechanic, not flavour (`affinityOpen` reads the
-  // CASTER's affinity, interpreter.ts). Mortal Wound then deals 5 (+best stat)
+  // tier 1. Rustbind Hex hits 14 (+ATK); its {{Affinity}} half (-30% enemy
+  // ATK, 2 turns) does NOT open (2026-09-06 ruling: affinity is board-derived
+  // only, no authored override) -- this 2-card board is only 2 axe cards
+  // against `IDENTITY_THRESHOLD = 3`, so the floor fight cannot open its gate.
+  // The authored level-2 addition completes axe and opens that gated half.
+  // Mortal Wound still deals 5 (+best stat)
   // TRUE damage with {{Bleed}} 5 on it: the roster's first TRUE-damage card on a
   // WEAPON kit (`purging_strike`, `soul_rend` and `annihilation_strike` are all
-  // element cards on casters), so DEF answers neither half of this board -- the
-  // hex takes your attack away and the wound ignores your armour. Distinct from
-  // `bleed_reaver` (Armor Break + two bleeding cleaves) in that it never once
-  // reads your DEF. goldReward 16 seats it in tier 0 beside `grave_acolyte`.
-  // Counter-play: SWORD (+50%, sword beats axe), MAGIC damage (the ATK debuff
-  // touches physical output only), or a shield -- {{Bleed}} is blocked outright
-  // while any shield stands.
+  // element cards on casters), so DEF still does not answer the wound -- it
+  // ignores your armour outright, though the hex's own ATK-debuff half no
+  // longer has anything to take away. Distinct from `bleed_reaver` (Armor
+  // Break + two bleeding cleaves) in that it never once reads your DEF.
+  // goldReward 16 seats it in tier 0 beside `grave_acolyte`. Counter-play:
+  // SWORD (+50%, sword beats axe), or a shield -- {{Bleed}} is blocked
+  // outright while any shield stands.
   rust_marauder: {
     id: 'rust_marauder',
     name: 'Rust Marauder',
     baseDepth: 1,
-    weaponAffinity: 'axe',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 2,
     pieces: [
       { skillId: 'rustbind_hex', slot: 0 },
       { skillId: 'mortal_wound', slot: 1 },
     ],
+    // Growth: Open Rustbind Hex while extending the bleeding attack pattern.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'cleaving_creed' },
+      ],
+    }],
     goldReward: 16,
     xpReward: 11,
   },
@@ -1324,13 +1627,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'frostbound_zealot',
     name: 'Frostbound Zealot',
     baseDepth: 1,
-    elementAffinity: 'frost',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'deepening_frost', slot: 0 },
       { skillId: 'frost_ward', slot: 2 },
     ],
+    // Growth: Open Deepening Frost and reinforce its offensive frost plan.
+    growth: [{
+      family: { kind: 'element', type: 'frost' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'hoarfrost_creed' },
+        { skillId: 'glacial_spike' },
+      ],
+    }],
     goldReward: 20,
     xpReward: 13,
   },
@@ -1355,7 +1666,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'gorse_hound',
     name: 'Gorse Hound',
     baseDepth: 1,
-    weaponAffinity: 'beast',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -1363,6 +1673,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'blooded_fang', slot: 1 },
       { skillId: 'leaden_bite', slot: 2 },
     ],
+    // Growth: Give the attack-buff board another on-family multi-hit payoff.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'pack_instinct' },
+        { skillId: 'packline_flank' },
+      ],
+    }],
     goldReward: 21,
     xpReward: 14,
   },
@@ -1389,7 +1708,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'thicket_shaman',
     name: 'Thicket Shaman',
     baseDepth: 1,
-    elementAffinity: 'nature',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -1397,6 +1715,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'time_crystal', slot: 1 },
       { skillId: 'thorn_bite', slot: 2 },
     ],
+    // Growth: Add more poison and tempo denial to the nature caster.
+    growth: [{
+      family: { kind: 'element', type: 'nature' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'blightstep_dirge' },
+      ],
+    }],
     goldReward: 22,
     xpReward: 15,
   },
@@ -1423,13 +1749,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'greenwood_ranger',
     name: 'Greenwood Ranger',
     baseDepth: 1,
-    weaponAffinity: 'bow',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'barrage', slot: 0 },
       { skillId: 'concussive_shot', slot: 2 },
     ],
+    // Growth: Charge the heavy bow rotation without an unreachable stun rider.
+    growth: [{
+      family: { kind: 'weapon', type: 'bow' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'quiverwardens_call' },
+      ],
+    }],
     goldReward: 25,
     xpReward: 17,
   },
@@ -1453,13 +1786,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'umbral_chanter',
     name: 'Umbral Chanter',
     baseDepth: 1,
-    elementAffinity: 'dark',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'umbral_ward', slot: 0 },
       { skillId: 'umbral_choir', slot: 1 },
     ],
+    // Growth: Open Umbral Choir and add a direct-hit expose setup.
+    growth: [{
+      family: { kind: 'element', type: 'dark' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'ruinous_hex' },
+      ],
+    }],
     goldReward: 26,
     xpReward: 17,
   },
@@ -1484,7 +1824,6 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'reliquary_deacon',
     name: 'Reliquary Deacon',
     baseDepth: 1,
-    elementAffinity: 'holy',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
@@ -1492,6 +1831,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'sanctuary_overflow', slot: 1 },
       { skillId: 'sanctified_vigil', slot: 2 },
     ],
+    // Growth: Extend recovery in the existing healing and shield kit.
+    growth: [{
+      family: { kind: 'element', type: 'holy' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'mending_light' },
+        { skillId: 'renewing_wave' },
+      ],
+    }],
     goldReward: 27,
     xpReward: 18,
   },
@@ -1518,13 +1866,20 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'squall_binder',
     name: 'Squall Binder',
     baseDepth: 1,
-    elementAffinity: 'lightning',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 3,
     pieces: [
       { skillId: 'gathering_storm', slot: 0 },
       { skillId: 'overcharge', slot: 2 },
     ],
+    // Growth: Open Gathering Storm and deepen the readiness tax.
+    growth: [{
+      family: { kind: 'element', type: 'lightning' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'storm_tithe' },
+      ],
+    }],
     goldReward: 29,
     xpReward: 19,
   },
@@ -1552,13 +1907,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'hedgerow_captain',
     name: 'Hedgerow Captain',
     baseDepth: 1,
-    weaponAffinity: 'lance',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 5,
     pieces: [
       { skillId: 'crippling_gore', slot: 0 },
       { skillId: 'bulwark_of_the_line', slot: 3 },
     ],
+    // Growth: Support the armored line while opening lance affinity.
+    growth: [{
+      family: { kind: 'weapon', type: 'lance' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'impaling_charge' },
+        { skillId: 'rearguard_pike' },
+      ],
+    }],
     goldReward: 30,
     xpReward: 20,
   },
@@ -1585,13 +1948,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'rotwood_ancient',
     name: 'Rotwood Ancient',
     baseDepth: 1,
-    elementAffinity: 'nature',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
       { skillId: 'grove_lash', slot: 0 },
       { skillId: 'purge_the_rot', slot: 2 },
     ],
+    // Growth: Open Grove Lash behind an additional anti-affliction tool.
+    growth: [{
+      family: { kind: 'element', type: 'nature' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'heartwood_sanctum' },
+        { skillId: 'verdant_rebuke' },
+      ],
+    }],
     goldReward: 31,
     xpReward: 21,
   },
@@ -1614,13 +1985,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'moorfang_alpha',
     name: 'Moorfang Alpha',
     baseDepth: 1,
-    weaponAffinity: 'beast',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
       { skillId: 'pack_instinct', slot: 0 },
       { skillId: 'vital_surge', slot: 2 },
     ],
+    // Growth: Open Pack Instinct and deepen the beast attack and recovery rotation.
+    growth: [{
+      family: { kind: 'weapon', type: 'beast' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'leeching_fang' },
+        { skillId: 'savage_bite' },
+      ],
+    }],
     goldReward: 32,
     xpReward: 21,
   },
@@ -1645,13 +2024,21 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'furnace_elemental',
     name: 'Furnace Elemental',
     baseDepth: 1,
-    elementAffinity: 'fire',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 4,
     pieces: [
       { skillId: 'kindred_flame', slot: 0 },
       { skillId: 'emberguard', slot: 2 },
     ],
+    // Growth: Open Kindred Flame behind another magical defensive layer.
+    growth: [{
+      family: { kind: 'element', type: 'fire' },
+      purpose: 'complete-affinity',
+      candidates: [
+        { skillId: 'forgeheart_bastion' },
+        { skillId: 'cinder_skin' },
+      ],
+    }],
     goldReward: 33,
     xpReward: 22,
   },
@@ -1669,15 +2056,18 @@ export const enemies: Record<string, EnemyDef> = {
   //
   // THE SHAPE, one rule for all of them: a signature boss is a MONO-TYPE TRIAD
   // -- exactly three cards, all of ONE of the game's eleven card types (6
-  // elements + 5 weapons), with that same type AUTHORED as its affinity. That
-  // single rule buys three things at once:
+  // elements + 5 weapons), so that same type is EARNED as its affinity the
+  // instant the board is built (three-of-one-kind trivially clears
+  // `IDENTITY_THRESHOLD = 3` -- no authoring needed, and none happens: see
+  // `enemyDerivedAffinity`, `src/data/enemyAffinity.ts`). That single rule
+  // buys three things at once:
   //   1. IT NAMES ITS OWN COUNTER. Affinity is purely defensive
   //      (`cardMatchup` in the interpreter reads the DEFENDER's affinity), so
   //      the type stamped on all three card faces is exactly the type the
   //      player must bring to get +50%: Frost answers the Cinder Monarch,
   //      Lance answers the Sworn Colossus, Holy answers the Hollow Crown.
   //   2. IT TURNS THE BOSS'S OWN {{Affinity}} LINES ON. `affinityOpen`
-  //      (interpreter.ts) checks the CASTER's authored affinity, so an
+  //      (interpreter.ts) checks the CASTER's affinity, so an
   //      attuned boss fires the gated half of its own cards that an ordinary
   //      mob never can. That is the mechanical difference between a boss and a
   //      buffed rat: same Bronze budget, but the conditional half is always
@@ -1694,8 +2084,8 @@ export const enemies: Record<string, EnemyDef> = {
   // smallest set where every identity a player can actually BUILD has a boss
   // it hard-counters, and it is the natural binding for a future biome layer
   // (one signature boss per biome). `wolf_king` already IS the beast entry
-  // (mono-beast triad, authored beast affinity) and is left untouched, so this
-  // batch adds the other TEN.
+  // (mono-beast triad, earns beast affinity from its own board) and is left
+  // untouched, so this batch adds the other TEN.
   //
   // FLOOR RULE UNCHANGED. Every card below is Bronze, no gems, no tier
   // overrides, universal Level-1 statline, `boardSize` exactly the sum of the
@@ -1733,7 +2123,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Cinder Monarch',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'fire',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1741,6 +2130,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'wildfire_rite', slot: 1 },
       { skillId: 'inferno_eruption', slot: 3 },
     ],
+    // Growth: Cash in the burn already supplied by the full rotation.
+    growth: [{
+      family: { kind: 'element', type: 'fire' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'burn_detonator' },
+      ],
+    }],
     goldReward: 46,
     xpReward: 31,
   },
@@ -1761,7 +2158,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Sworn Colossus',
     baseDepth: 1,
     isBoss: true,
-    weaponAffinity: 'sword',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1769,30 +2165,54 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'fortress_bastion', slot: 1 },
       { skillId: 'sworn_edge', slot: 4 },
     ],
+    // Growth: Give the large existing shield reserve a damage payoff.
+    growth: [{
+      family: { kind: 'weapon', type: 'sword' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'aegis_charge' },
+      ],
+    }],
     goldReward: 48,
     xpReward: 32,
   },
 
-  // BOW -- THE MARKED VOLLEY. The one DUAL-affinity boss on the roster, and
-  // deliberately so: Bow is the only card type NOTHING beats on the weapon
-  // triangle (`WEAPON_BEATS` in src/engine/elements.ts maps sword->axe->lance->
-  // sword and bow->beast; no entry maps to bow), so a Bow-only boss would be
-  // counter-PROOF -- the exact opposite of a telegraphed fight. Its greenwood
-  // is therefore also authored NATURE, which is the counter axis: bring FIRE.
-  // The bow leg is not decoration either -- it opens Massed Volley's
-  // {{Affinity}} Bow second hit, and it makes BEAST attackers eat -25%.
-  // The board is authored as a sandwich: Spotter's Mark sits in slot 2
-  // physically touching both volleys, so its "adjacent Offense cards deal +10"
-  // passive lands on every one of the four arrows either side of it.
-  // COUNTERPLAY: Fire (nature's counter, +50%), or armor -- every hit here is
-  // physical and small, which is exactly what flat DEF subtracts best.
+  // BOW -- THE MARKED VOLLEY. Used to be the roster's one DUAL-affinity boss
+  // (authored NATURE alongside its bow cards, specifically because Bow is the
+  // only card type NOTHING beats on the weapon triangle -- `WEAPON_BEATS` in
+  // src/engine/elements.ts maps sword->axe->lance->sword and bow->beast, no
+  // entry maps to bow -- so a Bow-only boss is counter-PROOF, the exact
+  // opposite of a telegraphed fight).
+  //
+  // THE 2026-09-06 RULING (affinity is board-derived only, no authored
+  // override) REMOVES that nature half outright: all three of this board's
+  // cards (Barrage, Spotter's Mark, Massed Volley) are `weapon: 'bow'`, zero
+  // are `element: 'nature'` -- there is no card count to derive nature FROM.
+  // This was never a genuine dual identity, just an authored label sitting on
+  // a mono-bow board: a 3-card board cannot earn two independent 3-of-a-kind
+  // axes at once (verified: `enemyDerivedAffinity`, `src/data/enemyAffinity.ts`,
+  // returns `{ weaponAffinity: 'bow' }` only). Greenwood Sovereign is therefore
+  // counter-PROOF right now -- a genuine, known regression, surfaced rather
+  // than hidden (see tests/run/bossRoster.test.ts's counterability test and
+  // tests/run/biomeForecastCounter.test.ts's Arrowfell split test, both
+  // updated to state this rather than assert the old promise). OPEN for
+  // game-director/balance-designer: accept it uncountered for now, or grow
+  // this board a fourth, nature-typed card (the sibling
+  // enemy-growth-by-level project is the intended mechanism) to restore a
+  // real counter without hand-authoring one back in.
+  //
+  // The bow leg is not decoration -- it opens Massed Volley's {{Affinity}}
+  // Bow second hit, and it makes BEAST attackers eat -25%. The board is
+  // authored as a sandwich: Spotter's Mark sits in slot 2 physically touching
+  // both volleys, so its "adjacent Offense cards deal +10" passive lands on
+  // every one of the four arrows either side of it.
+  // COUNTERPLAY: none right now (see OPEN above), or armor -- every hit here
+  // is physical and small, which is exactly what flat DEF subtracts best.
   greenwood_sovereign: {
     id: 'greenwood_sovereign',
     name: 'The Greenwood Sovereign',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'nature',
-    weaponAffinity: 'bow',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 5,
     pieces: [
@@ -1800,6 +2220,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'spotters_mark', slot: 2 },
       { skillId: 'massed_volley', slot: 3 },
     ],
+    // Growth: Charge the established volley family.
+    growth: [{
+      family: { kind: 'weapon', type: 'bow' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'quiverwardens_call' },
+      ],
+    }],
     goldReward: 50,
     xpReward: 33,
   },
@@ -1819,7 +2247,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Bramble Matriarch',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'nature',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 5,
     pieces: [
@@ -1827,6 +2254,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'grove_lash', slot: 1 },
       { skillId: 'grove_communion', slot: 3 },
     ],
+    // Growth: Extend the poison and healing siege.
+    growth: [{
+      family: { kind: 'element', type: 'nature' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'heartwood_sanctum' },
+        { skillId: 'poison_bloom' },
+      ],
+    }],
     goldReward: 54,
     xpReward: 36,
   },
@@ -1845,7 +2281,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Ruin-Warlord',
     baseDepth: 1,
     isBoss: true,
-    weaponAffinity: 'axe',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1853,6 +2288,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'sundering_roar', slot: 1 },
       { skillId: 'warband_cleave', slot: 4 },
     ],
+    // Growth: Pay off the bleed in Sundering Roar.
+    growth: [{
+      family: { kind: 'weapon', type: 'axe' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'bleed_executioner' },
+      ],
+    }],
     goldReward: 56,
     xpReward: 37,
   },
@@ -1873,7 +2316,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Thornpike Marshal',
     baseDepth: 1,
     isBoss: true,
-    weaponAffinity: 'lance',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1881,6 +2323,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'bramblewrath', slot: 1 },
       { skillId: 'phalanx_thrust', slot: 4 },
     ],
+    // Growth: Maintain thorns while repairing the existing guarded line.
+    growth: [{
+      family: { kind: 'weapon', type: 'lance' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'bramblemend' },
+      ],
+    }],
     goldReward: 62,
     xpReward: 41,
   },
@@ -1901,7 +2351,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Rime Tyrant',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'frost',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1909,6 +2358,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'hoarfrost_creed', slot: 2 },
       { skillId: 'deepening_frost', slot: 4 },
     ],
+    // Growth: Add a compact action-weight tax to the speed-denial plan.
+    growth: [{
+      family: { kind: 'element', type: 'frost' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'frost_shackle' },
+      ],
+    }],
     goldReward: 64,
     xpReward: 43,
   },
@@ -1928,7 +2385,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Galewright',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'lightning',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 5,
     pieces: [
@@ -1936,6 +2392,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'gathering_storm', slot: 2 },
       { skillId: 'overcharge', slot: 4 },
     ],
+    // Growth: Extend the readiness denial after the charged burst.
+    growth: [{
+      family: { kind: 'element', type: 'lightning' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'storm_tithe' },
+      ],
+    }],
     goldReward: 66,
     xpReward: 44,
   },
@@ -1957,7 +2421,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Dawn Arbiter',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'holy',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 7,
     pieces: [
@@ -1965,6 +2428,14 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'prism_barrier', slot: 2 },
       { skillId: 'communion_light', slot: 5 },
     ],
+    // Growth: Add compact magical denial to the existing barrier siege.
+    growth: [{
+      family: { kind: 'element', type: 'holy' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'ward_of_silence' },
+      ],
+    }],
     goldReward: 70,
     xpReward: 47,
   },
@@ -1985,7 +2456,6 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Hollow Crown',
     baseDepth: 1,
     isBoss: true,
-    elementAffinity: 'dark',
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     boardSize: 6,
     pieces: [
@@ -1993,6 +2463,15 @@ export const enemies: Record<string, EnemyDef> = {
       { skillId: 'umbral_choir', slot: 1 },
       { skillId: 'annihilation_strike', slot: 3 },
     ],
+    // Growth: Add another dark finishing attack after the expose rotation.
+    growth: [{
+      family: { kind: 'element', type: 'dark' },
+      purpose: 'reinforce-family',
+      candidates: [
+        { skillId: 'soul_rend' },
+        { skillId: 'shadow_bolt' },
+      ],
+    }],
     goldReward: 74,
     xpReward: 49,
   },

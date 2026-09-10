@@ -8,9 +8,10 @@ import { createHash } from 'node:crypto';
  * WHY A NORMALIZER: the hashed structure includes `finalState`, whose
  * `pieces[].skill` holds the fully resolved `SkillDef` — card `text`, `name`
  * and `tierUpgrades` included. Those are PRESENTATION/AUTHORING ONLY: the
- * simulation never reads any of them at resolved-skill time (`text` is
- * touched exactly once, by `retextScaledNumbers` in `src/engine/cards.ts`,
- * purely to re-word a scaled card; `tierUpgrades` is *input* consumed only by
+ * simulation never reads any of them at resolved-skill time (`text` no
+ * longer EXISTS on a `SkillDef` — the face is generated from `effects` — and
+ * the one function that ever wrote one, `retextScaledNumbers`, was deleted
+ * with it; `tierUpgrades` is *input* consumed only by
  * `applyTier`/`autoScaleTier` at resolve time, before the object this hash
  * sees even exists). Hashing them made a content-only copy-edit, or a
  * tier-authoring change, look like an engine regression and forced a
@@ -72,7 +73,17 @@ function isSkillDef(o: Record<string, unknown>): boolean {
  * Deep copy with presentation/authoring-only card fields removed and keys in
  * CANONICAL (sorted) order, so the hash depends on values alone.
  * - `text` is dropped anywhere: no engine-consumed field is ever named `text`
- *   (a `TierUpgrade` carries one too, and it is equally cosmetic).
+ *   (a `TierUpgrade` carries one too, and it is equally cosmetic). It no
+ *   longer EXISTS on a `SkillDef` as of the 2026-09-06 keyword-registry
+ *   migration — the face is generated from `effects` — but the drop stays,
+ *   because it is what proves that migration moved no hash: a stored string
+ *   the lock already ignored cannot become a regression by being deleted.
+ * - `flavor` (2026-09-06) is dropped on SkillDef-shaped objects for exactly
+ *   the reason `text` is: it is the optional trailing card COLOUR the
+ *   generator has no access to, validated to carry no digit, no `%` and no
+ *   keyword markup precisely so it can never assert a mechanical claim. Four
+ *   cards carry one. Without this drop, adding a sentence of prose to
+ *   `thorn_reckoning` would re-hash every baseline fight it appears in.
  * - `name` is dropped ONLY on SkillDef-shaped objects, so `CombatantState.name`
  *   — a real config input — keeps being guarded.
  * - `tierUpgrades` is dropped ONLY on SkillDef-shaped objects: it is resolve-
@@ -95,7 +106,7 @@ export function normalizeForHash(value: unknown): unknown {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(src).sort()) {
     if (key === 'text') continue;
-    if ((key === 'name' || key === 'tierUpgrades') && skillDef) continue;
+    if ((key === 'name' || key === 'tierUpgrades' || key === 'flavor') && skillDef) continue;
     out[key] = normalizeForHash(src[key]);
   }
   return out;

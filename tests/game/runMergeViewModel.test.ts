@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
 import { cardOfferableAtTier, type SkillTier } from '../../src/engine/types';
 import {
-  buildRunMergeViewModel, layoutMergePicker, MERGE_CHIP_H, mergeChipIdeal,
+  buildMergeSpentEntries, buildRunMergeViewModel, layoutMergePicker, MERGE_CHIP_H,
+  mergeChipIdeal, mergeConfirmPreviewForChoice,
 } from '../../src/game/ui/runMergeViewModel';
+import type { RunEventOutcomeHint } from '../../src/game/ui/runEventViewModel';
 import { TOKEN_COMPACT_HEIGHT } from '../../src/game/ui/cardTokenSpec';
 import { cardRowIdeal, FEATURE_CARD_ROW_H, layoutFeatureGrid, type Box } from '../../src/game/ui/runRewardGeometry';
 import { runScreenTemplate, type Rect, type RunTemplatePlatform } from '../../src/game/ui/runScreenTemplate';
-import { MERGE_INPUT_COUNT, resolveEventChoice, type MergeCardsOffer } from '../../src/run/events';
+import { MERGE_INPUT_COUNT, type MergeCardsOffer } from '../../src/run/events';
+import { resolveExactEventChoice } from '../fixtures/eventResolution';
 import { DRAFT_SET_KEYS, rollStartDraft } from '../../src/run/draft';
 import {
   applyDraftResult, availableChoices, chooseNode, createRun, leaveShop, recordBattleResult,
@@ -110,6 +113,14 @@ describe('buildRunMergeViewModel: the price is named, not counted', () => {
     expect(vm.title).toBe('3 SILVER → 1 GOLD');
     expect(vm.candidates).toHaveLength(1);
     expect(vm.spent).toHaveLength(MERGE_INPUT_COUNT);
+  });
+
+  it('`buildMergeSpentEntries` is the exact labelling `buildRunMergeViewModel.spent` uses — same call, not a second copy', () => {
+    // Exercised directly (2026-09-06): the CHOICE ROW's pre-tap price line and
+    // the pre-resolution CONFIRM dialog now label a bare `consumed` array —
+    // before any `Rng`-drawn `MergeCardsOffer` exists — with this SAME
+    // function, rather than a hand-rolled second labelling.
+    expect(buildMergeSpentEntries(offer.consumed, pieces)).toEqual(buildRunMergeViewModel(offer, pieces).spent);
   });
 });
 
@@ -268,7 +279,7 @@ describe('the screen reads the resolver, not a fixture', () => {
     bagSlots[1] = { instanceId: 'card_102', skillId: SIZE1[2]!, tier: 'bronze' };
     const state: RunState = { ...base, pieces, bagSlots, nextCardInstanceId: 103 };
 
-    const { outcome } = resolveEventChoice(state, 'ruined_anvil', 'beat_together');
+    const { outcome } = resolveExactEventChoice(state, 'ruined_anvil', 'beat_together');
     if (outcome.kind !== 'mergeCardsPick') throw new Error(`expected mergeCardsPick, got ${outcome.kind}`);
     const vm = buildRunMergeViewModel(outcome, state.pieces);
 
@@ -282,5 +293,63 @@ describe('the screen reads the resolver, not a fixture', () => {
       expect(cardOfferableAtTier(skillBook[cand.skillId]!, 'silver')).toBe(true);
       expect(cand.skill.tier).toBe('silver');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The PRE-resolution confirm must read the exact clicked V3 choice's persisted
+// offer. A fresh live plan can name another trio after Deck/Bag changes, and a
+// current-event-wide scan is ambiguous as soon as an event has two merge
+// choices. The production mutation that makes these fail is re-deriving from
+// `state` instead of reading `hint.offer`.
+// ---------------------------------------------------------------------------
+describe('mergeConfirmPreviewForChoice: persisted V3 price and location validation', () => {
+  function sixBronzes(): RunState {
+    const base = stateAtEventNode(31);
+    const bagSlots: RunBagSlot[] = new Array<RunBagSlot>(10).fill(null);
+    for (let i = 0; i < 6; i += 1) {
+      bagSlots[i] = { instanceId: `persisted-${i}`, skillId: SIZE1[i]!, tier: 'bronze' };
+    }
+    return { ...base, pieces: [], bagSlots, nextCardInstanceId: 700 };
+  }
+
+  function persistedHint(): RunEventOutcomeHint {
+    return {
+      kind: 'mergeCards',
+      offer: {
+        kind: 'mergeCards',
+        status: 'pending',
+        from: 'bronze',
+        to: 'silver',
+        consumed: [3, 4, 5].map((index) => ({
+          instanceId: `persisted-${index}`,
+          skillId: SIZE1[index]!,
+          tier: 'bronze' as const,
+          location: 'bag' as const,
+          index,
+        })),
+        candidates: [{ skillId: SIZE1[8]!, tier: 'silver' }],
+        fallback: { kind: 'grantGold', amount: 2 },
+      },
+    };
+  }
+
+  it('uses the clicked choice offer, not the different trio a fresh live plan would choose', () => {
+    const state = sixBronzes();
+    const preview = mergeConfirmPreviewForChoice(persistedHint(), state);
+
+    expect(preview?.consumed.map((card) => card.instanceId)).toEqual([
+      'persisted-3', 'persisted-4', 'persisted-5',
+    ]);
+  });
+
+  it('refuses a stale persisted location even when the exact instances still exist elsewhere', () => {
+    const state = sixBronzes();
+    const bagSlots = [...state.bagSlots];
+    const fourth = bagSlots[4]!;
+    bagSlots[4] = bagSlots[5]!;
+    bagSlots[5] = fourth;
+
+    expect(mergeConfirmPreviewForChoice(persistedHint(), { ...state, bagSlots })).toBeNull();
   });
 });

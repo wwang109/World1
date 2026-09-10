@@ -1,6 +1,6 @@
-# Run structure — the endless ladder AS BUILT
+# Run structure — the endless expedition AS BUILT
 
-> **Scope:** LIVING — Run Mode as it exists in code: the endless wave ladder,
+> **Scope:** LIVING — Run Mode as it exists in code: endless region exploration,
 > lives/retire, gold economy, shops, events, leveling, the start draft, and
 > the `src/run` module map. Supersedes `docs/history/release-game-plan.md`,
 > `run-shops-design.md`, and `run-events-design.md` (plans). Update in the
@@ -10,7 +10,15 @@ Run Mode is the **release game**; the free-dial Prep/Deck/Wiki/Battle app is
 the **Sandbox** (balance-testing / deck-idea tool, its checklist in
 `docs/feature-inventory.md`). Nothing here may regress the Sandbox.
 
-## The ladder (`src/run/runMap.ts`)
+## Expedition route and internal ladder (`src/run/runMap.ts`)
+
+The player explores each region over **five days**: `EXPEDITION ROUTE`,
+`DAY 1` through `DAY 5`, then the next region restarts at day 1. The shared
+HUD reads `STOP N` (absolute node depth) and `DAY N/5` (day within the region)
+on desktop and compact/mobile. Internal `wave`, `depth`, seeds, map generation,
+progression and save fields are unchanged; the mechanical wave terminology
+below still describes those internal facts. `src/game/ui/travelDay.ts` owns
+the display conversion and days-until-boss countdown.
 
 - **Endless**: waves keep coming forever; the map generates **lazily** —
   `generateRunMap(seed, throughWave)` builds `INITIAL_WAVES` up front,
@@ -43,6 +51,37 @@ the **Sandbox** (balance-testing / deck-idea tool, its checklist in
   block and `tests/run/packFights.test.ts`'s easy-pack tests). Fight 1 stays
   solo regardless of tier (`MIN_PACK_FIGHT_NUMBER` gates on the fight NUMBER,
   not the tier).
+
+### Route presentation (desktop and compact/mobile)
+
+- Noncombat columns retain their existing event choices and at most one shop;
+  combat columns remain homogeneous **EASY / MEDIUM / HARD**, with no event
+  substitutions. The shop generator, shop placement and shop screen are unchanged.
+- Event cards show the actual previewed event title and exact event art when
+  available, with the existing theme-art fallback otherwise. `previewEventForNode`
+  (`src/run/eventPreview.ts`) uses the existing deterministic selector and discards
+  its returned state: preview spends no gold, commits no node, consumes no bag or
+  callback, and persists no materialization. Selecting the same node from the same
+  state commits that exact previewed identity, including its content version.
+- Eligible legacy chains show concise earned facts under `MET REQUIREMENTS`
+  (`src/run/eventRequirementReceipt.ts`), such as the completed predecessor/choice
+  or the actual persisted defeat count. Unmet or unsupported requirements and V3
+  definitions produce no legacy receipt. An eligible chain remains an event card.
+- Selection opens the existing event screen with its existing two or three outcome
+  choices. A committed unresolved event replaces the choice area with its exact
+  `RETURN TO EVENT` card. This does not add an event-to-combat outcome kind.
+- Day 5's boss column has one mandatory destination. Committing it opens the
+  shared boss-arrival presentation; `FACE THE BOSS` enters existing Run Prep,
+  then the existing Battle flow. Re-entering the map with that committed boss
+  reconstructs arrival from current encounter facts; there is no route-choice
+  or cancel action on the arrival panel.
+- `RUN LEDGER` is an explicit map-header action on both profiles, opening the
+  existing run stats overlay without changing its calculations. `EXPLORE REGION`
+  opens the current region/band forecast. Earned future `MAP INTEL` stays a
+  separate persisted discovery surface, shown as a desktop rail or compact sheet.
+
+The 900×900 boot-time compact policy and exact viewport verification recipe
+live in `docs/ui-workbook.md`.
 
 ## Run end: lives + retire (`src/run/runState.ts`)
 
@@ -169,7 +208,7 @@ strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
   (see next bullet); the gate only needs to guarantee fight 1 itself.
 - **Variant roll**: one `rng.int(100)` off the node's OWN `encounterSeed`
   (fixed solo/pair/trio order) against `PACK_VARIANT_WEIGHTS`
-  (`encounter.ts`) — v1 mix **70 / 20 / 10**. **Boss nodes never roll a
+  (`encounter.ts`) — mix **64 / 32 / 4**. **Boss nodes never roll a
   variant** (always `'solo'`, no Rng draw spent on it) — packs are a
   non-boss fight-column texture only. Members then roll their OWN enemy id
   independently from `FIGHT_POOL` (can repeat).
@@ -202,9 +241,20 @@ strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
      encounter** — a pack is never shipped over its taxed budget.
   Worked examples (normal title): fight-track LV2/6/12 all floor to solo (a
   2-3 card Bronze board is already most of an early solo's whole budget);
-  pairs first engage around LV18 (member LV1), trios around LV40 — elite/
-  boss-titled entries (extra rank/cards baked into their preset) engage much
-  earlier. `PACK_ACTION_ECONOMY_TAX_PCT`/`REFERENCE_ENEMY_DECK_SIZE` are
+  pairs first engage around **LV6** (member LV1), trios around **LV18**
+  (measured 2026-09-07, `firstAffordable('normal', 2|3)` in
+  `tests/run/packFights.test.ts`) — elite/boss-titled entries (extra
+  rank/cards baked into their preset) engage much earlier. These floors are
+  EARLIER than the pre-growth 11/21 (also measured, at HEAD before enemy
+  growth by level landed): the user ruled (2026-09-06) that **pack members do
+  not grow** — a pack roster is always fielded at its authored board,
+  `growthLevel = 1`, paying none of growth's stat bill — while `soloThreatDeci`
+  (the node's own budget) still climbs by growth's stat floor at every level,
+  since a solo/elite/boss encounter DOES grow. The node keeps paying for a
+  solo body that grows; the pack roster no longer has to, so more of that SAME
+  budget is left over for the members' own level, and the pack clears its
+  threshold sooner.
+  `PACK_ACTION_ECONOMY_TAX_PCT`/`REFERENCE_ENEMY_DECK_SIZE` are
   balance-designer's retune knobs; the roll flow itself never changes.
 - **Title cap** (`capPackTitle`): pack members are **mob/normal only** — no
   elite/boss packs in v1. The node's base title/level still comes from the
@@ -311,6 +361,13 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   capacity) and 0 cards.
 - `shopPoolInfo` caps shelf slot counts at the theme's whole pool and flags
   `fullStock` so the UI can hide REROLL instead of inviting wasted gold.
+- **Card Details** (2026-09-08): selecting a card offer opens the same named
+  modal on desktop and mobile, showing the full card plus its generated kit and
+  keyword definitions before BUY/MERGE. Desktop no longer reserves a permanent
+  right-side inspector; that width belongs to the shelf and owned-card columns.
+  Shelf gestures defer until intent is clear: a vertical swipe beginning on
+  card art scrolls only the shelf container, while a lateral gesture preserves
+  drag-to-buy and a tap opens Card Details.
 - Per-NODE shelves persist in `RunState.shopShelves` (bought offers stay
   gone; reload-safe).
 - **Selling** (2026-08-04): `sellRunCard(state, 'board'|'bag', index)` /
@@ -335,14 +392,107 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   `buyRunCard` (nearest-fit) stays the plain-tap path; buy-to-slot never
   offers a merge. Sandbox mirror: `buyCardTo` in `src/game/shopActions.ts`.
 
-## Events (`src/data/events.ts` + `src/run/events.ts`)
+## Events (JSON packs → generated live `events.v3.json`; frozen V2 compatibility)
 
 Fights spend attention, shops spend gold, **events spend risk**: text
 dialogues with 2-3 choices, seeded outcomes.
 
-- Catalog is pure data (`EventDef`: id, `theme: EventTheme`, title, body,
-  choices); resolution is pure (`rollEventForNode`, `resolveEventChoice`,
-  `applyBonusDraftPick`), all randomness from the node seed via `Rng`.
+- Source packs under `src/data/content/event-packs/*.json` are the event-
+  definition authoring source. `00-core.json` preserves the frozen 42-event
+  `events.v1.json` legacy prefix; the schema-3 `10-arrowfell.json` preserves
+  exact Feathered Cairn and Far Sight `@1` schema-2 wrappers and adds their
+  current `@2` schema-3 wrappers. The biome packs `20-duskbarrow.json` through
+  `90-thornwild.json` add eight current schema-3 biome anchors and three queued
+  callbacks. The global packs add three standalone payoffs and four conditional
+  setup/callback pairs. `npm run content:events` compiles all 12 packs in
+  code-unit filename order into live `events.v3.json`, the highest checked-in
+  generated aggregate with 66 unique IDs. Frozen `events.v2.json` remains an
+  exact 44-ID compatibility artifact behind the legacy `src/data/events.ts`
+  facade; production selection uses the mixed catalog from
+  `src/data/eventsContent.ts`. The safe extension workflow and exact schema live
+  in `src/data/content/README.md`: retain authoring `notes`, add a higher version
+  for a shipped behavior change, run `npm run content:events`,
+  `npm run content:wiki`, `npm run content:validate`, then `npm test`, typecheck,
+  and build. The checked-in
+  [generated event catalog](generated/event-catalog.md) is now regenerated
+  from the validated current live V3 aggregate and the strict
+  `event-discoveries.v1.json` metadata document. It lists all 66 definitions,
+  graph edges, typed choices/outcomes/bindings, and fact dependencies while its
+  banner explicitly names the live V3/frozen V2 compatibility boundary. Validation rejects
+  a stale V3 aggregate, invalid discovery ownership, or stale generated wiki.
+- Catalog data includes `theme`, title/body, 2-3 choices, optional
+  `rarity`, `biomeIds`, and event/choice requirements. Resolution remains pure
+  (`rollEventForNode`, `resolveEventChoice`, `applyBonusDraftPick`); all
+  randomness comes from seeded `Rng` or an isolated `hashSeed` domain.
+- **World Remembers eligibility:** a `biomeIds` allow-list is a hard match
+  against the current node biome (including the stable seed fallback for old
+  nodes). `uncommon`, `rare`, and `secret` eligibility is deterministic from
+  the event id and node event seed; it does not consume or perturb bag RNG.
+  Conditional events (biome-only, resolution/tally-gated, or conjunctive
+  `requiresAll`) never enter ordinary no-repeat bags. They are checked in the
+  authored compatibility order before bag selection and remain hidden until
+  every requirement is met.
+- Requirements reuse the persisted per-run `eventResolutions`,
+  `eventInstances`, and existing stat counters. No quest inventory or new save
+  field was added: exact prior choices and tallies survive reload, pending
+  choices count as committed, and a conditional event still appears at most
+  once per run. The validator rejects dangling targets, cycles, and dependency
+  paths deeper than two edges (three event stages).
+- The shipped example is `bell_beneath_ice` (Uncommon, Frostmarch/cache) →
+  `the_second_toll` (Rare, Frostmarch/omen) → `the_bell_unbound` (Secret,
+  Emberwaste/forge). The final event uses `requiresAll`, so both exact earlier
+  choices must have been recorded before it is eligible.
+- **Versioned Arrowfell slice:** historical `feathered_cairn@1` is an Uncommon Arrowfell
+  ambient cache event eligible from either the typed Bow affinity fact or the
+  typed owned-Bow-card count fact. Its zero-cost `read_feathers` outcome stores
+  two future map bands and queues `feathered_cairn_far_sight@1` for an
+  Arrowfell omen node at least two depths later; delivery is compatible-node
+  only and is not guaranteed. `feathered_cairn_far_sight@1` is a queued
+  callback with exact `callback.queued` eligibility, priority 700, a 20-node
+  discard expiry, and three zero-cost choices: typed three-band map info, the
+  curated gem-ID choice, or nothing. Its typed `completeStory` mutations close
+  the story. Both use existing cache/omen fallback art; no title, body, or
+  label controls behavior. These `@1` wrappers remain available for exact
+  historical save lookup; new draws use their current schema-3 `@2` revisions.
+- Historical schema v2 is intentionally closed to `biome.current`,
+  `board.affinity`, `owned.card.count`, and `callback.queued`, plus
+  `all`/`any`/`not` composites.
+  The live `@2` successors preserve those behaviors through schema-3
+  `choiceSet.fixed`, use V3 callback/binding shapes, target Far Sight `@2`, and
+  express Cairn's Bronze offer as `maxTier:"bronze"`; they are generated,
+  validated, and selected by the live catalog. Eight more biome anchors and
+  three callbacks are live schema-3 JSON: exact biome/combat/card gates,
+  fixed chain doors, seeded one-of-two payoff rewards, typed targeted upgrades,
+  typed card/gem offers, and expiry-without-completion all run through the same
+  persisted seam. Only Unlit Reliquary, Gate of Oaths, and its callback remain
+  approved-but-deferred event definitions. Sixteen stable discovery IDs/labels
+  now exist as `accountStatus:"future"` metadata for the generated wiki;
+  earning, seen-history, and account persistence remain later work and no
+  browser-global state is written. Unique event art also remains later work.
+  The Bronze start draft is unchanged.
+- **Schema-v3 catalog live:** the loader preserves
+  explicit per-wrapper v3 identity, and `src/run/eventsV3.ts` supplies lazy
+  reached-node materialization plus atomic resolution for a mixed catalog. The
+  persisted selector/materialization/store path and shared desktop/mobile UI
+  presentation seam consume V3 instances. The Arrowfell `@2` pair, eleven
+  biome definitions, and eleven global/conditional definitions are selected
+  from generated `events.v3.json` when their exact requirements are eligible.
+  Selection still occurs only when the player reaches an event node: due
+  callbacks first, then eligible conditional/special definitions by priority
+  (isolated deterministic v3 tie selection), then the existing seeded theme
+  no-repeat bags. Conditional and Secret content stays outside ordinary bags.
+  V3 instances persist exact visible choice order, pool/weighted results,
+  typed bindings and reservations, and closed card/gem/upgrade/sell/merge
+  commitments before display. Reload and finalization consume those exact
+  bytes without rerolling, and the Bronze start draft remains a separate type
+  and system.
+- **Choice opportunity hints:** `src/run/eventOpportunityHint.ts` classifies
+  immutable graph edges only. Callback-producing choices may show `MAY
+  CONTINUE THIS STORY`; choices positively referenced by another event's
+  event-level resolution requirement may show `MAY UNLOCK A SPECIAL EVENT`.
+  The shared event view/presentation seam supplies the same optional label to
+  desktop and compact choices without naming the destination or changing
+  eligibility, selection order, callback delivery, persistence, or rewards.
 - Outcome vocabulary (`EventOutcome`): `grantCard` (nearest-fit insert,
   bag-full → `fellBack` to gold) · `grantGem` · `grantGold` · `loseGold` ·
   `grantLevel` (capped at `MAX_LEVEL`) · `bonusDraft` (single-set 1-5 card
@@ -391,14 +541,21 @@ dialogues with 2-3 choices, seeded outcomes.
     consolation, so no path consumes inputs without delivering an output.
     A socketed gem on a consumed board piece returns to the pouch, exactly as
     `sellRunCard` does.
-  - The pending offer rides on `resolveEventChoice`'s return as an OPTIONAL
-    `merge` field beside `outcome: {kind:'nothing'}` (nothing has happened to
-    the run yet), NOT as a new `EventOutcome` member — `outcomeHeadline`
-    (`src/game`) closes its switch on `never`, so a new member cannot be added
-    without the Phaser phase. A client that ignores `merge` resolves the event
-    as an inert no-op. **The UI phase is not wired yet**: read `merge`, render
-    `merge.consumed` + `from`→`to` above `merge.candidates`, and call
-    `applyMergeCardsPick` on a tap.
+  - The pending offer is the `mergeCardsPick` member of `EventOutcome`
+    (promoted into the union 2026-08-28; UI is wired — this used to ride as an
+    optional `merge` field beside `outcome: {kind:'nothing'}` before the UI
+    phase owned both sides of the workaround it needed). `mergeCardsPreview`
+    (`run/events.ts`) names the exact trio a choice-row/confirm step can show
+    BEFORE any tap: for a legacy event it is `mergeCardsPlan` re-read live
+    (nothing legacy ever persists an offer, so this is always current); for a
+    schema-v3 event it instead reads the PERSISTED offer
+    `materializeReachedEventV3` (`run/eventsV3.ts`) already wrote at node
+    entry, because that is the exact snapshot `finalizeMergeCardsV3` will
+    later consume (`removePersistedMergeInputs`, index-and-instanceId matched,
+    no live re-derivation) — a live-only preview could show a different trio
+    than the one actually removed after a board reorder between
+    materialization and display. `tests/run/cardMerge.test.ts` proves the two
+    sources agree with a real Deck Build-shaped `.slot` reorder.
   - Measured over the real run layer, 120 seeds to wave 10: 83.3% of runs meet
     a usable merge door (64.2% with only one door — hence two), 1.32 merges per
     run, and a merging player ends wave 10 with 8.72 cards (5.49 bronze / 2.66
@@ -407,9 +564,44 @@ dialogues with 2-3 choices, seeded outcomes.
 - No-repeat bags: a per-run `eventBag` plus per-theme bags
   (`eventThemeBags`), reshuffled deterministically via refill counters.
 - Affordability: `isEventChoiceAffordable` (gold) and `isEventChoiceUsable`
-  (gold PLUS any outcome-specific precondition — `sellGem`'s pouch,
-  `mergeCards`'s plan) are the single predicates both the resolver and the UI
-  use; `rollEventForNode` skips events with no playable choice at current gold.
+  (gold PLUS any outcome-specific precondition) are the single predicates both
+  the resolver and the UI use; `rollEventForNode` skips events with no
+  playable choice at current gold. `choiceLockReason` words WHY a choice is
+  locked, and (2026-09-06) covers every precondition that used to charge gold
+  for an outcome guaranteed to fail instead of warning about it first:
+  `sellGem`'s empty pouch, `mergeCards`'s plan (`mergeCardsPlan`),
+  `upgradeCard`'s "nothing owned is eligible" (`upgradeCardOptions`), and — new
+  this pass — `grantCard`/`cardChoice`/`bonusDraft`'s bag room
+  (`cardOutcomeCanDeliver`): a paid card rung used to deduct its cost, THEN
+  discover the bag had no room and silently swap the outcome for
+  `CARD_FALLBACK_GOLD` (2 gold) — a rung the player could never benefit from,
+  offered at full price with no warning (`wandering_smith`'s 4-gold
+  "properly tempered blade" against a full bag, among others). The gate reads
+  the WORST CASE over the outcome's whole reachable pool (a named `grantCard`
+  has exactly one candidate skill; a filtered `cardChoice`/`bonusDraft` checks
+  every skill the filter could draw), locking ONLY when NONE of it fits —
+  never over-broad against a pool where some sizes fit and others don't, which
+  the untouched `CARD_FALLBACK_GOLD` fallback still covers as the safety net
+  for a bag that changes between the roll and the resolve. Schema-v3 content
+  gets the analogous fix in `resolveEventChoiceV3` (`run/eventsV3.ts`),
+  reading the offer already persisted at materialization — no re-roll, no new
+  persisted state — closing the same bug for the one LIVE instance found in
+  the catalog, `gilded_detour`'s 8-gold `buy_gold_upgrade`
+  (`upgradeCard` with nothing eligible). `tests/run/cardOutcomeRoomGate.test.ts`,
+  `tests/run/eventV3FoundationSeams.test.ts`.
+- `grantMapInfo` ("REVEAL N BANDS") can otherwise reveal NOTHING: two
+  overlapping map-info events (`feathered_cairn` 2, `whiteout_guidance` 2,
+  `feathered_cairn_far_sight` 3, `missing_road_destination` 3 in the live
+  catalog — all schema-v3) can leave every one of a rung's target bands
+  already recorded. `mapInfoRevealsAnything` (`run/eventMapInfo.ts`) mirrors
+  `applyGrantMapInfo`'s own band-range scan exactly (same source-band math, no
+  `Rng`) and gates the rung: `choiceLockReason` for legacy content, and a
+  `resolveEventChoiceV3` refusal (`reason: 'gate'`) for schema-v3, since v3
+  `grantMapInfo` choices never get a persisted "offer" to lock through the
+  existing `unavailable`-status channel. A PARTIAL overlap (some but not all
+  target bands already known) still reads as usable — real new ground is
+  still delivered. `tests/run/eventMapInfo.test.ts`,
+  `tests/run/eventV3FoundationSeams.test.ts`.
 
 ## Leveling (`src/run/leveling.ts`)
 
@@ -431,7 +623,7 @@ installs the picks.
 
 ## Stats (`RunState.stats`, `src/meta/lifetimeStats.ts`)
 
-Two layers, both pure/integer, no UI yet (a stats screen is separate):
+Two layers, both pure/integer; the map's `RUN LEDGER` opens the existing stats UI:
 
 - **Per-run** (`RunState.stats: RunStats`, `runState.ts`): additive counters
   NOT already tracked elsewhere on `RunState` — `wins`/`losses`/
@@ -476,7 +668,9 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 | `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, elite affixes (`eliteAffixIdFor`, `ELITE_AFFIX_IDS`), `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
 | `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward`, sell-back pricing (`sellPriceOfCard`, `sellPriceOfGem`) |
-| `events.ts` | Event roll/resolve/bonus-draft, affordability + usability gates, no-repeat bags, the card merge (`mergeCardsPlan`/`applyMergeCardsPick`) |
+| `events.ts` | Event roll/resolve/bonus-draft, affordability + usability gates, biome/rarity/requirement eligibility, conditional-event priority selection, no-repeat bags, presenters, and the card merge (`mergeCardsPlan`/`applyMergeCardsPick`) |
+| `eventPreview.ts` | Read-only exact event preview through the existing deterministic selector, without committing its returned state |
+| `eventRequirementReceipt.ts` | Concise satisfied legacy requirement receipts using existing gate authorities and persisted facts; no V3 receipt vocabulary |
 | `draft.ts` | `rollStartDraft` — the 4-set start draft |
 | `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap, `bagAsBoardPieces` (bag-as-`BoardPiece[]` view so `canPlace` validates the bag axis too) |
 | `resolveBattle.ts` | `BattleRequest → BattleLog` — the battle service's whole payload (the ONLY combat entry point above the engine) |

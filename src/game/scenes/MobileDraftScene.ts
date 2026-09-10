@@ -117,7 +117,7 @@ export class MobileDraftScene extends Phaser.Scene {
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
     this.draft = this.currentHand();
     if (this.runContext) {
       // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
@@ -176,26 +176,26 @@ export class MobileDraftScene extends Phaser.Scene {
       if (isPicked) {
         this.add.rectangle(10 - 3, y - 3, this.W - 20 + 6, h + 6, 0, 0).setOrigin(0, 0).setStrokeStyle(3, 0xe8b446, 1);
       }
-      new CardToken(this, 10 + (this.W - 20) / 2, y + h / 2, skill, { width: this.W - 20, height: h, side: 'left' });
+      // PICK is drawn first so CardToken's own interactive inspect button is
+      // the topmost hit target. Every other inert token pixel falls through
+      // to this full-row surface (the same ordering RunRewardPanel uses).
       const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + h / 2, this.W - 20, h, 0xffffff, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => { playSfx('uiClick'); this.pick(key, card.skillId); this.rerender(); });
-      // ⓘ corner badge — a SEPARATE, smaller hit-zone drawn on top (Phaser's
-      // default `topOnly` input means only it fires inside its own bounds),
-      // so PICK stays a single tap anywhere else on the card. Opens a
-      // read-only detail overlay instead of picking.
-      const badgeSize = 22;
-      const badge = this.add.rectangle(10 + (this.W - 20) - badgeSize / 2 - 4, y + badgeSize / 2 + 4, badgeSize, badgeSize, 0x0b1420, 0.85)
-        .setOrigin(0.5).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-      this.add.text(badge.x, badge.y, 'i', { fontSize: `${F.label}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-      badge.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-        event.stopPropagation();
-        playSfx('uiClick');
-        this.detailSkillId = card.skillId;
-        this.rerender();
+      new CardToken(this, 10 + (this.W - 20) / 2, y + h / 2, skill, {
+        width: this.W - 20,
+        height: h,
+        side: 'left',
+        onInspect: () => {
+          playSfx('uiClick');
+          this.detailSkillId = card.skillId;
+          this.rerender();
+        },
       });
       if (isPicked) {
-        this.add.text(this.W - 18, y + 6, '✓ PICKED', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' })
-          .setOrigin(1, 0).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
+        // The inward corners belong to CardToken's slot-span and weight
+        // badges; keep selection in the otherwise unused bottom centre.
+        this.add.text(this.W / 2, y + h - 5, '✓ PICKED', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' })
+          .setOrigin(0.5, 1).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
       }
       y += h + gap;
     }

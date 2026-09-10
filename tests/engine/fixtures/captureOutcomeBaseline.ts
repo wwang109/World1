@@ -53,7 +53,19 @@ const next = {
     'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
     'still fully load-bearing.',
   note:
-    'Regression lock recaptured (2026-08-21) for the `chainBonus` KEYWORD — a purely ADDITIVE ' +
+    'Regression lock recaptured (2026-09-05) for Event V3 combat facts: `skillCast.actionKinds` ' +
+    'is intentional ADDITIVE EVENT-LOG METADATA listing the resolved actions each cast actually ' +
+    'reached. It lets the run layer derive durable action-use facts from the authoritative battle ' +
+    'log without re-reading mutable card content. The interpreter records action-list order, ' +
+    'excludes closed affinity gates and an unreached lethal tail, preserves repeated actions once ' +
+    'per authored action rather than once per AoE target, and omits the field when no action is ' +
+    'reached; those contracts are pinned by `tests/engine/skillCastActionKinds.test.ts`. Because ' +
+    '`outcomeHash` intentionally hashes the complete semantic event stream, all 200 hashes in each ' +
+    'sweep moved. Exhaustive read-only comparison before regeneration found 0 result changes and ' +
+    '0 turn changes; deleting ONLY `skillCast.actionKinds` from the current logs restored all ' +
+    '400/400 previous hashes. The sweeps contain 3732 and 3698 cast events carrying the new field. ' +
+    'No combat state, RNG call, action execution, or outcome rule changed. It supersedes the prior ' +
+    'regen: Regression lock recaptured (2026-08-21) for the `chainBonus` KEYWORD — a purely ADDITIVE ' +
     'STATE CHANGE, not a rule change: no existing behaviour moved, and the containment proof ' +
     'below is exhaustive rather than a sample. `chainBonus` is the type-axis twin of `comboBonus` ' +
     '(bonus damage when the caster\'s PREVIOUS resolved cast was of a named card type — a weapon ' +

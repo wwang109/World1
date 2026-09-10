@@ -1,34 +1,47 @@
-# Deck Affinity (v1 — updated 2026-07-22)
+# Deck Affinity (v1 — updated 2026-09-07)
 
 Every card is typed by exactly one **weapon or element** (enforced by
 `tests/engine/elements.test.ts`). When a combatant's board leans hard into one
 type, the board gains that type's **affinity**.
 
+> **THE BOARD IS THE ONLY SOURCE** (user ruling 2026-09-06): *"affinity are just
+> passive buffs based on the board"* / *"so if they meet the requirements they
+> should have the affinity effect"* / *"there should be no hardcoded enemy that
+> break the rule."* Meet the requirement, get the buff. Nothing else grants one.
+
 > Naming: internally the derivation still lives in `typeIdentity.ts`
-> (`boardTypeIdentity`), but everything the player sees calls this **affinity**.
+> (`boardAffinities`), but everything the player sees calls this **affinity**.
 > There is no separate "identity" concept and no "identity" wording in the UI.
 
 ## Rule
 
 - **Card type** = `skill.element ?? skill.weapon` (exactly one exists).
-- **Affinity**: count the types across ALL cards on a combatant's board
+- **Two axes, counted SEPARATELY.** Element and weapon are orthogonal, so a
+  board runs one tally per axis and can hold **both** an element affinity and a
+  weapon affinity. Count the types across ALL cards on a combatant's board
   (buffs, shields, auras, and TRUE cards' cosmetic types included; a size-N
-  card counts once). If a single type has the **highest count and that count
-  is ≥ 3**, the board gains that type's affinity. An exact tie for the top
-  count → no affinity.
+  card counts once) into the tally for that card's own axis. If a single type
+  has the **highest count on its axis and that count is ≥ 3**, the board gains
+  that type's affinity.
+- **Defensive matchup affinity remains singular per axis.** A tie still leaves
+  that axis neutral for the weapon/element triangle. This is separate from the
+  card-effect gate below.
 - Recomputed at combat setup only (boards are static during a fight).
-- **Symmetric**: enemy boards gain affinity by the same rule.
+- **Symmetric**: enemy boards gain affinity by the same rule. There is no
+  authored override — `CombatantSetup.elementAffinity` / `.weaponAffinity` are
+  deprecated and ignored by `initCombatant`.
 
 ## Effect
 
 **The weapon/element triangle, unlocked.** The affinity becomes the
-combatant's attunement for matchups — element affinity fills `elementAffinity`,
-weapon affinity fills `weaponAffinity` — but **only where no authored affinity
-exists** (an enemy's authored affinity always wins; heroes have none, so this is
-the first source of hero affinity). Standard matchup math then applies both
+combatant's attunement for matchups — the element tally fills `elementAffinity`,
+the weapon tally fills `weaponAffinity`, and a board that leans into both fills
+both. Standard matchup math then applies both
 ways: your attacks deal **+50%** into the type your affinity beats, and take
 **−25%** from that type; attacks of the type that beats your affinity deal
-**+50%** into you.
+**+50%** into you. A dual-affinity board is therefore defended on both axes and
+exposed on both — a magical attacker is answered by the element affinity, a
+physical one by the weapon affinity.
 
 There is still **no flat same-type damage bonus** — the old v1 "+20% on matching
 cards" was removed 2026-07-22, and nothing about an identity multiplies a card's
@@ -42,9 +55,15 @@ priced on its own rather than folded into the identity as a blanket bonus.
 which gives back PL, because affinity adds a requirement to use the effect, so
 it's a composite of another effect"*). Any action may carry `affinity: true`
 (`AffinityGated`, engine/types.ts). That action resolves ONLY when the caster
-holds the affinity matching the card's own type; when the gate is shut it is
-skipped entirely, as though the card never listed it. It is opt-in per action, so
-an identity by itself still grants nothing offensive.
+has at least three cards matching the card's own type; when the gate is shut it
+is skipped entirely, as though the card never listed it. Each type is checked
+independently: 3 fire + 3 frost activates gated Fire effects and gated Frost
+effects. A tie never cancels either effect. It is opt-in per action, so a
+defensive affinity by itself still grants nothing offensive.
+
+Player-facing rule text: **“Requires 3 cards of this type on your board to
+activate this effect.”** Affinity is shown as its own glossary entry beside the
+action keyword it gates, never folded into a label such as “Burn (Affinity).”
 
 Three consequences, each load-bearing:
 
@@ -62,8 +81,8 @@ Three consequences, each load-bearing:
   permanently taxed for a payload it can never reach. So the same card is a
   genuine single-hit card at full stat off-type and a genuine two-hit card
   on-type.
-- **PRICING: the effect prices on its own family's terms and the gate refunds
-  4/5** (`PRICE.affinityPayoffNum/Den`; derivation there). The one thing the
+- **PRICING: the effect prices on its own family's terms and the gate is
+  half-price** (`PRICE.affinityPayoffNum/Den = 1/2`; derivation there). The one thing the
   refund does NOT cover is the multi-hit premium, which is not charged on gated
   hits at all: that premium prices a property the card *reliably* has, and a
   gated hit makes the hit count board-dependent.
@@ -90,13 +109,21 @@ your favor but hands the enemy a known attack vector into you.
 ## Explicitly deferred (explore later)
 
 - A named/priced same-type reward mechanic (the removed +20% was unpriced).
-- Multiple simultaneous affinities / second threshold tiers (e.g. 5+).
+- Second threshold tiers (e.g. 5+). *(One element affinity plus one weapon
+  affinity on the same board is no longer deferred — it shipped 2026-09-06.)*
 - Boosting heals/shields of the affinity type.
 
 ## UI hooks
 
-Available to the UI: `finalState.<unit>.boardIdentity` (the computed affinity)
-and the incoming matchup via the existing `damage.matchup` field. The signed
+Available to the UI: `finalState.<unit>.elementAffinity` and
+`.weaponAffinity` — **the honest pair**, either, both, or neither — plus
+`finalState.<unit>.boardIdentity`, a single-label collapse of the two (element
+first) kept for surfaces that can only show one and **lossy on a dual-affinity
+board**. `boardAffinities(skills)` is the pure derivation for anything outside
+the sim; `boardTypeIdentity(skills)` is the same collapse, defined in terms of
+it so the two can never disagree.
+
+Also available: the incoming matchup via the existing `damage.matchup` field. The signed
 triangle contribution is `damage.calculation.matchupBonusDamage`, surfaced as
 the **AFFINITY** term in the battle/`fight` damage strip. There is no longer an
 `identityBonusDamage` field.

@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "gilded_detour",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Gilded Detour",
+            "body": "A broker's bright pavilion blocks the road. The richest travelers are invited to turn a little fortune into something rarer.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": { "storyId": "gilded_detour", "stage": "payoff", "role": "payoff" },
+            "eligibility": {
+              "all": [
+                { "fact": "wallet.current", "args": { "op": "gte", "value": 15 } },
+                { "fact": "run.tally", "args": { "stat": "goldSpent", "op": "gte", "value": 10 } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "keep_fortune", "label": "Keep your fortune", "cost": 0, "outcome": { "kind": "nothing" } }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  { "id": "buy_gold_upgrade", "label": "Commission an upgrade", "cost": 8, "outcome": { "kind": "upgradeCard" } },
+                  { "id": "buy_premium_gem", "label": "Choose a premium gem", "cost": 6, "outcome": { "kind": "gemChoice", "filter": [{ "all": true }] } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "victors_table",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Victor's Table",
+            "body": "Veterans from many roads raise their cups as you pass. Five victories earn a place beside them and first choice of the spoils.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": { "storyId": "victors_table", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "run.tally", "args": { "stat": "wins", "op": "gte", "value": 5 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "take_purse", "label": "Take the road purse", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 } }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  { "id": "toast_growth", "label": "Toast to hard-won growth", "cost": 0, "outcome": { "kind": "grantLevel" } },
+                  {
+                    "id": "choose_spoils",
+                    "label": "Choose from the spoils",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "cardChoice",
+                      "filter": [{ "archetypes": ["offense", "defensive", "healing", "support", "debuff"] }],
+                      "maxTier": "bronze"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bitter_rematch",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Bitter Rematch",
+            "body": "Word of your answered defeat reaches a scarred training yard. Your old rival's mark hangs beside the card that ended the rematch.",
+            "theme": "training",
+            "rarity": "rare",
+            "story": { "storyId": "bitter_rematch", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "combat.revengeReady", "args": {} },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [
+              { "as": "enemy_id", "source": "revenge.enemyId" },
+              { "as": "revenge_finisher_card_id", "source": "revenge.finisherCardId", "optional": true }
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "spare_rival",
+                  "label": "Spare the rival's name",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "set", "key": "rival_spared", "value": true }]
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "honor_finisher",
+                    "label": "Honor the finishing card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "boundSubject": { "slot": "revenge_finisher_card_id" } },
+                      "fallback": { "kind": "grantGold", "amount": 2 }
+                    }
+                  },
+                  { "id": "claim_rematch_purse", "label": "Claim the rematch purse", "cost": 0, "outcome": { "kind": "grantGold", "amount": 4 } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

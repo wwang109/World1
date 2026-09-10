@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "discoveries": [
+    {
+      "id": "far_sighted",
+      "label": "Far-Sighted",
+      "eventId": "feathered_cairn",
+      "accountStatus": "future"
+    },
+    {
+      "id": "the_grave_answers",
+      "label": "The Grave Answers",
+      "eventId": "names_under_stone",
+      "accountStatus": "future"
+    },
+    {
+      "id": "tempered_by_fire",
+      "label": "Tempered by Fire",
+      "eventId": "cinderheart_crucible",
+      "accountStatus": "future"
+    },
+    {
+      "id": "white_road_walker",
+      "label": "White Road Walker",
+      "eventId": "whiteout_pilgrim",
+      "accountStatus": "future"
+    },
+    {
+      "id": "hunted_the_hunter",
+      "label": "Hunted the Hunter",
+      "eventId": "moon_scented_trail",
+      "accountStatus": "future"
+    },
+    {
+      "id": "under_the_red_standard",
+      "label": "Under the Red Standard",
+      "eventId": "red_standard",
+      "accountStatus": "future"
+    },
+    {
+      "id": "hold_the_line",
+      "label": "Hold the Line",
+      "eventId": "last_hedge",
+      "accountStatus": "future"
+    },
+    {
+      "id": "storm_in_hand",
+      "label": "Storm in Hand",
+      "eventId": "thunder_in_a_bottle",
+      "accountStatus": "future"
+    },
+    {
+      "id": "venom_crown",
+      "label": "Venom Crown",
+      "eventId": "bloom_behind_the_teeth",
+      "accountStatus": "future"
+    },
+    {
+      "id": "heavy_purse",
+      "label": "Heavy Purse",
+      "eventId": "gilded_detour",
+      "accountStatus": "future"
+    },
+    {
+      "id": "proven_fivefold",
+      "label": "Proven Fivefold",
+      "eventId": "victors_table",
+      "accountStatus": "future"
+    },
+    {
+      "id": "settled_score",
+      "label": "Settled Score",
+      "eventId": "bitter_rematch",
+      "accountStatus": "future"
+    },
+    {
+      "id": "last_light",
+      "label": "Last Light",
+      "eventId": "last_light_at_roads_end",
+      "accountStatus": "future"
+    },
+    {
+      "id": "one_purpose",
+      "label": "One Purpose",
+      "eventId": "mirror_of_the_board",
+      "accountStatus": "future"
+    },
+    {
+      "id": "signature_skill",
+      "label": "Signature Skill",
+      "eventId": "card_that_remembered",
+      "accountStatus": "future"
+    },
+    {
+      "id": "off_the_map",
+      "label": "Off the Map",
+      "eventId": "cartographers_missing_road",
+      "accountStatus": "future"
+    }
+  ]
+}

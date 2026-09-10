@@ -1,9 +1,9 @@
-import type { EventTheme } from '../../data/events';
+import type { EventArtId, EventTheme } from '../../data/eventTypes';
 
 /**
  * Pure texture-key catalog + lookups for Run Mode art — split out of
- * `runArt.ts` so the KEY math (`choiceArtKey`/`eventArtKey`/`shopArtKey`) has
- * no Phaser import and can be consumed by pure view-model modules
+ * `runArt.ts` so the KEY math (`choiceArtKey`/`eventArtKey`/`shopArtKey`/
+ * `biomeArtKey`) has no Phaser import and can be consumed by pure view-model modules
  * (`runRewardViewModel.ts`) and unit-tested directly. `runArt.ts` re-exports
  * everything here for backward compatibility — it additionally owns
  * `RUN_ART_ASSETS` (the boot-time load list) and `addRunArt` (the actual
@@ -41,6 +41,24 @@ export const RUN_ART_KEYS = {
     grovekeep: 'run-art-shop-grovekeep',
     reliquary: 'run-art-shop-reliquary',
     umbral_stall: 'run-art-shop-umbral-stall',
+    swordwright: 'run-art-shop-swordwright',
+    cleaving_yard: 'run-art-shop-cleaving-yard',
+    lancers_rest: 'run-art-shop-lancers-rest',
+    fletchers_loft: 'run-art-shop-fletchers-loft',
+    beastmoot: 'run-art-shop-beastmoot',
+  } as const,
+  biome: {
+    arrowfell: 'run-art-biome-arrowfell',
+    duskbarrow: 'run-art-biome-duskbarrow',
+    emberwaste: 'run-art-biome-emberwaste',
+    frostmarch: 'run-art-biome-frostmarch',
+    hallowfield: 'run-art-biome-hallowfield',
+    howlmoor: 'run-art-biome-howlmoor',
+    ironmoot: 'run-art-biome-ironmoot',
+    pikewold: 'run-art-biome-pikewold',
+    stormreach: 'run-art-biome-stormreach',
+    swornhold: 'run-art-biome-swornhold',
+    thornwild: 'run-art-biome-thornwild',
   } as const,
   event: {
     training: 'run-art-event-training',
@@ -50,21 +68,37 @@ export const RUN_ART_KEYS = {
     market: 'run-art-event-market',
     omen: 'run-art-event-omen',
   } satisfies Record<EventTheme, string>,
+  eventStory: {
+    bell_beneath_ice: 'run-art-event-story-bell-beneath-ice',
+    second_toll: 'run-art-event-story-second-toll',
+    bell_unbound: 'run-art-event-story-bell-unbound',
+  } satisfies Record<EventArtId, string>,
 } as const;
 
-export function eventArtKey(theme: EventTheme): string {
-  return RUN_ART_KEYS.event[theme];
+export function eventArtKey(theme: EventTheme, artId?: EventArtId): string {
+  return artId === undefined ? RUN_ART_KEYS.event[theme] : RUN_ART_KEYS.eventStory[artId];
 }
 
 export function shopArtKey(shopId: string): string {
   return RUN_ART_KEYS.shop[shopId as keyof typeof RUN_ART_KEYS.shop] ?? RUN_ART_KEYS.icon.storefront;
 }
 
+/** Biomes are a closed live catalog. Unlike the shop safety icon, an unknown
+ * biome must not silently borrow another place's identity art. */
+export function biomeArtKey(biomeId: string): string {
+  const key = RUN_ART_KEYS.biome[biomeId as keyof typeof RUN_ART_KEYS.biome];
+  if (key === undefined) throw new Error(`biomeArtKey: unknown biome "${biomeId}"`);
+  return key;
+}
+
 export function choiceArtKey(kind: string): string {
   switch (kind) {
     case 'grantCard':
+    case 'cardGranted':
+    case 'cardUpgraded':
     case 'bonusDraft':
     case 'upgradeCard':
+    case 'upgradeCardTargeted':
     case 'upgradeCardPick':
     // `cardChoice` (2026-08-18 agency pass) is the pre-resolution SPEC kind
     // shown on the event's own choice row (`choiceArtKey(choice.outcome.kind)`
@@ -100,6 +134,8 @@ export function choiceArtKey(kind: string): string {
       return RUN_ART_KEYS.icon.choiceGold;
     case 'grantLevel':
       return RUN_ART_KEYS.icon.choiceLevel;
+    case 'grantMapInfo':
+      return RUN_ART_KEYS.icon.choiceNothing;
     case 'nothing':
     default:
       return RUN_ART_KEYS.icon.choiceNothing;

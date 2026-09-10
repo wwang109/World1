@@ -77,6 +77,7 @@ const { cardOfferableAtTier, minOfferableTier, tierResolved, TIER_ORDER } = awai
 const { GOLD_PRICE_BY_TIER, goldPriceOfCardForShop, rollShopStock } = await import('../../src/run/shop');
 const { rollStartDraft, DRAFT_SET_KEYS } = await import('../../src/run/draft');
 const { resolveEventChoice, applyBonusDraftPick } = await import('../../src/run/events');
+const { eventInstanceAt, recordEventInstance } = await import('../../src/run/eventInstances');
 const {
   applyDraftResult, availableChoices, buyRunCard, chooseNode, createRun, currentEventNode,
   ensureRunShopShelf, leaveEvent, leaveShop, recordBattleResult, tryInsertRunCard,
@@ -86,6 +87,26 @@ const { eventCatalog, eventCatalogIds } = await import('../../src/data/events');
 
 type SkillTier = (typeof TIER_ORDER)[number];
 type RunState = ReturnType<typeof createRun>;
+
+/** The tier sweep pins a named catalog choice, so it must establish the same
+ * exact immutable event/version record that a real draw commits first. */
+function resolveExactEventChoice(state: RunState, eventId: string, choiceId: string) {
+  const node = currentEventNode(state);
+  if (!node) throw new Error('tier offer sweep requires a current event node');
+  const contentVersion = 1;
+  const frozenLookup = (id: string, version: number) => version === 1 ? eventCatalog[id] : undefined;
+  if (frozenLookup(eventId, contentVersion) === undefined) throw new Error(`unknown event "${eventId}"`);
+  const existing = eventInstanceAt(state, node.id);
+  if (existing && (existing.eventId !== eventId || existing.contentVersion !== contentVersion)) {
+    throw new Error(`tier offer sweep cannot rebind committed event node "${node.id}"`);
+  }
+  const committed = existing
+    ? state
+    : recordEventInstance(state, node.id, {
+      eventId, contentVersion, instanceId: `event:${node.id}`, drawnDepth: node.depth,
+    });
+  return resolveEventChoice(committed, eventId, choiceId, frozenLookup);
+}
 
 const SEEDS = 200;
 const DEPTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -328,7 +349,7 @@ describe('event card grants', () => {
       // Fund the wallet so a choice's `cost` never gates what this sweep can reach.
       const funded: RunState = { ...parked, gold: 99 };
       for (const grant of GRANTS) {
-        const { outcome } = resolveEventChoice(funded, grant.eventId, grant.choiceId);
+        const { outcome } = resolveExactEventChoice(funded, grant.eventId, grant.choiceId);
         resolved += 1;
         if (outcome.kind === 'grantCard') {
           const why = whyUnofferable(outcome.skillId, outcome.tier);

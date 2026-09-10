@@ -74,7 +74,6 @@ describe('aura coverage never exceeds what the aura rate is calibrated for', () 
       id: 'reach_price_probe', name: 'Reach Price Probe', archetypes: ['support'],
       property: 'physical', weapon: 'sword', size: 1, rarity: 'common', tier: 'bronze',
       effects: [], aura: { affects: 'adjacent', reach: 1, mods: { damageFlat: 5 } },
-      text: 'Passive: adjacent cards deal +5 damage.',
     };
     const wide: SkillDef = { ...probe, aura: { ...probe.aura!, reach: 4 } };
     const auraPart = (s: SkillDef): number => powerLevelBreakdown(s).find((p) => p.label === 'aura')!.deci;

@@ -474,9 +474,11 @@ export const PRICE = {
 
   /**
    * AFFINITY PAYOFF (`affinityStrike`) — pay `affinityPayoffNum/affinityPayoffDen`
-   * of the ordinary strike rate: 4/5, so 4 deci per point of power instead of 5
-   * (8 instead of 10 on TRUE). Both are exact integers at every power, so no
-   * rounding enters the budget.
+   * of the ordinary strike rate: 1/2, so 2.5 deci per point of power instead
+   * of 5 (5 instead of 10 on TRUE). The integer pricer floors fractional
+   * deci; whole-PL validation requires authored magnitudes whose discounted
+   * action price is a multiple of 10 deci (ordinary 5-deci damage therefore
+   * needs a power multiple of 4).
    *
    * WHY NOT THE ½ CONDITIONAL DISCOUNT. `conditionalBonusDen` prices a gate the
    * card cannot supply AND that is only SOMETIMES open — the target happens to
@@ -710,11 +712,11 @@ export const PRICE = {
    * 5-fight cadence block is 2 normal + 2 elite + 1 boss (`BOSS_EVERY` = 5,
    * `fightSpecFor`); boss nodes never roll a pack (`rollEncounter`'s
    * `gateOpen` — always exactly 1 foe). Of the remaining 4-in-5 (non-boss)
-   * fights, `PACK_VARIANT_WEIGHTS` rolls solo/pair/trio at 70/20/10. The
+   * fights, `PACK_VARIANT_WEIGHTS` rolls solo/pair/trio at 64/32/4. The
    * STEADY-STATE (asymptotic — see the caveat below) expected foe count:
    *
    *   boss:      1/5 * 1                          = 0.20
-   *   non-boss:  4/5 * (0.70*1 + 0.20*2 + 0.10*3)  = 4/5 * 1.4 = 1.12
+   *   non-boss:  4/5 * (0.64*1 + 0.32*2 + 0.04*3)  = 4/5 * 1.4 = 1.12
    *   total                                          = 1.32  =  33/25
    *
    * 1.32 is a CEILING on the honest number, not the number itself, so pricing

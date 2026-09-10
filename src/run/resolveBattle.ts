@@ -1,7 +1,7 @@
 import { simulate } from '../engine/combat/simulate';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
-import type { BoardPiece, CombatOutcome } from '../engine/types';
+import type { BoardPiece, CombatOutcome, Element, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encounter';
 import type { Allocation } from './leveling';
 
@@ -23,6 +23,7 @@ export interface BattleFoeConfig {
   enemyId: string;
   level: number;
   title: EnemyTitle;
+  /** Base/request rank, before growth and forced-tier display echoes. */
   rank: number;
   /** Modifier ids from MODIFIER_PRESETS; omitted/[] = none. */
   modifiers?: readonly string[];
@@ -49,6 +50,12 @@ export interface BattleFoeConfig {
    * re-resolves it through the SAME `buildEnemyEncounter` the preview uses.
    */
   deck?: readonly FoeDeckCard[] | null;
+  /** Growth schedule level; packs carry their clamped effective member level.
+   * Omitted sandbox values default to the foe's combat level. The service
+   * reconstructs the recipe once, exactly like the display resolver. */
+  growthLevel?: number;
+  /** Run ladder rung for depth-ramped elite/boss title packages. */
+  fightNumber?: number;
 }
 
 /** The prep information a battle is resolved from — the request payload. */
@@ -73,6 +80,8 @@ export interface BattleLog {
   events: readonly CombatEvent[];
   result: CombatOutcome;
   turns: number;
+  /** Player-side affinity resolved by combat setup; omitted when none exists. */
+  playerAffinityId?: Element | WeaponType;
 }
 
 /** Resolves setups from the request, simulates, and returns the log. */
@@ -83,11 +92,19 @@ export function resolveBattle(request: BattleRequest): BattleLog {
     request.heroAllocation,
   ).setup;
   const foeSetups = request.foes.map(
-    (f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null, undefined, f.deck ?? null).setup,
+    (f) => buildEnemyEncounter(
+      f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null, f.fightNumber, f.deck ?? null, f.growthLevel,
+    ).setup,
   );
-  const { result, turns, events } = simulate(
+  const { result, turns, events, finalState } = simulate(
     { playerTeam: [hero], enemyTeam: foeSetups, skillBook },
     request.seed,
   );
-  return { events, result, turns };
+  const playerAffinityId = finalState.player.elementAffinity ?? finalState.player.weaponAffinity;
+  return {
+    events,
+    result,
+    turns,
+    ...(playerAffinityId === undefined ? {} : { playerAffinityId }),
+  };
 }

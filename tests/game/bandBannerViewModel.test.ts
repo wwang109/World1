@@ -48,23 +48,23 @@ function sampleForecasts(): BandForecast[] {
 }
 
 describe('bandBannerViewModel', () => {
-  it('names the band, its lean, its wave range and the boss it promises', () => {
+  it('names the region and its day range while preserving its lean and promised boss', () => {
     const run = createRun(1);
     const vm = bandBannerForWave(run, 1);
     expect(vm.name).toBe('THE THORNWILD');
     expect(vm.leanChip).toBe('NATURE');
     expect(vm.leanType).toBe('nature');
-    expect(vm.waveRange).toBe('WAVES 1-5');
+    expect(vm.waveRange).toBe('REGION DAYS 1–5');
     expect(vm.boss.resolved).toBe(true);
     expect(vm.boss.headline).toBe('THE BRAMBLE MATRIARCH');
     expect(vm.boss.sub).toBe('LV 5 · BOSS');
   });
 
-  it('the wave range is the band the wave falls in, not the wave itself', () => {
+  it('restarts the visible day range in every region instead of leaking absolute waves', () => {
     const run = createRun(1);
-    expect(bandBannerForWave(run, 5).waveRange).toBe('WAVES 1-5');
-    expect(bandBannerForWave(run, 6).waveRange).toBe('WAVES 6-10');
-    expect(bandBannerForWave(run, 11).waveRange).toBe('WAVES 11-15');
+    expect(bandBannerForWave(run, 5).waveRange).toBe('REGION DAYS 1–5');
+    expect(bandBannerForWave(run, 6).waveRange).toBe('REGION DAYS 1–5');
+    expect(bandBannerForWave(run, 11).waveRange).toBe('REGION DAYS 1–5');
   });
 
   it('EVERY claim names its own subject inside the sentence (3881717)', () => {
@@ -99,16 +99,27 @@ describe('bandBannerViewModel', () => {
   });
 
   it('renders the two claims DIFFERENTLY when the boss and the mobs disagree', () => {
-    // The Arrowfell at seed 2: nothing counters bow mobs, but the boss face
-    // that rolls is the Greenwood Sovereign, which is nature+bow — so fire
-    // farms its nature half. One panel, two different true answers.
-    const vm = bandBannerForWave(createRun(2), 1);
-    expect(vm.name).toBe('THE ARROWFELL');
-    expect(vm.boss.headline).toBe('THE GREENWOOD SOVEREIGN');
-    expect(vm.bossClaim.kind).toBe('definite');
-    expect(vm.bossClaim.lines).toEqual(['FIRE HITS THIS BOSS +50%']);
-    expect(vm.mobsClaim.kind).toBe('none');
-    expect(vm.mobsClaim.lines).toEqual(['NOTHING COUNTERS THESE MOBS']);
+    // MOVED 2026-09-06 (board-derived affinity, both axes tallied
+    // separately — docs/board-type-identity.md, "affinity are just passive
+    // buffs based on the board"). The OLD example here was The Arrowfell's
+    // Greenwood Sovereign face, authored nature+bow. Its own board is 3/3
+    // weapon:bow, 0/3 element:nature — the authored nature half was never
+    // earnable (a 3-card board cannot clear IDENTITY_THRESHOLD=3 on two axes
+    // at once) — so it now derives bow ALONE, and nothing counters bow
+    // (WEAPON_BEATS has no entry mapping to it). Arrowfell's boss and mobs
+    // now AGREE (both "nothing counters"), so this seed no longer
+    // demonstrates disagreement. The Ironmoot at seed 2 does instead: its
+    // alternate boss face Bloodletter (`blood_duelist`) is a 2-card board
+    // short of the derived-affinity threshold — uncountered — while
+    // Ironmoot's own mob lean is sword. One panel, two different true
+    // answers.
+    const vm = bandBannerForWave(createRun(2), 6);
+    expect(vm.name).toBe('THE IRONMOOT');
+    expect(vm.boss.headline).toBe('BLOODLETTER');
+    expect(vm.bossClaim.kind).toBe('none');
+    expect(vm.bossClaim.lines).toEqual(['NOTHING COUNTERS THIS BOSS']);
+    expect(vm.mobsClaim.kind).toBe('definite');
+    expect(vm.mobsClaim.lines).toEqual(['SWORD HITS THESE MOBS +50%']);
   });
 
   it('a no-counter answer is a LINE, never an empty chip (the Arrowfell, both claims)', () => {
@@ -150,33 +161,56 @@ describe('bandBannerViewModel', () => {
     };
 
     it("a SPLIT shortlist promises no type and says so — and shows the fork face by face", () => {
-      const f = unresolved('arrowfell');
+      // MOVED 2026-09-06 (board-derived affinity ruling, see the describe
+      // block above's comment for the full reasoning). The Arrowfell used to
+      // be the shipped SPLIT example (Deadeye Stalker uncountered, the
+      // Greenwood Sovereign's authored nature countered by fire). The
+      // Greenwood Sovereign's board is 3/3 weapon:bow, 0/3 element:nature —
+      // its authored nature half was never earnable — so it now derives bow
+      // alone, uncountered like its sibling face; Arrowfell's shortlist now
+      // AGREES instead (it moved to the 'AGREEING shortlist' test below,
+      // which moved the other way). Ironmoot is the new SPLIT example: its
+      // two boss faces are Bloodletter (`blood_duelist`, a 2-card board
+      // short of the derived-affinity threshold — uncountered) and the
+      // Ruin-Warlord (sword-countered).
+      const f = unresolved('ironmoot');
       expect(f.bossCounter.basis).toBe('split');
       const vm = bandBannerViewModel(f);
       expect(vm.bossClaim.kind).toBe('unsure');
       expect(vm.bossClaim.lines).toEqual(['NO COUNTER IS SURE FOR', 'THIS BOSS.']);
       // The union is carried for callers that need it, but NEVER stated as a
       // sentence: no line names a type.
-      expect(vm.bossClaim.types).toEqual(['fire']);
-      expect(vm.bossClaim.lines.join(' ')).not.toContain('FIRE');
+      expect(vm.bossClaim.types).toEqual(['sword']);
+      expect(vm.bossClaim.lines.join(' ')).not.toContain('SWORD');
       expect(vm.boss.resolved).toBe(false);
       expect(vm.boss.headline).toBe('ONE OF THESE:');
       expect(vm.boss.entries).toEqual([
-        'DEADEYE STALKER',
+        'BLOODLETTER',
         '  NOTHING COUNTERS IT',
-        'THE GREENWOOD SOVEREIGN',
-        '  FIRE +50%',
+        'THE RUIN-WARLORD',
+        '  SWORD +50%',
       ]);
     });
 
     it('an AGREEING shortlist still promises its one type, with the faces named plainly', () => {
-      const f = unresolved('ironmoot');
+      // MOVED 2026-09-06 (board-derived affinity ruling). Ironmoot used to be
+      // the shipped AGREEING example (both faces sword-countered) — its
+      // alternate boss face Bloodletter is a 2-card board short of the
+      // derived-affinity threshold and no longer earns sword, so Ironmoot's
+      // shortlist SPLITS now instead (see the 'SPLIT shortlist' test above,
+      // which moved the other way). Duskbarrow is the new AGREEING example:
+      // both its faces (Barrow Wight, The Hollow Crown) derive DARK (all six
+      // of their pieces — graveside_rite/swift_march/soul_rend and
+      // ruinous_hex/umbral_choir/annihilation_strike — are element: dark in
+      // skills.v1.json), countered by HOLY (ELEMENT_BEATS.dark === holy),
+      // which is exactly the HOLY HITS THIS BOSS +50% claim asserted below.
+      const f = unresolved('duskbarrow');
       expect(f.bossCounter.basis).toBe('shortlist');
       const vm = bandBannerViewModel(f);
       expect(vm.bossClaim.kind).toBe('definite');
-      expect(vm.bossClaim.lines).toEqual(['SWORD HITS THIS BOSS +50%']);
-      // Both faces are axe, so no per-face counter is printed — the one claim
-      // below the block is already true of whichever face comes.
+      expect(vm.bossClaim.lines).toEqual(['HOLY HITS THIS BOSS +50%']);
+      // Both faces are holy, so no per-face counter is printed — the one
+      // claim below the block is already true of whichever face comes.
       expect(vm.boss.entries.every((e) => !e.startsWith('  '))).toBe(true);
     });
   });
@@ -260,13 +294,19 @@ function layoutSamples(): BandBannerViewModel[] {
     const run = createRun(seed);
     for (let band = 0; band < 3; band++) out.push(bandBannerViewModel(forecastBand(run, band)));
   }
+  // MOVED 2026-09-06 (board-derived affinity ruling — see the two
+  // 'shortlist'/'SPLIT' tests below for the full reasoning): Arrowfell used
+  // to be the shipped SPLIT example; its Greenwood Sovereign face lost its
+  // authored nature half (board is 3/3 bow, 0/3 nature — never earnable) and
+  // Arrowfell's shortlist now AGREES instead. Ironmoot is the new SPLIT
+  // example (Bloodletter uncountered vs the Ruin-Warlord's sword).
   const split = (() => {
     for (let seed = 1; seed < 400; seed++) {
       const f = forecastBand(createRun(seed), 0);
-      if (f.biomeId !== 'arrowfell') continue;
+      if (f.biomeId !== 'ironmoot') continue;
       return bandBannerViewModel({ ...f, boss: null, bossCounter: bossCounterFor(null, f.bossCandidates) });
     }
-    throw new Error('no arrowfell band 0 in 1..399');
+    throw new Error('no ironmoot band 0 in 1..399');
   })();
   out.push(split);
   return out;
@@ -305,6 +345,24 @@ describe('bandBannerLayout: the height and the renderer agree by construction', 
     }
   });
 
+  it('reserves the real display-font line box between adjacent text rows', () => {
+    const displayLineBox = 1.45;
+    for (const vm of layoutSamples()) {
+      for (const mode of MODES) {
+        const rows = bandBannerLayout(vm, mode).rows;
+        for (let index = 0; index < rows.length - 1; index++) {
+          const row = rows[index]!;
+          const next = rows[index + 1]!;
+          if (row.style === 'rule' || row.style === 'button') continue;
+          expect(
+            next.y,
+            `${mode}: ${row.style} "${row.text}" line box reaches ${row.y + row.height * displayLineBox}`,
+          ).toBeGreaterThanOrEqual(row.y + row.height * displayLineBox);
+        }
+      }
+    }
+  });
+
   it('draws every WORD the model carries, and invents none', () => {
     // The renderer has no text of its own except the button label, so the row
     // list is the whole banner. A word that stops being emitted here stops
@@ -321,7 +379,7 @@ describe('bandBannerLayout: the height and the renderer agree by construction', 
           ...(vm.boss.resolved ? [vm.boss.sub] : vm.boss.entries),
           ...vm.bossClaim.lines,
           ...vm.mobsClaim.lines,
-          'READ THE BAND ›',
+          'EXPLORE REGION ›',
         ];
         expect(texts).toEqual(expected);
       }

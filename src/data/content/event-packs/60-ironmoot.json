@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "red_standard",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Red Standard",
+            "body": "An old Ironmoot standard hangs above a silent drill yard. Three victories won beneath the axe are stitched into its ragged edge.",
+            "theme": "training",
+            "rarity": "rare",
+            "biomeIds": ["ironmoot"],
+            "story": { "storyId": "red_standard", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "combat.affinityWin", "args": { "affinityId": "axe", "atLeast": 3, "biomeId": "ironmoot" } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "sell_standard", "label": "Sell the standard", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 } }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  { "id": "claim_axe_draft", "label": "Claim the Axe draft", "cost": 0, "outcome": { "kind": "bonusDraft", "filter": [{ "weapons": ["axe"] }] } },
+                  {
+                    "id": "hone_axe",
+                    "label": "Hone an Axe card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "filter": { "where": "any", "match": { "weapons": ["axe"] } } },
+                      "fallback": { "kind": "grantGold", "amount": 2 }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

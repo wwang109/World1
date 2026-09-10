@@ -188,7 +188,6 @@ describe('THE MECHANISM: the affinity flag is what freezes a line, in every buck
     id: 'gated_dot_probe', name: 'Gated DoT Probe', archetypes: ['offense'],
     property: 'magical', element: 'fire', size: 2, rarity: 'common', tier: 'bronze',
     effects: [{ kind: 'damage', power: 32 }, { kind: 'burn', stacks: 10, affinity: true }],
-    text: 'Deal 32 (+MATK) Fire damage · {{Affinity}} Fire — {{Burn}} 10.',
   };
   /** The SAME card with the gate removed — the control. */
   const PLAIN_DOT: SkillDef = {

@@ -52,16 +52,38 @@ describe('weapon triangle', () => {
   });
 });
 
+/**
+ * THE DEFENDERS HERE CARRY REAL BOARDS (2026-09-06). They used to be empty-board
+ * dummies with `elementAffinity` / `weaponAffinity` set directly on the setup —
+ * which stopped working the day affinity became a passive buff derived from the
+ * board and from nothing else (user ruling; `initCombatant` no longer reads
+ * those setup fields). Each defender below now EARNS its affinity by holding
+ * `IDENTITY_THRESHOLD` cards of the type, which is also a truer fixture: the
+ * matchup a player actually meets comes off a board.
+ *
+ * The attacker is faster (speed 20+ vs 10) in every case, so the hit under test
+ * is the first thing that resolves and the defender's own cards cannot touch it.
+ * Every assertion names the victim's `side` rather than taking "the first damage
+ * event" so a future defender cast cannot silently become the thing measured.
+ */
+const FIRE_BOARD = ['cinder_dart', 'ember_lash', 'scorching_brand'];
+const FROST_BOARD = ['frost_shackle', 'glacial_spike', 'slow_hex'];
+const AXE_BOARD = ['armor_break', 'cleaving_creed', 'rupturing_strike'];
+const SWORD_BOARD = ['sword_slash', 'follow_through', 'silencing_slash'];
+const BEAST_BOARD = ['savage_bite', 'blooded_fang', 'nettle_lash'];
+
 describe('matchups in combat', () => {
   it('frost magic hits a fire-affinity enemy for +50%', () => {
     // slow_hex (frost): 8 flat + MP 10 = 18, no resist -> 18, x1.5 = 27.
     const c = cfg(
       tc('hero', ['slow_hex'], { magicPower: 10, speed: 20 }),
-      { ...tc('imp', [], { speed: 10, maxHp: 200 }), elementAffinity: 'fire' },
+      tc('imp', FIRE_BOARD, { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 27, matchup: 'advantage' });
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.elementAffinity, 'the board must earn the affinity').toBe('fire');
+    expect(events.find((e) => e.kind === 'damage' && e.side === 'enemy'))
+      .toMatchObject({ amount: 27, matchup: 'advantage' });
   });
 
   it('fire magic into a fire... into frost affinity is resisted −25%', () => {
@@ -70,15 +92,16 @@ describe('matchups in combat', () => {
     // matchup-modified: fireball applies 5 burn, first tick = 2×5 = 10 exactly.
     const c = cfg(
       tc('hero', ['fireball'], { magicPower: 10, speed: 20 }),
-      { ...tc('yeti', [], { speed: 10, maxHp: 200 }), elementAffinity: 'frost' },
+      tc('yeti', FROST_BOARD, { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 3 },
     );
-    const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage' && e.source === 'skill')).toMatchObject({
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.elementAffinity).toBe('frost');
+    expect(events.find((e) => e.kind === 'damage' && e.side === 'enemy' && e.source === 'skill')).toMatchObject({
       amount: 36,
       matchup: 'disadvantage',
     });
-    const burnTick = events.find((e) => e.kind === 'damage' && e.source === 'burn');
+    const burnTick = events.find((e) => e.kind === 'damage' && e.side === 'enemy' && e.source === 'burn');
     expect(burnTick).toMatchObject({ amount: 10 }); // 2× printed stacks; matchup never touches DoT ticks
   });
 
@@ -86,22 +109,25 @@ describe('matchups in combat', () => {
     // sword_slash: 20 flat + Attack 10 = 30, 0 armor -> 30, x1.5 = 45.
     const c = cfg(
       tc('hero', ['sword_slash'], { attack: 10, speed: 20 }),
-      { ...tc('axeman', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'axe' },
+      tc('axeman', AXE_BOARD, { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 45, matchup: 'advantage' });
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.weaponAffinity).toBe('axe');
+    expect(events.find((e) => e.kind === 'damage' && e.side === 'enemy'))
+      .toMatchObject({ amount: 45, matchup: 'advantage' });
   });
 
   it('beast attacks are neutral against the triangle', () => {
     // venom_fang (beast): 12 flat + Attack 10 = 22, no multiplier vs sword affinity.
     const c = cfg(
       tc('hero', ['venom_fang'], { attack: 10, speed: 20 }),
-      { ...tc('swordsman', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'sword' },
+      tc('swordsman', SWORD_BOARD, { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    const hit = events.find((e) => e.kind === 'damage');
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.weaponAffinity).toBe('sword');
+    const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
     expect(hit).toMatchObject({ amount: 22 });
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
   });
@@ -110,21 +136,28 @@ describe('matchups in combat', () => {
     // hunter_shot: 20 flat + Attack 10 = 30, x1.5 = 45 vs the beast wolf.
     const c = cfg(
       tc('hero', ['hunter_shot'], { attack: 10, speed: 20 }),
-      { ...tc('wolf', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'beast' },
+      tc('wolf', BEAST_BOARD, { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 45, matchup: 'advantage' });
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.weaponAffinity).toBe('beast');
+    expect(events.find((e) => e.kind === 'damage' && e.side === 'enemy'))
+      .toMatchObject({ amount: 45, matchup: 'advantage' });
   });
 
   it('true damage ignores affinities entirely', () => {
+    // A DUAL-AFFINITY defender out of real content: 3 Fire + 3 Axe earns BOTH
+    // axes (they are tallied separately since 2026-09-06). True damage still
+    // consults neither.
     const c = cfg(
       tc('hero', ['soul_rend'], { attack: 10, magicPower: 10, speed: 30 }),
-      { ...tc('imp', [], { speed: 10, maxHp: 200 }), elementAffinity: 'fire', weaponAffinity: 'axe' },
+      tc('imp', [...FIRE_BOARD, ...AXE_BOARD], { speed: 10, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    const hit = events.find((e) => e.kind === 'damage');
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.elementAffinity).toBe('fire');
+    expect(finalState.enemy.weaponAffinity).toBe('axe');
+    const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
     expect(hit).toMatchObject({ amount: 37 }); // 27 flat + max(10,10) stat, no matchup
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
   });

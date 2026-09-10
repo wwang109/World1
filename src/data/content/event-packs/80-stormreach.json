@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "thunder_in_a_bottle",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Thunder in a Bottle",
+            "body": "A Stormreach tinker has trapped the echo of your swiftest lightning victory. The bottle shakes whenever the road turns toward another fight.",
+            "theme": "cache",
+            "rarity": "rare",
+            "biomeIds": ["stormreach"],
+            "story": { "storyId": "thunder_in_a_bottle", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "combat.fastWin", "args": { "maxTurns": 8, "element": "lightning" } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "sell_storm", "label": "Sell the storm", "cost": 0, "outcome": { "kind": "grantGold", "amount": 4 } }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "socket_thunder",
+                    "label": "Socket the thunder",
+                    "cost": 0,
+                    "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["slow"] }, { "ids": ["time_crystal_echo"] }] }
+                  },
+                  {
+                    "id": "teach_the_card",
+                    "label": "Teach a Lightning card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "filter": { "where": "any", "match": { "elements": ["lightning"] } } },
+                      "fallback": { "kind": "grantGold", "amount": 2 }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -29,6 +29,7 @@ import { skillBook } from '../../src/data/skills';
 import { BASELINE_COOLDOWN, cardExistsAtTier, TIER_ORDER, type Gem, type SkillDef, type SkillTier } from '../../src/engine/types';
 import { BOSS_EVERY } from '../../src/run/runMap';
 import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
+import { AFFINITY_CAPSTONE_IDS, isAllowedAffinityCapstoneRegression } from './fixtures/affinityCapstones';
 
 // USER-LOCKED 2026-07-23 — no drift. The entire price table is frozen here:
 // changing any rate in balance.ts MUST also edit this literal, so every pricing
@@ -234,7 +235,7 @@ describe('Power Level budgets', () => {
   it('capViolations names over-invested families and multi-stun', () => {
     const overControl: SkillDef = {
       id: 'x', name: 'x', archetypes: ['debuff'], property: 'physical', weapon: 'axe',
-      size: 1, rarity: 'common', tier: 'bronze', text: '',
+      size: 1, rarity: 'common', tier: 'bronze',
       // stun (10 PL) + 50%×2t stat-down (10 PL) = 20 PL control on a size-1 card (cap 10).
       effects: [
         { kind: 'stun', turns: 1 },
@@ -261,7 +262,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'damage', power: 200 }],
-      text: '',
     };
     const baseline = powerLevelDeci(base);
     expect(powerLevelDeci({ ...base, speedWeight: 12 })).toBe(baseline - 10); // +2 heavier -> −1 PL
@@ -278,7 +278,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'damage', power: 200 }],
-      text: '',
     });
     expect(powerLevelDeci(mk(2))).toBe(powerLevelDeci(mk(1)) - 140);
     expect(powerLevelDeci(mk(3))).toBe(powerLevelDeci(mk(1)) - 380);
@@ -294,7 +293,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'heal', power: 40 }],
-      text: '',
     };
     const passive: SkillDef = {
       ...casting,
@@ -323,7 +321,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'guard', property: 'magical', pct: 50, turns: 2 }],
-      text: '',
     };
     // 50 * 2 * (1/1) = 100 deci = Bronze exactly; the 1.25x premium was removed
     // (user-locked 2026-07-19) so guard now prices identically per pct-turn to a
@@ -342,7 +339,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'expose', pct: 50, turns: 2 }],
-      text: '',
     };
     // 50 * 2 * (1/1) = 100 deci = Bronze exactly; amplify and reduce cost the same.
     expect(powerLevelDeci(exposeCard)).toBe(100);
@@ -361,7 +357,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'negate', property: 'magical', charges }],
-      text: '',
     });
     expect(PRICE.negatePerCharge).toBe(100);
     expect(powerLevelDeci(mk(1))).toBe(TIER_BUDGET_DECI.bronze);
@@ -380,7 +375,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind, stacks } as SkillDef['effects'][number]],
-      text: '',
     });
     expect(PRICE.dotPerStack).toBe(10);
     // The tick model (decaying for poison/bleed, halving for burn) still
@@ -408,7 +402,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'disrupt', amount }],
-      text: '',
     });
     // Entry bracket (1-5 @ 5 deci/pt).
     expect(disruptCostDeci(5)).toBe(25);
@@ -434,7 +427,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'cleanse', charges }],
-      text: '',
     });
     expect(PRICE.cleansePerCharge).toBe(25);
     expect(powerLevelDeci(mk(4))).toBe(TIER_BUDGET_DECI.bronze);
@@ -452,7 +444,6 @@ describe('Power Level budgets', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'ward', charges }],
-      text: '',
     });
     expect(PRICE.wardPerCharge).toBe(50);
     // Whole-PL step of EXACTLY one charge — every charge count is authorable.
@@ -487,7 +478,6 @@ describe('cooldown deviation is CLAMPED (fail-open close)', () => {
     id: 'x', name: 'x', archetypes: ['offense'], property: 'physical', weapon: 'sword',
     size: 1, rarity: 'common', tier: 'bronze', cooldownTurns,
     effects: [{ kind: 'damage', power: 20 }],
-    text: '',
   });
 
   it('MAX_COOLDOWN_TURNS is 6 turns beyond baseline (BASELINE_COOLDOWN 3)', () => {
@@ -566,7 +556,6 @@ describe('aura mods are priced by MAGNITUDE, not sign (fail-open close)', () => 
       size: 1, rarity: 'common', tier: 'bronze',
       effects: [{ kind: 'damage', power: 60 }],
       aura: { affects: 'adjacent', reach: 0, mods: { damageFlat: -20 } },
-      text: '',
     };
     const noAura: SkillDef = { ...withNegativeAura, aura: undefined };
     // Before this fix: powerLevelDeci(withNegativeAura) was 100 (onBudget at
@@ -615,7 +604,6 @@ describe('AoE reach pricing (scope: all)', () => {
     tier: 'bronze',
     ...(scope === undefined ? {} : { scope }),
     effects: [{ kind: 'damage', power }],
-    text: '',
   });
 
   it('aoeTargetsNum/Den (1.32x) is EXACTLY the steady-state expected-foe-count derived from the game\'s own pack constants, not MAX_FOES', () => {
@@ -668,7 +656,6 @@ describe('AoE reach pricing (scope: all)', () => {
         { kind: 'damage', power: 40 }, // offensive: pays the multiplier
         { kind: 'buffStat', stat: 'attack', pct: 10, turns: 2 }, // self: does not
       ],
-      text: '',
     };
     const offensiveShare = 40 * PRICE.flatPowerPerPoint; // 200
     const selfShare = 10 * 2 * PRICE.statPctTurn; // 20
@@ -709,7 +696,6 @@ describe('AoE reach pricing (scope: all)', () => {
       id: 'x', name: 'x', archetypes: ['debuff'], property: 'physical', weapon: 'axe',
       size: 1, rarity: 'common', tier: 'bronze', scope,
       effects: [{ kind: 'debuffStat', stat: 'attack', pct: 50, turns: 2 }],
-      text: '',
     });
     expect(capViolations(mk('one'))).toEqual([]);
     // At scope 'all' the SAME authored magnitude now spends floor(100*33/25) =
@@ -837,16 +823,10 @@ describe('Power Level breakdown', () => {
   const alwaysOnOutputDeci = (skill: SkillDef): number =>
     actionsPriceDeci(skill.effects.filter((a) => a.affinity !== true), skill.property, skill.scope, skill.effects);
 
-  /**
-   * The ONE allowed exception, DERIVED from the content rather than hand-listed:
-   * the Diamond capstones, whose authored top-tier block trades base damage for
-   * an affinity-gated second hit with both numbers on the face (see
-   * `tests/engine/affinity.test.ts` and `tierLock.test.ts`, which pin that there
-   * are exactly five and that they are Diamond-only). A conditional rank-up is a
-   * deliberate design that must stay VISIBLE; anything else that falls is a scam.
-   */
-  const CAPSTONE_IDS = new Set(
-    Object.values(skillBook)
+  /** The ONE allowed exception is an exact test-owned contract, never whatever
+   * five cards happen to match the conditional shape today. */
+  const CAPSTONE_IDS = new Set<string>(AFFINITY_CAPSTONE_IDS);
+  const DERIVED_CAPSTONE_IDS = Object.values(skillBook)
       .filter((card) => [
         // POST-MIGRATION (2026-08-26, Q1): a capstone writes its gated hit ONCE, in
         // `effects`, carrying BOTH flags — `{ affinity: true, minTier: 'diamond' }`.
@@ -857,8 +837,16 @@ describe('Power Level breakdown', () => {
         // hit in a `tierUpgrades` block is caught by the same derivation.
         ...Object.values(card.tierUpgrades ?? {}).flatMap((up) => up.effects ?? []),
       ].some((a) => a.affinity === true && HIT_KINDS.has(a.kind)))
-      .map((card) => card.id),
-  );
+      .map((card) => card.id)
+      .sort();
+
+  const capstoneIdentityProblems = (actualIds: readonly string[]): string[] => {
+    const actual = new Set(actualIds);
+    return [
+      ...AFFINITY_CAPSTONE_IDS.filter((id) => !actual.has(id)).map((id) => `missing expected capstone: ${id}`),
+      ...actualIds.filter((id) => !CAPSTONE_IDS.has(id)).map((id) => `unexpected conditional regression: ${id}`),
+    ];
+  };
 
   it('every priced part of every card is a WHOLE power level, at EVERY tier', () => {
     const fractional: string[] = [];
@@ -897,15 +885,35 @@ describe('Power Level breakdown', () => {
       let previous: number | undefined;
       for (const tier of tiers) {
         const now = alwaysOnOutputDeci(applyTier(card, tier));
-        if (previous !== undefined && now < previous && !CAPSTONE_IDS.has(card.id)) {
+        if (previous !== undefined && now < previous && !isAllowedAffinityCapstoneRegression(card.id, tier)) {
           downgrades.push(`${card.id}@${tier}: always-on output ${previous / 10} -> ${now / 10} PL`);
         }
         previous = now;
       }
     }
     expect(downgrades, `a higher tier is a PURCHASE — these ranks deliver less than the rank below:\n${downgrades.join('\n')}`).toEqual([]);
-    // The allowlist must stay small and real: five authored Diamond capstones.
-    expect(CAPSTONE_IDS.size, 'the capstone allowlist must not silently grow').toBe(5);
+    expect(capstoneIdentityProblems(DERIVED_CAPSTONE_IDS)).toEqual([]);
+    expect(DERIVED_CAPSTONE_IDS).toEqual(AFFINITY_CAPSTONE_IDS);
+  });
+
+  it('reports a sixth or replacement conditional regression even when the replacement count stays five', () => {
+    const sixth = [...AFFINITY_CAPSTONE_IDS, 'wildfire_rite'];
+    expect(capstoneIdentityProblems(sixth)).toEqual([
+      'unexpected conditional regression: wildfire_rite',
+    ]);
+
+    const replacement = [...AFFINITY_CAPSTONE_IDS.slice(1), 'wildfire_rite'];
+    expect(replacement).toHaveLength(5);
+    expect(capstoneIdentityProblems(replacement)).toEqual([
+      'missing expected capstone: arcane_bolt',
+      'unexpected conditional regression: wildfire_rite',
+    ]);
+  });
+
+  it('does not give a known capstone ID a blanket lower-rung regression exemption', () => {
+    expect(isAllowedAffinityCapstoneRegression('arcane_bolt', 'silver')).toBe(false);
+    expect(isAllowedAffinityCapstoneRegression('arcane_bolt', 'gold')).toBe(false);
+    expect(isAllowedAffinityCapstoneRegression('arcane_bolt', 'diamond')).toBe(true);
   });
 });
 

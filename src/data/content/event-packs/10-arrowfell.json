@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": {
+      "kind": "boolean",
+      "default": false
+    },
+    "grave_path": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "opened",
+        "answered"
+      ],
+      "default": "none"
+    },
+    "honorable_choice": {
+      "kind": "boolean",
+      "default": false
+    },
+    "reliquary_oath": {
+      "kind": "boolean",
+      "default": false
+    },
+    "oath_gate": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "sworn",
+        "kept",
+        "released"
+      ],
+      "default": "none"
+    },
+    "venom_bloom": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "cultivated"
+      ],
+      "default": "none"
+    },
+    "rival_spared": {
+      "kind": "boolean",
+      "default": false
+    },
+    "moon_quarry_released": {
+      "kind": "boolean",
+      "default": false
+    }
+  },
+  "events": [
+    {
+      "id": "feathered_cairn",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 2,
+          "def": {
+            "title": "Feathered Cairn",
+            "body": "A low cairn of arrow-marked stones stands beside the road. Black feathers turn in the wind around a set of deliberate cuts, each one pointing toward a fork you cannot yet see.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "bow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 3,
+                    "match": {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choices": [
+              {
+                "id": "read_feathers",
+                "label": "Read the marks",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantMapInfo",
+                  "bandsAhead": 2
+                },
+                "callback": {
+                  "callbackId": "feathered_cairn_far_sight",
+                  "eventId": "feathered_cairn_far_sight",
+                  "contentVersion": 1,
+                  "minDepthDelay": 2,
+                  "destinationThemes": [
+                    "omen"
+                  ],
+                  "destinationBiomeIds": [
+                    "arrowfell"
+                  ],
+                  "priority": 700,
+                  "bind": [],
+                  "expiry": {
+                    "expiresAfterNodes": 20,
+                    "fallback": "discard"
+                  }
+                }
+              },
+              {
+                "id": "take_fletchers_gift",
+                "label": "Take a Bow card",
+                "cost": 0,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave",
+                "label": "Leave",
+                "cost": 0,
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Feathered Cairn",
+            "body": "A low cairn of arrow-marked stones stands beside the road. Black feathers turn in the wind around a set of deliberate cuts, each one pointing toward a fork you cannot yet see.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "bow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 3,
+                    "match": {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "read_feathers",
+                  "label": "Read the marks",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  },
+                  "callback": {
+                    "callbackId": "feathered_cairn_far_sight",
+                    "eventId": "feathered_cairn_far_sight",
+                    "contentVersion": 2,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "destinationBiomeIds": [
+                      "arrowfell"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_fletchers_gift",
+                  "label": "Take a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "feathered_cairn_far_sight",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 2,
+          "def": {
+            "title": "Far Sight",
+            "body": "At the next omen-stone, the cairn's cuts return in the dust. They trace a safer fork ahead, with one loose mark pointing toward a small hidden cache.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "feathered_cairn_far_sight"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choices": [
+              {
+                "id": "follow_mark",
+                "label": "Follow the marked road",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantMapInfo",
+                  "bandsAhead": 3
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              },
+              {
+                "id": "take_cache",
+                "label": "Take the hidden cache",
+                "cost": 0,
+                "outcome": {
+                  "kind": "gemChoice",
+                  "filter": [
+                    {
+                      "ids": [
+                        "concussive_shot_echo",
+                        "rending_sliver",
+                        "weak_point_sliver"
+                      ]
+                    }
+                  ]
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              },
+              {
+                "id": "ignore_mark",
+                "label": "Keep your own course",
+                "cost": 0,
+                "outcome": {
+                  "kind": "nothing"
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Far Sight",
+            "body": "At the next omen-stone, the cairn's cuts return in the dust. They trace a safer fork ahead, with one loose mark pointing toward a small hidden cache.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "feathered_cairn_far_sight"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "follow_mark",
+                  "label": "Follow the marked road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 3
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_cache",
+                  "label": "Take the hidden cache",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "concussive_shot_echo",
+                          "rending_sliver",
+                          "weak_point_sliver"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                },
+                {
+                  "id": "ignore_mark",
+                  "label": "Keep your own course",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

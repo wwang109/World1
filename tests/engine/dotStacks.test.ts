@@ -25,7 +25,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'poison', stacks: 3 }],
-    text: '',
   },
   // Physical poison with a weapon, for the matchup-is-ignored proof.
   pois_sword: {
@@ -40,7 +39,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'poison', stacks: 4 }],
-    text: '',
   },
   // Absorbing wall for the burn-vs-shield / poison-bypass proofs.
   wall_true: {
@@ -53,7 +51,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 500 }],
-    text: '',
   },
   burn_apply: {
     id: 'burn_apply',
@@ -66,7 +63,6 @@ const B: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'burn', stacks: 3 }],
-    text: '',
   },
 };
 
@@ -164,7 +160,6 @@ describe('cleanse removes one stack per charge', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'poison', stacks: 5 }],
-      text: '',
     },
     // Hero cleanses 2 charges, heavy so it fires after the pile has landed.
     cleanse2: {
@@ -178,7 +173,6 @@ describe('cleanse removes one stack per charge', () => {
       rarity: 'common',
       tier: 'bronze',
       effects: [{ kind: 'cleanse', charges: 2 }],
-      text: '',
     },
   };
   const CBOPT = { ...NO_ENDGAME, skillBook: CB } as const;

@@ -6,10 +6,12 @@ import {
 import { counterTypeFor } from '../../src/run/biome';
 import { biomeCatalog, biomeIds } from '../../src/data/biomes';
 import { enemies } from '../../src/data/enemies';
+import { enemyDerivedAffinity } from '../../src/data/enemyAffinity';
 import {
   ELEMENT_BEATS, WEAPON_BEATS, elementMatchup, matchupPct, weaponMatchup,
 } from '../../src/engine/elements';
 import type { Element, EnemyDef, WeaponType } from '../../src/engine/types';
+import { EXPECTED_ON_LEAN, EXPECTED_ON_LEAN_TOTAL, EXPECTED_LISTED_TOTAL, onLeanCount } from '../fixtures/bandLeanCounts';
 
 /**
  * THE FORECAST MAY NOT PRINT A COUNTER CLAIM THAT IS FALSE OF THE THING IT
@@ -95,15 +97,23 @@ const COUNTER_VOCABULARY: readonly string[] = [
 /**
  * The types that ACTUALLY get +50% on `def`, straight out of the engine's
  * matchup math. Both affinities are asked independently, because
- * `src/engine/elements.ts` resolves them independently — `greenwood_sovereign`
- * is nature AND bow, and the fire advantage off its nature half stands whatever
- * the weapon half says.
+ * `src/engine/elements.ts` resolves them independently.
+ *
+ * Reads the DERIVED affinity (`enemyDerivedAffinity`,
+ * `src/data/enemyAffinity.ts`), not `def.elementAffinity`/`.weaponAffinity`
+ * directly — those fields are no longer authored on any entry (2026-09-06
+ * ruling: affinity is board-derived only, no authored override). Was true of
+ * `greenwood_sovereign` (nature AND bow) when the fields were authored; its
+ * board turns out to be 3/3 bow, 0/3 nature, so it now derives bow alone —
+ * see `bossRoster.test.ts`'s and this file's own updated assertions for that
+ * boss.
  */
 function realCountersOf(def: EnemyDef): readonly string[] {
+  const affinity = enemyDerivedAffinity(def);
   const out: string[] = [];
   for (const t of COUNTER_VOCABULARY) {
-    const byElement = elementMatchup(t as Element, def.elementAffinity) === 'advantage';
-    const byWeapon = weaponMatchup(t as WeaponType, def.weaponAffinity) === 'advantage';
+    const byElement = elementMatchup(t as Element, affinity.elementAffinity) === 'advantage';
+    const byWeapon = weaponMatchup(t as WeaponType, affinity.weaponAffinity) === 'advantage';
     if (byElement || byWeapon) out.push(t);
   }
   return out.sort();
@@ -221,27 +231,59 @@ describe('the BOSS counter claim is true of the boss', () => {
     }
     expect(biomesSeen.size, 'the sweep did not reach every biome').toBe(biomeIds.length);
     expect(checked).toBeGreaterThan(100);
-    // NO BAND FIELDS AN OFF-TYPE BOSS ANY MORE, and that is the eleven-band
-    // pass landing, not the assertion going soft. Every band names its own
-    // signature boss plus its own toughest on-type mob, so the type that farms
-    // the mobs also farms the boss. The four pairs below are the ones this list
-    // used to hold — each was a boss with no band of its own riding as a guest —
-    // and they are named so a regression that re-orphans one shows up by name.
+    // FIVE NAMED PAIRS ARE OFF-TYPE AGAIN (2026-09-06) — a real, measured
+    // regression, not the assertion going soft. Between the eleven-band pass
+    // (2026-08-26) and now this list was empty: every band's alternate
+    // champion (a regular mob standing in for its true `isBoss` on some
+    // waves — see `src/data/biomes.ts`'s own comment) was authored to match
+    // its band's lean. The 2026-09-06 ruling (affinity is board-derived only,
+    // no authored override) removes that lever: `furnace_elemental`,
+    // `moorfang_alpha`, `blood_duelist`, `hedgerow_captain` are all
+    // `boardSize: 2` boards, 2/2 on-type but short of `IDENTITY_THRESHOLD = 3`,
+    // so none of them earn their band's type any more; `greenwood_sovereign`
+    // (thornwild's alternate face) loses only its nature half for the same
+    // reason. When the sweep resolves one of these five as the wave's actual
+    // boss, the BOSS block now honestly says "nothing counters this boss"
+    // while the MOB block still names the band's lean — a real information
+    // gap a player can hit, not a rendering bug (see
+    // `tests/run/bossRoster.test.ts`'s and this file's own "shortlists only
+    // bosses" test for the same five, and the OPEN design question left in
+    // `src/data/enemies.ts`'s comments: grow each a third on-type card via
+    // the sibling enemy-growth-by-level project, or accept the gap for now).
     expect(
       [...new Set(offTypeBands)].sort(),
-      'a boss is off-type for its own band again — it has been shortlisted somewhere it does not belong',
-    ).toEqual([]);
+      'a boss is off-type for its own band in a way not already named below',
+    ).toEqual([
+      'emberwaste/furnace_elemental',
+      'howlmoor/moorfang_alpha',
+      'ironmoot/blood_duelist',
+      'pikewold/hedgerow_captain',
+      'thornwild/greenwood_sovereign',
+    ]);
 
     // ...WHICH MOVES THE NON-VACUITY ONTO (4). The boss claim and the mob claim
-    // are still computed from different things, and there is exactly one band
-    // where that shows: the ARROWFELL. Nothing counters bow, so its mobs have no
-    // counter, while `greenwood_sovereign` (nature + bow, the only dual-affinity
-    // boss) is countered by fire off its nature half. `arrowfell/deadeye_stalker`
-    // is NOT in the set: that face is pure bow, so both claims say "nothing".
+    // are still computed from different things, and which bands show that has
+    // FLIPPED (2026-09-06): USED TO BE exactly the ARROWFELL alone (nothing
+    // counters bow, so its mobs had no counter, while `greenwood_sovereign`'s
+    // authored nature half gave its boss one fire didn't share). Affinity is
+    // board-derived only now, so `greenwood_sovereign` lost that nature half —
+    // arrowfell's boss and mob claims now AGREE ("nothing", both), which is why
+    // it left this list. In its place: the same five off-type pairs named
+    // above (`offTypeBands`) each diverge for the mirror-image reason — their
+    // BOSS claim is now "nothing" while their MOB claim still names the band's
+    // lean, so boss.claim and mobs.claim differ. `arrowfell/deadeye_stalker`
+    // still is NOT in the set: that face is pure bow, so both claims still say
+    // "nothing".
     expect(
       [...new Set(diverged)].sort(),
       'the boss claim and the mob claim never disagreed — one is being derived from the other',
-    ).toEqual(['arrowfell/greenwood_sovereign']);
+    ).toEqual([
+      'emberwaste/furnace_elemental',
+      'howlmoor/moorfang_alpha',
+      'ironmoot/blood_duelist',
+      'pikewold/hedgerow_captain',
+      'thornwild/greenwood_sovereign',
+    ]);
   });
 
   it('covers all 12 (biome, boss face) pairs the catalog can field, not just the ones a short sweep hits', () => {
@@ -332,21 +374,60 @@ describe('the MOB counter line is true of every mob in the list', () => {
    * THE ASSERTION THE MOB LINE ALWAYS NEEDED, and the second half of the bug
    * `3881717` closed for the boss line (its own commit recorded this one as
    * found-and-not-fixed). The line generalises over a LIST: it names one type
-   * and claims +50% against "these mobs", so it is true only if that type really
-   * gets advantage on EVERY member. Five of the six original lists carried
-   * borrowed off-type members — the Hallowfield's `necromancer` is dark and takes
-   * nothing from dark, its `knight` is sword — because on-type mobs did not exist
-   * for five of the eleven types.
+   * and claims +50% against "these mobs". Five of the six original lists
+   * carried borrowed off-type members — the Hallowfield's `necromancer` is
+   * dark and takes nothing from dark, its `knight` is sword — because on-type
+   * mobs did not exist for five of the eleven types.
    *
-   * Resolved through the engine's own `elementMatchup`/`weaponMatchup`, per mob,
-   * so it cannot pass by agreeing with `counterTypeFor`.
+   * PROMISE NARROWED 2026-09-06 (from "true of EVERY mob" to "true of at
+   * least one"), NOT WEAKENED TO NOTHING — a deliberate choice between the two
+   * the ruling forced (see `src/data/enemies.ts`'s and `biomes.ts`'s own
+   * updated notes for the full reasoning): when affinity was AUTHORED, a mob
+   * list could simply declare the type that matched every member, so the
+   * strict per-mob claim cost nothing to keep. The 2026-09-06 ruling (affinity
+   * is board-derived only, no authored override) removes that lever — a
+   * member's own board must independently reach `IDENTITY_THRESHOLD = 3` to
+   * earn it. 22 of the roster's listed mobs no longer do (mostly `boardSize:
+   * 2` boards, 2/2 on-type but short of 3) — re-curating every affected band's
+   * mob list to restore a universal per-mob guarantee would mean reshuffling
+   * which enemies live where across the roster, which is the deferred
+   * follow-on content pass (`docs/enemy-design.md`'s depth-band curation, not
+   * this change), NOT a same-day fix.
+   *
+   * THE PLAYER-VISIBLE EFFECT: the rendered "<type> hits these mobs for
+   * +50%." line is UNCHANGED text (it reads the biome's declared `lean`, never
+   * a per-mob def — see `renderBandForecast`/`f.counterType`), but it is no
+   * longer literally true of every member it lists, only of the ones whose
+   * own board still earns the type. A band's mob list is therefore a
+   * THEME/depth-coverage grouping first and a matchup promise second — most of
+   * a list's members still genuinely carry it (see the non-vacuity check
+   * below), a minority may not, exactly as was already conceded for
+   * `stone_beetle` before this change ("a creature-level identity, not a
+   * claim about its cards").
+   *
+   * RE-PINNED TO EXACT COUNTS (2026-09-06, run-layer affinity-axis pass). The
+   * "at least one" floor above was itself measured and found sitting well
+   * above the floor everywhere (1-4 on-lean mobs per band against 4-5
+   * listed, never the bare 1 the promise required) — a floor that loose
+   * would silently absorb a regression most of the way to zero before ever
+   * failing. `'stated the other way'` below now asserts the CURRENT count
+   * per band by name, mirroring the boss half's named-exception shape
+   * (`KNOWN_OFF_TYPE`/`stillClean` two paragraphs down): a band's number
+   * moving at all — including climbing, not just falling to zero — fails
+   * with that band named, so the coming enemy-growth-by-level content pass
+   * moves these numbers on purpose instead of by accident.
+   *
+   * Resolved through the engine's own `elementMatchup`/`weaponMatchup`, per
+   * mob, so it cannot pass by agreeing with `counterTypeFor`.
    */
-  it('the type the mob line names gets +50% on EVERY mob in that biome\'s list', () => {
+  it('the type the mob line names gets +50% on SOME mob in that biome\'s list, never on a mob nothing should touch', () => {
     const offenders: string[] = [];
+    const vacuous: string[] = [];
     let checked = 0;
     for (const id of biomeIds) {
       const biome = biomeCatalog[id]!;
       const claimed = counterTypeFor(biome.lean);
+      let onType = 0;
       for (const mobId of biome.mobs) {
         const def = enemies[mobId];
         expect(def, `${id} names unknown mob ${mobId}`).toBeDefined();
@@ -355,55 +436,109 @@ describe('the MOB counter line is true of every mob in the list', () => {
         if (claimed === undefined) {
           // A band whose lean nothing counters may not list a mob that SOMETHING
           // counters either, or "nothing counters these mobs" is false of it.
+          // Unaffected by the 2026-09-06 ruling: none of `arrowfell`'s mobs
+          // were ever countered by anything (pure bow, and nothing beats bow).
           if (counters.length > 0) offenders.push(`${id}/${mobId} is countered by ${counters.join('/')} but the band claims nothing is`);
-        } else if (!counters.includes(claimed)) {
-          offenders.push(`${id}/${mobId}: "${claimed} hits these mobs for +50%" is FALSE (real counters: ${counters.join('/') || 'none'})`);
+        } else if (counters.includes(claimed)) {
+          onType += 1;
         }
       }
+      // NON-VACUITY, now stated PER BAND rather than assumed of every member:
+      // the "<type> hits these mobs" claim must be real of at least one listed
+      // mob, or the line is a hollow promise about the whole list.
+      if (claimed !== undefined && onType === 0) {
+        vacuous.push(`${id}: "${claimed} hits these mobs for +50%" is true of NONE of its mobs`);
+      }
     }
-    expect(offenders, `the mob counter line lies about:\n  ${offenders.join('\n  ')}`).toEqual([]);
-    // NON-VACUITY: an empty catalog, or biomes with empty mob lists, would pass.
+    expect(offenders, `the mob counter line claims a type that hits nothing:\n  ${offenders.join('\n  ')}`).toEqual([]);
+    expect(vacuous, `the mob counter line is a hollow promise for:\n  ${vacuous.join('\n  ')}`).toEqual([]);
+    // Old-style NON-VACUITY: an empty catalog, or biomes with empty mob lists, would pass.
     expect(checked, 'no biome mob was checked').toBeGreaterThan(30);
   });
 
-  it('stated the other way: every listed mob carries its band\'s lean as an affinity', () => {
+  it('stated the other way: EVERY band\'s exact on-lean mob count is pinned by name (2026-09-06)', () => {
     // The same property from the CONTENT side rather than the matchup side, so a
-    // future off-type addition fails here even if the counter wheel changes. This
-    // is the rule the six original lists broke to span their depth tiers; the fix
-    // was to AUTHOR on-type mobs (`vigil_keeper`, `blight_shambler`), never to
-    // borrow. `stone_beetle` passes on `elementAffinity: 'nature'`, which is a
-    // creature-level matchup identity — matchup reads the DEFENDER's affinity, so
-    // that is exactly what makes the claim true of it.
+    // future band with NO on-type mob at all fails here even if the counter
+    // wheel changes. Reads `enemyDerivedAffinity`, not `def.elementAffinity`/
+    // `.weaponAffinity` directly — see the describe block's own doc comment
+    // for why this is no longer a per-mob guarantee (2026-09-06).
+    //
+    // THE TABLE AND THE COUNTING FUNCTION ARE SHARED with
+    // `tests/game/bandForecastRows.test.ts` — see `tests/fixtures/bandLeanCounts.ts`
+    // for the pinned per-band values (measured against the live catalog) and
+    // for why this is `enemyDerivedAffinity`, never `counterTypeFor`.
+    //
+    // A REVERSE GUARD, same shape as the boss half's `KNOWN_OFF_TYPE`/
+    // `stillClean` pair below: `onType !== expected` fires whether the count
+    // FALLS (a regression toward the zero this suite used to only catch at
+    // the floor) or RISES (an undocumented content change nobody meant to
+    // make) — either way the band is named in the failure, never a bare
+    // aggregate number.
     const offenders: string[] = [];
+    let totalOnLean = 0;
+    let totalListed = 0;
     for (const id of biomeIds) {
       const biome = biomeCatalog[id]!;
-      const want = biome.lean.type;
-      for (const mobId of biome.mobs) {
-        const def = enemies[mobId]!;
-        const has = biome.lean.kind === 'element' ? def.elementAffinity === want : def.weaponAffinity === want;
-        if (!has) offenders.push(`${id} (${biome.lean.kind}:${want}) lists off-type mob ${mobId}`);
+      const onType = onLeanCount(biome.lean, biome.mobs);
+      totalOnLean += onType;
+      totalListed += biome.mobs.length;
+      const expected = EXPECTED_ON_LEAN[id];
+      expect(expected, `${id} is missing from EXPECTED_ON_LEAN — a band was added or renamed`).toBeDefined();
+      if (onType !== expected) {
+        offenders.push(
+          `${id} (${biome.lean.kind}:${biome.lean.type}): expected ${expected}/${biome.mobs.length} on-lean mobs, measured ${onType}/${biome.mobs.length}`,
+        );
       }
     }
     expect(offenders, offenders.join('; ')).toEqual([]);
+    // A band added to (or removed from) the catalog without an entry above
+    // would otherwise pass silently at `onType === undefined` never firing.
+    expect(Object.keys(EXPECTED_ON_LEAN).sort()).toEqual([...biomeIds].sort());
+    expect(totalOnLean, 'the pinned total on-lean count moved').toBe(EXPECTED_ON_LEAN_TOTAL);
+    expect(totalListed, 'the pinned total listed-mob count moved').toBe(EXPECTED_LISTED_TOTAL);
   });
 
-  it('and every band shortlists only bosses its own lean\'s counter can farm', () => {
+  it('and every band shortlists only bosses its own lean\'s counter can farm — except FIVE, named (2026-09-06)', () => {
     // The boss half of the same rule, as CONTENT rather than as rendered text:
-    // no band hosts another type's boss as a guest any more. The exception is
-    // stated, not hidden — a face may carry the lean plus a SECOND affinity
-    // (`greenwood_sovereign` is nature + bow), which is what makes the Arrowfell
-    // a legitimate split rather than a mis-shelved boss.
+    // no band hosts another type's boss as a guest any more. Reads the
+    // DERIVED affinity (`enemyDerivedAffinity`), not `def.elementAffinity`/
+    // `.weaponAffinity` directly — those fields are no longer authored on any
+    // entry (2026-09-06 ruling: affinity is board-derived only). Every TRUE
+    // `isBoss` is a mono-type triad, so its own face always still holds.
+    //
+    // KNOWN, NAMED EXCEPTIONS — a band's ALTERNATE champion (a regular mob
+    // standing in for the true boss on some waves): `furnace_elemental`,
+    // `moorfang_alpha`, `blood_duelist`, `hedgerow_captain` are all
+    // `boardSize: 2`, 2/2 on-type but short of `IDENTITY_THRESHOLD = 3`, so
+    // none earn their band's type any more; `greenwood_sovereign` (thornwild's
+    // alternate face) loses only its nature half for the same reason (it
+    // remains on-type for `arrowfell`, its true `isBoss` band, since its bow
+    // half still derives). See the sweep test above ("every band states a
+    // boss counter...") and `src/data/enemies.ts`'s comments for the full
+    // derivation and the OPEN design question this leaves.
+    const KNOWN_OFF_TYPE = new Set([
+      'emberwaste/furnace_elemental',
+      'howlmoor/moorfang_alpha',
+      'ironmoot/blood_duelist',
+      'pikewold/hedgerow_captain',
+      'thornwild/greenwood_sovereign',
+    ]);
     const offenders: string[] = [];
+    const stillClean: string[] = [];
     for (const id of biomeIds) {
       const biome = biomeCatalog[id]!;
       const want = biome.lean.type;
       for (const bossId of biome.bosses) {
         const def = enemies[bossId]!;
-        const has = biome.lean.kind === 'element' ? def.elementAffinity === want : def.weaponAffinity === want;
-        if (!has) offenders.push(`${id} (${biome.lean.kind}:${want}) shortlists off-type boss ${bossId}`);
+        const affinity = enemyDerivedAffinity(def);
+        const has = biome.lean.kind === 'element' ? affinity.elementAffinity === want : affinity.weaponAffinity === want;
+        const key = `${id}/${bossId}`;
+        if (has) { if (KNOWN_OFF_TYPE.has(key)) stillClean.push(key); continue; }
+        if (!KNOWN_OFF_TYPE.has(key)) offenders.push(`${id} (${biome.lean.kind}:${want}) shortlists off-type boss ${bossId}`);
       }
     }
     expect(offenders, offenders.join('; ')).toEqual([]);
+    expect(stillClean, 'a known exception was expected to stay off-type — did someone fix it?').toEqual([]);
   });
 });
 
@@ -430,18 +565,36 @@ describe('two shortlisted bosses of different types cannot be promised as one', 
     expect(agree.length, 'no biome shortlist agrees on a counter').toBeGreaterThan(0);
     expect(split.length, 'no biome shortlist disagrees on a counter').toBeGreaterThan(0);
     // Recorded so a content change that flips a band shows up here by name.
-    // TEN AGREE, ONE SPLITS (2026-08-26). Before the eleven-band pass it was two
-    // and four: the four splits were bands hosting another type's boss as a
-    // guest, and every one of those has gone home. The surviving split is the
-    // ARROWFELL and it is a real one, not a leftover — `greenwood_sovereign`
-    // (nature + bow) is countered by fire, `deadeye_stalker` (pure bow) is
-    // countered by nothing, so no type is true of both faces and the renderer
-    // must refuse to promise one. This is the only thing keeping the `'split'`
-    // branch exercised by real content rather than by a synthetic forecast.
-    expect(split).toEqual(['arrowfell']);
+    //
+    // SIX AGREE, FIVE SPLIT (2026-09-06 — was TEN AGREE, ONE SPLITS since
+    // 2026-08-26). `shortlistAgrees` now reads `enemyDerivedAffinity`
+    // (`realCountersOf`, this file), not an authored field — every band's
+    // second boss "face" is a REGULAR MOB standing in as an alternate champion
+    // (`emberwaste/furnace_elemental`, `howlmoor/moorfang_alpha`,
+    // `ironmoot/blood_duelist`, `pikewold/hedgerow_captain`), and all four are
+    // among the 25 enemies whose own board falls short of
+    // `IDENTITY_THRESHOLD = 3` (mostly 2-card boards) — so they now derive NO
+    // affinity at all, while their band's TRUE `isBoss` partner still earns
+    // its type from its mono-type triad exactly as before. Two faces where one
+    // has a counter and the other has none genuinely disagree, so all FOUR
+    // bands newly split. `thornwild` splits for the same reason on its own
+    // dual boss: `greenwood_sovereign` no longer derives nature (see its own
+    // comment in `src/data/enemies.ts`), so it disagrees with
+    // `bramble_matriarch`'s real fire counter.
+    //
+    // `arrowfell` moves the OTHER way, split -> agree: `greenwood_sovereign`
+    // and `deadeye_stalker` both now compute to "no counter" (bow is
+    // uncounterable and greenwood_sovereign no longer has a nature half to
+    // fall back on), so the two faces trivially agree for the first time.
+    // This is a REAL, MEASURED shift, not a leftover to weaken back — see the
+    // `describe` block two levels up (`the MOB counter line...`) for the same
+    // ruling's mob-side consequence and the OPEN design question this content
+    // pass leaves for game-director/balance-designer (grow the four regular
+    // "alternate champion" mobs a third on-type card via the sibling
+    // enemy-growth-by-level project, or accept the narrower split for now).
+    expect(split).toEqual(['emberwaste', 'howlmoor', 'ironmoot', 'pikewold', 'thornwild']);
     expect(agree).toEqual([
-      'duskbarrow', 'emberwaste', 'frostmarch', 'hallowfield', 'howlmoor',
-      'ironmoot', 'pikewold', 'stormreach', 'swornhold', 'thornwild',
+      'arrowfell', 'duskbarrow', 'frostmarch', 'hallowfield', 'stormreach', 'swornhold',
     ]);
   });
 
@@ -566,18 +719,27 @@ describe('the BOW band reads honestly — the one lean nothing counters', () => 
     }
   });
 
-  it('its BOSS block is still allowed to name a counter, because its boss really has one', () => {
-    // The asymmetry is the interesting part and it must survive: the band's
-    // signature boss `greenwood_sovereign` is the roster's only dual-affinity
-    // boss (nature + bow) precisely so a bow band is not counter-PROOF, so fire
-    // farms it off the nature half while nothing farms its mobs. A renderer that
-    // shared one claim across both blocks would have to get one of them wrong.
+  it('its BOSS block is UNCOUNTERED on both faces now — a real, named regression (2026-09-06)', () => {
+    // USED TO BE the interesting asymmetry: the band's signature boss
+    // `greenwood_sovereign` was authored nature + bow (the roster's only
+    // dual-affinity boss) precisely so a bow band was not counter-PROOF, and
+    // fire farmed it off the nature half while nothing farmed its mobs. A
+    // renderer that shared one claim across both blocks would have had to get
+    // one of them wrong.
+    //
+    // STALE AS OF 2026-09-06: affinity is board-derived only now, no authored
+    // override, and `greenwood_sovereign`'s own board is 3/3 bow, 0/3 nature —
+    // there is no card count to derive nature from (see its own comment in
+    // `src/data/enemies.ts`, which also states the OPEN design question this
+    // leaves for game-director/balance-designer). Both arrowfell boss faces
+    // now derive "no counter", so the asymmetry this test's name describes is
+    // GONE — this is now testing that fact plainly rather than pretending it
+    // still holds.
     const faces = biomeCatalog[BOW_BAND]!.bosses;
     expect(faces).toContain('greenwood_sovereign');
     const dual = enemies['greenwood_sovereign']!;
-    expect(dual.elementAffinity).toBe('nature');
-    expect(dual.weaponAffinity).toBe('bow');
-    expect(realCountersOf(dual)).toEqual(['fire']);
+    expect(enemyDerivedAffinity(dual)).toEqual({ weaponAffinity: 'bow' });
+    expect(realCountersOf(dual), 'greenwood_sovereign was expected to stay uncountered — did someone fix it?').toEqual([]);
 
     let sawDual = false;
     let sawPureBow = false;
@@ -587,17 +749,12 @@ describe('the BOW band reads honestly — the one lean nothing counters', () => 
         const f = forecastBand(run, band);
         if (f.biomeId !== BOW_BAND) continue;
         const boss = blockNamed(renderBandForecast(f), 'BOSS');
-        if (f.boss!.enemyId === 'greenwood_sovereign') {
-          sawDual = true;
-          expect(typesNamedIn(boss.claim), 'the dual-affinity boss lost its counter').toEqual(['fire']);
-        } else {
-          sawPureBow = true;
-          expect(boss.claim, 'a pure-bow boss face promised a counter').toBe('nothing counters this boss.');
-        }
+        if (f.boss!.enemyId === 'greenwood_sovereign') sawDual = true; else sawPureBow = true;
+        expect(boss.claim, `${f.boss!.enemyId} unexpectedly promised a counter`).toBe('nothing counters this boss.');
       }
     }
-    // BOTH faces must have been observed, or the asymmetry above is half-tested.
-    expect(sawDual, 'the dual-affinity boss face never rolled').toBe(true);
+    // BOTH faces must have been observed, or half of the (now-identical) claim is untested.
+    expect(sawDual, 'the greenwood_sovereign boss face never rolled').toBe(true);
     expect(sawPureBow, 'the pure-bow boss face never rolled').toBe(true);
   });
 });

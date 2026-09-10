@@ -2,43 +2,72 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { getLifetimeStats } from '../metaStore';
-import { FONT, SCREEN, UI } from '../theme';
-import { brandMarkCenterY, renderBrandMark } from '../ui/brandMark';
+import { SCREEN, START_SCENE_INK, startSceneTextRole, UI } from '../theme';
+import { addBrightRunArt, RUN_ART_KEYS } from '../ui/runArt';
+import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { getActiveRun, getPendingSeed, rerollPendingSeed, startRun } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
+import {
+  startSceneAssetPaths,
+  startSceneLayout,
+  startSceneLifetimeOffsets,
+  startScenePrimaryPresentation,
+  startScenePrimaryVisualLayout,
+  type CenteredRect,
+  type StartScenePrimaryPresentation,
+} from '../ui/startSceneLayout';
 
 /**
- * Start screen — the game's front door on BOTH platforms (BootScene's
- * default target). Two doors, matching the release/sandbox split:
- *
- *   START RUN › — begins a run immediately: `startRun(seed)` then straight
- *                 into the start DRAFT (same handler the Run Map's start
- *                 panel uses). Becomes RESUME RUN › if a run is active
- *                 (e.g. navigating back here mid-session).
- *   SANDBOX     — the free-dial Prep/Deck/Wiki/Battle playground.
- *
- * One scene serves both profiles: layout derives from ACTIVE_PROFILE.
+ * The illustrated front door on both profiles. Release play is unmistakably
+ * primary; Sandbox remains the quiet route to the free-build playground.
  */
 export class StartScene extends Phaser.Scene {
   constructor() { super('Start'); }
 
+  preload(): void {
+    const assets = startSceneAssetPaths(ACTIVE_PROFILE.id);
+    if (!this.textures.exists('start-background')) this.load.image('start-background', assets.background);
+    if (!this.textures.exists('start-cta-frame')) this.load.image('start-cta-frame', assets.ctaFrame);
+    if (!this.textures.exists('start-icons')) {
+      this.load.spritesheet('start-icons', assets.icons, { frameWidth: 543, frameHeight: 724 });
+    }
+  }
+
   create(): void {
     const mobile = ACTIVE_PROFILE.id === 'mobile';
-    const F = ACTIVE_PROFILE.font;
-    const cx = SCREEN.width / 2;
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    const layout = startSceneLayout(ACTIVE_PROFILE.id, SCREEN.width, SCREEN.height);
+    this.cameras.main.setBackgroundColor(UI.bg);
 
-    // Same block, same metrics, as the loading screen draws (`ui/brandMark.ts`)
-    // -- the handoff Boot -> Start must not make the logo jump.
-    renderBrandMark(this, cx, brandMarkCenterY(mobile ? 0.26 : 0.3), { rule: true });
+    // Preserve the approved bright-world backdrop and its established crop.
+    const backdrop = addBrightRunArt(this, RUN_ART_KEYS.runMap, {
+      x: 0, y: 0, width: SCREEN.width, height: SCREEN.height,
+    }, BRIGHT_ART_TREATMENT.start);
+    backdrop.image?.setAlpha(1);
+    backdrop.lift.setAlpha(0.04);
+    const background = this.add.image(layout.centerX, SCREEN.height / 2, 'start-background');
+    const backgroundScale = Math.max(SCREEN.width / background.width, SCREEN.height / background.height);
+    background.setDisplaySize(background.width * backgroundScale, background.height * backgroundScale);
 
-    const btnW = mobile ? SCREEN.width - 80 : 340;
-    const btnH = mobile ? 54 : 58;
-    const firstY = Math.round(SCREEN.height * (mobile ? 0.5 : 0.52));
+    // Layered ellipses produce the mockup's localized soft vignette without
+    // returning to the large rectangular focus plate the redesign removes.
+    const v = layout.vignette;
+    for (let i = 0; i < BRIGHT_ART_TREATMENT.start.vignette.layers; i++) {
+      const scale = 1 - i * BRIGHT_ART_TREATMENT.start.vignette.scaleStep;
+      this.add.ellipse(v.x, v.y, v.width * scale, v.height * scale, UI.bg, BRIGHT_ART_TREATMENT.start.vignette.layerAlpha);
+    }
+
+    this.add.text(layout.centerX, layout.eyebrowY, 'A ROGUELITE SKILL-BOARD BATTLER', {
+      ...startSceneTextRole('eyebrow'), letterSpacing: mobile ? 2 : 4,
+    }).setOrigin(0.5).setShadow(0, 2, START_SCENE_INK.shadow, 5, true, true);
+
+    this.add.text(layout.title.x, layout.title.y, 'WORLD1', {
+      ...startSceneTextRole('masthead'), letterSpacing: mobile ? 1 : 4,
+    }).setOrigin(0.5).setShadow(0, 5, START_SCENE_INK.shadow, 8, true, true);
+    this.ornamentalRule(layout.centerX, layout.ruleY, mobile ? 255 : 500);
+
     const activeRun = getActiveRun();
-
-    this.button(cx, firstY, btnW, btnH, activeRun ? 'RESUME RUN ›' : 'START RUN ›',
-      'Draft your board · climb the endless ladder', true, () => {
+    const primary = startScenePrimaryPresentation(Boolean(activeRun), ACTIVE_PROFILE.id);
+    this.primaryButton(layout.primary, primary, () => {
         if (getActiveRun()) {
           this.scene.start(mobile ? 'MobileRunMap' : 'DesktopRunMap');
         } else {
@@ -46,68 +75,119 @@ export class StartScene extends Phaser.Scene {
           this.scene.start(mobile ? 'MobileDraft' : 'DesktopDraft');
         }
       });
-    const secondY = firstY + btnH + (mobile ? 22 : 26);
-    this.button(cx, secondY, btnW, btnH, 'SANDBOX',
-      'Free build & balance playground', false, () => {
-        this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep');
-      });
 
-    this.renderLifetimeStrip(cx, secondY + btnH / 2 + (mobile ? 26 : 30), mobile, F);
+    this.sandboxButton(layout.sandbox, () => {
+      this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep');
+    });
 
-    if (!activeRun) {
-      // The map's old start panel (deleted — one front door now) carried the
-      // seed box + REROLL; this footnote inherits that job in-place.
-      const seedLabel = (): string => `seed ${getPendingSeed()} · tap to reroll`;
-      const seedText = this.add.text(cx, SCREEN.height - (mobile ? 24 : 30), seedLabel(), {
-        fontFamily: 'monospace', fontSize: `${F.tiny}px`, color: UI.textMuted,
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      seedText.on('pointerdown', () => {
-        playSfx('uiClick');
-        rerollPendingSeed();
-        seedText.setText(seedLabel());
-      });
+    this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
+    this.ornamentalRule(layout.centerX, layout.lowerRuleY, mobile ? 245 : 460);
+
+    if (!activeRun) this.seedButton(layout.seed, mobile);
+  }
+
+  private ornamentalRule(cx: number, y: number, width: number): void {
+    const gold = 0xd89a2b;
+    const gap = 18;
+    const half = (width - gap) / 2;
+    this.add.rectangle(cx - gap / 2 - half / 2, y, half, 1, gold, 0.85);
+    this.add.rectangle(cx + gap / 2 + half / 2, y, half, 1, gold, 0.85);
+    this.add.rectangle(cx, y, 10, 10, gold, 0.95).setRotation(Math.PI / 4);
+    this.add.rectangle(cx, y, 5, 5, UI.bg, 1).setRotation(Math.PI / 4);
+  }
+
+  private primaryButton(
+    rect: CenteredRect,
+    presentation: StartScenePrimaryPresentation,
+    onPress: () => void,
+  ): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const visual = startScenePrimaryVisualLayout(ACTIVE_PROFILE.id, rect);
+    const plate = this.add.image(rect.x, visual.frameY, 'start-cta-frame')
+      .setDisplaySize(visual.frameWidth, visual.frameHeight);
+    const target = this.add.rectangle(rect.x, rect.y, rect.width, rect.height, 0x000000, 0.001)
+      .setInteractive({ useHandCursor: true });
+    const labelText = this.add.text(rect.x, visual.labelY, presentation.label, {
+      ...startSceneTextRole(mobile ? 'primaryLabelCompact' : 'primaryLabel'),
+      letterSpacing: ACTIVE_PROFILE.id === 'mobile' ? 0 : 1,
+    }).setOrigin(0.5).setScale(mobile ? presentation.labelFontSize / 20 : 1)
+      .setShadow(0, 2, START_SCENE_INK.primaryShadow, 3, true, true);
+    const subText = this.add.text(rect.x, visual.detailY, presentation.detail, {
+      ...startSceneTextRole('primaryDetail'),
+    }).setOrigin(0.5).setScale(mobile ? 0.8 : 1);
+    target.on('pointerover', () => plate.setTint(0xffe1c9));
+    target.on('pointerout', () => plate.clearTint());
+    target.on('pointerdown', () => plate.setTint(0xd99b88));
+    target.on('pointerup', () => plate.setTint(0xffe1c9));
+    attachButtonFeel(this, target, {
+      fill: 0x000000, hover: 0x000000, alpha: 0.001, follow: [plate, labelText, subText], lift: 2,
+      onPress: () => { playSfx('uiClick'); onPress(); },
+    });
+  }
+
+  private sandboxButton(rect: CenteredRect, onPress: () => void): void {
+    const fill = UI.bg;
+    const target = this.add.rectangle(rect.x, rect.y, rect.width, rect.height, fill, 0.08)
+      .setInteractive({ useHandCursor: true });
+    const label = this.add.text(rect.x, rect.y - 8, 'SANDBOX  ›', {
+      ...startSceneTextRole('sandboxLabel'), letterSpacing: 2,
+    }).setOrigin(0.5).setScale(ACTIVE_PROFILE.id === 'mobile' ? 0.9 : 1)
+      .setShadow(0, 2, START_SCENE_INK.shadow, 4, true, true);
+    const sub = this.add.text(rect.x, rect.y + 20, 'Free build & balance playground', {
+      ...startSceneTextRole('sandboxDetail'),
+    }).setOrigin(0.5).setScale(ACTIVE_PROFILE.id === 'mobile' ? 0.9 : 1)
+      .setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, {
+      fill, hover: 0x1d3950, alpha: 0.18, follow: [label, sub], lift: 1,
+      onPress: () => { playSfx('uiClick'); onPress(); },
+    });
+  }
+
+  private renderLifetimeLine(cx: number, y: number, mobile: boolean): void {
+    const lifetime = getLifetimeStats();
+    if (lifetime.runsStarted === 0) return;
+    const offsets = startSceneLifetimeOffsets(mobile ? 'mobile' : 'desktop');
+    const unit = mobile ? 0.65 : offsets.unit;
+    const groups = [
+      { frame: 0, x: cx + offsets.icons[0], text: `${lifetime.runsStarted} runs`, textX: cx + offsets.text[0] },
+      { frame: 1, x: cx + offsets.icons[1], text: `${lifetime.totalBossesCleared} bosses`, textX: cx + offsets.text[1] },
+      { frame: 2, x: cx + offsets.icons[2], text: `best: wave ${lifetime.bestRun.deepestWave}`, textX: cx + offsets.text[2] },
+    ];
+    for (const group of groups) {
+      this.add.image(group.x, y, 'start-icons', group.frame).setDisplaySize(32 * unit, 43 * unit);
+      this.add.text(group.textX, y, group.text, startSceneTextRole('lifetime'))
+        .setOrigin(0, 0.5)
+        .setShadow(0, 2, START_SCENE_INK.shadow, 4, true, true);
+    }
+    for (const separatorX of offsets.separators.map((offset) => cx + offset)) {
+      this.add.text(separatorX, y, '·', startSceneTextRole('lifetime')).setOrigin(0.5);
     }
   }
 
-  /** The account's lifetime strip — subtle, not a panel (`UI.textMuted`,
-   * tiny/small type), only once at least one run has ever been started (a
-   * brand-new install has nothing to brag about yet). One line either
-   * platform: the string is short enough that desktop's extra width doesn't
-   * need a second line, but `wordWrap` guards a very long best-run number. */
-  private renderLifetimeStrip(cx: number, y: number, mobile: boolean, F: typeof ACTIVE_PROFILE.font): void {
-    const lifetime = getLifetimeStats();
-    if (lifetime.runsStarted === 0) return;
-    const text = `${lifetime.runsStarted} runs · ${lifetime.totalBossesCleared} bosses · `
-      + `best: ${lifetime.bestRun.bossesCleared} bosses / wave ${lifetime.bestRun.deepestWave}`;
-    this.add.text(cx, y, text, {
-      fontFamily: FONT.body, fontSize: `${mobile ? F.tiny : F.small}px`, color: UI.textMuted, align: 'center',
-      wordWrap: { width: mobile ? SCREEN.width - 40 : 560 },
-    }).setOrigin(0.5, 0);
-  }
-
-  private button(cx: number, y: number, w: number, h: number, label: string, sub: string, primary: boolean, onPress: () => void): void {
-    const fill = primary ? 0xb78a46 : 0x131f32;
-    const r = this.add.rectangle(cx, y, w, h, fill)
-      .setStrokeStyle(2, primary ? 0xe8b446 : UI.border, 0.9)
+  private seedButton(rect: CenteredRect, mobile: boolean): void {
+    const fill = UI.bg;
+    const seedLabel = (): string => `seed ${getPendingSeed()}  ·  reroll`;
+    const visualWidth = mobile ? 160 : rect.width;
+    const visualHeight = mobile ? 36 : rect.height;
+    const plate = this.add.rectangle(rect.x, rect.y, visualWidth, visualHeight, fill, 0.78)
+      .setStrokeStyle(1, 0xd89a2b, 0.95);
+    const target = this.add.rectangle(rect.x, rect.y, rect.width, rect.height, fill, 0.001)
       .setInteractive({ useHandCursor: true });
-    const labelText = this.add.text(cx, y - 8, label, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${ACTIVE_PROFILE.font.title}px`,
-      color: primary ? UI.textOnChip : UI.textBright,
-    }).setOrigin(0.5);
-    const subText = this.add.text(cx, y + 14, sub, {
-      fontFamily: FONT.body, fontSize: `${ACTIVE_PROFILE.font.tiny}px`,
-      color: primary ? '#3a2a10' : UI.textMuted,
-    }).setOrigin(0.5);
-    // THE FIRST SCREEN A PLAYER TOUCHES, and it had neither hover nor press
-    // feedback — a click produced a sound and a scene change with no
-    // acknowledgement from the button. One factory serves every Start button on
-    // BOTH platforms (this scene branches on `mobile` internally), so wiring it
-    // here covers them all. Both labels ride the plate.
-    attachButtonFeel(this, r, {
-      fill,
-      hover: primary ? 0xc79b52 : 0x1d3950,
-      follow: [labelText, subText],
-      onPress: () => { playSfx('uiClick'); onPress(); },
+    const iconX = rect.x - visualWidth / 2 + 22;
+    const dividerX = rect.x - visualWidth / 2 + 43;
+    const icon = this.add.image(iconX, rect.y, 'start-icons', 3)
+      .setDisplaySize(mobile ? 27 : 36, mobile ? 36 : 48);
+    const divider = this.add.rectangle(dividerX, rect.y, 1, visualHeight - 8, 0xd89a2b, 0.9);
+    const label = this.add.text(rect.x + (mobile ? 17 : 20), rect.y, seedLabel(), {
+      ...startSceneTextRole('seed'),
+    }).setOrigin(0.5).setScale(mobile ? 0.75 : 1);
+    attachButtonFeel(this, target, {
+      fill, hover: 0x1d3950, alpha: 0.001, follow: [plate, icon, divider, label],
+      onPress: () => {
+        playSfx('uiClick');
+        rerollPendingSeed();
+        label.setText(seedLabel());
+      },
     });
   }
 }

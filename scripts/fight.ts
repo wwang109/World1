@@ -19,8 +19,10 @@ import { hashSeed } from '../src/engine/rng';
 import { skillBook as shippedSkillBook } from '../src/data/skills';
 import { skillDefOfDocument, validateSkillDocument } from '../src/data/validateSkillContent';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
-import { enemies } from '../src/data/enemies';
+import { enemies as shippedEnemies } from '../src/data/enemies';
+import { enemyDefOfDocument, validateEnemyDocument } from '../src/data/validateEnemyContent';
 import { gemBook } from '../src/data/gems';
+import { resolveEncounterForEnemy } from '../src/run/encounter';
 
 /**
  * Local copy of the foe cap (the shared constant lives in `src/game`, which the
@@ -74,6 +76,72 @@ function loadBook(): typeof shippedSkillBook {
 }
 
 const skillBook = loadBook();
+
+/**
+ * PROBE ENEMY — `FIGHT_EXTRA_ENEMY=<path to an enemies-document JSON>`.
+ *
+ * Same shape and reasoning as `FIGHT_EXTRA_CARDS` above, for a SYNTHETIC
+ * `EnemyDef` a proof needs (e.g. a growth-list fixture) without adding one to
+ * `src/data/enemies.ts` — the content-authoring pass for real enemies'
+ * `growth` lists is deliberately separate from proving the MECHANISM works.
+ * Goes through the same `validateEnemyDocument` the real loader uses, so a
+ * probe enemy that could not be authored for real cannot be fought either.
+ * Absent env = byte-identical to before.
+ */
+function loadEnemies(): typeof shippedEnemies {
+  const path = process.env['FIGHT_EXTRA_ENEMY'];
+  if (path === undefined || path.trim() === '') return shippedEnemies;
+  let doc: unknown;
+  try {
+    doc = JSON.parse(readFileSync(path.trim(), 'utf8')) as unknown;
+  } catch (err) {
+    console.error(`FIGHT_EXTRA_ENEMY: cannot read '${path}' — ${String(err)}`);
+    process.exit(1);
+  }
+  const problems = validateEnemyDocument(doc);
+  if (problems.length > 0) {
+    console.error(`FIGHT_EXTRA_ENEMY: ${problems.length} problem(s) in '${path}':`);
+    for (const p of problems) console.error(`  ${p.where}: ${p.message}`);
+    process.exit(1);
+  }
+  const docEnemies = (doc as { enemies: Array<{ id: string; versions: Array<{ version: number; def: Record<string, unknown> }> }> }).enemies;
+  const out = { ...shippedEnemies };
+  for (const enemy of docEnemies) {
+    let current = enemy.versions[0]!;
+    for (const entry of enemy.versions) if (entry.version > current.version) current = entry;
+    out[enemy.id] = enemyDefOfDocument(enemy.id, current.def);
+  }
+  return out;
+}
+
+const enemies = loadEnemies();
+
+/**
+ * ENEMY LEVEL — `FIGHT_ENEMY_LEVEL=2 npm run fight -- growth_proof_fixture`.
+ *
+ * Routes the foe's board through the SAME run-layer growth resolver
+ * (`resolveEncounterForEnemy`, `src/run/encounter.ts`) `rollEncounter` uses,
+ * at a flat `'normal'` title (no rank/extraCards noise) and `growthLevel`
+ * equal to `level` (a solo-shaped call — see `buildEnemyEncounter`'s own doc
+ * comment on why that default is exactly right here). This is the ONLY way
+ * this script can show a GROWN board at all: without it, `enemyDefs` below is
+ * always the catalog's level-1 floor, and growth (every 2 levels) would be
+ * unprovable except by a hand-written description of what the code does —
+ * exactly what this script exists to prevent (CLAUDE.md, user-locked
+ * 2026-08-25). Absent env = byte-identical to before (the catalog floor,
+ * still overridable by `FIGHT_FOE_STATS`/`FIGHT_FOE_BOARD`/`FIGHT_FOE_SLOTS`
+ * exactly as it always was, since those apply AFTER this).
+ */
+function foeEnemyLevel(): number | null {
+  const spec = process.env['FIGHT_ENEMY_LEVEL'];
+  if (spec === undefined || spec.trim() === '') return null;
+  if (!/^[0-9]+$/.test(spec.trim())) {
+    console.error(`FIGHT_ENEMY_LEVEL: expected a positive integer, got '${spec}'.`);
+    process.exit(1);
+  }
+  return Number(spec.trim());
+}
+const enemyLevel = foeEnemyLevel();
 
 
 /**
@@ -341,14 +409,21 @@ const playerTeam: CombatantSetup[] = [
     pieces: heroPieces(),
   },
 ];
-const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => ({
-  name: enemy.name,
-  stats: withStatOverrides({ ...enemy.stats }, 'FIGHT_FOE_STATS'),
-  boardSize: foeBoardSize(enemy.boardSize),
-  pieces: foePieces(foeBoardSize(enemy.boardSize), enemy.pieces),
-  elementAffinity: enemy.elementAffinity,
-  weaponAffinity: enemy.weaponAffinity,
-}));
+const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => {
+  // FIGHT_ENEMY_LEVEL (see `foeEnemyLevel`'s doc comment): grow the board
+  // through the real resolver FIRST, so FIGHT_FOE_STATS/BOARD/SLOTS below
+  // still compose exactly as they always have, now on top of a grown base
+  // instead of the catalog floor.
+  const base = enemyLevel === null
+    ? enemy
+    : resolveEncounterForEnemy(enemy, enemyLevel, 'normal', undefined, [], null, undefined, null, enemyLevel).setup;
+  return {
+    name: enemy.name,
+    stats: withStatOverrides({ ...base.stats }, 'FIGHT_FOE_STATS'),
+    boardSize: foeBoardSize(base.boardSize),
+    pieces: foePieces(foeBoardSize(base.boardSize), base.pieces),
+  };
+});
 
 const { result, turns, events, finalState } = simulate({ playerTeam, enemyTeam, skillBook }, seed);
 

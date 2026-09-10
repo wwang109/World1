@@ -8,11 +8,12 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { boardAffinityHeadline } from '../ui/affinityDisplay';
 import { renderRetireConfirm, renderRunHud, renderUnspentPlConfirm, shouldConfirmUnspentPL, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
-import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_LABELS, statHoverEntry } from '../ui/statLabels';
 import { capabilityStatRun, foeSecondaryStatRun } from '../ui/statRunModel';
 import { renderStatRun } from '../ui/statRunStrip';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -21,6 +22,7 @@ import {
   currentBankedPL, currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
+import { encounterDestinationLabel } from '../ui/runTravelChoiceViewModel';
 
 const F = MOBILE_PROFILE.font;
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -61,7 +63,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
 
     const run = getActiveRun();
     const node = currentNode();
@@ -74,6 +76,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     this.renderHud(run, node.kind);
     let boardsTop = this.renderFoeCard(node.kind, pack);
     boardsTop = this.renderHeroBand(run, boardsTop);
+    boardsTop = this.renderAffinityLine(pack.units[0]!.setup, boardsTop);
     this.renderColumns(run, pack, boardsTop);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -136,7 +139,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
    * primary slot (the bottom footer on mobile — thumb-reachable). */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
     renderRunHud(this, {
-      screen: `PREP · ${KIND_LABEL[kind]}`,
+      screen: `PREP · ${encounterDestinationLabel(currentNode()!, currentEncounter() ?? null) ?? KIND_LABEL[kind]}`,
       compact: true,
       snapshot: snapshotRunProgress(run),
       onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
@@ -161,9 +164,10 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const color = KIND_COLOR[kind];
     this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9);
     const name = enemyNameFor(encounter.enemyId);
+    const destinationLabel = encounterDestinationLabel(currentNode()!, pack);
     const nameSuffix = isPack
       ? `   ·   LV ${encounter.effectiveLevel}   ·   +${pack.units.length - 1} MORE`
-      : `   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`;
+      : `   ·   ${destinationLabel ? '' : `${encounter.title.toUpperCase()}   ·   `}LV ${encounter.effectiveLevel}`;
     const nameText = this.add.text(20, y + 8, `${name}${nameSuffix}`, textRole('section'));
     // GUARD CONTRACT: enemy names (and future modifier-bearing titles) can be
     // arbitrarily long; this single Text object has no wordWrap and the card
@@ -238,6 +242,32 @@ export class MobileRunPrepScene extends Phaser.Scene {
     });
     addHoverTipZone(this, { x: 10, y: top, w: this.W - 20, h }, ALL_STAT_ENTRIES);
     return top + h + 8;
+  }
+
+  /** AFFINITY line between the hero band and the boards — the mobile twin of
+   * desktop's foe-panel AFFINITY readout (`docs/board-type-identity.md`).
+   * Desktop already showed this; mobile did not, a both-platforms gap this
+   * closes. Derived straight from the foe's own board — THE BOARD IS THE
+   * ONLY SOURCE, so an enemy's deprecated authored `elementAffinity`/
+   * `.weaponAffinity` are never read — and shows BOTH axes when the board
+   * earns both. Present ONLY when the board earns at least one axis; costs
+   * zero height when it doesn't, same "only present when applicable" idiom
+   * as the affix strip above. */
+  private renderAffinityLine(setup: { pieces: readonly { skillId: string }[] }, top: number): number {
+    const skills = setup.pieces
+      .map((p) => skillBook[p.skillId])
+      .filter((s): s is SkillDef => Boolean(s));
+    const headline = boardAffinityHeadline(skills);
+    if (!headline) return top;
+    // `textRole('micro')` — no new fontSize/hex literal, the ratchet stays put.
+    this.add.text(10, top, headline, textRole('micro'));
+    // +14: `renderColumns` draws its own "YOUR DECK"/"ENEMY SKILLS" header at
+    // `top - 14` relative to whatever `top` it receives — the same headroom
+    // it always reserves above the column boxes. Returning only this line's
+    // own height (no +14) left just ~3px between this line and that header,
+    // an overlap caught in a real capture (`?scene=mrunprep`, seed 2's
+    // `hunter` foe): "AFFINITY · BOW" printed underneath "YOUR DECK".
+    return top + F.tiny + 8 + 14;
   }
 
   /** PACK FIGHTS: shows the PRIMARY member's board (same "keep it simple"

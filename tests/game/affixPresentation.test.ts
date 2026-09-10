@@ -5,6 +5,8 @@ import {
 } from '../../src/game/ui/affixPresentation';
 import { ELITE_AFFIX_IDS, ENEMY_MODIFIER_IDS, MODIFIER_PRESETS } from '../../src/data/modifiers';
 import { skillBook } from '../../src/data/skills';
+import { renderSkillText } from '../../src/engine/keywords/compose';
+import { stripCardTextMarkup } from '../../src/game/ui/cardTextMarkup';
 import { buildEnemyEncounter, eliteAffixIdFor, type EncounterPack } from '../../src/run/encounter';
 import { buildBattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
@@ -36,8 +38,23 @@ describe('game/ui/affixPresentation', () => {
       expect(p, `affix "${id}" must present`).not.toBeNull();
       expect(p!.name).toBe(MODIFIER_PRESETS[id]!.name);
       expect(p!.chipLabel).toBe(`AFFIX · ${MODIFIER_PRESETS[id]!.name}`);
-      // The effect is the preset's OWN blurb — never re-worded in the UI.
-      expect(p!.effect).toBe(MODIFIER_PRESETS[id]!.blurb);
+      // THE EFFECT IS DERIVED, NOT RE-WORDED — and this is AGREEMENT, not
+      // coverage: for every card-granting affix (four of the six), the chip's
+      // effect line must contain that card's own generated face, character
+      // for character, from the same `renderSkillText` every other surface
+      // uses. A hand-written sentence that merely mentioned the same numbers
+      // would fail here, which is the point: the old `blurb` said "Second Bite
+      // - poison that bypasses shields, and bites harder once it lands" while
+      // the card says `Deal 8 (+ATK) Beast damage · Poison 4 · +4 vs Poison` —
+      // one of those two can go stale, and it was never the card.
+      for (const cardId of MODIFIER_PRESETS[id]!.cards ?? []) {
+        const skill = skillBook[cardId]!;
+        expect(p!.effect, `${id} must print ${cardId}'s own face`)
+          .toContain(stripCardTextMarkup(renderSkillText(skill)));
+        expect(p!.effect, `${id} must name ${cardId}`).toContain(skill.name);
+      }
+      // ...and the ANSWER is the preset's own field, read not re-compressed.
+      expect(p!.answer).toBe(MODIFIER_PRESETS[id]!.answer);
       expect(p!.answer.length, `affix "${id}" needs an answer line`).toBeGreaterThan(0);
       expect(answerLine(p!)).toBe(`ANSWER · ${p!.answer}`);
       // …and it names the card it installs, so the player can find it in the
@@ -304,12 +321,14 @@ describe('game/ui/affixPresentation: the run map names the affix BEFORE the choi
     // the assertion that would have caught `76b3033`'s dropped-affix bug from
     // the MAP end.
     let proven = 0;
+    let provenGrowthActive = 0;
     for (const seed of MAP_SEEDS) {
       for (const column of combatColumns(seed)) {
         for (const node of column) {
           const pack = previewEncounter(node)!;
           const line = affixMapFooter(pack);
           if (!line) continue;
+          const primary = pack.units[0]!;
           const input: BattleTimelineInput = {
             pieces: [
               { instanceId: 'c1', skillId: 'sword_slash', tier: 'bronze', slot: 0 },
@@ -317,14 +336,28 @@ describe('game/ui/affixPresentation: the run map names the affix BEFORE the choi
             ],
             heroLevel: 3,
             heroAllocation: {},
-            enemyId: pack.units[0]!.enemyId,
-            enemyLevel: pack.units[0]!.level,
-            enemyTitle: pack.units[0]!.title,
-            enemyRank: pack.units[0]!.rank,
-            // Exactly the mapping `battleContext.runBattleInput` performs.
+            enemyId: primary.enemyId,
+            enemyLevel: primary.level,
+            enemyTitle: primary.title,
+            // Exactly the mapping `battleContext.runBattleInput` performs
+            // (src/game/battleContext.ts:69-80): the REQUEST carries the
+            // PRE-growth base rank plus growth's own level/fight-number
+            // fields SEPARATELY, never the already-grown `EncounterUnit.rank`
+            // — that field name-collides with `BattleFoeConfig.rank`
+            // (`rankOverride`), so sending it back in would apply growth a
+            // SECOND time on top of an already-grown board. `enemyModifiers`/
+            // `enemyAffix` are included too so this input is the WHOLE
+            // mapping, not "exactly" it while quietly dropping two fields —
+            // harmless today (`buildBattleTimeline` prefers `enemyTeam` once
+            // it is non-empty, per its own :715-717), but honest either way.
+            enemyRank: primary.baseRank,
+            enemyGrowthLevel: primary.growthLevel,
+            enemyFightNumber: node.fightNumber,
+            enemyModifiers: primary.modifiers,
+            enemyAffix: primary.affix,
             enemyTeam: pack.units.map((u) => ({
-              enemyId: u.enemyId, level: u.level, title: u.title, rank: u.rank,
-              modifiers: [...u.modifiers], affix: u.affix,
+              enemyId: u.enemyId, level: u.level, title: u.title, rank: u.baseRank,
+              growthLevel: u.growthLevel, fightNumber: node.fightNumber, modifiers: [...u.modifiers], affix: u.affix,
             })),
             seed: node.encounterSeed!,
           };
@@ -335,12 +368,45 @@ describe('game/ui/affixPresentation: the run map names the affix BEFORE the choi
           for (const cardName of named.cardNames) {
             expect(board, `${node.id} previewed ${line.footer} and fought without ${cardName}`).toContain(cardName);
           }
+          // GROWTH PARITY — exactly what a rank double-application bug
+          // breaks: re-sending an already-grown rank as the request's base
+          // makes `resolveEncounterForEnemy` grow it a SECOND time and, since
+          // the second pass's own growth steps then collapse to zero, refunds
+          // the stat cost growth already spent. A refund moves `maxHp`, but
+          // NOT reliably at every level the loop below actually reaches — a
+          // 2-fire-then-return loop starting at the first affixed elite (fight
+          // #3, `growthStepsAt(3) = 1`) sits in a band where the stat refund
+          // is too small to move `maxHp` while the BOARD's TIERS still
+          // diverge (bronze/silver/gold assignment depends on `rank` too, and
+          // rank IS double-applied even when the refund is invisible). So the
+          // real per-unit board — id, slot AND tier, matching
+          // `battleContextSeam.test.ts`'s `[skill.id, slot, tier]` idiom — is
+          // asserted against `pack.units[i].setup.pieces` for EVERY unit, not
+          // just a scalar on unit 0.
+          for (let i = 0; i < pack.units.length; i += 1) {
+            const unit = pack.units[i]!;
+            const foe = timeline.foes[i];
+            expect(foe, `${node.id}: fewer fought foes than previewed units`).toBeDefined();
+            expect(
+              foe!.pieces.map((p) => [p.skill.id, p.slot, p.tier ?? 'bronze']),
+              `${node.id} unit ${i}: fought board disagrees with the preview`,
+            ).toEqual(unit.setup.pieces.map((p) => [p.skillId, p.slot, p.tier ?? 'bronze']));
+          }
+          // Kept alongside the per-unit board check above: a refund IS
+          // visible at higher levels, and this is the cheaper single-number
+          // regression signal for those cases.
+          expect(timeline.foes[0]!.maxHp, `${node.id}: fought maxHp disagrees with the preview`).toBe(primary.setup.stats.maxHp);
           proven += 1;
-          if (proven >= 6) return;
+          if (primary.level >= 2) provenGrowthActive += 1;
+          if (proven >= 6) {
+            expect(provenGrowthActive, 'none of the proven cases reached a growth-active level (>= 2) — the per-unit board check above would not exercise the growth-active band').toBeGreaterThan(0);
+            return;
+          }
         }
       }
     }
     expect(proven, 'no affixed map option was found to prove').toBeGreaterThan(0);
+    expect(provenGrowthActive, 'none of the proven cases reached a growth-active level (>= 2) — the per-unit board check above would not exercise the growth-active band').toBeGreaterThan(0);
   });
 
   it('the line fits the footer slot the choice panel reserves — one line, both platforms', () => {

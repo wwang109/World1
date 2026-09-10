@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "moon_scented_trail",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Moon-Scented Trail",
+            "body": "Silver tracks cross the Howlmoor road and vanish into heather. The trail bends for a hunter who runs with beasts—or has already broken a pack.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": ["howlmoor"],
+            "story": { "storyId": "moon_scented_trail", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "any": [
+                { "fact": "board.affinity", "args": { "affinityId": "beast" } },
+                { "fact": "combat.enemyDefeated", "args": { "weaponAffinity": "beast", "atLeast": 3 } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "follow_hunt",
+                  "label": "Follow the hunt",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["beast"] }], "maxTier": "bronze" },
+                  "callback": {
+                    "callbackId": "moon_scented_hunt",
+                    "eventId": "moon_scented_hunt",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": ["recruit"],
+                    "destinationBiomeIds": ["howlmoor"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 15, "fallback": "discard" }
+                  }
+                },
+                {
+                  "id": "take_trophy",
+                  "label": "Take a hunter's trophy",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["battle_howl_echo", "leeching_fang_echo", "bloodscent_sliver"] }] }
+                },
+                { "id": "leave", "label": "Let the trail fade", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moon_scented_hunt",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moon Hunt",
+            "body": "The silver trail reaches its quarry beneath a low moon. Hunter and hunted wait for you to decide how the chase ends.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "biomeIds": ["howlmoor"],
+            "story": { "storyId": "moon_scented_trail", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "moon_scented_hunt" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "finish_hunt",
+                  "label": "Finish the moon hunt",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "weapons": ["beast"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "moon_scented_trail" }]
+                },
+                {
+                  "id": "share_quarry",
+                  "label": "Share the quarry",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["battle_howl_echo", "leeching_fang_echo", "bloodscent_sliver"] }] },
+                  "mutations": [{ "op": "completeStory", "storyId": "moon_scented_trail" }]
+                },
+                {
+                  "id": "release_quarry",
+                  "label": "Release the quarry",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [
+                    { "op": "set", "key": "moon_quarry_released", "value": true },
+                    { "op": "completeStory", "storyId": "moon_scented_trail" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

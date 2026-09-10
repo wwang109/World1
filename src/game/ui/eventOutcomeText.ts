@@ -1,12 +1,108 @@
 import type { EventOutcomeSpec } from '../../data/events';
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
+import type { EventOutcomeV3 } from '../../run/eventsV3';
+import type { SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
-import { mergeTradeLine } from './runMergeViewModel';
+import { gemBook } from '../../data/gems';
+import { mergeTradeLine, type MergeSpentEntry } from './runMergeViewModel';
+import type { RunEventOutcomeHint } from './runEventViewModel';
 
 /** Display name for a skill id — falls back to the raw id if somehow unknown
  * (should never happen for a live event outcome, but never crash a scene over it). */
 function skillName(skillId: string): string {
   return skillBook[skillId]?.name ?? skillId;
+}
+
+/** "Shadow Bolt (BOARD 1)" — ONE consumed card, named AND placed. The single
+ * per-card phrase the pre-resolution confirm dialog uses for each of its
+ * lines (`mergeConfirmBody` below) — there is room there for the full name
+ * plus WHERE it sits; the choice row's own single-line budget does not have
+ * that much room (see `mergeRowPreviewText`'s doc comment), so the row omits
+ * it and confirms it here instead. */
+function mergeSpentPhrase(entry: MergeSpentEntry): string {
+  return `${entry.name} (${entry.whereLabel})`;
+}
+
+/**
+ * The mergeCards choice ROW's pre-tap price line — enough to tell the player
+ * THIS rung eats cards before they tap it, without gambling on fitting every
+ * name on one line.
+ *
+ * THIS USED TO NAME EVERY CARD ("SPENDS Shadow Bolt · Prism Barrier · Line
+ * Breaker") and its own doc comment here used to claim "nothing here ever
+ * drops one" — FALSE, per a real measurement (2026-09-06 audit): the choice
+ * row shares its `detail` line's height with every other choice's plain
+ * "REWARD · ..." hint (`RunChoicePanel.ts`'s `runChoicePanelMinHeight`
+ * reserves exactly one line), and at mobile's 300px detail column and
+ * `font.small`, the three-name line overflows that one-line budget for the
+ * three longest bronze-offerable names AND for 1.6% of every distinct bronze
+ * trio in the catalog (16,544 of 1,004,731) — `auditTextBlock` shrinks the
+ * font first, but once shrinking bottoms out at `TEXT_SHRINK_FLOOR_PX` it
+ * falls back to a truncating ellipsis, which would silently drop the third
+ * name (the exact bug this whole pass exists to close, just relocated onto
+ * the row instead of fixed).
+ *
+ * So the row states a COUNT instead: "SPENDS 3 CARDS · TAP TO SEE WHICH".
+ * This is safe to do NOW (it would not have been safe before) because the
+ * pre-resolution CONFIRM dialog (`mergeConfirmBody` below,
+ * `renderMergeConsumeConfirm`, RunProgressStrip.ts) is UNCONDITIONAL as of
+ * the same pass (a merge always costs three cards, so it always pauses
+ * there before resolving, whether the trio is bag-only or touches the
+ * board) and names every consumed card AND where it sits, full fidelity,
+ * before anything is spent. The row only has to promise the confirm is
+ * coming; the confirm is the actual disclosure.
+ */
+export function mergeRowPreviewText(spent: readonly MergeSpentEntry[]): string {
+  return `SPENDS ${spent.length} CARD${spent.length === 1 ? '' : 'S'} · TAP TO SEE WHICH`;
+}
+
+/**
+ * Pre-resolution CONFIRM copy for a rung whose outcome costs GOLD
+ * (`choice.cost > 0`) — every kind EXCEPT `mergeCards`, which gets its own
+ * richer confirm (`mergeConfirmBody` below) naming the exact consumed
+ * instances instead of a generic hint. One line naming what the gold buys —
+ * the SAME `hint` text `eventOutcomeHintText` already puts on the choice
+ * row's own "REWARD · ..." line, so the confirm can never promise something
+ * the row didn't — one line naming the price.
+ */
+export function eventCostConfirmTitle(cost: number): string {
+  return `SPEND ${cost} GOLD?`;
+}
+export function eventCostConfirmBody(hint: string, cost: number): string {
+  return `${hint}\nCosts ${cost} gold.`;
+}
+
+/**
+ * Pre-resolution CONFIRM copy for the `sellGem` picker's own tap. Unlike
+ * `mergeCards` (whose three consumed instances are the run layer's decision,
+ * knowable before the picker even opens), WHICH gem leaves the pouch here is
+ * the PLAYER's choice, made inside the picker itself — so this confirm sits
+ * at that later point (the picker's `onPick`, both RunEvent scenes) rather
+ * than before the picker opens, once the exact gem and its price are known.
+ */
+export function sellGemConfirmTitle(gemId: string): string {
+  const name = gemBook[gemId]?.name ?? gemId;
+  return `SELL ${name.toUpperCase()}?`;
+}
+export function sellGemConfirmBody(price: number): string {
+  return `+${price} GOLD`;
+}
+
+/**
+ * The pre-resolution CONFIRM dialog's body (`renderMergeConsumeConfirm`,
+ * RunProgressStrip.ts) — the trade headline (`mergeTradeLine`, the SAME
+ * phrasing the picker's title and the resolved receipt already use) over one
+ * line per consumed card, named AND placed. UNCONDITIONAL (2026-09-06 user
+ * ruling: a merge always costs three cards, so this dialog always shows
+ * before resolving — it used to skip a bag-only trade on the theory the
+ * choice row's own compact line was pause enough; the row can no longer
+ * name all three cards on one line for every trio (see
+ * `mergeRowPreviewText`'s doc comment above), so this is now the ONLY place
+ * a bag-only trio is named too, not just a board-touching one).
+ */
+export function mergeConfirmBody(from: SkillTier, to: SkillTier, spent: readonly MergeSpentEntry[]): string {
+  const headline = mergeTradeLine(spent.length, from, to);
+  return [headline, ...spent.map(mergeSpentPhrase)].join('\n');
 }
 
 /** Short inline reward hint shown on a choice button ("→ CARD (BRONZE)",
@@ -55,8 +151,69 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     // a function of what the player owns at that moment — so it is shown on the
     // picker screen the tap opens, before anything is spent.
     case 'mergeCards': return '3 CARDS → 1 BETTER';
+    case 'grantMapInfo': return `REVEAL ${outcome.bandsAhead} BANDS`;
     case 'nothing': return '—';
     default: return '';
+  }
+}
+
+function tierCeiling(tiers: readonly string[]): string {
+  const order = ['bronze', 'silver', 'gold', 'diamond'];
+  let best = 'bronze';
+  for (const tier of tiers) {
+    if (order.indexOf(tier) > order.indexOf(best)) best = tier;
+  }
+  return best.toUpperCase();
+}
+
+/** Typed choice-row copy for the committed event view model. V3 hints read
+ * their exact persisted offer (including its actual card tiers); no scene
+ * parses authored prose or regenerates a reward preview. */
+export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
+  switch (hint.kind) {
+    case 'grantCard': {
+      if ('offer' in hint) {
+        return `${skillName(hint.offer.card.skillId).toUpperCase()} (${hint.offer.card.tier.toUpperCase()})`;
+      }
+      const tier = hint.tier === undefined ? '' : ` (${hint.tier.toUpperCase()})`;
+      return hint.cardId === undefined ? `RANDOM CARD${tier}` : `${skillName(hint.cardId).toUpperCase()}${tier}`;
+    }
+    case 'grantGem':
+      if ('offer' in hint) return (gemBook[hint.offer.gemId]?.name ?? hint.offer.gemId).toUpperCase();
+      return hint.gemId === undefined ? 'GEM' : (gemBook[hint.gemId]?.name ?? hint.gemId).toUpperCase();
+    case 'grantGold': return `+${hint.amount} GOLD`;
+    case 'loseGold': return `-${hint.amount} GOLD`;
+    case 'grantLevel': return '+1 LEVEL';
+    case 'grantMapInfo': return `REVEAL ${hint.bandsAhead} BANDS`;
+    case 'nothing': return '—';
+    case 'cardChoice':
+      return 'offer' in hint
+        ? `CHOICE OF ${hint.offer.options.length} CARDS · UP TO ${tierCeiling(hint.offer.options.map((option) => option.tier))}`
+        : `CHOICE OF ${hint.optionCount} CARDS`;
+    case 'bonusDraft':
+      return 'offer' in hint
+        ? `MINI-DRAFT · ${hint.offer.options.length} CARDS · UP TO ${tierCeiling(hint.offer.options.map((option) => option.tier))}`
+        : `MINI-DRAFT · ${hint.optionCount} CARDS`;
+    case 'gemChoice':
+      return 'offer' in hint ? `CHOICE OF ${hint.offer.optionGemIds.length} GEMS` : `CHOICE OF ${hint.optionCount} GEMS`;
+    case 'upgradeCardTargeted':
+      return `UPGRADE · ${hint.offer.optionInstanceIds.length} TARGET${hint.offer.optionInstanceIds.length === 1 ? '' : 'S'}`;
+    case 'upgradeCard':
+      return 'offer' in hint
+        ? `UPGRADE · ${hint.offer.optionInstanceIds.length} TARGET${hint.offer.optionInstanceIds.length === 1 ? '' : 'S'}`
+        : 'UPGRADE';
+    case 'sellGem':
+      return 'offer' in hint && hint.offer.status !== 'unavailable'
+        ? `SELL 1 OF ${hint.offer.options.length} GEMS`
+        : 'SELL A GEM';
+    case 'mergeCards':
+      return 'offer' in hint && hint.offer.status !== 'unavailable'
+        ? mergeTradeLine(hint.offer.consumed.length, hint.offer.from, hint.offer.to)
+        : '3 CARDS → 1 BETTER';
+    default: {
+      const exhaustive: never = hint;
+      throw new Error(`eventOutcomeHintText: unknown outcome ${String((exhaustive as RunEventOutcomeHint).kind)}`);
+    }
   }
 }
 
@@ -96,10 +253,10 @@ export function mergeReceiptText(receipt: MergeCardsReceipt): { headline: string
 /** Headline + detail line for a RESOLVED outcome (what actually happened),
  * for the event scene's outcome panel. The headline is the one-line summary;
  * `detail` (may be empty) adds fallback context. */
-export function outcomeHeadline(outcome: EventOutcome): { headline: string; detail: string } {
+export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headline: string; detail: string } {
   switch (outcome.kind) {
     case 'grantCard':
-      return outcome.fellBack
+      return 'fellBack' in outcome && outcome.fellBack
         ? { headline: 'Bag was full — took gold instead', detail: '' }
         : { headline: `Gained a ${outcome.tier.toUpperCase()} card`, detail: '' };
     case 'grantGem':
@@ -114,11 +271,15 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
       return { headline: `Hero levels up → LV ${outcome.level}`, detail: '' };
     case 'bonusDraft':
       return { headline: 'Pick a card to keep', detail: '' };
+    case 'cardChoice':
+      return { headline: 'Choose a card to keep', detail: '' };
     // Unreachable in practice — the scenes render `upgradeCardPick` through
     // `renderRunUpgradeCardPicker` directly, never through this resolved-
     // outcome headline (same as `bonusDraft` above, which also never reaches
     // here). Kept only so the exhaustiveness guard below stays meaningful.
     case 'upgradeCardPick':
+      return { headline: 'Choose a card to upgrade', detail: '' };
+    case 'upgradeCardTargeted':
       return { headline: 'Choose a card to upgrade', detail: '' };
     // Unreachable in practice — same reason as `upgradeCardPick`/`bonusDraft`
     // above: the scenes render `gemChoicePick` through
@@ -127,6 +288,8 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
     // meaningful.
     case 'gemChoicePick':
       return { headline: 'Choose a gem to keep', detail: '' };
+    case 'gemChoice':
+      return { headline: 'Choose a gem to keep', detail: '' };
     // Unreachable in practice — same reason as `upgradeCardPick`/
     // `gemChoicePick` above: the scenes render `sellGemPick` through
     // `renderRunSellGemPicker` directly, never through this resolved-outcome
@@ -134,7 +297,9 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
     case 'sellGemPick':
       return { headline: 'Choose a gem to sell', detail: '' };
     case 'sellGem':
-      return { headline: `Sold a gem for ${outcome.price} gold`, detail: '' };
+      return 'offer' in outcome
+        ? { headline: 'Choose a gem to sell', detail: '' }
+        : { headline: `Sold a gem for ${outcome.price} gold`, detail: '' };
     // Unreachable in practice — same reason as `upgradeCardPick`/
     // `gemChoicePick`/`sellGemPick` above: the scenes render `mergeCardsPick`
     // through `renderRunMergeCardsPicker` directly, never through this
@@ -145,15 +310,38 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
     // instead. The case now exists; the side field is gone.
     case 'mergeCardsPick':
       return { headline: `Choose what your three ${outcome.from.toUpperCase()} cards become`, detail: '' };
+    case 'mergeCards':
+      return { headline: `Choose what your three ${outcome.offer.from.toUpperCase()} cards become`, detail: '' };
     case 'upgradeCard':
+      if ('offer' in outcome) return { headline: 'Choose a card to upgrade', detail: '' };
       return outcome.fellBack
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }
         : {
             headline: `Your ${skillName(outcome.skillId!)} is re-tempered — ${outcome.from!.toUpperCase()} → ${outcome.to!.toUpperCase()}.`,
             detail: '',
           };
+    case 'grantMapInfo': {
+      const shown = outcome.revealedBands.map((band) => band + 1);
+      const detail = shown.length === 0
+        ? 'No new bands were revealed.'
+        : shown.length === 1
+          ? `Revealed band ${shown[0]}.`
+          : `Revealed bands ${shown.join('–')}.`;
+      return { headline: 'Map intel updated', detail };
+    }
     case 'nothing':
-      return { headline: 'Nothing happens', detail: '' };
+      return 'fellBack' in outcome && outcome.fellBack
+        ? { headline: 'No eligible reward — nothing happens', detail: '' }
+        : { headline: 'Nothing happens', detail: '' };
+    case 'cardGranted':
+      return { headline: `Gained a ${outcome.tier.toUpperCase()} card`, detail: '' };
+    case 'cardUpgraded':
+      return {
+        headline: `Your ${skillName(outcome.skillId)} is re-tempered — ${outcome.from.toUpperCase()} → ${outcome.to.toUpperCase()}.`,
+        detail: '',
+      };
+    case 'alreadySettled':
+      return { headline: 'Reward already claimed', detail: '' };
     default: {
       // Exhaustiveness guard (same idiom as `applySpec` in src/run/events.ts):
       // a future `EventOutcome` kind added to the union without a case here

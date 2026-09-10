@@ -9,7 +9,7 @@ import { affixBlockLines, ELITE_AFFIX_IDS, presentEliteAffix } from '../ui/affix
 import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
 import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
-import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
+import { demoState, MAX_FOES, nextFoeRank, rankStepperLabel, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, INK, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
@@ -364,11 +364,18 @@ export class DesktopPrepScene extends Phaser.Scene {
     // forceTier freeze): the player-authored tiers ARE the tiers, and the
     // shown value is the resolver's honest tier-step echo for that deck.
     const customDeck = foe.deck != null;
-    const rankLabel = customDeck ? 'RANK · CUSTOM DECK'
-      : tierForced ? `RANK · MAXED BY ${foe.modifiers.find((id) => MODIFIER_PRESETS[id]?.forceTier)?.toUpperCase()}` : `RANK · MAX ${rankCap}`;
+    const forcingModifierName = tierForced
+      ? foe.modifiers.find((id) => MODIFIER_PRESETS[id]?.forceTier)?.toUpperCase() : undefined;
+    // Growth alone can already fill the remaining headroom to `rankCap` at
+    // higher levels — see `rankStepperLabel`'s doc comment for why this is 0
+    // once the base itself reaches the cap.
+    const growthPinnedSteps = encounter.rank >= rankCap ? Math.max(0, encounter.rank - encounter.baseRank) : 0;
+    const rankLabel = rankStepperLabel(rankCap, customDeck, forcingModifierName, growthPinnedSteps);
     this.stepperRow(innerX, cursor, innerW, rankLabel, encounter.rank, (d) => {
       if (tierForced || customDeck) return;
-      foe.rank = Math.max(0, Math.min(rankCap, encounter.rank + d));
+      // See `nextFoeRank`'s doc comment: the stepper DISPLAYS the resolved
+      // rank (`encounter.rank`) but must EDIT the base (`encounter.baseRank`).
+      foe.rank = nextFoeRank(encounter, rankCap, d);
       syncPrimaryFoe();
       this.rerender();
     });

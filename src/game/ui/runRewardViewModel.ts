@@ -1,4 +1,5 @@
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
+import type { EventOutcomeV3 } from '../../run/eventsV3';
 import type { SkillDef } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
@@ -58,16 +59,21 @@ export interface RunRewardViewModel {
  * Nothing here recomputes any part of the trade (which three cards, which
  * tiers): the receipt is read, never re-derived, exactly as the picker reads
  * `MergeCardsOffer.consumed` rather than working out what would be spent. */
-export function buildRunRewardViewModel(outcome: EventOutcome, merged?: MergeCardsReceipt): RunRewardViewModel {
-  const { headline, detail } = merged && outcome.kind === 'grantCard' && !outcome.fellBack
+export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, merged?: MergeCardsReceipt): RunRewardViewModel {
+  const grantCardFellBack = outcome.kind === 'grantCard' && 'fellBack' in outcome && outcome.fellBack === true;
+  const { headline, detail } = merged && outcome.kind === 'grantCard' && !grantCardFellBack
     ? mergeReceiptText(merged)
     : outcomeHeadline(outcome);
   const iconKey = choiceArtKey(outcome.kind);
 
   let feature: RunRewardFeature = { kind: 'icon' };
-  if (outcome.kind === 'grantCard' && !outcome.fellBack) {
+  if (outcome.kind === 'grantCard' && !grantCardFellBack) {
     const skill = skillBook[outcome.skillId];
     if (skill) feature = { kind: 'card', skill: outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier) };
+  } else if (outcome.kind === 'cardGranted' || outcome.kind === 'cardUpgraded') {
+    const skill = skillBook[outcome.skillId];
+    const tier = outcome.kind === 'cardGranted' ? outcome.tier : outcome.to;
+    if (skill) feature = { kind: 'card', skill: tier === skill.tier ? skill : applyTier(skill, tier) };
   } else if (outcome.kind === 'grantGem') {
     const gem = gemBook[outcome.gemId];
     if (gem) feature = { kind: 'gem', gem };

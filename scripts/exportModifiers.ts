@@ -88,14 +88,14 @@ const notesById = rescueNotes();
 
 /**
  * FIELD ORDER inside the `def` payload, matching declaration order in
- * `EnemyModifierPreset`: name/blurb (copy) -> notes -> bonusPL/bonusProfile
+ * `EnemyModifierPreset`: name/answer (copy) -> notes -> bonusPL/bonusProfile
  * (the PL-spend dial) -> forceTier (the tier-override dial) -> affix/cards
  * (the behavioural-affix dial). `id` is NOT
  * here: it is the document's KEY (see the envelope docs on the
  * skills/gems/enemies loaders) and the loader puts it back when rebuilding
  * the preset.
  */
-const DEF_FIELD_ORDER = ['name', 'blurb', 'notes', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards'] as const;
+const DEF_FIELD_ORDER = ['name', 'answer', 'notes', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards'] as const;
 
 const modifierList = Object.values(MODIFIER_PRESETS)
   .slice()

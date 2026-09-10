@@ -3,6 +3,14 @@ import { readFileSync } from 'node:fs';
 import { validateEnemyDocument } from '../../src/data/validateEnemyContent';
 import { findDuplicateKeys } from '../../scripts/jsonDuplicateKeys';
 import document from '../../src/data/content/enemies.v1.json';
+import { enemyDocumentOf } from '../../scripts/exportEnemies';
+import { enemies } from '../../src/data/enemies';
+import type { EnemyGrowthMilestone } from '../../src/engine/types';
+
+const milestone: EnemyGrowthMilestone = {
+  family: { kind: 'element', type: 'fire' }, purpose: 'complete-affinity',
+  candidates: [{ skillId: 'fireball' }, { skillId: 'cinder_dart', allowDuplicate: true }],
+};
 
 const RAW = readFileSync(new URL('../../src/data/content/enemies.v1.json', import.meta.url), 'utf8');
 
@@ -105,5 +113,56 @@ describe('data: enemies content schema contract', () => {
   it('an unsupported schemaVersion is rejected', () => {
     const d = clone(); (d as unknown as { schemaVersion: number }).schemaVersion = 2;
     failsWith(d, 'unsupported schemaVersion');
+  });
+
+  it('growth must be an array', () => {
+    const d = clone();
+    vers(d)[0]!.def.growth = 'cinder_dart';
+    failsWith(d, 'growth must be an array of milestones');
+  });
+
+  it('an empty-string growth entry is rejected', () => {
+    const d = clone();
+    vers(d)[0]!.def.growth = [''];
+    failsWith(d, 'growth milestone must be an object');
+  });
+
+  it('a non-string growth entry is rejected', () => {
+    const d = clone();
+    vers(d)[0]!.def.growth = [42];
+    failsWith(d, 'growth milestone must be an object');
+  });
+
+  it('a growth list longer than the three-entry maximum is rejected', () => {
+    const d = clone();
+    vers(d)[0]!.def.growth = ['cinder_dart', 'scorching_brand', 'kindling_rite', 'ember_lash'];
+    failsWith(d, 'more than MAX_GROWTH_CARDS (3)');
+  });
+
+  it('exports and validates the full ordered milestone shape without dropping duplicate permission', () => {
+    const exported = enemyDocumentOf({ ...enemies.cinder_sprite!, growth: [milestone] });
+    expect(exported.versions[0]!.def.growth).toEqual([{
+      family: { kind: 'element', type: 'fire' }, purpose: 'complete-affinity',
+      candidates: [{ skillId: 'fireball' }, { skillId: 'cinder_dart', allowDuplicate: true }],
+    }]);
+    expect(validateEnemyDocument({ schemaVersion: 1, enemies: [exported] })).toEqual([]);
+  });
+
+  it.each([
+    [{ ...milestone, family: { kind: 'element', type: 'axe' } }, 'family.type'],
+    [{ ...milestone, family: { kind: 'weapon', type: 'fire' } }, 'family.type'],
+    [{ ...milestone, family: { kind: 'other', type: 'fire' } }, 'family.kind'],
+    [{ ...milestone, purpose: 'more-power' }, 'purpose'],
+    [{ ...milestone, candidates: [] }, 'non-empty array'],
+    [{ ...milestone, candidates: ['cinder_dart'] }, 'candidate must be an object'],
+    [{ ...milestone, candidates: [{ skillId: '' }] }, 'skillId'],
+    [{ ...milestone, candidates: [{ skillId: 'cinder_dart', allowDuplicate: false }] }, 'literally true'],
+    [{ ...milestone, candidates: [{ skillId: 'cinder_dart', allowDuplicates: true }] }, 'unknown candidate field'],
+    [{ ...milestone, family: { kind: 'element', type: 'fire', axis: 'fire' } }, 'unknown family field'],
+    [{ ...milestone, random: true }, 'unknown milestone field'],
+  ])('rejects malformed milestone %j', (growth, reason) => {
+    const d = clone();
+    vers(d)[0]!.def.growth = [growth];
+    failsWith(d, reason);
   });
 });

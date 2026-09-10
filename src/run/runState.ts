@@ -6,7 +6,7 @@
 // Math.random — the map, encounters, and shop rolls all derive from the run
 // seed via the engine's seeded `Rng`.
 
-import { clampTierToCard } from '../engine/types';
+import { clampTierToCard, TIER_ORDER } from '../engine/types';
 import type { Gem, SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
@@ -31,7 +31,24 @@ import {
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import { anchorPoolFor, computeEnemyDepthBands, fillerPoolFor, type DepthBand } from './enemyDepth';
 import { biomeFor, weightIds } from './biome';
-import type { EventTheme } from '../data/events';
+import type { EventTheme } from '../data/eventTypes';
+import type { EventBoundSubjectsV3 } from '../data/eventContentV3';
+import type { EventInstanceRecord, EventInstanceRecordV2 } from './eventInstances';
+import type { BandForecast } from './biomeForecast';
+import {
+  recordBattleFacts,
+  type CombatFactLedgerEntry,
+  type EventBindingReservation,
+  type JourneyFactLedger,
+  type RevengeFactRecord,
+  type SignatureFactRecord,
+} from './eventV3Facts';
+import {
+  INITIAL_EVENT_STORY_STATE_V3,
+  type EventMaterializationRecord,
+  type EventStoryStateV3,
+} from './eventV3Materialization';
+import { sweepExpiredEventCallbacks } from './eventCallbacks';
 import {
   BOSS_EVERY,
   ensureDepthThrough,
@@ -156,8 +173,59 @@ export interface EventResolution {
    * argument — the drawn event is what the UI passes, but the record must
    * describe what was actually resolved, not what the node happened to draw. */
   eventId: string;
+  /** Exact content version used by the committed event instance. */
+  contentVersion: number;
+  /** Immutable event-instance identity used by pending-picker reopen. */
+  instanceId: string;
   choiceId: string;
   pending?: boolean;
+}
+
+/** One chain-starting route card the player passed in this region. */
+export interface MissedEventOpportunity {
+  eventId: string;
+  contentVersion: number;
+  biomeId: string;
+  missedDepth: number;
+  laterOpportunities: number;
+}
+
+/** A persisted callback delivery waiting for a compatible future event node.
+ * Task 3 creates only the empty container; Task 5 owns scheduling, delivery,
+ * expiry, and every mutation of these records. */
+export interface EventCallbackQueueEntryV2 {
+  callbackInstanceId: string;
+  callbackId: string;
+  eventId: string;
+  contentVersion: number;
+  scheduledDepth: number;
+  earliestDepth: number;
+  minDepthDelay: number;
+  destinationThemes: readonly EventTheme[];
+  destinationBiomeIds?: readonly string[];
+  priority: number;
+  boundSubjects: Readonly<Record<string, string>>;
+  expiry?: {
+    expiresAfterNodes: number;
+    fallback: 'discard' | { outcome: { kind: 'grantGold'; amount: number } };
+  };
+}
+
+/** Current schema-v3 callback entry. Its subjects are the closed persisted
+ * binding snapshot rather than the historical string-only record. */
+export interface EventCallbackQueueEntryV3 extends Omit<EventCallbackQueueEntryV2, 'boundSubjects'> {
+  boundSubjects: Readonly<EventBoundSubjectsV3>;
+}
+
+/** Queue entries accepted by the current run schema. */
+export type EventCallbackQueueEntry = EventCallbackQueueEntryV2 | EventCallbackQueueEntryV3;
+
+/** One already-revealed future biome-band snapshot. Task 6 owns population
+ * and reads; schema-v2 migration only initializes the persisted container. */
+export interface MapIntelRecord {
+  band: number;
+  sourceEventInstanceId: string;
+  snapshot: BandForecast;
 }
 
 /**
@@ -195,7 +263,11 @@ export interface RunDraftProgress {
   picks: Partial<Record<DraftSetKey, string>>;
 }
 
-export interface RunState {
+/**
+ * Frozen historical schema-v2 run body. Future schema fields must be added to
+ * a new versioned extension, never to this interface.
+ */
+export interface RunStateV2 {
   seed: number;
   map: RunMap;
   status: RunStatus;
@@ -283,9 +355,9 @@ export interface RunState {
   /** How many times each theme's bag has been refilled — feeds that theme's
    * reshuffle seed (`hashSeed('eventBag', seed, theme, refills)`). */
   eventThemeBagRefills?: Partial<Record<EventTheme, number>>;
-  /** Node id -> drawn event id, filled the first time `rollEventForNode` is
+  /** Node id -> immutable drawn event instance, filled the first time `rollEventForNode` is
    * called for that node (idempotent thereafter — a reload never re-draws). */
-  eventInstances: Record<string, string>;
+  eventInstances: Record<string, EventInstanceRecordV2>;
   /**
    * Node id -> the CHOICE the player already committed to at that event node
    * (see `EventResolution`), written by `resolveEventChoice` in
@@ -304,6 +376,18 @@ export interface RunState {
    * `eventResolutionAt` (`src/run/events.ts`), which treats absent as empty.
    */
   eventResolutions?: Record<string, EventResolution>;
+  /** Due callbacks, ordered/processed by the Task 5 callback owner. */
+  eventCallbackQueue: readonly EventCallbackQueueEntryV2[];
+  /** Completed v2 stories, in first-completion order. Missing legacy saves
+   * mean no story has completed yet. */
+  completedStoryIds?: readonly string[];
+  /** Stable callback terminal ids. This makes expiry fallbacks idempotent
+   * across interrupted saves without overloading event-node resolutions. */
+  eventCallbackResolutionIds?: readonly string[];
+  /** Persisted forecast snapshots keyed by their numeric biome-band index. */
+  mapIntelByBand: Record<string, MapIntelRecord>;
+  /** Source event instances that already applied map intel, in first-use order. */
+  appliedMapInfoSourceIds: readonly string[];
   gold: number;
   heroLevel: number;
   heroAllocation: Allocation;
@@ -312,6 +396,26 @@ export interface RunState {
   /** Additive stats ledger — see `RunStats`. */
   stats: RunStats;
 }
+
+/** Fields introduced by the durable schema-v3 event foundation. */
+export interface RunStateV3Fields {
+  combatFactLedger: readonly CombatFactLedgerEntry[];
+  revengeFactLedger: readonly RevengeFactRecord[];
+  signatureFactLedger: readonly SignatureFactRecord[];
+  journeyFactLedger: JourneyFactLedger;
+  eventBindingReservations: readonly EventBindingReservation[];
+  eventMaterializations: Readonly<Record<string, EventMaterializationRecord>>;
+  storyStateV3: EventStoryStateV3;
+  /** Persisted, deterministic comeback queue. Missing on older saves means empty. */
+  missedEventOpportunities?: readonly MissedEventOpportunity[];
+  /** Event ids whose one permitted comeback has already surfaced this run. */
+  eventComebackUsedIds?: readonly string[];
+}
+
+export type RunState = Omit<RunStateV2, 'eventInstances' | 'eventCallbackQueue'> & RunStateV3Fields & {
+  eventInstances: Record<string, EventInstanceRecord>;
+  eventCallbackQueue: readonly EventCallbackQueueEntry[];
+};
 
 /** Board width for the run's deck rail — same as the sandbox hero board. */
 const RUN_BOARD_SLOTS = HERO_BOARD_SLOTS;
@@ -591,6 +695,20 @@ export function createRun(seed: number): RunState {
     eventThemeBagRefills: {},
     eventInstances: {},
     eventResolutions: {},
+    eventCallbackQueue: [],
+    completedStoryIds: [],
+    eventCallbackResolutionIds: [],
+    mapIntelByBand: {},
+    appliedMapInfoSourceIds: [],
+    combatFactLedger: [],
+    revengeFactLedger: [],
+    signatureFactLedger: [],
+    journeyFactLedger: { visitedBiomeIds: [] },
+    eventBindingReservations: [],
+    eventMaterializations: {},
+    storyStateV3: { ...INITIAL_EVENT_STORY_STATE_V3 },
+    missedEventOpportunities: [],
+    eventComebackUsedIds: [],
     gold: 0,
     heroLevel: 1,
     heroAllocation: {},
@@ -943,7 +1061,7 @@ export function rollEncounter(state: RunState): EncounterPack {
   if (variant !== 'solo') {
     // The node's fight number rides along so the budget is priced at the SAME
     // depth-ramped title package (`titlePresetFor`) the solo build ships.
-    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix, node.fightNumber!);
+    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix, node.fightNumber!, [...anchorPool, ...fillerPool]);
     if (solvedLevel === null) {
       // Budget floor-fallback (encounter.ts#resolvePackMemberLevel): even
       // level 1 would exceed this member's taxed share — ship solo instead.
@@ -981,9 +1099,16 @@ export function rollEncounter(state: RunState): EncounterPack {
     memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix, node.fightNumber!) ?? memberLevel;
   }
 
+  // A pack earns only the milestones of its own clamped effective level.
+  // This explicit recipe survives preview, service, and playback reconstruction.
+  const growthLevel = size > 1
+    ? Math.max(1, memberLevel + titlePresetFor(memberTitle, node.fightNumber!).levelDelta)
+    : entry.level;
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
-    units.push(buildEnemyEncounter(enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix, node.fightNumber!));
+    units.push(buildEnemyEncounter(
+      enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix, node.fightNumber!, undefined, growthLevel,
+    ));
   }
   return { variant, units };
 }
@@ -1002,6 +1127,22 @@ export interface BattleOutcome {
   damageDealt?: number;
   damageTaken?: number;
   healingDone?: number;
+  battleFact?: CombatFactLedgerEntry;
+}
+
+/** The only completion exit for committed fight, shop, and event nodes.
+ * Clearing occupation before the callback sweep keeps the next-node state
+ * visible to expiry fallbacks and prevents completion seams from drifting. */
+function finishCommittedNode(state: RunState, node: RunNode): RunState {
+  const biomeId = biomeFor(state.map.seed, node.wave, node.biomeId).id;
+  const visitedBiomeIds = state.journeyFactLedger.visitedBiomeIds;
+  const withVisit = visitedBiomeIds.includes(biomeId)
+    ? state
+    : {
+      ...state,
+      journeyFactLedger: { visitedBiomeIds: [...visitedBiomeIds, biomeId] },
+    };
+  return sweepExpiredEventCallbacks({ ...withVisit, currentNodeId: null }, node.depth);
 }
 
 /**
@@ -1028,15 +1169,17 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
   if (node.kind !== 'fight' && node.kind !== 'boss') {
     throw new Error(`recordBattleResult: node "${node.id}" (kind "${node.kind}") is not a combat node`);
   }
+  if (outcome.battleFact !== undefined && (outcome.battleFact.result === 'win') !== outcome.won) {
+    throw new Error('recordBattleResult: battle fact result does not match outcome.won');
+  }
   const isBoss = node.kind === 'boss';
   const won = outcome.won;
   const lives = won ? state.lives : Math.max(0, state.lives - 1);
   const status: RunStatus = lives <= 0 ? 'defeat' : 'active';
   const goldEarned = won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0;
-  return {
+  const settled = {
     ...state,
     status,
-    currentNodeId: null,
     lives,
     bossesCleared: state.bossesCleared + (isBoss && won ? 1 : 0),
     gold: state.gold + goldEarned,
@@ -1052,6 +1195,10 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
       livesLost: state.stats.livesLost + (state.lives - lives),
     },
   };
+  const withFacts = outcome.battleFact === undefined
+    ? settled
+    : recordBattleFacts(settled, outcome.battleFact);
+  return finishCommittedNode(withFacts, node);
 }
 
 /**
@@ -1092,7 +1239,7 @@ export function leaveShop(state: RunState): RunState {
   if (!node || node.kind !== 'shop') {
     throw new Error('leaveShop: no shop node is currently active');
   }
-  return { ...state, currentNodeId: null };
+  return finishCommittedNode(state, node);
 }
 
 /**
@@ -1118,7 +1265,7 @@ export function leaveEvent(state: RunState): RunState {
   if (!node || node.kind !== 'event') {
     throw new Error('leaveEvent: no event node is currently active');
   }
-  return { ...state, currentNodeId: null };
+  return finishCommittedNode(state, node);
 }
 
 // ---------------------------------------------------------------------------
@@ -1237,10 +1384,11 @@ export function runBagHasRoomFor(state: RunState, skillId: string): boolean {
  * if the bag has no room for a card of this size — callers decide the
  * fallback (shop purchases fail cleanly; events fall back to gold).
  */
-export function tryInsertRunCard(
+function insertRunCard(
   state: RunState,
   skillId: string,
   tier: SkillTier,
+  preserveTier: boolean,
 ): { state: RunState; instanceId: string } | null {
   const card = skillBook[skillId];
   const size = Math.max(1, card?.size ?? 1);
@@ -1260,10 +1408,36 @@ export function tryInsertRunCard(
   // offer site's job; this only stops a bad (card, tier) pair from becoming a
   // corrupt owned instance whose sell price and merge ladder read a tier the card
   // has no copy at.
-  const stamped = (card ? clampTierToCard(card, tier) : null) ?? tier;
+  const stamped = preserveTier ? tier : (card ? clampTierToCard(card, tier) : null) ?? tier;
   bagSlots[fit] = { instanceId, skillId, tier: stamped };
   const nextState: RunState = { ...state, bagSlots, nextCardInstanceId: state.nextCardInstanceId + 1 };
   return { state: nextState, instanceId };
+}
+
+export function tryInsertRunCard(
+  state: RunState,
+  skillId: string,
+  tier: SkillTier,
+): { state: RunState; instanceId: string } | null {
+  return insertRunCard(state, skillId, tier, false);
+}
+
+/**
+ * Inserts a known card from an already-persisted schema-v3 event offer at the
+ * exact tier the player originally saw. Unlike ordinary acquisition, this one
+ * compatibility seam must not consult today's card minimum after content has
+ * changed. Invalid persisted identities fail before bag placement; `null`
+ * still means only that the bag has no room.
+ */
+export function tryInsertPersistedEventRunCard(
+  state: RunState,
+  skillId: string,
+  tier: SkillTier,
+): { state: RunState; instanceId: string } | null {
+  if (skillBook[skillId] === undefined || !TIER_ORDER.includes(tier)) {
+    throw new Error(`tryInsertPersistedEventRunCard: invalid persisted card ${skillId}@${String(tier)}`);
+  }
+  return insertRunCard(state, skillId, tier, true);
 }
 
 export type RunBuyResult =

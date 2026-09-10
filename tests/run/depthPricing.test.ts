@@ -17,6 +17,7 @@ import {
 } from '../../src/run/shop';
 import { shopCatalog, shopTypeIds } from '../../src/data/shopTypes';
 import { gemBook } from '../../src/data/gems';
+import { eventCatalog, eventCatalogIds, type EventDef } from '../../src/data/events';
 import { DRAFT_SET_KEYS, rollStartDraft } from '../../src/run/draft';
 import {
   DAILY_INCOME,
@@ -43,14 +44,28 @@ import {
   applyGemChoicePick,
   applySellGemPick,
   applyUpgradeCardPick,
+  eventSelectionIdsForCatalog,
   isEventChoiceAffordable,
   isEventChoiceUsable,
   resolveEventChoice,
   rollEventForNode,
+  type EventSelectionContent,
 } from '../../src/run/events';
 import { hashSeed, Rng } from '../../src/engine/rng';
 import type { BattleFoeSummary } from '../../src/run/shop';
 import type { SkillTier } from '../../src/engine/types';
+
+const frozenLookup = (eventId: string, contentVersion: number): EventDef | undefined => (
+  contentVersion === 1 ? eventCatalog[eventId] : undefined
+);
+const frozenContent: EventSelectionContent<EventDef> = {
+  catalog: eventCatalog,
+  orderedIds: eventSelectionIdsForCatalog(eventCatalogIds),
+  currentVersionOf: () => 1,
+};
+const rollFrozen = (state: RunState, node: Parameters<typeof rollEventForNode>[1]) => (
+  rollEventForNode(state, node, frozenLookup, frozenContent)
+);
 
 /**
  * DEPTH PRICE SCALING — the invariants, not the numbers.
@@ -322,14 +337,14 @@ function walk(seed: number, maxWave: number): Visit[] {
       }
       s = leaveShop(s);
     } else if (node.kind === 'event') {
-      const rolled = rollEventForNode(s, node);
+      const rolled = rollFrozen(s, node);
       s = rolled.state;
       const ev = rolled.event;
       const open = ev.choices.filter((c) => isEventChoiceUsable(s, c) && isEventChoiceAffordable(s, c));
       const pick = open.length > 0
         ? open.reduce((best, c) => ((c.cost ?? 0) > (best.cost ?? 0) ? c : best), open[0]!)
         : ev.choices[0]!;
-      const res = resolveEventChoice(s, ev.id, pick.id);
+      const res = resolveEventChoice(s, ev.id, pick.id, frozenLookup);
       s = res.state;
       const out = res.outcome;
       if (out.kind === 'bonusDraft' && out.cards.length > 0) s = applyBonusDraftPick(s, out.cards[0]!).state;

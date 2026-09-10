@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "whiteout_pilgrim",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Whiteout Pilgrim",
+            "body": "A pilgrim steps out of the Frostmarch white, following a road visible only to those who have won beneath frost's banner.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": ["frostmarch"],
+            "story": { "storyId": "whiteout_pilgrim", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "combat.affinityWin", "args": { "affinityId": "frost", "atLeast": 1, "biomeId": "frostmarch" } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "share_white_road",
+                  "label": "Share the white road",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["frost"] }], "maxTier": "bronze" },
+                  "callback": {
+                    "callbackId": "whiteout_guidance",
+                    "eventId": "whiteout_guidance",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": ["training"],
+                    "destinationBiomeIds": ["frostmarch"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 12, "fallback": "discard" }
+                  }
+                },
+                {
+                  "id": "take_ward",
+                  "label": "Take the pilgrim's ward",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["shield", "guard", "ward"] }] }
+                },
+                { "id": "leave", "label": "Return to the road", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "whiteout_guidance",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pilgrim's Marker",
+            "body": "A white-road marker rises where the storm should have erased every trail. The pilgrim's sign points through the safest break in the gale.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": ["frostmarch"],
+            "story": { "storyId": "whiteout_pilgrim", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "whiteout_guidance" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_guidance",
+                  "label": "Follow the safe line",
+                  "cost": 0,
+                  "outcome": { "kind": "grantMapInfo", "bandsAhead": 2 },
+                  "mutations": [{ "op": "completeStory", "storyId": "whiteout_pilgrim" }]
+                },
+                {
+                  "id": "take_ward",
+                  "label": "Claim the cached ward",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["shield", "guard", "ward"] }] },
+                  "mutations": [{ "op": "completeStory", "storyId": "whiteout_pilgrim" }]
+                },
+                {
+                  "id": "walk_unaided",
+                  "label": "Walk unaided",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "whiteout_pilgrim" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,34 +1,35 @@
 import Phaser from 'phaser';
-import { shopCatalog } from '../../data/shopTypes';
-import { shopMapFooter } from '../ui/shopMapFooter';
-import { eventThemeBlurb } from '../ui/eventThemeBlurb';
+import { RunDestinationHost } from '../ui/RunDestinationHost';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
-import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { affixMapFooter } from '../ui/affixPresentation';
-import { auditTextBlock } from '../ui/controlLayoutAudit';
+import { renderRunTravelChoiceCard, runTravelChoiceCardsLayout } from '../ui/RunTravelChoiceCard';
+import { bossArrivalViewModel } from '../ui/RunBossArrivalPanel';
+import { buildRunTravelChoiceViewModel, type RunTravelChoiceViewModel } from '../ui/runTravelChoiceViewModel';
+import { runBossCountdownModel } from '../ui/statRunModel';
+import { runCalendar } from '../../run/runCalendar';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { bandBannerForWave, bandBannerHeight, type BandBannerViewModel } from '../ui/bandBannerViewModel';
+import { mapIntelLayoutModel, renderDesktopMapIntelRail, renderEmbeddedBandRead, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
+import { addBrightRunArt, addRunArt, RUN_ART_KEYS } from '../ui/runArt';
+import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRunBossCountdownPanel, renderRunStatsFlankPanel, renderRunStatsGrid, runStatsPairs } from '../ui/RunStatsPanel';
+import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
   clearRun,
+  currentMapIntel,
+  currentEncounter,
   currentNode,
-  encounterHintDetail,
-  FIGHT_TIER_LABEL,
   getActiveRun,
   pickNode,
   previewEncounter,
+  previewRunEvent,
   retireActiveRun,
-  WAVE_COUNT,
   type RunNode,
-  type RunNodeKind,
 } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
 
@@ -36,51 +37,34 @@ const F = DESKTOP_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
 const TEMPLATE = runScreenLayoutRef('desktop');
-
-const GX = DESKTOP_PROFILE.safe.x;
-const CONTENT_TOP = TEMPLATE.regions.content.y;
-
 /** The HUD's stat strip before a run exists (the "START A NEW RUN" state) —
  * all zeroes, no banked-PL/RETIRE actions to show. */
 const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
 
-/** Steel-blue / gold-bronze / green / red — all already in the shared UI
- * palette, kept distinct per node kind across every rendering of the map. */
-const KIND_COLOR: Record<RunNodeKind, number> = {
-  fight: 0x4a7ab5,
-  event: UI.chip,
-  shop: UI.good,
-  boss: UI.bad,
-};
-const KIND_LABEL: Record<RunNodeKind, string> = {
-  fight: 'FIGHT',
-  event: 'EVENT',
-  shop: 'SHOP',
-  boss: 'BOSS',
-};
-
 /**
- * Desktop Run Map — the Run Mode node-choice screen: a horizontal trail of
- * depth columns (thin "cleared"/"undiscovered" pips either side of a wide
- * column holding the 2-3 pickable next-node panels), a header with depth/
- * gold/hero LV/win-loss, and a START RUN panel when no run is active yet.
+ * Desktop Run Map — current region and earned intel beside a wide expedition
+ * planner, with route/day progress above its destination cards.
  * A pure playback/selection surface over `src/game/runStore` — no combat or
  * map-generation logic lives here. Reachable at ?scene=desktop-runmap.
  */
 export class DesktopRunMapScene extends Phaser.Scene {
+  private readonly destination = new RunDestinationHost(this, () => this.rerender());
   private statPanelOpen = false;
   private retireConfirmOpen = false;
-  /** The band banner's "READ THE BAND ›" overlay — the full forecast card. */
+  private statsOverlayOpen = false;
+  /** EXPLORE REGION replaces the planner's cards with the current-band read. */
   private bandReadOpen = false;
-  /** The band model this render drew, kept so the overlay shows the SAME read
-   * the banner summarised (one forecast per render, never a second roll). */
+  /** The band model this render drew, kept so the embedded panel shows the
+   * SAME read as the region pane (one forecast per render, never a second roll). */
   private band: BandBannerViewModel | null = null;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
+    this.destination.reset();
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
+    this.statsOverlayOpen = false;
     this.bandReadOpen = false;
     this.band = null;
   }
@@ -88,10 +72,14 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private rerender(): void { rebuildScene(this); }
 
   create(): void {
+    this.destination.hide();
     this.cameras.main.setBackgroundColor(UI.bg);
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg).setOrigin(0, 0);
-    addRunArt(this, RUN_ART_KEYS.runMap, { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height }, 0.2);
-    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg, 0.58).setOrigin(0, 0);
+    // Two broad ambient masses keep the page luminous without adding texture;
+    // the detailed map painting stays subordinate to the route itself.
+    this.add.ellipse(SCREEN.width * 0.16, SCREEN.height * 0.2, SCREEN.width * 0.82, SCREEN.height * 0.74, UI.bgBlobA, BRIGHT_ART_TREATMENT.map.ambienceAlpha);
+    this.add.ellipse(SCREEN.width * 0.88, SCREEN.height * 0.82, SCREEN.width * 0.66, SCREEN.height * 0.64, UI.bgBlobB, BRIGHT_ART_TREATMENT.map.ambienceAlpha * 0.72);
+    addBrightRunArt(this, RUN_ART_KEYS.runMap, { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height }, BRIGHT_ART_TREATMENT.map);
 
     const run = getActiveRun();
     if (!run) {
@@ -123,14 +111,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // UNDER another. Skipping the trail while a modal owns the screen is the
     // honest fix: nothing is drawn that could never be seen. (Mirrors
     // MobileRunMapScene's identical guard.)
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.bandReadOpen;
-    // The banner is what normally composes `this.band` (a class field, which
-    // `rebuildScene` deliberately preserves), but the trail is skipped while a
-    // modal owns the screen — so the read is composed straight from the run
-    // instead. Without this, an overlay opened on a rebuild that skipped the
-    // trail would render nothing behind its scrim.
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen;
     if (!modalOpen) this.renderTrail(run);
-    else if (this.bandReadOpen) this.band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: false,
@@ -139,10 +121,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onChanged: () => this.rerender(),
       });
     }
-    if (this.bandReadOpen && this.band) {
-      renderBandReadOverlay(this, this.band, {
+    if (this.statsOverlayOpen) {
+      renderRunStatsOverlay(this, {
         compact: false,
-        onClose: () => { this.bandReadOpen = false; this.rerender(); },
+        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
       });
     }
     if (this.retireConfirmOpen) {
@@ -170,7 +152,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
       snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
       onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
       actions: run ? {
-        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        back: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        secondary: { label: 'RUN LEDGER', onPress: () => { this.statsOverlayOpen = true; this.rerender(); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
     });
@@ -179,224 +162,150 @@ export class DesktopRunMapScene extends Phaser.Scene {
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const area = SCREEN.width - GX * 2;
-    const bottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
-    const route = snapshotRunRoute(run);
-    // The route board owns the FULL-WIDTH band BELOW the choices/flank row —
-    // it used to span the whole content region, which put its trail line and
-    // pips underneath the flank panels (user report: ledger/milestone covered
-    // the map progress). Now nothing overlaps it.
+    const content = TEMPLATE.regions.content;
     const slot = TEMPLATE.contentSlots.choices;
-    const laneTop = slot.y + slot.height + 16;
-    const laneH = bottom - laneTop;
-    // THE BAND BANNER shares the route lane with the trail: the trail says
-    // where you are, the banner says what you are IN (name, lean, wave range,
-    // the boss it promises and what counters boss and mobs — each claim naming
-    // its own subject). Before this the band was dealt, staffed the fights and
-    // ended in its boss with nothing on screen ever mentioning it, which is the
-    // feature not existing (docs/biome-paths-proposal.md §0).
+    const leftW = slot.x - content.x - 24;
+    const plannerW = content.x + content.width - slot.x;
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
-    const bannerW = Math.min(360, Math.round(area * 0.28));
-    const bannerH = Math.min(bandBannerHeight(band, 'desktop'), laneH);
-    renderRunBandBanner(this, { x: GX, y: laneTop, w: bannerW, h: bannerH }, band, {
-      mode: 'desktop',
-      onOpenRead: () => { this.bandReadOpen = true; this.rerender(); },
-    });
-    const trailX = GX + bannerW + 16;
-    renderRunRouteBoard(this, { x: trailX, y: laneTop, w: area - bannerW - 16, h: laneH }, route, { mode: 'desktop' });
 
-    // FIXED position from the template — the choices used to be centred on the
-    // player's current depth, so they slid across the screen as the run
-    // advanced and had to be re-found every stop. The route board below still
-    // shows where you are; the thing you CLICK never moves.
-    this.renderFlanks(run, slot);
-    if (route.columns.length === 0) return;
-    this.renderChoiceColumn(slot.x, slot.y, slot.width, slot.height);
+    const bottom = content.y + content.height;
+    const records = currentMapIntel();
+    const intel = mapIntelLayoutModel(records, { width: SCREEN.width, height: SCREEN.height });
+    const regionH = records.length > 0 ? intel.rail.y - slot.y - 16 : bottom - slot.y;
+    this.renderRegionPane(content.x, slot.y, leftW, regionH, band, snapshotRunProgress(run).wave, records.length);
+    // Earned snapshots retain their existing rail geometry below the pane.
+    // Its empty state is now the approved footer's NO DISCOVERIES YET.
+    if (records.length > 0) {
+      const dx = content.x - intel.rail.x;
+      const dw = leftW - intel.rail.width;
+      const relocate = (rect: typeof intel.rail) => ({ ...rect, x: rect.x + dx, width: rect.width + dw });
+      renderDesktopMapIntelRail(this, {
+        ...intel, rail: relocate(intel.rail), heading: relocate(intel.heading),
+        cards: intel.cards.map((card) => ({ ...card, rect: relocate(card.rect) })),
+      });
+    }
+
+    this.add.rectangle(slot.x, slot.y, plannerW, bottom - slot.y, UI.panel, 0.94).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.75);
+    const routeTop = slot.y + 12;
+    const routeH = 82;
+    renderRunRouteBoard(this, { x: slot.x + 16, y: routeTop, w: plannerW - 32, h: routeH }, snapshotRunRoute(run), {
+      mode: 'desktop', regionName: band.name,
+    });
+    const choicesTop = routeTop + routeH + 12;
+    this.renderChoiceColumn(slot.x + 16, choicesTop, plannerW - 32, bottom - 16 - choicesTop);
   }
 
-  /**
-   * Density pass (2026-08-04, live user feedback: "a lot of dead space ...
-   * stats is in a bad location"): the flanks either side of the FIXED choices
-   * column used to sit empty (just the thin route trail passing behind
-   * them). Desktop now gives the run ledger a PERMANENT home in the right
-   * flank — no tap required, unlike the floating "STATS" corner tag it
-   * replaces — and a next-boss-milestone countdown in the left flank, so
-   * both margins carry real, always-visible content and the three columns
-   * (countdown | choices | ledger) read as one balanced row.
-   */
-  private renderFlanks(
-    run: NonNullable<ReturnType<typeof getActiveRun>>,
-    choicesSlot: { x: number; y: number; width: number; height: number },
-  ): void {
-    const gap = 24;
-    const content = TEMPLATE.regions.content;
-    const contentRight = content.x + content.width;
-    const leftWidth = choicesSlot.x - GX - gap;
-    const rightX = choicesSlot.x + choicesSlot.width + gap;
-    const rightWidth = contentRight - rightX;
-    // Flanks match the choices column's height exactly — the band below the
-    // whole row belongs to the route board (full-width map progress), which
-    // these panels covered when they stretched to the content floor.
-    const flankHeight = choicesSlot.height;
+  /** The approved region pane leads with the real biome painting. The lower
+   * summary is deliberately short; EXPLORE REGION still owns the full read. */
+  private renderRegionPane(x: number, y: number, w: number, h: number, band: BandBannerViewModel, wave: number, intelCount: number): void {
+    const footerH = 64;
+    const artH = h - footerH;
+    const footerY = y + artH;
+    this.add.rectangle(x, y, w, h, UI.panel, 0.98).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.7);
+    addRunArt(this, band.artKey, { x: x + 1, y: y + 1, width: w - 2, height: artH - 1 });
+    const scrimH = Math.min(260, artH - 1);
+    const scrim = this.add.graphics();
+    scrim.fillGradientStyle(UI.panelMuted, UI.panelMuted, UI.panelMuted, UI.panelMuted, 0, 0, 0.96, 0.96);
+    scrim.fillRect(x + 1, footerY - scrimH, w - 2, scrimH);
 
-    if (leftWidth > 40) {
-      const snapshot = snapshotRunProgress(run);
-      const bossEvery = WAVE_COUNT;
-      const wavesRemaining = (bossEvery - (snapshot.wave % bossEvery)) % bossEvery;
-      renderRunBossCountdownPanel(
-        this,
-        { x: GX, y: choicesSlot.y, width: leftWidth, height: flankHeight },
-        { wavesRemaining, bossWave: snapshot.wave + wavesRemaining },
-        run.bossesCleared,
-      );
+    const copyX = x + 18;
+    const copyW = w - 36;
+    const copyY = footerY - 168;
+    const outline = (text: Phaser.GameObjects.Text): Phaser.GameObjects.Text => text
+      .setStroke(BRIGHT_ART_TREATMENT.biome.textStroke, BRIGHT_ART_TREATMENT.biome.textStrokeThickness);
+    const name = outline(this.add.text(copyX, copyY, band.name, textRole('title')));
+    auditTextBlock(name, { name: 'Desktop region identity', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
+    const facts = outline(this.add.text(copyX, copyY + 48, `${band.leanChip} · ${band.waveRange}`, textRole('kicker')));
+    auditTextBlock(facts, { name: 'Desktop region lean and days', maxWidth: copyW, maxHeight: 22, minFontSize: 9 });
+    const destination = outline(this.add.text(copyX, copyY + 78, `DESTINATION · ${band.boss.headline}`, {
+      ...textRole('label', { ink: 'secondary' }), wordWrap: { width: copyW },
+    }));
+    auditTextBlock(destination, { name: 'Desktop region destination', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
+    const countdown = runBossCountdownModel(wave);
+    const countdownText = outline(this.add.text(copyX, copyY + 132, countdown.headline,
+      textRole('kicker', { ink: countdown.bossNow ? 'alarm' : 'resource' })));
+    auditTextBlock(countdownText, { name: 'Desktop region boss countdown', maxWidth: copyW, maxHeight: 22, minFontSize: 9 });
+
+    this.add.rectangle(x + 1, footerY, w - 2, footerH - 1, UI.panelMuted, 0.98).setOrigin(0, 0);
+    const buttonW = Math.min(220, w * 0.52);
+    const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.chip, 0.75);
+    const label = this.add.text(x + 16 + buttonW / 2, footerY + 32,
+      this.bandReadOpen ? 'REGION OPEN' : 'EXPLORE REGION ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+    auditControlLabel(button, label, { name: 'Desktop explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    if (!this.bandReadOpen) {
+      button.setInteractive({ useHandCursor: true });
+      attachButtonFeel(this, button, {
+        fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
+        onPress: () => { this.destination.close(false); this.bandReadOpen = true; this.rerender(); },
+      });
     }
-    if (rightWidth > 40) {
-      renderRunStatsFlankPanel(this, { x: rightX, y: choicesSlot.y, width: rightWidth, height: flankHeight }, run);
-    }
+    const status = this.add.text(x + w - 16, footerY + 32, intelCount > 0 ? `MAP INTEL · ${intelCount}` : 'NO DISCOVERIES YET',
+      textRole('micro', { ink: 'secondary' })).setOrigin(1, 0.5);
+    auditTextBlock(status, { name: 'Desktop region discovery status', maxWidth: w - buttonW - 44, maxHeight: 24, minFontSize: 9 });
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {
-    // A committed-but-unresolved stop (the player detoured via DECK/BAG,
-    // whose back button lands on the MAP) must offer the way BACK IN —
-    // choices() is deliberately empty while a node is being resolved, so
-    // without this panel the run dead-ends here.
     const pending = currentNode();
-    if (pending) {
-      const heading = this.add.text(x + w / 2, top, 'STOP IN PROGRESS', {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-      }).setOrigin(0.5, 0);
-      auditTextBlock(heading, { name: 'Desktop run map stop-in-progress heading', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-      // ASK the panel how tall it needs to be (the hand-picked 94 this
-      // replaced was under the stack's real height on desktop, and the panel
-      // reserves a bottom row for its SELECT affordance whether or not the
-      // model carries a footer — see `runChoicePanelMinHeight`).
-      renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: runChoicePanelMinHeight(F) }, {
-        nodeId: pending.id,
-        kind: pending.kind,
-        title: `RETURN TO ${KIND_LABEL[pending.kind]}`,
-        detail: 'Resume where you left off.',
-        image: pending.kind === 'shop'
-          ? { textureKey: shopArtKey(pending.shopId ?? '') }
-          : pending.kind === 'event'
-            ? { textureKey: eventArtKey(pending.eventTheme ?? 'training') }
-            : pending.kind === 'boss'
-              ? { textureKey: RUN_ART_KEYS.icon.bossSkull }
-              : undefined,
-        accent: KIND_COLOR[pending.kind],
-        enabled: true,
-      }, {
-        font: F,
-        onSelect: () => {
-          const sceneName = pending.kind === 'shop' ? 'DesktopShop' : pending.kind === 'event' ? 'DesktopRunEvent' : 'DesktopRunPrep';
-          this.scene.start(sceneName);
-        },
+    const options = this.destination.choices(pending ? [pending] : choices());
+    const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
+    const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
+    const planner = this.add.text(x, top, 'CHOOSE YOUR NEXT STOP', textRole('section'));
+    auditTextBlock(planner, { name: 'Desktop run map choice planner', maxWidth: w - 160, maxHeight: 30, minFontSize: 9 });
+    const status = this.bandReadOpen ? 'REGION VIEW' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+      : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
+        : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
+    const statusText = this.add.text(x + w, top + 4, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
+    auditTextBlock(statusText, { name: 'Desktop route choice count', maxWidth: 148, maxHeight: 20, minFontSize: 9 });
+    if (this.bandReadOpen && this.band) {
+      renderEmbeddedBandRead(this, { x, y: top + 38, w, h: availableH - 38 }, this.band, {
+        mode: 'desktop', onBack: () => { this.bandReadOpen = false; this.rerender(); },
       });
       return;
     }
-    const options = choices();
-    if (options.length === 0) {
-      this.add.text(x + w / 2, top + 20, '···', {
-        fontFamily: FONT.body, fontSize: `${F.label}px`, color: UI.textSoft,
-      }).setOrigin(0.5, 0);
+    if (this.destination.render({ x, y: top + 38, width: w, height: availableH - 38 })) return;
+    if (boss && arrival) {
+      this.destination.renderBoss({ x, y: top + 38, width: w, height: availableH - 38 }, arrival, false, () => {
+        if (!currentNode()) pickNode(boss.id);
+        this.scene.start('DesktopRunPrep');
+      });
       return;
     }
-    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5, 0);
-    auditTextBlock(planner, { name: 'Desktop run map choice planner', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-    top += F.tiny + 8;
-    availableH -= F.tiny + 8;
-    if (options.length === 1) {
-      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
-      }).setOrigin(0.5, 0);
-      auditTextBlock(mandatory, { name: 'Desktop run map mandatory label', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-      top += F.tiny + 6;
-      availableH -= F.tiny + 6;
+    const models = options.map((node) => ({ ...this.choiceViewModel(node), enabled: !pending || node.id === pending.id }));
+    if (models.length > 0 && models.every((model) => model.dossier)) {
+      this.destination.renderEncounters({ x, y: top + 38, width: w, height: availableH - 38 }, models, false, pending?.id, (nodeId) => {
+        if (!pending) pickNode(nodeId);
+        this.scene.start('DesktopRunPrep');
+      });
+      return;
     }
-    const gap = 12;
-    // Density pass: compact content-fit rows (name + one hint line) instead of
-    // stretching to a big mostly-empty box — cap at 92 (was 170). The 92 is a
-    // CEILING on wasted space, never a licence to squeeze below what the stack
-    // needs: shop rows carry a footer, and under the floor the detail line
-    // silently ellipsizes rather than overflowing (see `runChoicePanelMinHeight`).
-    const panelH = Math.max(
-      runChoicePanelMinHeight(F),
-      Math.min(92, (availableH - gap * (options.length - 1)) / options.length),
+    const layout = runTravelChoiceCardsLayout(
+      { x, y: top + 38, width: w, height: availableH - 38 }, models,
+      { compact: false, pending: pending !== undefined },
     );
-    let y = top;
-    for (const node of options) {
-      renderRunChoicePanel(this, { x, y, w, h: panelH }, this.choiceViewModel(node), {
-        font: F,
+    options.forEach((node, index) => {
+      renderRunTravelChoiceCard(this, layout.cards[index]!, models[index]!, {
+        compact: false,
+        pending: pending?.id === node.id,
+        appearIndex: index,
         onSelect: () => {
-          pickNode(node.id);
-          const sceneName = node.kind === 'shop' ? 'DesktopShop' : node.kind === 'event' ? 'DesktopRunEvent' : 'DesktopRunPrep';
-          this.scene.start(sceneName);
+          if (!pending) pickNode(node.id);
+          if (node.kind === 'boss') { this.rerender(); return; }
+          if (node.kind === 'event' || node.kind === 'shop') {
+            this.destination.open(node.kind === 'event' ? 'DesktopRunEvent' : 'DesktopShop', node.id, options);
+            return;
+          }
+          this.scene.start('DesktopRunPrep');
         },
       });
-      y += panelH + gap;
-    }
+    });
   }
 
-  private choiceViewModel(node: RunNode): RunChoiceViewModel {
-    const shop = node.kind === 'shop' && node.shopId ? shopCatalog[node.shopId] : undefined;
-    // Event themes are assigned at map-gen (not by rolling the event), so a
-    // choice can advertise what it offers without consuming the event bag.
-    // Fight nodes (three-tier fight choices, USER-DIRECTED 2026-08-04) slot
-    // their EASY/MEDIUM/HARD risk tier into this SAME "KIND · SUFFIX" title
-    // grammar — a fight node never has a shop/event theme, so the two never
-    // collide. Boss nodes have no `fightOption`, so their title stays plain.
-    const themeSuffix = shop
-      ? shop.name.toUpperCase()
-      : node.kind === 'fight' && node.fightOption
-        ? FIGHT_TIER_LABEL[node.fightOption]
-        : node.eventTheme?.toUpperCase();
-    const titleLabel = themeSuffix ? `${KIND_LABEL[node.kind]} · ${themeSuffix}` : KIND_LABEL[node.kind];
-
-    if (node.kind === 'shop') {
-      return {
-        nodeId: node.id,
-        kind: node.kind,
-        title: titleLabel,
-        detail: shop?.tagline ?? '',
-        footer: shop && node.shopId ? shopMapFooter(node.shopId) : undefined,
-        image: { textureKey: shopArtKey(node.shopId ?? '') },
-        accent: KIND_COLOR[node.kind],
-        enabled: true,
-      };
-    }
-
-    if (node.kind === 'fight' || node.kind === 'boss') {
-      const pack = previewEncounter(node);
-      return {
-        nodeId: node.id,
-        kind: node.kind,
-        title: titleLabel,
-        detail: pack ? encounterHintDetail(pack, node.kind === 'fight' ? node.fightOption : undefined) : '',
-        // THE ELITE AFFIX, ON THE SCREEN WHERE THE CHOICE IS MADE. The chip
-        // shipped on RunPrep, one screen too late — the easy/medium/hard pick
-        // happens HERE. `affixMapFooter` reads `pack.units[0].affix` off the
-        // preview this panel already rolled, so it names exactly what prep and
-        // the fight will, spends no extra roll, and spreads to NOTHING for a
-        // normal fight, a boss or a pack (see its note for the gate, and for
-        // why a column's three rungs may legitimately differ).
-        ...affixMapFooter(pack),
-        image: node.kind === 'boss' ? { textureKey: RUN_ART_KEYS.icon.bossSkull } : undefined,
-        accent: KIND_COLOR[node.kind],
-        enabled: true,
-      };
-    }
-
-    return {
-      nodeId: node.id,
-      kind: node.kind,
-      title: titleLabel,
-      detail: eventThemeBlurb(node.eventTheme),
-      image: { textureKey: eventArtKey(node.eventTheme ?? 'training') },
-      accent: KIND_COLOR[node.kind],
-      enabled: true,
-    };
+  private choiceViewModel(node: RunNode): RunTravelChoiceViewModel {
+    const run = getActiveRun()!;
+    return buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
   }
 
   // ---------- defeat / retired end-summary banner ----------
@@ -413,7 +322,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // line's old `F.big * 1.6` expression (see layoutProfile.ts#font.display).
     this.add.text(cx, 56, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, 128, `DAYS SURVIVED ${run.depth}`, textRole('statValue', { ink: 'accent' })).setOrigin(0.5, 0);
+    this.add.text(cx, 128, `DAY REACHED ${runCalendar(run).absoluteDay}`, textRole('statValue', { ink: 'accent' })).setOrigin(0.5, 0);
     this.add.text(cx, 156, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     }).setOrigin(0.5, 0);

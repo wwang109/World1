@@ -25,7 +25,7 @@ const book: SkillBook = {
   jab: {
     id: 'jab', name: 'Jab', archetypes: ['offense'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword',
-    effects: [{ kind: 'damage', power: 5 }], text: 'Deal 5 (+ATK) Sword damage.',
+    effects: [{ kind: 'damage', power: 5 }],
   },
   bramble: {
     id: 'bramble', name: 'Bramble', archetypes: ['defensive'], property: 'physical', size: 1,
@@ -33,35 +33,35 @@ const book: SkillBook = {
     // cooldown 99: cast ONCE, so each scenario tests a single pile rather than
     // the rotation re-applying thorns every 4th turn.
     cooldownTurns: 99,
-    effects: [{ kind: 'thorns', stacks: 3 }], text: '{{Thorns}} 3.',
+    effects: [{ kind: 'thorns', stacks: 3 }],
   },
   brambleQuick: {
     id: 'brambleQuick', name: 'Bramble Quick', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword',
     cooldownTurns: 0, // recasts every rotation — exercises the merge rule
-    effects: [{ kind: 'thorns', stacks: 3 }], text: '{{Thorns}} 3.',
+    effects: [{ kind: 'thorns', stacks: 3 }],
   },
   sweep: {
     id: 'sweep', name: 'Sweep', archetypes: ['offense'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', scope: 'all',
-    effects: [{ kind: 'damage', power: 5 }], text: 'Deal 5 (+ATK) Sword damage to all foes.',
+    effects: [{ kind: 'damage', power: 5 }],
   },
   venom: {
     id: 'venom', name: 'Venom', archetypes: ['debuff'], property: 'magical', size: 1,
     rarity: 'common', tier: 'bronze', element: 'nature',
-    effects: [{ kind: 'poison', stacks: 3 }], text: '{{Poison}} 3.',
+    effects: [{ kind: 'poison', stacks: 3 }],
   },
   // Self negate, ONE physical charge — cancels exactly the first `jab`.
   silence: {
     id: 'silence', name: 'Silence', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'negate', property: 'physical', charges: 1 }], text: '{{Negate}} 1 physical.',
+    effects: [{ kind: 'negate', property: 'physical', charges: 1 }],
   },
   // Self shield big enough to fully absorb a jab — the contrast case for negate.
   plate: {
     id: 'plate', name: 'Plate', archetypes: ['defensive'], property: 'true', size: 1,
     rarity: 'common', tier: 'bronze', cooldownTurns: 99,
-    effects: [{ kind: 'shield', power: 50 }], text: 'Gain 50 TRUE shield.',
+    effects: [{ kind: 'shield', power: 50 }],
   },
   // --- the PHYSICAL-reflect fixtures (2026-08-21) ---
   // A big pile, cast once: 10/9/8… gives armor and guard something to bite that
@@ -69,25 +69,25 @@ const book: SkillBook = {
   thicket: {
     id: 'thicket', name: 'Thicket', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'thorns', stacks: 10 }], text: '{{Thorns}} 10.',
+    effects: [{ kind: 'thorns', stacks: 10 }],
   },
   // Self PHYSICAL guard, 50%, long window — the attacker-side answer to a sting.
   bulwark: {
     id: 'bulwark', name: 'Bulwark', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'guard', property: 'physical', pct: 50, turns: 9 }], text: '{{Guard}} 50% physical.',
+    effects: [{ kind: 'guard', property: 'physical', pct: 50, turns: 9 }],
   },
   // Self PHYSICAL shield pool, big enough to eat a whole sting.
   platePhys: {
     id: 'platePhys', name: 'Plate (Physical)', archetypes: ['defensive'], property: 'physical', size: 1,
     rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'shield', power: 40 }], text: 'Gain 40 physical shield.',
+    effects: [{ kind: 'shield', power: 40 }],
   },
   // Self TRUE shield pool of exactly 5 — the 2:1 spill discriminator.
   plateTrue5: {
     id: 'plateTrue5', name: 'Plate (True 5)', archetypes: ['defensive'], property: 'true', size: 1,
     rarity: 'common', tier: 'bronze', cooldownTurns: 99,
-    effects: [{ kind: 'shield', power: 5 }], text: 'Gain 5 TRUE shield.',
+    effects: [{ kind: 'shield', power: 5 }],
   },
 } satisfies Record<string, SkillDef>;
 

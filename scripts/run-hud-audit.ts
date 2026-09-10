@@ -7,7 +7,7 @@
  *      both viewports, collecting the world bounds of every Text the browser
  *      actually PAINTS (see MASKS below), and flags: (a) any text extending outside the canvas, (b) any two
  *      texts overlapping by more than a small tolerance, (c) required HUD
- *      strings (DAY/WAVE/GOLD/LV/LIVES/BOSSES) missing from the stats
+ *      strings (STOP N/DAY N/5/GOLD/LV/LIVES/BOSSES) missing from the stats
  *      region.
  *   2. Drives an actual playthrough (Map -> Draft -> Map -> a node -> Deck
  *      Build -> RETIRE -> end summary) against the scene graph (no hardcoded
@@ -143,8 +143,8 @@ function overlaps(a: TextBound, b: TextBound): number {
  * Reconstructs the HUD stats line(s) that `RunProgressStrip.ts` draws as
  * SEQUENTIAL sibling Text objects (label, value, separator — each its own
  * node, sharing one color per segment) rather than one string. A regex like
- * `DAY \d` will never match any SINGLE object's `.text` under that scheme —
- * "DAY " and "0" are two different nodes — so naively testing each text node
+ * `STOP \d` will never match any SINGLE object's `.text` under that scheme —
+ * "STOP " and "0" are two different nodes — so naively testing each text node
  * in isolation flags every required stat "missing" even when the HUD is
  * rendering them correctly. So the segments are grouped back into rows and
  * concatenated left-to-right by `x`, which reconstructs the line the audit
@@ -278,7 +278,7 @@ interface CalibrationProbe { text: string; rawOverlapPx: number }
 
 async function calibrateCollector(page: Page, platform: Platform): Promise<void> {
   const step = `${platform} collector calibration`;
-  const anchorLabel = platform === 'desktop' ? 'DECK / BAG' : 'DECK/BAG';
+  const anchorLabel = 'DECK/BAG';
   const before = await collectTexts(page);
   const anchor = before.find((t) => t.text === anchorLabel);
   if (!anchor) {
@@ -697,8 +697,8 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // "GOLD 137" on desktop and "G 137" on mobile. The label/figure PAIRING is
   // what this check is about, not how many spaces sit between the two halves.
   const REQUIRED_STATS = desktop
-    ? ['DAY\\s*\\d', 'WAVE\\s*\\d', 'GOLD\\s*\\d', 'LV\\s*\\d', 'LIVES\\s*\\d', 'BOSSES\\s*\\d']
-    : ['D\\s*\\d', 'W\\s*\\d', 'G\\s*\\d', 'LV\\s*\\d', '♥\\s*\\d', 'B\\s*\\d'];
+    ? ['\\bSTOP\\s*\\d+\\b', '\\bDAY\\s*[1-5]/5\\b', 'GOLD\\s*\\d', 'LV\\s*\\d', 'LIVES\\s*\\d', 'BOSSES\\s*\\d']
+    : ['\\bSTOP\\s*\\d+\\b', '\\bDAY\\s*[1-5]/5\\b', 'G\\s*\\d', 'LV\\s*\\d', '♥\\s*\\d', 'B\\s*\\d'];
 
   const DRAFT_SCENE = desktop ? 'DesktopDraft' : 'MobileDraft';
   const MAP_SCENE_KEY = desktop ? 'DesktopRunMap' : 'MobileRunMap';
@@ -811,22 +811,19 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   await auditScreen(page, 'map-active', platform, REQUIRED_STATS.filter(Boolean));
 
   // ---- 4. Pick the first available node -> Prep / Shop / Event ----
-  // Match rule: exactly the kind label, or the kind label followed by the
-  // "KIND · SUFFIX" theme grammar (`DesktopRunMapScene.choiceViewModel`) — NOT
-  // a bare `startsWith('BOSS')`. The run HUD's own stats strip prints a
-  // "BOSSES " label (`RunProgressStrip.ts`) on EVERY run screen including
-  // this one; `'BOSSES '.startsWith('BOSS')` is true, so a naive prefix match
-  // silently "picks" that stat label instead of a real node — no thrown
-  // error, just a click on a non-interactive text that changes nothing.
-  const NODE_KINDS = ['FIGHT', 'SHOP', 'EVENT', 'BOSS'];
+  // Travel-card eyebrows/titles are not interactive. Exact action-label
+  // centres lie inside the renderer's interactive bottom rectangles.
+  // Boss CONTINUE first opens arrival in the same map scene; the retry then
+  // clicks FACE THE BOSS › before the unchanged scene-change postcondition holds.
+  const NODE_ACTIONS = ['CHOOSE EVENT ›', 'TRAVEL HERE ›', 'VISIT SHOP ›', 'INSPECT ENCOUNTER ›', 'CONTINUE ›', 'FACE THE BOSS ›'];
   let picked: string | null = null;
   await clickUntil(
     page, platform, 'map-active -> pick a node',
     async (attempt) => {
       picked = await clickMatchingText(
         page, platform, `map-active -> pick a node (attempt ${attempt})`,
-        (t) => NODE_KINDS.some((k) => t === k || t.startsWith(`${k} ·`)),
-        'a node title (KIND or KIND · SUFFIX)',
+        (t) => NODE_ACTIONS.includes(t),
+        'an interactive travel-card action or FACE THE BOSS ›',
       );
     },
     async () => (await activeSceneKey(page)) !== MAP_SCENE_KEY,

@@ -1,4 +1,5 @@
 ﻿import Phaser from 'phaser';
+import { renderSkillText } from '../../engine/keywords/compose';
 import { playSfx } from '../audio/sfxSynth';
 import { powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
@@ -6,17 +7,20 @@ import { cardOfferableAtTier, minOfferableTier } from '../../engine/types';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import { gemCatalogOrder } from '../ui/gemGlossary';
+import { gemCatalogOrder, gemDefinitionsText } from '../ui/gemPresentation';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { renderCardInfoBox } from '../ui/cardInfoBox';
+import type { CardInfoBoxHandle } from '../ui/cardInfoBox';
 import { captionCell, captionCellHeight, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { currentRunGemInventory, isRunInProgress } from '../runStore';
+import { renderGemText } from '../../engine/keywords/gemText';
 
 const F = DESKTOP_PROFILE.font;
 const SLOTS = 10;
@@ -80,6 +84,7 @@ export class DesktopWikiScene extends Phaser.Scene {
   private galleryGrid = { cardW: 0, cardH: 0, rowStride: 0, left: 0, gapX: 0 };
   private gemObjects: Phaser.GameObjects.GameObject[] = [];
   private detailObjects: Phaser.GameObjects.GameObject[] = [];
+  private detailInfoBox?: CardInfoBoxHandle;
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
   private galleryMask?: Phaser.GameObjects.Graphics;
   /** The ONE viewport clip every gallery cell shares (built per render). */
@@ -113,6 +118,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.gallerySkills = [];
     this.gemObjects = [];
     this.detailObjects = [];
+    this.detailInfoBox = undefined;
     this.toastObjects = [];
     this.galleryMask = undefined;
     this.galleryClip = undefined;
@@ -150,6 +156,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.gallerySkills = [];
     this.gemObjects = [];
     this.detailObjects = [];
+    this.detailInfoBox = undefined;
     this.toastObjects = [];
     this.galleryMask = undefined;
     this.galleryClip = undefined;
@@ -245,7 +252,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         this.tier = this.defaultTierFor(this.selected);
         this.renderFilterRow();
         this.renderGallery();
-        this.clearObjects(this.detailObjects);
+        this.clearDetailObjects();
         this.renderDetail();
       });
       this.filterObjects.push(chip, text);
@@ -507,7 +514,7 @@ export class DesktopWikiScene extends Phaser.Scene {
   private selectCard(skill: SkillDef): void {
     this.selected = skill;
     this.tier = this.defaultTierFor(skill);
-    this.clearObjects(this.detailObjects);
+    this.clearDetailObjects();
     this.renderDetail();
   }
 
@@ -582,7 +589,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         chip.on('pointerdown', () => {
           playSfx('uiClick');
           this.tier = t;
-          this.clearObjects(this.detailObjects);
+          this.clearDetailObjects();
           this.renderDetail();
         });
       }
@@ -590,13 +597,22 @@ export class DesktopWikiScene extends Phaser.Scene {
     });
     y += 26 + 10;
 
-    const text = this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
-      fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.textSoft,
-      align: 'center', wordWrap: { width: paneWidth - 32 }, lineSpacing: 4,
-    }).setOrigin(0.5, 0);
-    this.detailObjects.push(text);
-
     const buttonY = bottom - 60;
+    // THE FULL BODY *AND* THE KEYWORD DEFINITIONS, through the SAME
+    // `renderCardInfoBox` -> `cardGlossaryEntries` route DeckBuild, Draft and
+    // Shop already use — one route for both platforms, not a Wiki-specific
+    // one. This used to be a bare `stripCardTextMarkup(renderSkillText(shown))`
+    // block: the markup stripped (which is the only tap/hover cue) and no
+    // glossary anywhere on the scene. The Wiki is the screen a player opens to
+    // LOOK A CARD UP, so once the rule prose left the face it became the one
+    // screen carrying neither the rule nor a route to it.
+    const infoTop = y;
+    const infoH = Math.max(60, buttonY - 26 - infoTop);
+    const infoPlate = this.add.rectangle(centerX - paneWidth / 2 + 16, infoTop, paneWidth - 32, infoH, UI.panelAlt, 0.5)
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    this.detailObjects.push(infoPlate);
+    this.detailInfoBox = renderCardInfoBox(this, centerX - paneWidth / 2 + 16, infoTop, paneWidth - 32, infoH, shown);
+
     const button = this.add.rectangle(centerX, buttonY, 220, 40, UI.chip)
       .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
     this.detailObjects.push(button);
@@ -676,6 +692,12 @@ export class DesktopWikiScene extends Phaser.Scene {
     objects.length = 0;
   }
 
+  private clearDetailObjects(): void {
+    this.detailInfoBox?.destroy();
+    this.detailInfoBox = undefined;
+    this.clearObjects(this.detailObjects);
+  }
+
   // ---------- GEMS view ----------
 
   private static rarityHex(gem: GemDef): string {
@@ -705,7 +727,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         playSfx('uiClick');
         this.selectedGem = gem;
         this.renderGemGallery();
-        this.clearObjects(this.detailObjects);
+        this.clearDetailObjects();
         this.renderGemDetail();
       });
       // rarity diamond + name row
@@ -713,11 +735,11 @@ export class DesktopWikiScene extends Phaser.Scene {
       const name = this.add.text(cx + 38, cy + 14, gem.name, {
         fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
       });
-      const meta = this.add.text(cx + 16, cy + 42, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, {
+      const meta = this.add.text(cx + 16, cy + 42, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT GEM'}`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: DesktopWikiScene.rarityHex(gem),
       });
       // The gem's ACTUAL bonus is the headline information — not its PL price.
-      const body = this.add.text(cx + 16, cy + 62, stripCardTextMarkup(gem.text), {
+      const body = this.add.text(cx + 16, cy + 62, stripCardTextMarkup(renderGemText(gem)), {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text,
         wordWrap: { width: cellW - 32 }, lineSpacing: 3,
       });
@@ -752,14 +774,14 @@ export class DesktopWikiScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     this.detailObjects.push(name);
     y += name.height + 6;
-    const meta = this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, {
+    const meta = this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT GEM'}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: DesktopWikiScene.rarityHex(gem),
     }).setOrigin(0.5, 0);
     this.detailObjects.push(meta);
     y += meta.height + 14;
     // Effect text is the whole story here — rarity is the rank, no PL shown
     // (PL still gates pricing via gemAudit.test.ts; this is display-only).
-    const body = this.add.text(centerX, y, stripCardTextMarkup(gem.text), {
+    const body = this.add.text(centerX, y, stripCardTextMarkup(renderGemText(gem)), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
       align: 'center', wordWrap: { width: paneWidth - 32 }, lineSpacing: 4,
     }).setOrigin(0.5, 0);
@@ -772,6 +794,20 @@ export class DesktopWikiScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
     }).setOrigin(0.5, 0);
     this.detailObjects.push(ownedText);
+    y += ownedText.height + 14;
+    // WHAT ITS KEYWORDS MEAN — the definitions half of the `GEM EFFECT` block
+    // (2026-09-07, review 2). The wiki is where a player comes to LEARN a gem,
+    // and it was one of the three host-less surfaces the per-hit rule could not
+    // reach: `renderCardInfoBox` carries that block for a SOCKETED gem, and
+    // needs a host `SkillDef` this pane does not have. `gemDefinitionsText` is
+    // the same registry entries by the host-less route.
+    const defs = gemDefinitionsText(gem);
+    if (defs !== '') {
+      this.detailObjects.push(this.add.text(paneX + 16, y, defs, {
+        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
+        wordWrap: { width: paneWidth - 32 }, lineSpacing: 2,
+      }).setOrigin(0, 0));
+    }
     this.detailObjects.push(this.add.text(centerX, bottom - 106, 'Socket gems onto deck cards in DECK BUILD\n(click a deck card).', {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textSoft, align: 'center', lineSpacing: 3,
     }).setOrigin(0.5, 0));
@@ -794,10 +830,9 @@ export class DesktopWikiScene extends Phaser.Scene {
     button.on('pointerdown', () => {
       playSfx('uiClick');
       demoState.gemInventory = [...demoState.gemInventory, gem.id];
-      this.clearObjects(this.detailObjects);
+      this.clearDetailObjects();
       this.renderGemDetail();
       this.showToast(`${gem.name} added to pouch`, UI.good);
     });
   }
 }
-

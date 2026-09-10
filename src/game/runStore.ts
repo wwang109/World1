@@ -1,10 +1,32 @@
 import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
+import { isEventDefV3 } from '../data/eventContentV3';
+import { eventDefAtVersion, type LoadedEventDef } from '../data/eventsContent';
 import type { DraftCard, DraftSetKey, StartDraft } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, currentEventResolution as eventResolutionOf, reopenEventChoice, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
+import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, chooseNodeWithEventOpportunities, currentEventResolution as eventResolutionOf, reopenEventChoice, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
+import {
+  correlatedMaterializedChoiceV3,
+  eventOutcomeForPendingOfferV3,
+  finalizeBonusDraftV3,
+  finalizeEventCardChoiceV3,
+  finalizeGemChoiceV3,
+  finalizeMergeCardsV3,
+  finalizeSellGemV3,
+  finalizeTargetedUpgradeV3,
+  finalizeUpgradeCardV3,
+  materializeReachedEventV3,
+  reopenEventChoiceV3,
+  resolveEventChoiceV3,
+  type EventOutcomeV3,
+} from '../run/eventsV3';
+import type { EventDefinitionLookup } from '../run/eventCallbacks';
+import { previewEventForNode } from '../run/eventPreview';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
+import { mapIntelRecords } from '../run/eventMapInfo';
+import { biomeFor } from '../run/biome';
+import { battleFactFromLog } from '../run/eventV3Facts';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
 import { noteRunEnded, noteRunStarted } from './metaStore';
@@ -15,6 +37,8 @@ import {
   type StorageDriver,
 } from '../meta/runSave';
 import type { BattleTimelineInput } from './battleTimeline';
+import { buildRunEventViewModel, type RunEventViewModel } from './ui/runEventViewModel';
+export { encounterHintDetail, FIGHT_TIER_LABEL } from './ui/runTravelChoiceViewModel';
 import {
   applyStartDraft,
   currentStartDraft,
@@ -25,7 +49,6 @@ import {
   buyRunCard,
   buyRunCardTo,
   buyRunGem,
-  chooseNode,
   createRun,
   ensureRunShopShelf,
   heroAllocationCost,
@@ -105,6 +128,12 @@ const localStorageDriver: StorageDriver = {
  * a newer-schema blob) — this line is always safe to run unconditionally. */
 let activeRun: RunState | null = loadRunSave(localStorageDriver);
 
+/** Development event fixtures are a browser-audit surface, never a
+ * resumable player run. While one is installed, every subsequent store
+ * update stays in memory too, so merely looking up or resolving the fixture
+ * cannot overwrite either an empty save slot or a legitimate saved run. */
+let activeRunIsEphemeralDevFixture = false;
+
 /** The single write funnel for `activeRun`: every action in this module that
  * used to assign `activeRun = ...` directly now calls this instead, so the
  * persistence hook lives in exactly one place. `null` means "no active run"
@@ -114,6 +143,7 @@ let activeRun: RunState | null = loadRunSave(localStorageDriver);
  * logged, not thrown — gameplay must never block on a storage write. */
 function setActiveRun(next: RunState | null): void {
   activeRun = next;
+  if (activeRunIsEphemeralDevFixture) return;
   if (next === null) {
     clearRunSave(localStorageDriver);
     return;
@@ -128,6 +158,22 @@ function setActiveRun(next: RunState | null): void {
 /** The one active run, or null if none has been started yet this session. */
 export function getActiveRun(): RunState | null {
   return activeRun;
+}
+
+/** The player's already-persisted map-intel snapshots, in display order.
+ * This is deliberately a read of Task 6's records only: UI code never
+ * reforecasts a band or derives an alternate run state while drawing it. */
+export function currentMapIntel() {
+  return activeRun ? mapIntelRecords(activeRun) : [];
+}
+
+/** Install a complete development-launch fixture before a run scene starts.
+ * The Vite production build compiles this guard false; player-facing scenes
+ * never construct fixture state or choose event content themselves. */
+export function installDevRunFixture(state: RunState): void {
+  if (!import.meta.env.DEV) return;
+  activeRunIsEphemeralDevFixture = true;
+  activeRun = state;
 }
 
 /**
@@ -171,6 +217,7 @@ export function rerollPendingSeed(): void {
  * surfacing any node choices until `applyRunDraft` installs the real picks.
  */
 export function startRun(seed: number): void {
+  activeRunIsEphemeralDevFixture = false;
   setActiveRun(createRun(seed));
   noteRunStarted();
   // Consume-and-refresh: the NEXT run's pending seed differs even when the
@@ -273,7 +320,7 @@ export function currentNode(): RunNode | undefined {
  */
 export function pickNode(nodeId: string): void {
   if (!activeRun) return;
-  setActiveRun(chooseNode(activeRun, nodeId));
+  setActiveRun(chooseNodeWithEventOpportunities(activeRun, nodeId));
 }
 
 /**
@@ -294,6 +341,12 @@ export function previewEncounter(node: RunNode): EncounterPack | null {
   return rollEncounter({ ...activeRun, currentNodeId: node.id });
 }
 
+/** Preview an event without replacing or persisting the active run. */
+export function previewRunEvent(node: RunNode): LoadedEventDef | null {
+  if (!activeRun || node.kind !== 'event') return null;
+  return previewEventForNode(activeRun, node);
+}
+
 /** Display name for an enemy id (falls back to the raw id if unknown). */
 export function enemyNameFor(enemyId: string): string {
   return enemies[enemyId]?.name ?? enemyId;
@@ -307,45 +360,6 @@ export function currentEncounter(): EncounterPack | undefined {
   const node = currentNode();
   if (!activeRun || !node || (node.kind !== 'fight' && node.kind !== 'boss')) return undefined;
   return rollEncounter(activeRun);
-}
-
-/** The three fight-column risk tiers' display label (USER-DIRECTED
- * 2026-08-04, three-tier fight choices) — `'standard'` keeps its original
- * `RunNode.fightOption` id/spelling (the unchanged middle rung) but reads
- * "MEDIUM" in the UI. Exported so both map scenes build the SAME title chip
- * off the SAME table. */
-export const FIGHT_TIER_LABEL: Record<'easy' | 'standard' | 'hard', string> = {
-  easy: 'EASY',
-  standard: 'MEDIUM',
-  hard: 'HARD',
-};
-
-/**
- * The map choice panel's one-line fight/boss hint — shared by both platforms'
- * run map scenes so a pack's shape reads identically on desktop and mobile.
- * Solo keeps the pre-pack grammar (`"Rogue · LV 6 · NORMAL"`); a pack leads
- * with its count instead of a title (every pack member is mob/normal — see
- * `capPackTitle` in `src/run/encounter.ts` — so a title chip would read as
- * redundant/misleading): `"PACK OF 2 · Wolf · LV 3"`, naming the FIRST
- * member as the representative foe (members can repeat/differ, but always
- * share the same discounted level).
- *
- * `fightOption` (three-tier fight choices, USER-DIRECTED 2026-08-04): when
- * given (a fight, never a boss, node), prefixes the hint with its
- * EASY/MEDIUM/HARD tier label (`"EASY · Rogue · LV 5 · NORMAL"`), so the
- * hint reads correctly standalone even where a caller doesn't also render
- * the tier chip in the panel's title (see `FIGHT_TIER_LABEL`). Omitted
- * (boss nodes, or any pre-existing non-tiered caller) keeps the hint
- * byte-identical to before three-tier fight choices existed.
- */
-export function encounterHintDetail(pack: EncounterPack, fightOption?: 'easy' | 'standard' | 'hard'): string {
-  const primary = pack.units[0]!;
-  const name = enemyNameFor(primary.enemyId);
-  const tierPrefix = fightOption ? `${FIGHT_TIER_LABEL[fightOption]} · ` : '';
-  if (pack.variant === 'solo') {
-    return `${tierPrefix}${name} · LV ${primary.effectiveLevel} · ${primary.title.toUpperCase()}`;
-  }
-  return `${tierPrefix}PACK OF ${pack.units.length} · ${name} · LV ${primary.effectiveLevel}`;
 }
 
 /**
@@ -384,6 +398,9 @@ export function packMemberLines(pack: EncounterPack): string[] {
  * `creditBattleGold`). No-op (returns 0) if there's no active run. */
 export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLog): number {
   if (!activeRun) return 0;
+  const state = activeRun;
+  const node = currentNode();
+  if (!node) throw new Error('resolveRunBattleResult: no combat node is currently active');
   const foes: BattleFoeSummary[] = (input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam
     : [{
@@ -391,11 +408,23 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
       rank: input.enemyRank, modifiers: input.enemyModifiers ?? [],
     }]
   ).map((f) => ({ level: f.level, title: f.title, rank: f.rank, modifiers: f.modifiers }));
-  const reward = battleGoldReward(foes, activeRun.heroLevel);
+  const reward = battleGoldReward(foes, state.heroLevel);
   const won = log.result === 'win';
   const payout = won ? reward.base + reward.winBonus : 0;
   const battleStats = battleStatsFromEvents(log.events);
-  setActiveRun(recordBattleResult(activeRun, { won, goldEarned: payout, ...battleStats }));
+  const enemyIds = input.enemyTeam && input.enemyTeam.length > 0
+    ? input.enemyTeam.map((enemy) => enemy.enemyId)
+    : [input.enemyId];
+  const battleFact = battleFactFromLog({
+    battleId: `battle:${node.id}`,
+    nodeId: node.id,
+    depth: node.depth,
+    biomeId: biomeFor(state.map.seed, node.wave, node.biomeId).id,
+    enemyIds,
+    boss: node.kind === 'boss',
+    ...(log.playerAffinityId === undefined ? {} : { affinityId: log.playerAffinityId }),
+  }, log);
+  setActiveRun(recordBattleResult(state, { won, goldEarned: payout, ...battleStats, battleFact }));
   if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
   return payout;
 }
@@ -513,14 +542,261 @@ export function leaveCurrentShop(): void {
 // `activeRun.eventInstances`, populated idempotently by `rollEventForNode`).
 // ---------------------------------------------------------------------------
 
-/** The event def for the current event node — draws it (idempotently) into
- * the run the first time it's browsed. Undefined off an event node. */
+export type RunEventOutcome = EventOutcome | EventOutcomeV3;
+export type RunEventDefinitionLookup = EventDefinitionLookup<LoadedEventDef>;
+
+export type RunEventOfferSelection =
+  | { kind: 'card'; skillId: string }
+  | { kind: 'upgrade'; instanceId: string }
+  | { kind: 'gem'; gemId: string }
+  | { kind: 'sellGem'; pouchIndex: number }
+  | { kind: 'mergeCards'; skillId: string };
+
+interface CurrentCommittedEvent {
+  node: RunNode;
+  instanceId: string;
+  event: LoadedEventDef;
+}
+
+function currentCommittedEvent(
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): CurrentCommittedEvent | undefined {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'event') return undefined;
+  const instance = activeRun.eventInstances[node.id];
+  if (instance === undefined) return undefined;
+  const event = lookup(instance.eventId, instance.contentVersion);
+  if (event === undefined || event.id !== instance.eventId) return undefined;
+  return { node, instanceId: instance.instanceId, event };
+}
+
+function currentTransactionIsV3(): boolean {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'event') return false;
+  const instance = activeRun.eventInstances[node.id];
+  if (instance === undefined) return false;
+  if (activeRun.eventMaterializations[instance.instanceId] !== undefined) return true;
+  const exact = eventDefAtVersion(instance.eventId, instance.contentVersion);
+  return exact !== undefined && isEventDefV3(exact);
+}
+
+function legacyLookupFrom(lookup: RunEventDefinitionLookup): EventDefinitionLookup<EventDef> {
+  return (eventId, contentVersion) => {
+    const event = lookup(eventId, contentVersion);
+    return event === undefined || isEventDefV3(event) ? undefined : event;
+  };
+}
+
+function currentResolutionMatches(committed: CurrentCommittedEvent): boolean {
+  if (!activeRun) return false;
+  const resolution = eventResolutionOf(activeRun);
+  const instance = activeRun.eventInstances[committed.node.id];
+  return resolution !== undefined
+    && instance !== undefined
+    && resolution.eventId === instance.eventId
+    && resolution.contentVersion === instance.contentVersion
+    && resolution.instanceId === committed.instanceId;
+}
+
+function rollCurrentEvent(
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): { event: LoadedEventDef; node: RunNode } | undefined {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'event') return undefined;
+  const existing = activeRun.eventInstances[node.id];
+  if (existing !== undefined) {
+    const event = lookup(existing.eventId, existing.contentVersion);
+    if (event === undefined || event.id !== existing.eventId) return undefined;
+    if (isEventDefV3(event)) {
+      const replay = materializeReachedEventV3(
+        activeRun,
+        node,
+        event,
+        existing.contentVersion,
+      );
+      if (!replay.ok) return undefined;
+    }
+  }
+  const rolled = rollEventForNode(activeRun, node, lookup);
+  if (rolled.state !== activeRun) setActiveRun(rolled.state);
+  return { event: rolled.event, node };
+}
+
+/** The renderer's sole event input. Browsing an unreached event node performs
+ * the normal lazy draw, then projects only the persisted committed state. */
+export function currentRunEventViewModel(
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): RunEventViewModel | undefined {
+  const rolled = rollCurrentEvent(lookup);
+  if (!rolled || !activeRun) return undefined;
+  return buildRunEventViewModel(activeRun, rolled.node, rolled.event, lookup);
+}
+
+/** Resolve a choice against the current committed `(eventId, version)`.
+ * Callers supply only a choice id; they cannot redirect the transaction to a
+ * different event/version. */
+export function resolveCurrentRunEventChoice(
+  choiceId: string,
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): RunEventOutcome | undefined {
+  if (!activeRun || eventResolutionOf(activeRun)) return undefined;
+  const rolled = rollCurrentEvent(lookup);
+  if (!rolled || !activeRun) return undefined;
+  const committed = currentCommittedEvent(lookup);
+  if (!committed) return undefined;
+  if (isEventDefV3(committed.event)) {
+    const resolved = resolveEventChoiceV3(activeRun, committed.instanceId, choiceId, lookup);
+    if (!resolved.ok) return undefined;
+    setActiveRun(resolved.state);
+    return resolved.outcome;
+  }
+  const resolved = resolveEventChoice(activeRun, committed.event.id, choiceId, legacyLookupFrom(lookup));
+  setActiveRun(resolved.state);
+  return resolved.outcome;
+}
+
+/** Reopen the exact pending question. V3 reads its persisted offer directly;
+ * legacy behavior keeps its historical deterministic re-derivation. */
+export function reopenCurrentRunEventOffer(
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): RunEventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const committed = currentCommittedEvent(lookup);
+  if (!committed) return undefined;
+  if (isEventDefV3(committed.event)) {
+    if (!currentResolutionMatches(committed)) return undefined;
+    const reopened = reopenEventChoiceV3(activeRun, committed.instanceId, lookup);
+    if (!reopened || reopened.offer.status !== 'pending') return undefined;
+    const materialization = activeRun.eventMaterializations[committed.instanceId];
+    if (materialization === undefined
+      || correlatedMaterializedChoiceV3(
+        committed.event,
+        materialization,
+        committed.instanceId,
+        reopened.choiceId,
+      ) === undefined) return undefined;
+    if (reopened.offer.kind === 'grantCard' || reopened.offer.kind === 'grantGem') return undefined;
+    return eventOutcomeForPendingOfferV3(reopened.offer);
+  }
+  const reopened = reopenEventChoice(activeRun, legacyLookupFrom(lookup));
+  if (!reopened) return undefined;
+  if (reopened.state !== activeRun) setActiveRun(reopened.state);
+  return reopened.outcome;
+}
+
+function finishCurrentV3Offer(
+  selection: RunEventOfferSelection,
+  committed: CurrentCommittedEvent,
+  lookup: RunEventDefinitionLookup,
+): RunEventOutcome | undefined {
+  if (!activeRun) return undefined;
+  if (!currentResolutionMatches(committed)) return undefined;
+  const resolution = eventResolutionOf(activeRun)!;
+  if (!isEventDefV3(committed.event)) return undefined;
+  const materialization = activeRun.eventMaterializations[committed.instanceId];
+  if (materialization === undefined) return undefined;
+  const correlated = correlatedMaterializedChoiceV3(
+    committed.event,
+    materialization,
+    committed.instanceId,
+    resolution.choiceId,
+  );
+  if (correlated === undefined) return undefined;
+  const offer = correlated.offer;
+  if (offer === undefined || offer.status === 'unavailable') return undefined;
+
+  const result = selection.kind === 'card' && offer.kind === 'cardChoice'
+    ? finalizeEventCardChoiceV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
+    : selection.kind === 'card' && offer.kind === 'bonusDraft'
+      ? finalizeBonusDraftV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
+      : selection.kind === 'upgrade' && offer.kind === 'upgradeCardTargeted'
+        ? finalizeTargetedUpgradeV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
+        : selection.kind === 'upgrade' && offer.kind === 'upgradeCard'
+          ? finalizeUpgradeCardV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
+          : selection.kind === 'gem' && offer.kind === 'gemChoice'
+            ? finalizeGemChoiceV3(activeRun, committed.instanceId, resolution.choiceId, selection.gemId, lookup)
+            : selection.kind === 'sellGem' && offer.kind === 'sellGem'
+              ? finalizeSellGemV3(activeRun, committed.instanceId, resolution.choiceId, selection.pouchIndex, lookup)
+              : selection.kind === 'mergeCards' && offer.kind === 'mergeCards'
+                ? finalizeMergeCardsV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
+                : undefined;
+  if (result === undefined || !result.ok) return undefined;
+  if (result.state !== activeRun) setActiveRun(result.state);
+  return result.outcome;
+}
+
+function finishCurrentLegacyOffer(
+  selection: RunEventOfferSelection,
+  lookup: RunEventDefinitionLookup,
+): RunEventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const reopened = reopenEventChoice(activeRun, legacyLookupFrom(lookup));
+  if (!reopened) return undefined;
+  if (reopened.outcome.kind === 'bonusDraft' && selection.kind === 'card') {
+    const pick = reopened.outcome.cards.find((card) => card.skillId === selection.skillId);
+    if (!pick) return undefined;
+    const result = applyBonusDraftPick(reopened.state, pick);
+    setActiveRun(result.state);
+    return result.outcome;
+  }
+  if (reopened.outcome.kind === 'upgradeCardPick' && selection.kind === 'upgrade'
+    && reopened.outcome.options.some((option) => option.instanceId === selection.instanceId)) {
+    const result = applyUpgradeCardPick(reopened.state, selection.instanceId);
+    setActiveRun(result.state);
+    return result.outcome;
+  }
+  if (reopened.outcome.kind === 'gemChoicePick' && selection.kind === 'gem'
+    && reopened.outcome.options.includes(selection.gemId)) {
+    const result = applyGemChoicePick(reopened.state, selection.gemId);
+    setActiveRun(result.state);
+    return result.outcome;
+  }
+  if (reopened.outcome.kind === 'sellGemPick' && selection.kind === 'sellGem'
+    && reopened.outcome.options.some((option) => option.pouchIndex === selection.pouchIndex)) {
+    const result = applySellGemPick(reopened.state, selection.pouchIndex);
+    setActiveRun(result.state);
+    return result.outcome;
+  }
+  if (reopened.outcome.kind === 'mergeCardsPick' && selection.kind === 'mergeCards'
+    && reopened.outcome.candidates.some((candidate) => candidate.skillId === selection.skillId)) {
+    const result = applyMergeCardsPick(reopened.state, selection.skillId);
+    setActiveRun(result.state);
+    return result.outcome;
+  }
+  if (reopened.state !== activeRun && reopened.outcome.kind !== 'bonusDraft'
+    && reopened.outcome.kind !== 'upgradeCardPick' && reopened.outcome.kind !== 'gemChoicePick'
+    && reopened.outcome.kind !== 'sellGemPick' && reopened.outcome.kind !== 'mergeCardsPick') {
+    setActiveRun(reopened.state);
+    return reopened.outcome;
+  }
+  return undefined;
+}
+
+/** Finalize only the current pending persisted transaction. Exact same V3
+ * settled selection replays `alreadySettled`; wrong/missing selections are
+ * invalid no-ops. */
+export function finalizeCurrentRunEventOffer(
+  selection: RunEventOfferSelection,
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): RunEventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const committed = currentCommittedEvent(lookup);
+  if (!committed) return undefined;
+  return isEventDefV3(committed.event)
+    ? finishCurrentV3Offer(selection, committed, lookup)
+    : finishCurrentLegacyOffer(selection, lookup);
+}
+
+/** Legacy compatibility view for a schema-v1/v2 event at the current node.
+ * Drawing remains lazy and idempotent; current schema-v3 definitions are
+ * exposed through the materialized transaction view instead. */
 export function currentEventDef(): EventDef | undefined {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'event') return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, event } = rollEventForNode(activeRun, node);
   setActiveRun(state);
-  return event;
+  return isEventDefV3(event) ? undefined : event;
 }
 
 /** What the CURRENT event node already resolved to — `undefined` off an event
@@ -529,7 +805,7 @@ export function currentEventDef(): EventDef | undefined {
  * that can tell a fresh arrival from a return trip) and show the node as DONE
  * rather than re-offering its rungs. */
 export function currentEventResolution(): EventResolution | undefined {
-  return activeRun ? eventResolutionOf(activeRun) : undefined;
+  return activeRun && !currentTransactionIsV3() ? eventResolutionOf(activeRun) : undefined;
 }
 
 /** Resolves a choice on the current event node: deducts cost, applies the
@@ -539,6 +815,7 @@ export function currentEventResolution(): EventResolution | undefined {
  * scenes' existing `if (!outcome) return;` already handles). */
 export function resolveCurrentEventChoice(eventId: string, choiceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   if (eventResolutionOf(activeRun)) return undefined;
   const { state, outcome } = resolveEventChoice(activeRun, eventId, choiceId);
   setActiveRun(state);
@@ -553,6 +830,7 @@ export function resolveCurrentEventChoice(eventId: string, choiceId: string): Ev
  * nothing pending. */
 export function reopenCurrentEventPick(): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const reopened = reopenEventChoice(activeRun);
   if (!reopened) return undefined;
   setActiveRun(reopened.state);
@@ -562,6 +840,7 @@ export function reopenCurrentEventPick(): EventOutcome | undefined {
 /** Finalizes a `bonusDraft` outcome's deferred pick (the picker overlay). */
 export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyBonusDraftPick(activeRun, pick);
   setActiveRun(state);
   return outcome;
@@ -571,6 +850,7 @@ export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | unde
  * bumps the tapped `instanceId` +1 tier. */
 export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyUpgradeCardPick(activeRun, instanceId);
   setActiveRun(state);
   return outcome;
@@ -580,6 +860,7 @@ export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | 
  * pushes the tapped gem id into the run's gem pouch. */
 export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyGemChoicePick(activeRun, gemId);
   setActiveRun(state);
   return outcome;
@@ -614,6 +895,7 @@ export interface MergeCardsPickResult {
  * card at tier+1. See `MergeCardsPickResult` for why this returns a pair. */
 export function applyCurrentMergeCardsPick(skillId: string): MergeCardsPickResult | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, outcome, merged } = applyMergeCardsPick(activeRun, skillId);
   setActiveRun(state);
   return { outcome, merged };
@@ -634,6 +916,7 @@ export function applyCurrentMergeCardsPick(skillId: string): MergeCardsPickResul
  * outcome at all. */
 export function applyCurrentSellGemPick(pouchIndex: number): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applySellGemPick(activeRun, pouchIndex);
   setActiveRun(state);
   return outcome;

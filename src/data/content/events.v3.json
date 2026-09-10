@@ -1,0 +1,4865 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": {
+      "kind": "boolean",
+      "default": false
+    },
+    "grave_path": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "opened",
+        "answered"
+      ],
+      "default": "none"
+    },
+    "honorable_choice": {
+      "kind": "boolean",
+      "default": false
+    },
+    "reliquary_oath": {
+      "kind": "boolean",
+      "default": false
+    },
+    "oath_gate": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "sworn",
+        "kept",
+        "released"
+      ],
+      "default": "none"
+    },
+    "venom_bloom": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "cultivated"
+      ],
+      "default": "none"
+    },
+    "rival_spared": {
+      "kind": "boolean",
+      "default": false
+    },
+    "moon_quarry_released": {
+      "kind": "boolean",
+      "default": false
+    }
+  },
+  "events": [
+    {
+      "id": "abandoned_cache",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Abandoned Cache",
+            "theme": "cache",
+            "notes": [
+              "The free deterministic reward is the old gamble's small result; paying two gold buys the former winning result, so the player chooses certainty rather than a hidden coin flip."
+            ],
+            "body": "The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned.",
+            "choices": [
+              {
+                "id": "open",
+                "label": "Pry it open",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "search_thoroughly",
+                "label": "Search it thoroughly (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave",
+                "label": "Leave it be",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "banner_scribe",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Banner-Scribe",
+            "theme": "recruit",
+            "notes": [
+              "Board identity begins at three cards sharing one weapon type and is rederived whenever this conditional event is checked, so a detour cannot leave a stale gate. Sketching for a coin keeps the event safely resolvable without a qualifying board."
+            ],
+            "body": "A banner-scribe has set her table among the Muster Road's camps, reading fighters' colors off their gear the way other scribes read letters. One look over your board and she is already mixing paint: if you march under a device, she knows a supplier for it — and if you march under none, she will still pay a copper for the sketch.",
+            "choices": [
+              {
+                "id": "blazon",
+                "label": "Commission gear in your colors (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "boardIdentity",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "sketch_fee",
+                "label": "Let her sketch your kit for a copper",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "keep_marching",
+                "label": "March on unblazoned",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "beast_nest",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Beast Nest",
+            "theme": "cache",
+            "notes": [
+              "The old bow-or-beast pool produced a beast card about 93% of the time but a bow only about 57%; the authored beast door makes that promise 100%. Raid it is now free because a choice labeled as a raid should not quietly lose gold."
+            ],
+            "body": "A trampled nest sits half-sunk in the Silt Hollows' mud, littered with the shed claws and feathers of something large. Everything worth carrying out of it is beast-work — fang, claw and hide, nothing else — if whatever built it doesn't come back and cost you a coin purse for the trouble.",
+            "choices": [
+              {
+                "id": "raid_it",
+                "label": "Raid the nest",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "raid_prepared",
+                "label": "Take a beast trophy (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "beast"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave_it",
+                "label": "Leave the nest be",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bell_beneath_ice",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Bell Beneath the Ice",
+            "theme": "cache",
+            "artId": "bell_beneath_ice",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "body": "Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it.",
+            "choices": [
+              {
+                "id": "prise_it_free",
+                "label": "Prise the frost bell free",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "ring_it_here",
+                "label": "Ring it beneath the ice",
+                "outcome": {
+                  "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "leave_it_sleeping",
+                "label": "Leave it sleeping",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "broken_axle",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Broken Axle",
+            "theme": "market",
+            "body": "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone.",
+            "choices": [
+              {
+                "id": "help_haul",
+                "label": "Help haul the cart upright",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "salvage_properly",
+                "label": "Stay and salvage the wreckage properly (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "leave_him",
+                "label": "Leave him to it",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cinderworks_regrind",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Regrinding Wheel",
+            "theme": "forge",
+            "body": "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
+            "choices": [
+              {
+                "id": "regrind",
+                "label": "Pay 5 gold to regrind your gear",
+                "cost": 5,
+                "outcome": {
+                  "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "watch",
+                "label": "Just watch, and walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "circle_of_adepts",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Circle of Adepts",
+            "theme": "recruit",
+            "body": "Camped along the Muster Road, a circle of robed scholars debates arcane theory beneath a floating lattice of light. Two of their books are single-discipline and copied clean — one fire-work cover to cover, one lightning-work — and the third is the working grimoire, every discipline they practise jammed in together in no order at all. Copy from whichever you like; they're too deep in the argument to care.",
+            "choices": [
+              {
+                "id": "copy_fire",
+                "label": "Copy from the fire book",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "fire"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "copy_lightning",
+                "label": "Copy from the lightning book",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "lightning"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "leaf_through",
+                "label": "Leaf through the mixed grimoire",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "properties": [
+                        "magical"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "collapsed_barrow",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Collapsed Barrow",
+            "theme": "cache",
+            "body": "A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves.",
+            "choices": [
+              {
+                "id": "crawl_in",
+                "label": "Crawl inside",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "dig_further",
+                "label": "Dig further for a real find (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "seal_it",
+                "label": "Seal it back up and move on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "crossroads_shrine",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Crossroads Shrine",
+            "theme": "omen",
+            "notes": [
+              "The old shared pool offered 93% holy and 83% dark per offer; splitting it into separate 100% doors is a strict gain for both. Both choices remain two-gold, three-card offers so neither face dominates on width or price."
+            ],
+            "body": "At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon, and the two faces answer separately: tithe at the sun and what comes back is holy work, every time; scratch the moon-mark instead and it is dark work, every time. Others, less devout, simply pry the shrine apart for scrap.",
+            "choices": [
+              {
+                "id": "tithe",
+                "label": "Leave a holy tithe (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "holy"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "moon_rite",
+                "label": "Scratch the moon-mark for dark work (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "deface",
+                "label": "Deface it for scrap",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 3
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ember_pit",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "One merge door reached only 64.2% of runs and averaged 0.68 merges per run; adding this second door raises reach to 83.3% and the average to 1.32 without making the merge itself cost gold."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Three pieces of one grade, fed together, come back out as a single piece of the grade above — the tender lays out three the coals will take, and you choose.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed three matched pieces to the coals",
+                "outcome": {
+                  "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "factors_ledger",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Factor's Ledger",
+            "theme": "market",
+            "notes": [
+              "The goldSpent tally deliberately records aggregate commitment rather than purchase provenance. Twelve gold is the threshold, and the bounded payoff is one free gem choice."
+            ],
+            "requiresTally": {
+              "stat": "goldSpent",
+              "atLeast": 12
+            },
+            "body": "A trade factor steps into the road with a ledger already open to your page. \"Twelve gold and change, through the stalls and tolls of this road, by my count,\" she says, turning the book so you can see the tally — and it is your tally, coin for coin. \"The road pays its regulars. One credit, one time. Spend it or tear the page.\"",
+            "choices": [
+              {
+                "id": "standing_credit",
+                "label": "Take your standing credit",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "bulk_order",
+                "label": "Place a bulk order (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "tear_the_page",
+                "label": "Tear your page out",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fences_offer",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Fence's Offer",
+            "theme": "market",
+            "body": "A fence works a folding table at the shadowed edge of the Tolling Road, goods of dubious origin spread out under a stained cloth. \"Coin, or a stone — your pick, no questions asked either way.\" She taps the table, already bored with the transaction.",
+            "choices": [
+              {
+                "id": "take_coin",
+                "label": "Take the coin",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              },
+              {
+                "id": "take_stone",
+                "label": "Take the stone instead (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "field_medic",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Field Medic",
+            "theme": "recruit",
+            "body": "A field medic has set up a triage tent at the roadside among the Muster Road's camps. Her herb satchel is sorted and green to the last cutting — nature work, all of it — while the rest of the tent is whatever keeps people upright: salves, wraps, mending songs, half-taught steadying tricks. Or, if none of it is what you need, she'll simply spare a little coin instead.",
+            "choices": [
+              {
+                "id": "herb_satchel",
+                "label": "Take from her nature satchel",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "nature"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "learn_remedies",
+                "label": "Learn her mending remedies",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "healing",
+                        "support"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "take_coin",
+                "label": "Take the coin instead",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "flaw_finder",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Flaw-Finder",
+            "theme": "market",
+            "notes": [
+              "This restores expose as an event-facing build door and supplies a second sellGem outlet. Four authored expose gems keep the offer viable even when the wave-one shop depth excludes the legendary option."
+            ],
+            "body": "A jeweler's loupe glints from a stall no wider than its own strongbox on the Tolling Road. \"Every stone has a flaw,\" its owner says, not as an apology — her whole tray is cut to FIND them, facets ground to open a weakness and hold it open. She buys as readily as she sells, if you are carrying a stone you are done with.",
+            "choices": [
+              {
+                "id": "expose_tray",
+                "label": "Buy from the flaw-cut tray (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice",
+                  "filter": [
+                    {
+                      "actionKinds": [
+                        "expose"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "sell_flawed",
+                "label": "Sell her a stone of your own",
+                "outcome": {
+                  "kind": "sellGem"
+                }
+              },
+              {
+                "id": "walk_on",
+                "label": "Keep your flaws to yourself",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fortune_teller",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Fortune-Teller",
+            "theme": "omen",
+            "body": "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand.",
+            "choices": [
+              {
+                "id": "free_reading",
+                "label": "Take the free reading",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "cross_palm",
+                "label": "Cross her palm with 2 gold",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gambler",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Gambler",
+            "theme": "omen",
+            "notes": [
+              "The two stakes are deterministic exchanges, two gold for three and five for nine, with costs paid up front. Walking away stays free so the event never becomes a gamble a broke player must take."
+            ],
+            "body": "In the shadow of the crossroads shrine, a hooded figure shuffles cards at a folding table, coins stacked at her elbow, never once looking up as travelers pass. \"Stake two gold on a safe cut,\" she says, \"or five on a bold one — walk off with more than you sat down with, either way. Or don't play at all — some prefer to keep what little they have.\"",
+            "choices": [
+              {
+                "id": "stake_small",
+                "label": "Stake 2 gold on a safe cut",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 3
+                }
+              },
+              {
+                "id": "stake_big",
+                "label": "Stake 5 gold on a bold cut",
+                "cost": 5,
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 9
+                }
+              },
+              {
+                "id": "walk_away",
+                "label": "Walk away",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemsellers_mishap",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Gemseller's Mishap",
+            "theme": "cache",
+            "body": "A peddler's cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there's more here than she can gather alone, and more than a few have already rolled to rest against your boots.",
+            "choices": [
+              {
+                "id": "help",
+                "label": "Help her gather them",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "rifle",
+                "label": "Rifle through the spill (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hermits_riddle",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Hermit's Riddle",
+            "theme": "training",
+            "body": "On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you've even stopped walking. Answer it right, she says, and you'll understand something about yourself no sparring ring could teach. Answer wrong, and you'll simply keep walking, no worse for it.",
+            "choices": [
+              {
+                "id": "answer",
+                "label": "Answer the riddle",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "press_further",
+                "label": "Press her for a deeper truth (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "walk_away",
+                "label": "Walk away",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "overloaded_caravan",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Overloaded Caravan",
+            "theme": "market",
+            "notes": [
+              "The dedicated bow door replaces an old mixed offer that surfaced a bow only about 57% of the time, while the broad whole-book trunk remains available for players who want variety."
+            ],
+            "body": "A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. A bundle of bowstaves is lashed to the tailgate where anyone can see it; the trunks behind it are packed with no order at all and could hold anything. Push, and she'll let you take from either — or just toss you a coin for a shoulder at the wheel.",
+            "choices": [
+              {
+                "id": "bow_staves",
+                "label": "Take a bow off the tailgate (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "rummage",
+                "label": "Push, then rummage the trunks (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "bonusDraft"
+                }
+              },
+              {
+                "id": "push",
+                "label": "Just push for a coin",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pyre_watch",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Pyre-Watch",
+            "theme": "omen",
+            "notes": [
+              "The first lost life is the authored trigger. The event telegraphs the next omen, and its alms choice remains usable at any wallet so recovery is never gated by the defeat that unlocked it."
+            ],
+            "requiresTally": {
+              "stat": "livesLost",
+              "atLeast": 1
+            },
+            "body": "A watch-fire burns at the crossroads for the road's dead, tended by a hooded keeper who does not ask whose name you are carrying. The fire already knows: you left a life on a field behind you, and the pyre-watch keeps the old custom for anyone who limps past it — alms for the mourner, or arms for the living.",
+            "choices": [
+              {
+                "id": "alms",
+                "label": "Accept the mourner's alms",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              },
+              {
+                "id": "arm_the_living",
+                "label": "Buy arms for the living (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "let_it_burn",
+                "label": "Let it burn, and walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "quartermasters_error",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Quartermaster's Error",
+            "theme": "cache",
+            "body": "A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. \"Take the armor plating — it's all defensive issue, wards and guards and nothing that hits back,\" he says, \"or the loose gemstone in the corner. Don't care which — just take it and go before someone notices.\"",
+            "choices": [
+              {
+                "id": "take_armor",
+                "label": "Take the armor plating",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "take_gem",
+                "label": "Take the loose gemstone (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "recruiter",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Recruiter",
+            "theme": "recruit",
+            "notes": [
+              "A guaranteed sword rack sits beside the mixed five-weapon cart, preserving the broad option while giving a committed sword build an honest routing choice."
+            ],
+            "body": "A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. \"Swords are racked on their own — anything else, you take your chances with what's in the cart,\" he grins, laying out a row of five either way. \"Or take the coin instead. I won't haggle.\"",
+            "choices": [
+              {
+                "id": "pick_sword",
+                "label": "Browse the sword rack",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "pick_weapon",
+                "label": "Dig through the mixed cart",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword",
+                        "axe",
+                        "lance",
+                        "bow",
+                        "beast"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "take_coin",
+                "label": "Take the coin instead",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "retiring_smith",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Smith's Last Commission",
+            "theme": "forge",
+            "body": "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
+            "choices": [
+              {
+                "id": "commission",
+                "label": "Pay 6 gold for one last commission",
+                "cost": 6,
+                "outcome": {
+                  "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "let_her_go",
+                "label": "Let her go",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ruined_anvil",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Ruined Anvil",
+            "theme": "forge",
+            "notes": [
+              "The zero-cost merge was added to an event that was already eligible at zero gold; the cards are the price. Keeping its catalog position unchanged preserves the seeded event sequence."
+            ],
+            "body": "One of the Cinderworks' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go. The anvil will still take a heavier job for nothing: lay three pieces of the SAME grade across it and they beat down into one piece of the next grade up, and the scrap left over decides which three you get to pick from.",
+            "choices": [
+              {
+                "id": "take_rough",
+                "label": "Take the rough blade as-is",
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "retemper",
+                "label": "Pay 3 gold to retemper it",
+                "cost": 3,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "silver"
+                }
+              },
+              {
+                "id": "beat_together",
+                "label": "Beat three matched pieces into one",
+                "outcome": {
+                  "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sellsword_camp",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Sellsword Camp",
+            "theme": "recruit",
+            "body": "A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and waves at the camp: the axes stand in their own rack by the mess tent, company-issue and nothing but axes, while the armory tent behind it is steel of every make thrown in together. Or, if you'd rather not linger, a coin for the road.",
+            "choices": [
+              {
+                "id": "browse_axes",
+                "label": "Borrow from the axe rack",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "axe"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "browse_armory",
+                "label": "Browse the mixed armory tent",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword",
+                        "axe",
+                        "lance",
+                        "bow",
+                        "beast"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "take_coin",
+                "label": "Take a coin for the road",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sparring_circle",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Sparring Circle",
+            "theme": "training",
+            "notes": [
+              "The practice rack intentionally stays a broad mixed pool beside the paid lesson, and the free choice keeps the event usable when the player cannot afford training."
+            ],
+            "body": "A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: \"Two gold buys you a real lesson. Or help yourself to the practice rack — it's every kind of gear anyone ever left here, all of it meant for hitting things, and no two pieces alike.\"",
+            "choices": [
+              {
+                "id": "lesson",
+                "label": "Pay 2 gold for a real lesson",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "spare_blade",
+                "label": "Help yourself to the mixed rack",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "offense"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sweep_drill",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Sweep Drill",
+            "theme": "training",
+            "notes": [
+              "Only one of the fifteen candidates in the old broad filter actually matched the promised splash lesson, roughly 7%; naming Shockwave Slam makes the lesson deterministic."
+            ],
+            "body": "A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever's standing next to your actual target, whether you meant it to or not. \"Newer recruits call it splash,\" she snorts, resting a training axe on her shoulder. \"I call it not missing twice. Two gold, and I'll teach you the sweep itself.\"",
+            "choices": [
+              {
+                "id": "proper_stance",
+                "label": "Pay 2 gold to learn the sweep",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "shockwave_slam",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "scavenge",
+                "label": "Scavenge the practice yard for scraps",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "skip",
+                "label": "Skip the drill",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_bell_unbound",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Bell Unbound",
+            "theme": "forge",
+            "artId": "bell_unbound",
+            "rarity": "secret",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "requiresAll": [
+              {
+                "kind": "resolution",
+                "eventId": "bell_beneath_ice",
+                "choiceIds": [
+                  "prise_it_free"
+                ]
+              },
+              {
+                "kind": "resolution",
+                "eventId": "the_second_toll",
+                "choiceIds": [
+                  "answer_the_bell"
+                ]
+              }
+            ],
+            "body": "In the Emberwaste the Frostmarch bell finally thaws. Steam curls from its silver throat, and it speaks the name you once gave it.",
+            "choices": [
+              {
+                "id": "temper_the_voice",
+                "label": "Temper its Frost voice in the coals",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "sell_the_silver",
+                "label": "Sell the silver tongue",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 5
+                }
+              },
+              {
+                "id": "let_it_ring_free",
+                "label": "Let it ring and walk away",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_lands_measure",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Land's Measure",
+            "theme": "cache",
+            "notes": [
+              "The local-work door follows the current biome's weapon lean and the hunter's kit follows its counter. Bow has no counter in the matchup table, so the safe coin choice remains the universal fallback."
+            ],
+            "body": "A surveyor's drop-box juts from the mud of the Silt Hollows, stenciled with the mark of whatever country you are crossing. The locals cache what the land makes, and any land worth naming only makes one thing well — the box is local work to the last piece. Lashed underneath it rides a hunter's kit, picked to hurt what lives here. When anything can.",
+            "choices": [
+              {
+                "id": "local_make",
+                "label": "Take the local make (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "biomeLean",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "hunters_edge",
+                "label": "Take the hunter's kit (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "biomeCounter",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "gather_stones",
+                "label": "Pocket the loose stones",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_lapidary",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Lapidary",
+            "theme": "forge",
+            "notes": [
+              "Selling a gem replaces the removed expose-filtered choice without stranding expose gems, which remain reachable through the Armory. Selling is free because surrendering the gem is already the price."
+            ],
+            "body": "A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. \"Reject bin's free to pick through,\" she says, without looking up, \"and if you've got a stone you're done carrying, I'll take it off your hands too — fair price, no haggling.\" The good tray, though, isn't free.",
+            "choices": [
+              {
+                "id": "reject_bin",
+                "label": "Pick through the reject bin",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "warding_cut",
+                "label": "Pay 2 gold for a warding cut",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice",
+                  "filter": [
+                    {
+                      "actionKinds": [
+                        "ward",
+                        "cleanse",
+                        "taunt"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "sell_facet",
+                "label": "Sell her a facet you're not using",
+                "outcome": {
+                  "kind": "sellGem"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_reckoning",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Reckoning",
+            "theme": "omen",
+            "notes": [
+              "Each payoff is gated by the shrine face that earned it and remains a free five-card offer. Defacing the shrine records the choice but intentionally summons neither face."
+            ],
+            "requires": {
+              "eventId": "crossroads_shrine",
+              "choiceIds": [
+                "tithe",
+                "moon_rite"
+              ]
+            },
+            "body": "The shrine finds you, this time. A cairn of crossroads stone stands where no cairn stood yesterday, sun-mark and moon-mark cut fresh into its face — and beneath them, in scratches you never made, a tally of everything you ever left at the Crossroads Unquiet. Whatever keeps the shrine's accounts has ruled your devotion paid up, and tonight it settles its side of the ledger.",
+            "choices": [
+              {
+                "id": "sun_road",
+                "label": "Take the sun's settlement in holy work",
+                "requires": {
+                  "eventId": "crossroads_shrine",
+                  "choiceIds": [
+                    "tithe"
+                  ]
+                },
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "holy"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "moon_road",
+                "label": "Take the moon's settlement in dark work",
+                "requires": {
+                  "eventId": "crossroads_shrine",
+                  "choiceIds": [
+                    "moon_rite"
+                  ]
+                },
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "keep_walking",
+                "label": "Leave the account open",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "the_second_toll",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Second Toll",
+            "theme": "omen",
+            "artId": "second_toll",
+            "rarity": "rare",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "requires": {
+              "eventId": "bell_beneath_ice",
+              "choiceIds": [
+                "prise_it_free"
+              ]
+            },
+            "body": "The bell you cut from the ice sounds once inside your pack, though nothing has touched it. Across the white distance, a cairn answers.",
+            "choices": [
+              {
+                "id": "answer_the_bell",
+                "label": "Answer with your own name",
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "bind_the_clapper",
+                "label": "Bind the clapper shut",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 3
+                }
+              },
+              {
+                "id": "abandon_it",
+                "label": "Leave the bell at the cairn",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "thorn_garden_shrine",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Thorn Garden Shrine",
+            "theme": "cache",
+            "body": "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it.",
+            "choices": [
+              {
+                "id": "gather_thorns",
+                "label": "Gather the fallen thorns at the edge",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "push_through",
+                "label": "Push through the brambles (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave_it",
+                "label": "Leave the shrine to the thorns",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "toll_bridge",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Toll Bridge",
+            "theme": "market",
+            "notes": [
+              "A guaranteed frost door sits beside the ninety-four-card broad pool at the same price and offer width, so the narrow route is an honest commitment rather than a tax."
+            ],
+            "body": "A rickety toll bridge spans the worst of the Tolling Road's ravines, where the spray off the melt below freezes onto the ropes before it lands. Its keeper wants coin before he'll lower the gate, and he has two crates behind him: one is frost-work to the last piece, taken off the traders coming down from the pass, and the other is a jumble of whatever else he has confiscated, all of it made for hitting things. Refuse, and there's a longer, drier road around.",
+            "choices": [
+              {
+                "id": "frost_crate",
+                "label": "Pay the toll, take the frost crate (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "pay_toll",
+                "label": "Pay the toll, take the mixed crate (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "offense"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "go_around",
+                "label": "Take the long way around",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "toll_collectors_ledger",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Toll Collector's Ledger",
+            "theme": "market",
+            "body": "A toll collector flags you down on the Tolling Road, ledger open, insisting a road tax is overdue for the wear you've caused passing through. Pay it and he waves you past with a stone from his confiscated crate — refuse, and he shrugs, scrawls something illegible, and lets you walk on regardless.",
+            "choices": [
+              {
+                "id": "pay_tax",
+                "label": "Pay the 2-gold road tax",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "refuse",
+                "label": "Refuse to pay",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tutors_return",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Tutor's Return",
+            "theme": "training",
+            "notes": [
+              "The first tutor visit is the paid setup; this free payoff is bounded once per run by the resolution gate and acknowledges the two gold already spent on the lesson."
+            ],
+            "requires": {
+              "eventId": "wandering_tutor",
+              "choiceIds": [
+                "pay"
+              ]
+            },
+            "body": "You know the gnarled staff before you know the face: the old sellsword from the Hollow Yard, planted at the edge of the practice ring as if the two of you had set an appointment. \"You paid for a lesson,\" she says. \"You got half of one. I don't leave debts standing — mine or anybody's.\" The second half won't cost you a coin. Her sparring circle, though, still charges for the privilege.",
+            "choices": [
+              {
+                "id": "finish_lesson",
+                "label": "Take the second half of the lesson",
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "spar_the_yard",
+                "label": "Spar with her circle (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft"
+                }
+              },
+              {
+                "id": "part_ways",
+                "label": "Tell her the debt is settled",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "two_ravens",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Two Ravens",
+            "theme": "omen",
+            "body": "Two ravens perch unnervingly still on the crossroads shrine's arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin's trouble, or walk the long way around and let them watch you go.",
+            "choices": [
+              {
+                "id": "feed_them",
+                "label": "Toss them your scraps (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "walk_around",
+                "label": "Walk the long way around, coin still in your pocket",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "venomers_den",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Venomer's Den",
+            "theme": "recruit",
+            "body": "Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn't quite smoke. \"The weak batch is yours for nothing,\" she says, nodding at a dull green vial, \"or two gold buys off the real shelf. Every jar on it does the one job — leaves whatever you use it on worse off than it started. Past that I make no promises about what's in the glass.\"",
+            "choices": [
+              {
+                "id": "weak_batch",
+                "label": "Take the weak batch for free",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "true_batch",
+                "label": "Pay 2 gold for what she actually sells",
+                "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "debuff"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "veterans_last_lesson",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Veteran's Last Lesson",
+            "theme": "training",
+            "body": "At the far end of the Hollow Yard, a retiring blade-master sets down her practice cane and offers you her signature weapon, still humming faintly with old battles. \"Take it, and carry what I built,\" she says, \"or take my years instead — I've more use for rest now than for steel.\"",
+            "choices": [
+              {
+                "id": "take_blade",
+                "label": "Take the veteran's blade",
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "crushing_blow",
+                  "tier": "silver"
+                }
+              },
+              {
+                "id": "take_years",
+                "label": "Take her years of experience instead",
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wandering_smith",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Wandering Smith",
+            "theme": "forge",
+            "body": "Deep in the Cinderworks, a traveling smith works an anvil under a lean-to, hammer still ringing from the last commission. \"Four gold,\" she grunts, \"and I'll temper a blade proper — not the bronze rubbish you find lying about.\" Two gold, and you can have your pick of the pike-blanks stacked against the lean-to instead; she forges nothing else on spec, so lance-work is all that stack has ever been. Anything less, and she won't bother lighting the forge.",
+            "choices": [
+              {
+                "id": "commission",
+                "label": "Pay 4 gold for a properly tempered blade",
+                "cost": 4,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "armor_break",
+                  "tier": "silver"
+                }
+              },
+              {
+                "id": "pike_blanks",
+                "label": "Pick a lance-blank from the stack (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "lance"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "decline",
+                "label": "Walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wandering_tutor",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Wandering Tutor",
+            "theme": "training",
+            "body": "The dust of the Hollow Yard has barely settled from the last duel when an old sellsword rises to meet you, gnarled staff in hand. \"Two gold,\" she says, \"and I'll show you where you're wasting your strength.\" Her lesson won't be free — but it won't be forgotten, either.",
+            "choices": [
+              {
+                "id": "pay",
+                "label": "Pay 2 gold for the lesson",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "decline",
+                "label": "Keep walking",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "weighing_stone",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Weighing Stone",
+            "theme": "omen",
+            "body": "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them.",
+            "choices": [
+              {
+                "id": "press_palm",
+                "label": "Press your palm to the stone",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "press_harder",
+                "label": "Press harder and hold (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft"
+                }
+              },
+              {
+                "id": "skirt_around",
+                "label": "Skirt around it",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "feathered_cairn",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 2,
+          "def": {
+            "title": "Feathered Cairn",
+            "body": "A low cairn of arrow-marked stones stands beside the road. Black feathers turn in the wind around a set of deliberate cuts, each one pointing toward a fork you cannot yet see.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "bow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 3,
+                    "match": {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choices": [
+              {
+                "id": "read_feathers",
+                "label": "Read the marks",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantMapInfo",
+                  "bandsAhead": 2
+                },
+                "callback": {
+                  "callbackId": "feathered_cairn_far_sight",
+                  "eventId": "feathered_cairn_far_sight",
+                  "contentVersion": 1,
+                  "minDepthDelay": 2,
+                  "destinationThemes": [
+                    "omen"
+                  ],
+                  "destinationBiomeIds": [
+                    "arrowfell"
+                  ],
+                  "priority": 700,
+                  "bind": [],
+                  "expiry": {
+                    "expiresAfterNodes": 20,
+                    "fallback": "discard"
+                  }
+                }
+              },
+              {
+                "id": "take_fletchers_gift",
+                "label": "Take a Bow card",
+                "cost": 0,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave",
+                "label": "Leave",
+                "cost": 0,
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Feathered Cairn",
+            "body": "A low cairn of arrow-marked stones stands beside the road. Black feathers turn in the wind around a set of deliberate cuts, each one pointing toward a fork you cannot yet see.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "bow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 3,
+                    "match": {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "read_feathers",
+                  "label": "Read the marks",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  },
+                  "callback": {
+                    "callbackId": "feathered_cairn_far_sight",
+                    "eventId": "feathered_cairn_far_sight",
+                    "contentVersion": 2,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "destinationBiomeIds": [
+                      "arrowfell"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_fletchers_gift",
+                  "label": "Take a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "feathered_cairn_far_sight",
+      "versions": [
+        {
+          "version": 1,
+          "schemaVersion": 2,
+          "def": {
+            "title": "Far Sight",
+            "body": "At the next omen-stone, the cairn's cuts return in the dust. They trace a safer fork ahead, with one loose mark pointing toward a small hidden cache.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "feathered_cairn_far_sight"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choices": [
+              {
+                "id": "follow_mark",
+                "label": "Follow the marked road",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantMapInfo",
+                  "bandsAhead": 3
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              },
+              {
+                "id": "take_cache",
+                "label": "Take the hidden cache",
+                "cost": 0,
+                "outcome": {
+                  "kind": "gemChoice",
+                  "filter": [
+                    {
+                      "ids": [
+                        "concussive_shot_echo",
+                        "rending_sliver",
+                        "weak_point_sliver"
+                      ]
+                    }
+                  ]
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              },
+              {
+                "id": "ignore_mark",
+                "label": "Keep your own course",
+                "cost": 0,
+                "outcome": {
+                  "kind": "nothing"
+                },
+                "mutations": [
+                  {
+                    "op": "completeStory",
+                    "storyId": "feathered_cairn"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Far Sight",
+            "body": "At the next omen-stone, the cairn's cuts return in the dust. They trace a safer fork ahead, with one loose mark pointing toward a small hidden cache.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "feathered_cairn",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "feathered_cairn_far_sight"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "follow_mark",
+                  "label": "Follow the marked road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 3
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_cache",
+                  "label": "Take the hidden cache",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "concussive_shot_echo",
+                          "rending_sliver",
+                          "weak_point_sliver"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                },
+                {
+                  "id": "ignore_mark",
+                  "label": "Keep your own course",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "feathered_cairn"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gilded_detour",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Gilded Detour",
+            "body": "A broker's bright pavilion blocks the road. The richest travelers are invited to turn a little fortune into something rarer.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "gilded_detour",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 15
+                  }
+                },
+                {
+                  "fact": "run.tally",
+                  "args": {
+                    "stat": "goldSpent",
+                    "op": "gte",
+                    "value": 10
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "keep_fortune",
+                  "label": "Keep your fortune",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "buy_gold_upgrade",
+                    "label": "Commission an upgrade",
+                    "cost": 8,
+                    "outcome": {
+                      "kind": "upgradeCard"
+                    }
+                  },
+                  {
+                    "id": "buy_premium_gem",
+                    "label": "Choose a premium gem",
+                    "cost": 6,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "all": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "victors_table",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Victor's Table",
+            "body": "Veterans from many roads raise their cups as you pass. Five victories earn a place beside them and first choice of the spoils.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "victors_table",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 5
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_purse",
+                  "label": "Take the road purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "toast_growth",
+                    "label": "Toast to hard-won growth",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "grantLevel"
+                    }
+                  },
+                  {
+                    "id": "choose_spoils",
+                    "label": "Choose from the spoils",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "cardChoice",
+                      "filter": [
+                        {
+                          "archetypes": [
+                            "offense",
+                            "defensive",
+                            "healing",
+                            "support",
+                            "debuff"
+                          ]
+                        }
+                      ],
+                      "maxTier": "bronze"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bitter_rematch",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Bitter Rematch",
+            "body": "Word of your answered defeat reaches a scarred training yard. Your old rival's mark hangs beside the card that ended the rematch.",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "bitter_rematch",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "combat.revengeReady",
+              "args": {}
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [
+              {
+                "as": "enemy_id",
+                "source": "revenge.enemyId"
+              },
+              {
+                "as": "revenge_finisher_card_id",
+                "source": "revenge.finisherCardId",
+                "optional": true
+              }
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "spare_rival",
+                  "label": "Spare the rival's name",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "rival_spared",
+                      "value": true
+                    }
+                  ]
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "honor_finisher",
+                    "label": "Honor the finishing card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "boundSubject": {
+                          "slot": "revenge_finisher_card_id"
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    }
+                  },
+                  {
+                    "id": "claim_rematch_purse",
+                    "label": "Claim the rematch purse",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "grantGold",
+                      "amount": 4
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_light_at_roads_end",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Last Light at Road's End",
+            "body": "After the last defeat, a lone lantern burns where the road divides. Its keeper offers strength for the safer path—or a spark for the unlit one.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "last_light_at_roads_end",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "lives.current",
+                  "args": {
+                    "op": "eq",
+                    "value": 1
+                  }
+                },
+                {
+                  "fact": "combat.recentLoss",
+                  "args": {
+                    "withinDepth": 3
+                  }
+                },
+                {
+                  "not": {
+                    "fact": "owned.card.count",
+                    "args": {
+                      "where": "any",
+                      "count": 1,
+                      "match": {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_healing_card",
+                  "label": "Carry a healer's lesson",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_recovery_gold",
+                  "label": "Take the keeper's road money",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "risk_last_road",
+                  "label": "Risk the unlit road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "last_light_secret_route",
+                    "eventId": "last_light_secret_route",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": "discard"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_light_secret_route",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Unlit Road",
+            "body": "The lantern's spark reveals a hidden mile between the known roads. It offers one last cache before the darkness closes again.",
+            "theme": "omen",
+            "rarity": "secret",
+            "story": {
+              "storyId": "last_light_at_roads_end",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "last_light_secret_route"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_last_cache",
+                  "label": "Take the last cache",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "diamond"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "last_light_at_roads_end"
+                    }
+                  ]
+                },
+                {
+                  "id": "walk_for_strength",
+                  "label": "Walk it for strength",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "last_light_at_roads_end"
+                    }
+                  ]
+                },
+                {
+                  "id": "turn_back",
+                  "label": "Turn back alive",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "last_light_at_roads_end"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mirror_of_the_board",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Mirror of the Board",
+            "body": "A road-forge holds a mirror wide enough for your whole formation. It reflects a single shared purpose more clearly than any face.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": {
+              "storyId": "mirror_of_the_board",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "fact": "board.isMonoType",
+                      "args": {
+                        "typeKind": "weapon"
+                      }
+                    },
+                    {
+                      "fact": "board.isMonoType",
+                      "args": {
+                        "typeKind": "element"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "board",
+                    "count": 1,
+                    "tierAtLeast": "gold",
+                    "match": {
+                      "archetypes": [
+                        "offense",
+                        "defensive",
+                        "healing",
+                        "support",
+                        "debuff"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "fact": "run.tally",
+                  "args": {
+                    "stat": "bossesCleared",
+                    "op": "gte",
+                    "value": 1
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [
+              {
+                "as": "mono_type",
+                "source": "board.monoType"
+              }
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "perfect_reflection",
+                  "label": "Perfect the reflection",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "boundSubject": {
+                        "slot": "mono_type"
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "take_affinity_gem",
+                  "label": "Take an affinity gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "boundSubject": {
+                      "slot": "mono_type",
+                      "cases": [
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "sword"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "follow_through_echo",
+                                "bramble_sliver",
+                                "iron_bulwark_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "axe"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "armor_break_echo",
+                                "shield_splitter_echo",
+                                "rending_sliver"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "lance"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "ward_of_silence_echo",
+                                "millstone_sliver",
+                                "crippling_strike_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "bow"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "concussive_shot_echo",
+                                "weak_point_sliver",
+                                "swift_charm"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "beast"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "venom_fang_echo",
+                                "leeching_fang_echo",
+                                "battle_howl_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "fire"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "fireball_echo",
+                                "empowering_core",
+                                "mana_ward_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "frost"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "frost_ward_echo",
+                                "mana_ward_echo",
+                                "time_crystal_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "lightning"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "time_crystal_echo",
+                                "battle_howl_echo",
+                                "quickening_sliver"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "nature"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "bramble_sliver",
+                                "second_wind_echo",
+                                "time_crystal_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "holy"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "mending_light_echo",
+                                "purify_echo",
+                                "ward_of_silence_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "dark"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "hex_of_frailty_echo",
+                                "blunting_sliver",
+                                "slow_hex_echo"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "enter_mirror",
+                  "label": "Enter the mirror road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "mirror_transformation",
+                    "eventId": "mirror_transformation",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "forge"
+                    ],
+                    "priority": 700,
+                    "bind": [
+                      {
+                        "as": "mono_type",
+                        "source": "board.monoType"
+                      }
+                    ],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mirror_transformation",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Beyond the Board's Mirror",
+            "body": "The reflection returns at another forge, still holding the affinity it witnessed. One final transformation waits behind the silvered road.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": {
+              "storyId": "mirror_of_the_board",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "mirror_transformation"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": [
+              "mono_type"
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "transform_card",
+                  "label": "Transform the reflection",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "boundSubject": {
+                        "slot": "mono_type"
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "mirror_of_the_board"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_mirror_gem",
+                  "label": "Take the reflected gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "boundSubject": {
+                      "slot": "mono_type",
+                      "cases": [
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "sword"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "follow_through_echo",
+                                "bramble_sliver",
+                                "iron_bulwark_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "axe"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "armor_break_echo",
+                                "shield_splitter_echo",
+                                "rending_sliver"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "lance"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "ward_of_silence_echo",
+                                "millstone_sliver",
+                                "crippling_strike_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "bow"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "concussive_shot_echo",
+                                "weak_point_sliver",
+                                "swift_charm"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "weapon",
+                            "type": "beast"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "venom_fang_echo",
+                                "leeching_fang_echo",
+                                "battle_howl_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "fire"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "fireball_echo",
+                                "empowering_core",
+                                "mana_ward_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "frost"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "frost_ward_echo",
+                                "mana_ward_echo",
+                                "time_crystal_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "lightning"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "time_crystal_echo",
+                                "battle_howl_echo",
+                                "quickening_sliver"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "nature"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "bramble_sliver",
+                                "second_wind_echo",
+                                "time_crystal_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "holy"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "mending_light_echo",
+                                "purify_echo",
+                                "ward_of_silence_echo"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "when": {
+                            "typeKind": "element",
+                            "type": "dark"
+                          },
+                          "filter": [
+                            {
+                              "ids": [
+                                "hex_of_frailty_echo",
+                                "blunting_sliver",
+                                "slow_hex_echo"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "mirror_of_the_board"
+                    }
+                  ]
+                },
+                {
+                  "id": "break_mirror",
+                  "label": "Break the mirror",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "mirror_of_the_board"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "card_that_remembered",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Card That Remembered",
+            "body": "One skill has followed your victories and struck the final blow against a great foe. At a roadside shrine, the card begins to remember more than ink.",
+            "theme": "omen",
+            "rarity": "secret",
+            "story": {
+              "storyId": "card_that_remembered",
+              "stage": "capstone",
+              "role": "capstone"
+            },
+            "eligibility": {
+              "fact": "combat.signatureReady",
+              "args": {
+                "winsAtLeast": 3,
+                "bossFinisher": true
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [
+              {
+                "as": "signature_card_id",
+                "source": "signature.cardId"
+              }
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "awaken_capstone",
+                  "label": "Awaken the remembered art",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "signature_card_capstone",
+                    "eventId": "signature_card_capstone",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "forge"
+                    ],
+                    "priority": 700,
+                    "bind": [
+                      {
+                        "as": "signature_card_id",
+                        "source": "signature.cardId"
+                      }
+                    ],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 1
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "upgrade_signature",
+                  "label": "Upgrade the signature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "boundSubject": {
+                        "slot": "signature_card_id"
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "take_signature_gem",
+                  "label": "Take a gem that answers",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "all": true
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "signature_card_capstone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Remembered Art",
+            "body": "At the next forge, the bound card names the victories that shaped it. Its answer is a final refinement—or permission to rest.",
+            "theme": "forge",
+            "rarity": "secret",
+            "story": {
+              "storyId": "card_that_remembered",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "signature_card_capstone"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": [
+              "signature_card_id"
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "perfect_signature",
+                  "label": "Perfect the remembered card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "boundSubject": {
+                        "slot": "signature_card_id"
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "card_that_remembered"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_answering_gem",
+                  "label": "Take its answering gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "all": true
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "card_that_remembered"
+                    }
+                  ]
+                },
+                {
+                  "id": "let_memory_rest",
+                  "label": "Let the memory rest",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "card_that_remembered"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cartographers_missing_road",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Cartographer's Missing Road",
+            "body": "A cartographer compares your traveled lands to a map with one deliberate blank. The absent road points toward a biome you have not yet crossed.",
+            "theme": "market",
+            "rarity": "rare",
+            "story": {
+              "storyId": "cartographers_missing_road",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "journey.visitedBiomes",
+                  "args": {
+                    "op": "gte",
+                    "value": 3
+                  }
+                },
+                {
+                  "fact": "journey.completedChains",
+                  "args": {
+                    "op": "gte",
+                    "value": 2
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "bindings": [
+              {
+                "as": "destination_biome",
+                "source": "journey.futureBiome",
+                "candidates": "unvisited_catalog"
+              }
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "mark_missing_road",
+                  "label": "Mark the missing road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "missing_road_destination",
+                    "eventId": "missing_road_destination",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "cache"
+                    ],
+                    "priority": 700,
+                    "bind": [
+                      {
+                        "as": "destination_biome",
+                        "source": "journey.futureBiome",
+                        "candidates": "unvisited_catalog"
+                      }
+                    ],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "study_map",
+                  "label": "Study the map",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  }
+                },
+                {
+                  "id": "sell_map",
+                  "label": "Sell the map",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 5
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "missing_road_destination",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Missing Road",
+            "body": "The cartographer's mark appears beneath your feet in the biome it named. For a moment, the road opens onto a cache hidden outside every common map.",
+            "theme": "cache",
+            "rarity": "rare",
+            "story": {
+              "storyId": "cartographers_missing_road",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "missing_road_destination"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "acceptsBindings": [
+              "destination_biome"
+            ],
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "open_hidden_map",
+                  "label": "Open the hidden route",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 3
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "cartographers_missing_road"
+                    }
+                  ]
+                },
+                {
+                  "id": "claim_road_cache",
+                  "label": "Claim the road cache",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense",
+                          "defensive",
+                          "healing",
+                          "support",
+                          "debuff"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "cartographers_missing_road"
+                    }
+                  ]
+                },
+                {
+                  "id": "leave_road_missing",
+                  "label": "Leave it missing",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "cartographers_missing_road"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "names_under_stone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Names Under Stone",
+            "body": "Beyond Duskbarrow's fallen lord, a mile of grave markers leans toward the road. One stone speaks a name that only a bearer of dark craft could answer.",
+            "theme": "omen",
+            "rarity": "rare",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "names_under_stone",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "combat.biomeBossDefeated",
+                  "args": {
+                    "biomeId": "duskbarrow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "raise_dark_name",
+                  "label": "Raise the dark name",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "dark"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "take_grave_silver",
+                  "label": "Take the grave silver",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "grave_path",
+                      "value": "opened"
+                    }
+                  ],
+                  "callback": {
+                    "callbackId": "names_under_stone_answer",
+                    "eventId": "names_under_stone_answer",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the names buried",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "names_under_stone_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grave Answers",
+            "body": "Three roads later, the stolen silver rings against a nameless marker. The earth answers in a voice that has followed beneath every mile.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "names_under_stone",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "names_under_stone_answer"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "answer_name",
+                  "label": "Answer the buried name",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "grave_path",
+                      "value": "answered"
+                    },
+                    {
+                      "op": "completeStory",
+                      "storyId": "names_under_stone"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_silver",
+                  "label": "Take the last grave silver",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "names_under_stone"
+                    }
+                  ]
+                },
+                {
+                  "id": "close_stone",
+                  "label": "Close the stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "names_under_stone"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cinderheart_crucible",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Cinderheart Crucible",
+            "body": "A smith tends the last furnace between Emberwaste and the road beyond. It wakes only for flame proven in gold or carried through a fallen tyrant.",
+            "theme": "forge",
+            "rarity": "rare",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "cinderheart_crucible",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "tierAtLeast": "gold",
+                    "match": {
+                      "elements": [
+                        "fire"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "fact": "combat.statusUsed",
+                  "args": {
+                    "status": "burn",
+                    "result": "bossWin",
+                    "biomeId": "emberwaste"
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "bank_cinders",
+                  "label": "Bank the cinders",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "temper_fire_card",
+                    "label": "Temper a Fire card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "elements": [
+                              "fire"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    }
+                  },
+                  {
+                    "id": "choose_fire_gem",
+                    "label": "Choose a fire-working gem",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "burn"
+                          ]
+                        },
+                        {
+                          "ids": [
+                            "empowering_core",
+                            "mana_ward_echo"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "whiteout_pilgrim",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Whiteout Pilgrim",
+            "body": "A pilgrim steps out of the Frostmarch white, following a road visible only to those who have won beneath frost's banner.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "whiteout_pilgrim",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "combat.affinityWin",
+              "args": {
+                "affinityId": "frost",
+                "atLeast": 1,
+                "biomeId": "frostmarch"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "share_white_road",
+                  "label": "Share the white road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "callback": {
+                    "callbackId": "whiteout_guidance",
+                    "eventId": "whiteout_guidance",
+                    "contentVersion": 1,
+                    "minDepthDelay": 2,
+                    "destinationThemes": [
+                      "training"
+                    ],
+                    "destinationBiomeIds": [
+                      "frostmarch"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_ward",
+                  "label": "Take the pilgrim's ward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "shield",
+                          "guard",
+                          "ward"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Return to the road",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "whiteout_guidance",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pilgrim's Marker",
+            "body": "A white-road marker rises where the storm should have erased every trail. The pilgrim's sign points through the safest break in the gale.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "whiteout_pilgrim",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "whiteout_guidance"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_guidance",
+                  "label": "Follow the safe line",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_ward",
+                  "label": "Claim the cached ward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "shield",
+                          "guard",
+                          "ward"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                },
+                {
+                  "id": "walk_unaided",
+                  "label": "Walk unaided",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moon_scented_trail",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Moon-Scented Trail",
+            "body": "Silver tracks cross the Howlmoor road and vanish into heather. The trail bends for a hunter who runs with beasts—or has already broken a pack.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "moon_scented_trail",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "any": [
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "beast"
+                  }
+                },
+                {
+                  "fact": "combat.enemyDefeated",
+                  "args": {
+                    "weaponAffinity": "beast",
+                    "atLeast": 3
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "follow_hunt",
+                  "label": "Follow the hunt",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "callback": {
+                    "callbackId": "moon_scented_hunt",
+                    "eventId": "moon_scented_hunt",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "recruit"
+                    ],
+                    "destinationBiomeIds": [
+                      "howlmoor"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 15,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_trophy",
+                  "label": "Take a hunter's trophy",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "battle_howl_echo",
+                          "leeching_fang_echo",
+                          "bloodscent_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Let the trail fade",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moon_scented_hunt",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moon Hunt",
+            "body": "The silver trail reaches its quarry beneath a low moon. Hunter and hunted wait for you to decide how the chase ends.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "moon_scented_trail",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "moon_scented_hunt"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "finish_hunt",
+                  "label": "Finish the moon hunt",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "beast"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moon_scented_trail"
+                    }
+                  ]
+                },
+                {
+                  "id": "share_quarry",
+                  "label": "Share the quarry",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "battle_howl_echo",
+                          "leeching_fang_echo",
+                          "bloodscent_sliver"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moon_scented_trail"
+                    }
+                  ]
+                },
+                {
+                  "id": "release_quarry",
+                  "label": "Release the quarry",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "moon_quarry_released",
+                      "value": true
+                    },
+                    {
+                      "op": "completeStory",
+                      "storyId": "moon_scented_trail"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "red_standard",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Red Standard",
+            "body": "An old Ironmoot standard hangs above a silent drill yard. Three victories won beneath the axe are stitched into its ragged edge.",
+            "theme": "training",
+            "rarity": "rare",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "red_standard",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "combat.affinityWin",
+              "args": {
+                "affinityId": "axe",
+                "atLeast": 3,
+                "biomeId": "ironmoot"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "sell_standard",
+                  "label": "Sell the standard",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "claim_axe_draft",
+                    "label": "Claim the Axe draft",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "bonusDraft",
+                      "filter": [
+                        {
+                          "weapons": [
+                            "axe"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "hone_axe",
+                    "label": "Hone an Axe card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "weapons": [
+                              "axe"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_hedge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Hedge",
+            "body": "At Pikewold's far boundary, a veteran holds the last living hedge with one weathered lance and a lesson in refusing the road's advance.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "last_hedge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "weapons": [
+                        "lance"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_lance_lesson",
+                  "label": "Take the Lance lesson",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_hedge_ward",
+                  "label": "Take the hedge ward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "shield",
+                          "guard",
+                          "ward"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "drill_then_leave",
+                  "label": "Drill, then leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thunder_in_a_bottle",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Thunder in a Bottle",
+            "body": "A Stormreach tinker has trapped the echo of your swiftest lightning victory. The bottle shakes whenever the road turns toward another fight.",
+            "theme": "cache",
+            "rarity": "rare",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "thunder_in_a_bottle",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "combat.fastWin",
+              "args": {
+                "maxTurns": 8,
+                "element": "lightning"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "sell_storm",
+                  "label": "Sell the storm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "socket_thunder",
+                    "label": "Socket the thunder",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "slow"
+                          ]
+                        },
+                        {
+                          "ids": [
+                            "time_crystal_echo"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "teach_the_card",
+                    "label": "Teach a Lightning card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "elements": [
+                              "lightning"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bloom_behind_the_teeth",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Bloom Behind the Teeth",
+            "body": "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall.",
+            "theme": "cache",
+            "rarity": "secret",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "bloom_behind_the_teeth",
+              "stage": "capstone",
+              "role": "capstone"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "combat.statusUsed",
+                  "args": {
+                    "status": "poison",
+                    "result": "bossWin",
+                    "biomeId": "thornwild"
+                  }
+                },
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "nature"
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "harvest_venom",
+                  "label": "Harvest the venom",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "poison"
+                        ]
+                      },
+                      {
+                        "ids": [
+                          "festering_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "cultivate_bloom",
+                  "label": "Cultivate the bloom",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "venom_bloom",
+                      "value": "cultivated"
+                    }
+                  ]
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the bloom sleeping",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

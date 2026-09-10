@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { bankedPL } from '../../run/leveling';
+import { runCalendar } from '../../run/runCalendar';
 import { type RunState } from '../runStore';
-import { FONT, INK, UI, textRole } from '../theme';
+import { FONT, INK, SCREEN, UI, textRole } from '../theme';
+import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { renderBankedPlBadge } from './RunStatPanel';
 import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
@@ -28,10 +30,9 @@ import { renderStatRun } from './statRunStrip';
  */
 
 export interface RunProgressSnapshot {
-  /** Node visits committed so far (`run.depth`) — a "day" is any node visit
-   * (fight/elite/boss/shop/event), unbounded (the run is endless). */
+  /** Legacy transport name for the absolute route STOP (`run.depth`), never a day. */
   day: number;
-  /** The fight number the player is heading toward/currently in, unbounded. */
+  /** Legacy transport name for the absolute calendar DAY, never a local region day. */
   wave: number;
   gold: number;
   heroLevel: number;
@@ -49,15 +50,12 @@ export interface RunProgressSnapshot {
 }
 
 /** Builds the HUD's display-only snapshot straight off `RunState` — no
- * decisions, just reads (day/wave are now UNBOUNDED: the run is endless, see
- * docs/release-game-plan.md). */
+ * decisions; legacy field names remain only for callers outside this slice. */
 export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapshot {
-  const currentColumn = run.map.depths[run.depth];
-  const nextColumn = run.map.depths[run.depth + 1];
-  const wave = nextColumn?.[0]?.wave ?? currentColumn?.[0]?.wave ?? 1;
+  const calendar = runCalendar(run);
   return {
-    day: run.depth,
-    wave,
+    day: calendar.stop,
+    wave: calendar.absoluteDay,
     gold: run.gold,
     heroLevel: run.heroLevel,
     lives: run.lives,
@@ -249,6 +247,13 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     ? { kicker: 9, title: 16, stats: 9, action: 8 }
     : { kicker: 12, title: 26, stats: 12, action: 10 };
 
+  // Run screens may now sit on luminous scenery. Keep the shared HUD as one
+  // calm, readable band instead of asking every label to survive arbitrary
+  // snow, sky, or lava pixels beneath it.
+  const hudBackdrop = scene.add.rectangle(0, 0, SCREEN.width, t.regions.content.y, UI.bg, BRIGHT_ART_TREATMENT.chrome.headerScrimAlpha)
+    .setOrigin(0, 0);
+  track(opts.track, hudBackdrop);
+
   const { statsEndX } = drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
 
   // ---- mobile STATS opener: the whole stats-strip rect is the tap target,
@@ -385,18 +390,52 @@ interface ConfirmDialogOpts {
  * the scrim is the whole-viewport dismiss affordance on both platforms.
  */
 function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void {
+  const localView = scene.data?.get('embeddedRunView') as Rect | undefined;
+  if (localView) {
+    const pane = (scene.data.get('embeddedEventOutcomeBounds') as Rect | undefined) ?? localView;
+    const top = Math.max(pane.y, localView.y);
+    const bottom = Math.min(pane.y + pane.height, localView.y + localView.height);
+    renderEmbeddedConfirm(scene, opts, { x: pane.x, y: top, width: pane.width, height: Math.max(1, bottom - top) });
+    return;
+  }
   const platform = opts.compact ? 'mobile' : 'desktop';
   const t = runScreenLayout(platform);
-  const { width: W, height: H } = t.canvas;
+  const embedded = scene.data?.get('embeddedRunView') as { x: number; y: number; width: number; height: number } | undefined;
+  const { width: W, height: H } = embedded ?? t.canvas;
+  const originX = embedded?.x ?? 0;
+  const originY = embedded?.y ?? 0;
   const danger = opts.tone === 'danger';
   const onScrim = opts.onScrim ?? opts.onCancel;
-  scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(6000)
+  scene.add.rectangle(originX, originY, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(6000)
     .on('pointerdown', (pointer: Phaser.Input.Pointer) => onScrim(pointer));
 
   const pw = Math.min(W - 40, opts.compact ? W - 32 : 440);
-  const ph = opts.compact ? 168 : 176;
-  const px = (W - pw) / 2;
-  const py = (H - ph) / 2;
+  // The 168/176 baseline was tuned for a 2-line `body` (RETIRE's and the
+  // unspent-PL gate's both are exactly 2) — grow the panel for a caller whose
+  // body needs more (`renderMergeConsumeConfirm`'s per-card list), one line at
+  // a time. Both existing callers stay at exactly their old `ph`, since
+  // `extraLines` is 0 for a 2-line body — PINNED at
+  // `tests/game/unspentPlConfirm.test.ts` (176 desktop / 168 mobile).
+  //
+  // COUNTS WRAPPED LINES, NOT `\n`s (fixed 2026-09-06 audit finding 6):
+  // `opts.body` word-wraps at `pw - 48` (same width the real text below
+  // uses), so a single AUTHORED line long enough to wrap on its own
+  // contributes MORE than one rendered line — `opts.body.split('\n').length`
+  // was blind to that and could under-size `ph` for a future longer body
+  // (no bite today: the longest confirm line measured 205px in mobile's
+  // 324px box, well under the wrap width). Measuring means allocating the
+  // real `Text` object early (off-canvas at 0,0) and asking IT how it
+  // wrapped, then moving it into place once `px`/`py` are known, rather than
+  // reproducing Phaser's wrap algorithm by hand or allocating a second
+  // throwaway object just to measure.
+  const bodyStyle = { ...textRole('body'), align: 'center' as const, wordWrap: { width: pw - 48 } };
+  const bodyText = scene.add.text(0, 0, opts.body, bodyStyle).setDepth(6002);
+  const bodyLines = bodyText.getWrappedText(opts.body).length;
+  const extraLines = Math.max(0, bodyLines - 2);
+  const perLineH = opts.compact ? 16 : 18;
+  const ph = (opts.compact ? 168 : 176) + extraLines * perLineH;
+  const px = originX + (W - pw) / 2;
+  const py = originY + (H - ph) / 2;
   scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0)
     .setStrokeStyle(2, danger ? UI.bad : UI.chip, 0.9).setInteractive().setDepth(6001);
 
@@ -405,9 +444,7 @@ function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void
   // come off the profile ladder instead of a local 15/18 + 11/13 pair.
   scene.add.text(px + pw / 2, py + 22, opts.title, textRole('section'))
     .setOrigin(0.5, 0).setDepth(6002);
-  scene.add.text(px + pw / 2, py + 52, opts.body, {
-    ...textRole('body'), align: 'center', wordWrap: { width: pw - 48 },
-  }).setOrigin(0.5, 0).setDepth(6002);
+  bodyText.setPosition(px + pw / 2, py + 52).setOrigin(0.5, 0);
 
   const btnW = (pw - 48 - 12) / 2;
   const btnY = py + ph - 56;
@@ -428,6 +465,70 @@ function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void
   confirmBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onConfirm(pointer));
 }
 
+/** Embedded confirms share the existing callbacks, but their entire surface
+ * (including the scrim and both actions) belongs to the visible outcome pane. */
+function renderEmbeddedConfirm(scene: Phaser.Scene, opts: ConfirmDialogOpts, pane: Rect): void {
+  const pad = 16;
+  const gap = 12;
+  const width = Math.max(1, Math.min(440, pane.width - 24));
+  const innerWidth = Math.max(1, width - pad * 2);
+  const stacked = (innerWidth - gap) / 2 < 110;
+  const actionsHeight = stacked ? 92 : 40;
+  const title = scene.add.text(0, 0, opts.title, {
+    ...textRole('section'), align: 'center', wordWrap: { width: innerWidth },
+  }).setOrigin(0.5, 0).setDepth(6002);
+  auditTextBlock(title, { name: 'Embedded event confirmation title', maxWidth: innerWidth, maxHeight: 52, minFontSize: 10 });
+  const body = scene.add.text(0, 0, opts.body, {
+    ...textRole('body'), align: 'center', wordWrap: { width: innerWidth },
+  }).setOrigin(0.5, 0).setDepth(6002);
+  const height = Math.max(1, Math.min(pane.height - 24, pad * 2 + title.height + gap + body.height + gap + actionsHeight));
+  const x = pane.x + (pane.width - width) / 2;
+  const y = pane.y + (pane.height - height) / 2;
+  const danger = opts.tone === 'danger';
+  scene.add.rectangle(pane.x, pane.y, pane.width, pane.height, UI.shadow, 0.78).setOrigin(0, 0).setDepth(6000)
+    .setInteractive().on('pointerdown', (pointer: Phaser.Input.Pointer) => (opts.onScrim ?? opts.onCancel)(pointer));
+  scene.add.rectangle(x, y, width, height, UI.panelAlt, 1).setOrigin(0, 0).setDepth(6001)
+    .setStrokeStyle(1, danger ? UI.bad : UI.chip, 1).setInteractive();
+  title.setPosition(x + width / 2, y + pad);
+  const bodyY = title.y + title.height + gap;
+  const actionY = y + height - pad - actionsHeight;
+  const bodyHeight = Math.max(1, actionY - gap - bodyY);
+  body.setPosition(x + width / 2, bodyY);
+  if (body.height > bodyHeight) {
+    const mask = scene.make.graphics({}, false).fillStyle(0xffffff).fillRect(x + pad, bodyY, innerWidth, bodyHeight);
+    body.setMask(mask.createGeometryMask());
+    body.once('destroy', () => mask.destroy());
+    let offset = 0;
+    const scroll = (delta: number): void => {
+      offset = Math.max(0, Math.min(body.height - bodyHeight, offset + delta));
+      body.setY(bodyY - offset);
+    };
+    scene.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
+      if (pointer.worldX >= x + pad && pointer.worldX <= x + width - pad && pointer.worldY >= bodyY && pointer.worldY <= bodyY + bodyHeight) scroll(dy);
+    });
+    let previousY: number | null = null;
+    scene.add.rectangle(x + pad, bodyY, innerWidth, bodyHeight, UI.panelAlt, 0).setOrigin(0, 0).setDepth(6003).setInteractive()
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => { previousY = pointer.worldY; });
+    scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (previousY === null || !pointer.isDown) return;
+      scroll(previousY - pointer.worldY); previousY = pointer.worldY;
+    });
+    scene.input.on('pointerup', () => { previousY = null; });
+  }
+  const buttonWidth = stacked ? innerWidth : (innerWidth - gap) / 2;
+  const button = (bx: number, by: number, label: string, confirm: boolean, onPress: ConfirmHandler): void => {
+    const fill = confirm ? danger ? UI.bad : UI.chip : UI.panelMuted;
+    const box = scene.add.rectangle(bx, by, buttonWidth, 40, fill, 1).setOrigin(0, 0).setDepth(6002)
+      .setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
+    const text = scene.add.text(bx + buttonWidth / 2, by + 20, label,
+      textRole('label', confirm ? { ink: danger ? 'onAlarm' : 'onAccent' } : {})).setOrigin(0.5).setDepth(6002);
+    auditControlLabel(box, text, { name: 'Embedded event confirmation action', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    box.on('pointerdown', (pointer: Phaser.Input.Pointer) => onPress(pointer));
+  };
+  button(x + pad, actionY, opts.cancelLabel, false, opts.onCancel);
+  button(stacked ? x + pad : x + pad + buttonWidth + gap, stacked ? actionY + 52 : actionY, opts.confirmLabel, true, opts.onConfirm);
+}
+
 /**
  * RETIRE confirm — the danger-toned instance of `renderConfirmDialog`, shared
  * by every screen that exposes the tertiary RETIRE action. Callers own the
@@ -443,6 +544,94 @@ export function renderRetireConfirm(
     body: 'This ends the run right now — bosses cleared, days\nsurvived, gold, and hero level are locked in.',
     cancelLabel: 'CANCEL',
     confirmLabel: 'RETIRE',
+    tone: 'danger',
+    onCancel: opts.onCancel,
+    onConfirm: opts.onConfirm,
+  });
+}
+
+/**
+ * The mergeCards choice's pre-resolution CONFIRM — the danger-toned instance
+ * of `renderConfirmDialog`. UNCONDITIONAL (2026-09-06 user ruling: a merge
+ * always costs three cards, so it always pauses here — this used to skip
+ * the dialog for a bag-only trade on the theory that the choice row's own
+ * compact price line was pause enough for that case; the row can no longer
+ * name all three cards on one line for every trio (see
+ * `mergeRowPreviewText`'s doc comment, eventOutcomeText.ts), so this dialog
+ * is now the ONLY place a bag-only trio is named too, not just a
+ * board-touching one). `body` is `mergeConfirmBody`'s output,
+ * eventOutcomeText.ts — the headline over one named+placed line per
+ * consumed card. Cancel returns to the choice list with NOTHING resolved and
+ * the rung still takeable — this is a pause before
+ * `resolveCurrentRunEventChoice` is ever called, not a way out of the
+ * picker that call opens.
+ */
+export function renderMergeConsumeConfirm(
+  scene: Phaser.Scene,
+  opts: { compact: boolean; body: string; onConfirm: ConfirmHandler; onCancel: ConfirmHandler },
+): void {
+  renderConfirmDialog(scene, {
+    compact: opts.compact,
+    title: 'MERGE — CARDS LEAVE YOUR BOARD',
+    body: opts.body,
+    cancelLabel: 'CANCEL',
+    confirmLabel: 'MERGE',
+    tone: 'danger',
+    onCancel: opts.onCancel,
+    onConfirm: opts.onConfirm,
+  });
+}
+
+/**
+ * A rung whose outcome costs GOLD (`cost > 0`) pauses on this confirm before
+ * `resolveCurrentRunEventChoice` is ever called — the same moment the gold
+ * is actually deducted (`resolveEventChoice`, src/run/events.ts, charges the
+ * cost up front regardless of whether the outcome resolves immediately or
+ * opens a picker), so there is no path where gold leaves the player's purse
+ * without this dialog having been confirmed first. `title`/`body` come from
+ * `eventCostConfirmTitle`/`eventCostConfirmBody` (eventOutcomeText.ts), built
+ * off the SAME hint text the choice row's own detail line already shows.
+ * Never shown for a `mergeCards` rung — that kind pauses through its own
+ * richer `renderMergeConsumeConfirm` instead (`costConfirm` is `null` for it,
+ * `runEventScenePresenter.ts`).
+ */
+export function renderEventCostConfirm(
+  scene: Phaser.Scene,
+  opts: { compact: boolean; title: string; body: string; onConfirm: ConfirmHandler; onCancel: ConfirmHandler },
+): void {
+  renderConfirmDialog(scene, {
+    compact: opts.compact,
+    title: opts.title,
+    body: opts.body,
+    cancelLabel: 'CANCEL',
+    confirmLabel: 'CONFIRM',
+    tone: 'accent',
+    onCancel: opts.onCancel,
+    onConfirm: opts.onConfirm,
+  });
+}
+
+/**
+ * The `sellGem` picker's own pre-finalize CONFIRM — shown after the player
+ * taps WHICH gem to sell, not before the picker opens. Unlike `mergeCards`
+ * (whose three consumed instances are the run layer's decision, knowable
+ * before its picker even opens), which gem leaves the pouch here is the
+ * PLAYER's choice, made inside the picker itself, so the exact instance and
+ * price cannot be confirmed any earlier. `title`/`body` come from
+ * `sellGemConfirmTitle`/`sellGemConfirmBody` (eventOutcomeText.ts). Cancel
+ * returns to the same picker grid with nothing sold — the tapped gem is
+ * still there to pick again.
+ */
+export function renderSellGemConfirm(
+  scene: Phaser.Scene,
+  opts: { compact: boolean; title: string; body: string; onConfirm: ConfirmHandler; onCancel: ConfirmHandler },
+): void {
+  renderConfirmDialog(scene, {
+    compact: opts.compact,
+    title: opts.title,
+    body: opts.body,
+    cancelLabel: 'CANCEL',
+    confirmLabel: 'SELL',
     tone: 'danger',
     onCancel: opts.onCancel,
     onConfirm: opts.onConfirm,

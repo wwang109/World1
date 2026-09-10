@@ -72,14 +72,32 @@ describe('data: modifiers content schema contract', () => {
     failsWith(d, 'missing required field name');
   });
 
-  it('empty blurb is rejected', () => {
-    const d = clone(); vers(d)[0]!.def.blurb = '';
-    failsWith(d, 'blurb must be a non-empty string');
+  // `blurb` is GONE (2026-09-06). A hand-written "what this affix does" line
+  // was a third copy of the card-text defect: four of the six affixes ARE a
+  // card, so the chip renders that card's own generated face instead. What
+  // survives is `answer` — the counter-play editorial nothing can derive.
+  it('an authored blurb is rejected — the effect line is derived now', () => {
+    const d = clone(); vers(d)[0]!.def.blurb = 'Takes 20% less physical damage';
+    failsWith(d, 'unknown field blurb');
   });
 
-  it('a missing blurb is rejected', () => {
-    const d = clone(); delete vers(d)[0]!.def.blurb;
-    failsWith(d, 'missing required field blurb');
+  it('empty answer is rejected', () => {
+    const d = clone(); vers(d)[0]!.def.answer = '';
+    failsWith(d, 'answer must be a non-empty string');
+  });
+
+  it('a behavioural affix with NO answer is rejected', () => {
+    const d = clone(); delete vers(d)[0]!.def.answer;
+    failsWith(d, 'must carry a non-empty answer');
+  });
+
+  it('an escalation modifier carrying an answer is rejected', () => {
+    // Two pools, one flag. Only an affix is ever dealt as a readable identity,
+    // so an answer on SWIFT is an answer nothing would print.
+    const d = clone();
+    const swift = d.modifiers.find((m) => m.id === 'swift')!;
+    (swift.versions as unknown as Entry[])[0]!.def.answer = 'out-speed it';
+    failsWith(d, 'answer belongs to a behavioural affix');
   });
 
   it('bonusPL out of range is rejected', () => {

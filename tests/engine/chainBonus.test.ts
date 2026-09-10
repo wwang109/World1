@@ -37,7 +37,6 @@ const card = (id: string, over: Partial<SkillDef> = {}): SkillDef => ({
   rarity: 'common',
   tier: 'bronze',
   effects: [{ kind: 'damage', power: 0 }],
-  text: '',
   ...over,
 });
 
@@ -170,7 +169,7 @@ describe('the authoring rules', () => {
       versions: [{
         version: 1,
         def: {
-          name: 'Chain Probe', text: 'Deal 10 damage.',
+          name: 'Chain Probe',
           archetypes: ['offense'], property: 'physical', weapon: 'axe',
           size: 1, rarity: 'common', tier: 'bronze',
           ...def,
@@ -185,12 +184,10 @@ describe('the authoring rules', () => {
 
   it('ACCEPTS a cross-type pairing, on either axis', () => {
     expect(problemsOf({
-      text: 'Chain +8 after a Sword · deal 10 damage.',
       effects: [chain('sword'), { kind: 'damage', power: 10 }],
     })).toBe('');
     expect(problemsOf({
       property: 'magical', weapon: undefined, element: 'frost',
-      text: 'Chain +8 after a Fire card · deal 10 damage.',
       effects: [chain('fire'), { kind: 'damage', power: 10 }],
     })).toBe('');
   });
@@ -217,7 +214,6 @@ describe('the authoring rules', () => {
 
   it('checks the self-gate at EVERY TIER, not just the base card', () => {
     expect(problemsOf({
-      text: 'Chain +8 after a Sword · deal 10 damage.',
       effects: [chain('sword'), { kind: 'damage', power: 10 }],
       tierUpgrades: { silver: { effects: [chain('axe'), { kind: 'damage', power: 14 }] } },
     })).toContain('cannot name its own card type (axe)');

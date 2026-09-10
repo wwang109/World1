@@ -177,8 +177,16 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
       }
       return a;
     });
+  // NO TEXT TO PATCH. The card's face is GENERATED from `effects` by
+  // `renderSkillText` (keywords/compose.ts), so a scaled kit re-renders
+  // correctly by construction. This used to call `retextScaledNumbers`, which
+  // rewrote the FIRST standalone occurrence of each changed numeral in the
+  // stored string and REFUSED to guess when a number appeared twice — the
+  // documented `piercing_reach` defect ("Shatter 16, then deal 16" at Silver
+  // printed "Shatter 26 ... deal 16": both wrong, and swapped). With no stored
+  // string the ambiguity, the guess and its drift test all cease to exist.
   const withEffects = (next: Action[]): SkillDef =>
-    ({ ...def, tier: targetTier, effects: next, text: retextScaledNumbers(def.text, effects, next) });
+    ({ ...def, tier: targetTier, effects: next });
 
   // THE ONE PRICER — every candidate kit below is priced by `powerLevelDeci`
   // itself, at the TARGET tier, never by a re-derived sum of parts.
@@ -272,53 +280,6 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   return withEffects(applyEffects(chosenN, lo));
 }
 
-/**
- * Keep the display `text` honest when auto-scaling changes effect numbers
- * (authored `tierUpgrades` carry their own text; this covers the generic
- * path). For each effect whose `power`/`stacks`/`charges` changed, rewrite the
- * FIRST standalone occurrence of the old number in the text (not part of a
- * longer number and not a percentage). Effects are display-only — the engine
- * never reads `text` — so a rare miss degrades display, never simulation.
- */
-function retextScaledNumbers(text: string, before: readonly Action[], after: readonly Action[]): string {
-  let out = text;
-  before.forEach((oldAction, i) => {
-    const newAction = after[i];
-    if (!newAction) return;
-    const numericPairs: Array<[number | undefined, number | undefined]> = [
-      [(oldAction as { power?: number }).power, (newAction as { power?: number }).power],
-      [(oldAction as { stacks?: number }).stacks, (newAction as { stacks?: number }).stacks],
-      // `cleanse` (user-locked 2026-08-17) is the one scalable keyword whose
-      // magnitude lives on `charges`, not `power`/`stacks` — see `sinkField`.
-      [(oldAction as { charges?: number }).charges, (newAction as { charges?: number }).charges],
-    ];
-    for (const [oldValue, newValue] of numericPairs) {
-      if (oldValue === undefined || newValue === undefined || oldValue === newValue) continue;
-      const numeral = new RegExp(`(?<!\\d)${oldValue}(?!\\d|%)`, 'g');
-      // AMBIGUITY GUARD (bug fix, 2026-08-21): only rewrite when the old value
-      // appears EXACTLY ONCE as a standalone numeral. With two or more
-      // occurrences there is no way to know which one belongs to THIS action, and
-      // guessing "the first" silently prints the wrong number on the card face.
-      //
-      // THE BUG THIS CLOSES, verbatim from the catalog: `piercing_reach` authored
-      // `shieldBreak 16` + `damage 16` with the text "{{Shatter}} 16 enemy shield,
-      // then deal 16 (+ATK) Lance damage." Only `damage` scales, so at Silver the
-      // engine shattered 16 and hit for 26 — but this rewrite replaced the FIRST
-      // "16", producing "Shatter 26 ... deal 16": both numbers wrong, and swapped.
-      // (`shieldBreak`'s magnitude is `amount`, which this function does not track
-      // at all, so nothing marked that numeral as already spoken for.)
-      //
-      // REFUSING TO GUESS IS THE POINT. An un-rewritten number is still wrong, but
-      // it is wrong LOUDLY: `tests/engine/tierTextDrift.test.ts` audits every card
-      // x tier and fails, and the fix is to author an explicit `tierUpgrades` text
-      // for that tier (which wins verbatim over this whole path). A wrong number
-      // printed confidently is the failure mode with no detector.
-      if ((out.match(numeral) ?? []).length !== 1) continue;
-      out = out.replace(new RegExp(`(?<!\\d)${oldValue}(?!\\d|%)`), String(newValue));
-    }
-  });
-  return out;
-}
 
 /**
  * Rank/tier-up dispatch (resolver-seam). A target at or below the base tier
@@ -993,7 +954,9 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
  * Extends `resolveEffectiveSkill`'s tier + effect-gem fold with this piece's
  * OWN card-scope stat-gem flat mods (`gemCardMods`), baked directly into the
  * matching EXISTING actions' `power` — the same way `autoScaleTier` bakes a
- * tier bump into `power` and keeps `text` honest via `retextScaledNumbers`.
+ * tier bump into `power`. The FACE follows for free: it is generated from
+ * `effects` by `renderSkillText` (keywords/compose.ts), so a gem-bumped
+ * number needs no string patched to stay honest.
  * A card-scope gem's `damageFlat` bumps every existing `damage` action
  * regardless of property; `healFlat` bumps every existing `heal` action
  * EXCEPT on a TRUE-property card — mirroring the engine's OWN per-property
@@ -1029,13 +992,12 @@ export function resolveDisplaySkill(def: SkillDef, piece: BoardPiece): SkillDef 
   // in here either.
   const healAdd = effective.property === 'true' ? 0 : (cardMods.healFlat ?? 0);
   if (!dmgAdd && !healAdd) return effective;
-  const before = effective.effects;
-  const after = before.map((a) => {
+  const after = effective.effects.map((a) => {
     if (dmgAdd && a.kind === 'damage') return { ...a, power: a.power + dmgAdd };
     if (healAdd && a.kind === 'heal') return { ...a, power: a.power + healAdd };
     return a;
   });
-  return { ...effective, effects: after, text: retextScaledNumbers(effective.text, before, after) };
+  return { ...effective, effects: after };
 }
 
 /**

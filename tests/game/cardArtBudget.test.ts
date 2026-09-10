@@ -69,12 +69,39 @@ function walk(dir: string, out: string[] = []): string[] {
   }
   return out;
 }
-/** A right-sized card at max 1024 tall / WebP q72 lands around 75 KB. */
+/** A right-sized card at max 1024 tall / WebP q68 lands around 70 KB. */
 const MAX_FILE_BYTES = 400 * 1024;
 /** Whole catalogue, if something ever did load it all at once. */
 const MAX_CATALOG_BYTES = 12 * 1024 * 1024;
 
+const BATCH_ONE_CATALOG_ENTRIES = {
+  champions_challenge: { textureKey: 'card-art:champions_challenge', fileName: 'champions_challenge.webp' },
+  emberchant_rite: { textureKey: 'card-art:emberchant_rite', fileName: 'emberchant_rite.webp' },
+  frostbind_litany: { textureKey: 'card-art:frostbind_litany', fileName: 'frostbind_litany.webp' },
+  hibernation: { textureKey: 'card-art:hibernation', fileName: 'hibernation.webp' },
+  ironmarch_tithe: { textureKey: 'card-art:ironmarch_tithe', fileName: 'ironmarch_tithe.webp' },
+  quiverwardens_call: { textureKey: 'card-art:quiverwardens_call', fileName: 'quiverwardens_call.webp' },
+  standard_of_the_ninth: { textureKey: 'card-art:standard_of_the_ninth', fileName: 'standard_of_the_ninth.webp' },
+  storm_tithe: { textureKey: 'card-art:storm_tithe', fileName: 'storm_tithe.webp' },
+  writ_of_sanction: { textureKey: 'card-art:writ_of_sanction', fileName: 'writ_of_sanction.webp' },
+} as const;
+
+const RESUMED_CATALOG_ENTRIES = {
+  blightstep_dirge: { textureKey: 'card-art:blightstep_dirge', fileName: 'blightstep_dirge.webp' },
+  forgeheart_bastion: { textureKey: 'card-art:forgeheart_bastion', fileName: 'forgeheart_bastion.webp' },
+  heartwood_sanctum: { textureKey: 'card-art:heartwood_sanctum', fileName: 'heartwood_sanctum.webp' },
+  ironhide: { textureKey: 'card-art:ironhide', fileName: 'ironhide.webp' },
+  nullshroud: { textureKey: 'card-art:nullshroud', fileName: 'nullshroud.webp' },
+  quickmend: { textureKey: 'card-art:quickmend', fileName: 'quickmend.webp' },
+  steady_draw: { textureKey: 'card-art:steady_draw', fileName: 'steady_draw.webp' },
+  the_long_watch: { textureKey: 'card-art:the_long_watch', fileName: 'the_long_watch.webp' },
+} as const;
+
 describe('card art budget', () => {
+  it('keeps the justified whole-catalog card encoder at q68 / h1024', () => {
+    const encoder = readFileSync('scripts/encode-card-art.ts', 'utf8');
+    expect(encoder).toMatch(/name: 'cards'.*maxHeight: 1024, quality: 0\.68/);
+  });
   it('BootScene never names card art — the eager preload stays gone', () => {
     const boot = readFileSync(join('src', 'game', 'scenes', 'BootScene.ts'), 'utf8');
     // Strip comments: the file explains the removal in prose, and that prose
@@ -126,6 +153,14 @@ describe('card art budget', () => {
     expect(new Set(entries.map((e) => e.fileName)).size).toBe(entries.length);
   });
 
+  it('uses the approved catalog-owned stems for the first missing-card rollout batch', () => {
+    expect(CARD_ART_CATALOG).toMatchObject(BATCH_ONE_CATALOG_ENTRIES);
+  });
+
+  it('uses the approved catalog-owned stems for the resumed missing-card rollout batch', () => {
+    expect(CARD_ART_CATALOG).toMatchObject(RESUMED_CATALOG_ENTRIES);
+  });
+
   it('cardArtUrl is the one path builder and points into the served directory', () => {
     for (const entry of Object.values(CARD_ART_CATALOG)) {
       expect(cardArtUrl(entry)).toBe(`${CARD_ART_BASE_PATH}/${entry.fileName}`);
@@ -147,25 +182,7 @@ describe('card art budget', () => {
    * list. Ship art for a listed card -> DELETE its line. The list reaching
    * empty again is the goal, not the invariant.
    */
-  const ART_PENDING = [
-    'blightstep_dirge',
-    'champions_challenge',
-    'emberchant_rite',
-    'forgeheart_bastion',
-    'frostbind_litany',
-    'heartwood_sanctum',
-    'hibernation',
-    'ironhide',
-    'ironmarch_tithe',
-    'nullshroud',
-    'quickmend',
-    'quiverwardens_call',
-    'standard_of_the_ninth',
-    'steady_draw',
-    'storm_tithe',
-    'the_long_watch',
-    'writ_of_sanction',
-  ];
+  const ART_PENDING: string[] = [];
 
   it('every skill has catalogue art or a deliberate art-pending entry, plus a placeholder fallback', () => {
     const skills = Object.values(skillBook);

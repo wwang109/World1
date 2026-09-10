@@ -38,7 +38,6 @@ function card(id: string, effects: SkillDef['effects'], speedWeight: number): Sk
     rarity: 'common',
     tier: 'bronze',
     effects,
-    text: '',
   };
 }
 

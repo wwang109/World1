@@ -1,36 +1,39 @@
 import Phaser from 'phaser';
-import type { EventChoiceDef, EventDef } from '../../data/events';
-import type { DraftCard } from '../../run/draft';
-import { choiceLockReason, derivedChoiceFamily, eventRecapLine, type EventOutcome, type MergeCardsReceipt, type SellGemOption, type UpgradeCardOption } from '../../run/events';
+import { embeddedEventLayout, positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
+import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
+import { RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
+import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
-import { choiceOutcomeHint } from '../ui/eventOutcomeText';
-import { eventThemeArea } from '../ui/eventThemeBlurb';
+import { mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
+import { buildMergeSpentEntries, mergeConfirmPreviewForChoice } from '../ui/runMergeViewModel';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeCardsPicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
-import { buildRunMergeViewModel, type RunMergeViewModel } from '../ui/runMergeViewModel';
-import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
-import { eventChoiceBlockHeight } from '../ui/runEventStoryLayout';
+import {
+  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud, renderSellGemConfirm,
+  snapshotRunProgress,
+} from '../ui/RunProgressStrip';
+import { addBrightRunArt, addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
+import { renderEventArtBorder } from '../ui/eventArtBorder';
+import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
+import { EVENT_REWARD_COLORS, renderRunEventOutcomePane } from '../ui/RunRewardPanel';
+import {
+  buildRunEventScenePresentation,
+  type RunEventScenePresentation,
+} from '../ui/runEventScenePresenter';
+import { eventBodyScrollLayout, eventBodyScrollThumb } from '../ui/runEventStoryLayout';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
-  applyCurrentBonusDraftPick,
-  applyCurrentGemChoicePick,
-  applyCurrentMergeCardsPick,
-  applyCurrentSellGemPick,
-  applyCurrentUpgradeCardPick,
-  currentEventDef,
-  currentEventResolution,
-  currentRunPieces,
+  currentRunEventViewModel,
+  finalizeCurrentRunEventOffer,
   getActiveRun,
   leaveCurrentEvent,
-  reopenCurrentEventPick,
-  resolveCurrentEventChoice,
+  reopenCurrentRunEventOffer,
+  resolveCurrentRunEventChoice,
   retireActiveRun,
+  type RunEventOutcome,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
@@ -38,207 +41,144 @@ const F = MOBILE_PROFILE.font;
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
 const TEMPLATE = runScreenLayoutRef('mobile');
 
-/** The one flowing story column the CHOOSING phase renders into — computed
- * ONCE by `renderStory` off the event's actual theme/title/body. Once a
- * choice resolves (`outcome`/`bonusDraftPick`), the story column is REPLACED
- * by the reward template (`RunRewardPanel.ts`'s `renderRunRewardPanel`/
- * `renderRunBonusDraftPicker`) rather than shown alongside it — see the
- * module doc for why. */
-interface StoryLayout { innerX: number; innerW: number; contentTop: number }
+export interface MobileEventChoosingRect { x: number; y: number; width: number; height: number }
 
-/**
- * Mobile Run Event — the vertical counterpart of `DesktopRunEventScene`: a
- * single top-down story page (area-intro caption → title → body panel) while
- * CHOOSING, stacked above the choice rows. Once a choice resolves, the screen
- * switches to the ONE reward template every outcome kind shares
- * (`RunRewardPanel.ts`'s `renderRunRewardPanel`, driven by
- * `buildRunRewardViewModel`) or, for a `bonusDraft`/`upgradeCardPick`
- * outcome, that same module's `renderRunBonusDraftPicker`/
- * `renderRunUpgradeCardPicker` — the SAME shared renderers
- * `DesktopRunEventScene` calls (this used to be a hand-rolled per-scene
- * stacked-row layout that had drifted from desktop's centered row; it is now
- * one implementation). All three read `TEMPLATE.contentSlots.reward`'s
- * declared rects (`panel` a hard ceiling, `headline`/`feature` sub-rects)
- * instead of the story column, so a card, a gem, or a 5-card draft/upgrade
- * grid always fits by construction. The `outcome` phase's CONTINUE lives
- * ONLY in the HUD's fixed footer primary slot (`renderHud` below) —
- * `RunRewardPanel.ts` no longer
- * draws a second one into its own `buttons` row on mobile (task #33,
- * 2026-08-07: the two used to stack a thumb's-width apart, calling the exact
- * same handler). Reachable at ?scene=mrunevent.
- */
+export interface MobileEventChoosingLayout {
+  story: MobileEventChoosingRect;
+  outcomes: MobileEventChoosingRect;
+  outcomeHeader: MobileEventChoosingRect;
+  choiceRows: MobileEventChoosingRect[];
+}
+
+/** Compact reflow of the desktop hierarchy: story first, then the complete
+ * outcome group. Width is capped on square windows so art does not grow tall
+ * enough to push a third outcome under the fixed footer. */
+export function mobileEventChoosingLayout(
+  content: MobileEventChoosingRect,
+  choiceCount: number,
+  choiceMinHeight: number,
+): MobileEventChoosingLayout {
+  const paneWidth = Math.min(660, content.width);
+  const x = content.x + Math.round((content.width - paneWidth) / 2);
+  const sectionGap = 12;
+  const headerHeight = 22;
+  const headerGap = 8;
+  const rowGap = 8;
+  const count = Math.max(1, choiceCount);
+  const choiceBlockHeight = count * choiceMinHeight + Math.max(0, count - 1) * rowGap;
+  const storyHeight = Math.max(
+    250,
+    content.height - sectionGap - Math.max(390, headerHeight + headerGap + choiceBlockHeight),
+  );
+  const story = { x, y: content.y, width: paneWidth, height: storyHeight };
+  const outcomeHeader = {
+    x,
+    y: story.y + story.height + sectionGap,
+    width: paneWidth,
+    height: headerHeight,
+  };
+  const firstRowY = outcomeHeader.y + headerHeight + headerGap;
+  const choiceRows = Array.from({ length: choiceCount }, (_, index) => ({
+    x,
+    y: firstRowY + index * (choiceMinHeight + rowGap),
+    width: paneWidth,
+    height: choiceMinHeight,
+  }));
+  const outcomeBottom = choiceRows.length > 0
+    ? choiceRows[choiceRows.length - 1]!.y + choiceRows[choiceRows.length - 1]!.height
+    : outcomeHeader.y + outcomeHeader.height;
+  const outcomes = { x, y: outcomeHeader.y, width: paneWidth, height: Math.max(outcomeBottom - outcomeHeader.y, content.y + content.height - outcomeHeader.y) };
+  return { story, outcomes, outcomeHeader, choiceRows };
+}
+
+/** Mobile Run Event: persistent story/art and one EVENT OUTCOME pane.
+ * Choices, all deferred pickers and final receipts reuse the same pane bounds.
+ * Compact stacks the story above it with a bounded, scrollable body.
+ * Both fresh and re-entered receipts own one pane-local CONTINUE; choosing
+ * and picker states have none. Reward mechanics remain in the shared store. */
 export class MobileRunEventScene extends Phaser.Scene {
+  private embedded: EmbeddedRunDestination | undefined;
   private W = SCREEN.width;
   private H = SCREEN.height;
-  private phase: 'choosing' | 'resolved' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'mergeCardsPick' | 'outcome' = 'choosing';
-  private outcome: EventOutcome | null = null;
-  private bonusDraftCards: DraftCard[] = [];
-  private upgradeCardOptions: UpgradeCardOption[] = [];
-  private gemChoiceOptions: string[] = [];
-  private sellGemOptions: SellGemOption[] = [];
-  /** The PENDING merge trade, built once when the offer arrives (while the run
-   * state is still the one the offer was derived from, so the board slots it
-   * names are the slots the player is looking at) and held across rebuilds like
-   * every other picker's options. Null in every other phase. */
-  private mergeOffer: RunMergeViewModel | null = null;
-  /** The TAKEN merge's receipt (`applyCurrentMergeCardsPick`'s `merged`), held
-   * beside `outcome` for the outcome phase and null for every outcome that is
-   * not a merge. It is what lets the resolved screen name the three cards the
-   * anvil ate — a merge resolves to a plain `grantCard`, so the outcome alone
-   * cannot tell "a card arrived" apart from "three cards were destroyed to make
-   * this one". Held as SCENE STATE, not re-derived: by the time this renders,
-   * the cards it names are already gone from the run. */
-  private mergeReceipt: MergeCardsReceipt | null = null;
-  /** The rung this node ALREADY took, adopted from `RunState.eventResolutions`
-   * when the screen is re-entered on a resolved node (`adoptRecordedResolution`
-   * below); `null` while the choice is still open. Read only by the
-   * `'resolved'` phase, to mark which of the rows was the one taken. */
-  private resolvedChoiceId: string | null = null;
+  private readonly pane = new RunEventOutcomePaneController();
   private retireConfirmOpen = false;
-  /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
-   * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
-   * own `detailSkillId` (state lives on the scene; `RunRewardPanel.ts`'s
-   * pickers stay stateless renderers of whichever index this says is
-   * inspected). Separate fields (not one shared index) because the two
-   * pickers' arrays are indexed independently and only one phase is ever
-   * active at a time, but a stale index surviving a phase switch should
-   * never silently reappear against the WRONG array. */
-  private inspectedDraftIndex: number | null = null;
-  private inspectedUpgradeIndex: number | null = null;
-  /** Same per-picker inspect index for the MERGE picker's three candidates —
-   * its own field for the same reason the two above are separate: only one
-   * phase is ever live, but a stale index must never reappear against another
-   * picker's array. */
-  private inspectedMergeIndex: number | null = null;
+  /** The id of a `mergeCards` choice the player just tapped and has not yet
+   * confirmed, `null` otherwise. The rebuilt confirm resolves this id back to
+   * the exact choice-local persisted offer (or the legacy live preview) and
+   * validates every recorded card location. This is a PRE-resolution pause:
+   * nothing is recorded in
+   * `RunState` while it is open, so CANCEL needs only to clear it and
+   * `resolveCurrentRunEventChoice` is not called until CONFIRM. */
+  private mergeConfirmChoiceId: string | null = null;
+  /** The id of a rung awaiting its generic "SPEND N GOLD?" pre-resolution
+   * confirm (`choice.costConfirm`), `null` otherwise — same shape as
+   * `mergeConfirmChoiceId` above, for every OTHER cost>0 outcome kind. */
+  private costConfirmChoiceId: string | null = null;
+  /** The `sellGem` option the player just tapped in its picker, awaiting its
+   * own pre-finalize confirm, `null` otherwise — set only from
+   * the shared pane's sell callback; nothing is sold until it is
+   * confirmed. */
+  private sellGemConfirmOption: SellGemOption | null = null;
 
   constructor() { super('MobileRunEvent'); }
 
-  init(): void {
-    this.phase = 'choosing';
-    this.outcome = null;
-    this.bonusDraftCards = [];
-    this.upgradeCardOptions = [];
-    this.gemChoiceOptions = [];
-    this.sellGemOptions = [];
-    this.mergeOffer = null;
-    this.mergeReceipt = null;
-    this.resolvedChoiceId = null;
+  init(data?: { embedded?: EmbeddedRunDestination }): void {
+    this.embedded = data?.embedded;
+    this.pane.reset();
     this.retireConfirmOpen = false;
-    this.inspectedDraftIndex = null;
-    this.inspectedUpgradeIndex = null;
-    this.inspectedMergeIndex = null;
+    this.mergeConfirmChoiceId = null;
+    this.costConfirmChoiceId = null;
+    this.sellGemConfirmOption = null;
   }
 
-  private rerender(): void { rebuildScene(this); }
+  private rerender(): void { rebuildScene(this); this.embedded?.onChanged(); }
 
-  private continueToMap(): void { leaveCurrentEvent(); this.scene.start('MobileRunMap'); }
+  private continueToMap(): void {
+    leaveCurrentEvent();
+    if (this.embedded) this.embedded.onClose();
+    else this.scene.start('MobileRunMap');
+  }
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    if (!this.embedded) this.cameras.main.setBackgroundColor(UI.bg);
 
-    const run = getActiveRun();
-    const event = currentEventDef();
-    if (!run || !event) {
-      this.scene.start('MobileRunMap');
+    const view = currentRunEventViewModel();
+    let run = getActiveRun();
+    if (!run || !view) {
+      if (this.embedded) this.embedded.onClose();
+      else this.scene.start('MobileRunMap');
       return;
     }
 
-    // A RETURN TRIP, NOT A FRESH ARRIVAL: `init()` just reset `phase` to
-    // 'choosing', so ask the RUN whether this node's rungs were already
-    // taken before offering them again (see `adoptRecordedResolution`).
-    if (this.phase === 'choosing') this.adoptRecordedResolution();
+    if (this.pane.state.kind === 'choices') this.adoptRecordedResolution(view, run);
+    run = getActiveRun() ?? run;
+    const presentation = buildRunEventScenePresentation(view, run, 'mobile');
 
-    this.renderHud(run);
-    if (this.phase === 'outcome' && this.outcome) {
-      renderRunRewardPanel(this, TEMPLATE, buildRunRewardViewModel(this.outcome, this.mergeReceipt ?? undefined), {
-        font: F,
-        eventTitle: event.title,
-        onContinue: () => this.continueToMap(),
-      });
-    } else if (this.phase === 'bonusDraftPick') {
-      renderRunBonusDraftPicker(this, TEMPLATE, this.bonusDraftCards, {
-        font: F,
-        eventTitle: event.title,
-        onPick: (card) => {
-          const outcome = applyCurrentBonusDraftPick(card);
-          if (!outcome) return;
-          this.phase = 'outcome';
-          this.outcome = outcome;
-          this.rerender();
-        },
-        inspectedIndex: this.inspectedDraftIndex,
-        onInspect: (index) => { this.inspectedDraftIndex = index; this.rerender(); },
-      });
-    } else if (this.phase === 'upgradeCardPick') {
-      renderRunUpgradeCardPicker(this, TEMPLATE, this.upgradeCardOptions, {
-        font: F,
-        eventTitle: event.title,
-        onPick: (option) => {
-          const outcome = applyCurrentUpgradeCardPick(option.instanceId);
-          if (!outcome) return;
-          this.phase = 'outcome';
-          this.outcome = outcome;
-          this.rerender();
-        },
-        inspectedIndex: this.inspectedUpgradeIndex,
-        onInspect: (index) => { this.inspectedUpgradeIndex = index; this.rerender(); },
-      });
-    } else if (this.phase === 'gemChoicePick') {
-      renderRunGemChoicePicker(this, TEMPLATE, this.gemChoiceOptions, {
-        font: F,
-        eventTitle: event.title,
-        onPick: (gemId) => {
-          const outcome = applyCurrentGemChoicePick(gemId);
-          if (!outcome) return;
-          this.phase = 'outcome';
-          this.outcome = outcome;
-          this.rerender();
-        },
-      });
-    } else if (this.phase === 'sellGemPick') {
-      renderRunSellGemPicker(this, TEMPLATE, this.sellGemOptions, {
-        font: F,
-        eventTitle: event.title,
-        // The run layer builds the `sellGem` outcome (`applySellGemPick`, via
-        // the store), not this scene — the sale price and the gem it names are
-        // ONE rule owned in ONE place, the same way every other picker here
-        // finalizes. `option.pouchIndex` is an index this same phase just
-        // rendered from the offer, and nothing between the offer and this tap
-        // can touch the pouch (leaving for DECK / BAG restarts the scene, which
-        // resets `phase` and re-resolves), so the finalizer's defensive throw
-        // on a stale index is unreachable from here.
-        onPick: (option) => {
-          const outcome = applyCurrentSellGemPick(option.pouchIndex);
-          if (!outcome) return;
-          this.phase = 'outcome';
-          this.outcome = outcome;
-          this.rerender();
-        },
-      });
-    } else if (this.phase === 'mergeCardsPick' && this.mergeOffer) {
-      renderRunMergeCardsPicker(this, TEMPLATE, this.mergeOffer, {
-        font: F,
-        eventTitle: event.title,
-        // BOTH halves of what the finalizer returned are kept: the outcome
-        // (a plain `grantCard`) AND the RECEIPT naming the three cards it
-        // cost. Dropping the receipt here is the whole bug this wiring closed.
-        onPick: (candidate) => {
-          const result = applyCurrentMergeCardsPick(candidate.skillId);
-          if (!result) return;
-          this.phase = 'outcome';
-          this.outcome = result.outcome;
-          this.mergeReceipt = result.merged ?? null;
-          this.mergeOffer = null;
-          this.rerender();
-        },
-        inspectedIndex: this.inspectedMergeIndex,
-        onInspect: (index) => { this.inspectedMergeIndex = index; this.rerender(); },
-      });
-    } else {
-      const story = this.renderStory(run, event, event.choices.length);
-      this.renderChoices(run, event, story);
-    }
+    const embeddedLayout = this.embedded ? embeddedEventLayout(this.embedded.bounds, presentation.choices.length, true) : null;
+    const layout = embeddedLayout ?? mobileEventChoosingLayout(TEMPLATE.regions.content, presentation.choices.length, runChoicePanelMinHeight(F));
+    const content = embeddedLayout?.content ?? TEMPLATE.regions.content;
+    const template = embeddedLayout ? { ...TEMPLATE, canvas: { width: content.width, height: content.height }, regions: { ...TEMPLATE.regions, content } } : TEMPLATE;
+    if (this.embedded) {
+      this.data.set('embeddedEventOutcomeBounds', layout.outcomes);
+      if (this.costConfirmChoiceId || this.mergeConfirmChoiceId || this.sellGemConfirmOption) {
+        this.embedded.scrollY = Math.max(0, layout.outcomes.y);
+      }
+    } else this.data.remove('embeddedEventOutcomeBounds');
+    positionRunDestination(this, this.embedded, content);
+    if (!this.embedded) this.renderHud(run);
+    this.renderStory(presentation, layout.story);
+    const paneTemplate = eventOutcomePaneTemplate(template, 'icon', layout.outcomes, layout.outcomeHeader);
+    renderRunEventOutcomePane(this, paneTemplate);
+    this.pane.render({
+      scene: this, template, panel: layout.outcomes, header: layout.outcomeHeader,
+      font: F, compact: true, presentation,
+      onChoices: () => this.renderChoosing(presentation, layout),
+      onContinue: () => this.continueToMap(),
+      onFinalize: (selection, receipt) => this.finalizePicker(finalizeCurrentRunEventOffer(selection), receipt),
+      onSell: option => { this.sellGemConfirmOption = option; this.rerender(); },
+      onChange: () => this.rerender(),
+    });
     if (this.retireConfirmOpen) {
       // CORRECTED (audit 2026-08): unlike its RunPrep/RunMap siblings, THIS
       // scene DOES register a scene-level generic pointerdown/pointermove/
@@ -261,6 +201,86 @@ export class MobileRunEventScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
       });
     }
+    // Same pointer-consumption note as RETIRE above applies here too — this
+    // scene's conditional scroll listener guards ANY `rerender()`-calling
+    // dialog, this one included, so no per-dialog guard is needed.
+    if (this.mergeConfirmChoiceId !== null) {
+      const choiceId = this.mergeConfirmChoiceId;
+      // UNCONDITIONAL (2026-09-06 user ruling): a merge always costs three
+      // cards, so it always shows this confirm. V3 reads the exact clicked
+      // choice's persisted offer; legacy keeps its live preview.
+      const choice = view.choices.find((candidate) => candidate.id === choiceId);
+      const preview = choice === undefined
+        ? null
+        : mergeConfirmPreviewForChoice(choice.outcomeHint, run);
+      if (!preview) {
+        // The live trio vanished between the tap and this render (e.g. a
+        // reload landed here with a since-changed board) — nothing to
+        // confirm against, so close silently rather than show an empty box.
+        this.mergeConfirmChoiceId = null;
+      } else {
+        const spent = buildMergeSpentEntries(preview.consumed, run);
+        renderMergeConsumeConfirm(this, {
+          compact: true,
+          body: mergeConfirmBody(preview.from, preview.to, spent),
+          onCancel: () => { this.mergeConfirmChoiceId = null; this.rerender(); },
+          onConfirm: () => { this.mergeConfirmChoiceId = null; this.resolveAndEnter(choiceId); },
+        });
+      }
+    }
+    // Any OTHER rung whose outcome costs gold (`choice.costConfirm`) pauses
+    // the same way — see `renderEventCostConfirm`'s doc comment.
+    if (this.costConfirmChoiceId !== null) {
+      const choiceId = this.costConfirmChoiceId;
+      const choice = presentation.choices.find((candidate) => candidate.id === choiceId);
+      if (!choice || !choice.costConfirm) {
+        this.costConfirmChoiceId = null;
+      } else {
+        const { costConfirm } = choice;
+        renderEventCostConfirm(this, {
+          compact: true,
+          title: costConfirm.title,
+          body: costConfirm.body,
+          onCancel: () => { this.costConfirmChoiceId = null; this.rerender(); },
+          onConfirm: () => { this.costConfirmChoiceId = null; this.resolveAndEnter(choiceId); },
+        });
+      }
+    }
+    // The `sellGem` picker's own pre-finalize confirm — see
+    // `renderSellGemConfirm`'s doc comment for why this sits here (the
+    // picker's `onPick`) rather than before the picker opens.
+    if (this.sellGemConfirmOption !== null) {
+      const option = this.sellGemConfirmOption;
+      renderSellGemConfirm(this, {
+        compact: true,
+        title: sellGemConfirmTitle(option.gemId),
+        body: sellGemConfirmBody(option.price),
+        onCancel: () => { this.sellGemConfirmOption = null; this.rerender(); },
+        onConfirm: () => {
+          this.sellGemConfirmOption = null;
+          const outcome = finalizeCurrentRunEventOffer({ kind: 'sellGem', pouchIndex: option.pouchIndex });
+          if (!outcome) { this.rerender(); return; }
+          const active = getActiveRun();
+          if (!active || !this.enterOutcome(outcome, active)) { this.rerender(); return; }
+          this.rerender();
+        },
+      });
+    }
+  }
+
+  /** Resolves `choiceId` through the run layer and enters whatever it comes
+   * back with (a picker or a terminal outcome) — the shared tail of every
+   * confirm dialog's CONFIRM handler above, and of a free rung's direct tap
+   * (`renderChoices`'s `onSelect`). Always rerenders, even when the
+   * resolve/enter fails, so a dialog this closes never leaves a stale frame
+   * behind. */
+  private resolveAndEnter(choiceId: string): void {
+    const outcome = resolveCurrentRunEventChoice(choiceId);
+    if (outcome) {
+      const run = getActiveRun();
+      if (run) this.enterOutcome(outcome, run);
+    }
+    this.rerender();
   }
 
   /**
@@ -276,58 +296,43 @@ export class MobileRunEventScene extends Phaser.Scene {
    * Two returns are possible. A rung whose outcome was DEFERRED and never
    * picked (`pending`) re-opens ITS picker, free of charge — the player paid
    * for that question and has not been answered yet. Anything else shows the
-   * node as done: the rungs render locked, with the one that was taken named,
-   * and CONTINUE › is the only action.
+   * node as settled: its committed choice receipt stays in the same outcome
+   * pane, and CONTINUE › is the only action.
    */
-  private adoptRecordedResolution(): void {
-    const resolution = currentEventResolution();
-    if (!resolution) return;
-    this.resolvedChoiceId = resolution.choiceId;
-    if (resolution.pending) {
-      const outcome = reopenCurrentEventPick();
-      if (outcome) {
-        this.enterOutcome(outcome);
-        return;
-      }
+  private adoptRecordedResolution(
+    view: NonNullable<ReturnType<typeof currentRunEventViewModel>>,
+    run: NonNullable<ReturnType<typeof getActiveRun>>,
+  ): void {
+    if (view.phase.kind === 'open') return;
+    if (view.phase.kind === 'pending') {
+      const reopened = reopenCurrentRunEventOffer();
+      if (reopened && this.enterOutcome(reopened, getActiveRun() ?? run)) return;
     }
-    this.phase = 'resolved';
+    this.pane.settle();
   }
 
-  /** The ONE place an `EventOutcome` becomes a screen phase — used by the rung
-   * the player just tapped AND by a picker re-opened on re-entry, so the two
-   * can never disagree about which outcome kinds still owe the player a pick.
-   * The scene reads `outcome.kind`; it never mints one (see
-   * `tests/game/runEventSeams.test.ts`). */
-  private enterOutcome(outcome: EventOutcome): void {
-    if (outcome.kind === 'bonusDraft') {
-      this.phase = 'bonusDraftPick';
-      this.bonusDraftCards = [...outcome.cards];
-    } else if (outcome.kind === 'upgradeCardPick') {
-      this.phase = 'upgradeCardPick';
-      this.upgradeCardOptions = [...outcome.options];
-    } else if (outcome.kind === 'gemChoicePick') {
-      this.phase = 'gemChoicePick';
-      this.gemChoiceOptions = [...outcome.options];
-    } else if (outcome.kind === 'sellGemPick') {
-      this.phase = 'sellGemPick';
-      this.sellGemOptions = [...outcome.options];
-    } else if (outcome.kind === 'mergeCardsPick') {
-      // The offer is a QUESTION — nothing has been consumed yet, and the view
-      // model is built against the board as it stands right now so the three
-      // "BOARD n" labels point at the slots the player can see.
-      this.phase = 'mergeCardsPick';
-      this.mergeOffer = buildRunMergeViewModel(outcome, currentRunPieces());
-    } else {
-      this.phase = 'outcome';
-      this.outcome = outcome;
-    }
+  private enterOutcome(
+    outcome: RunEventOutcome,
+    run: NonNullable<ReturnType<typeof getActiveRun>>,
+    receipt?: MergeCardsReceipt,
+  ): boolean {
+    return this.pane.enter(outcome, run, receipt);
   }
 
-  /** THE run HUD — identical header on every run screen. The HUD's fixed
-   * footer CONTINUE › is the ONLY continue action once the outcome resolves
-   * (`renderRunRewardPanel` draws no in-panel one on mobile — see its module
-   * doc, task #33) — no dead footer slot while `choosing`/`bonusDraftPick`,
-   * which correctly show none. */
+  private finalizePicker(outcome: RunEventOutcome | undefined, receipt?: MergeCardsReceipt): void {
+    if (!outcome) {
+      const view = currentRunEventViewModel();
+      const run = getActiveRun();
+      if (view && run) this.adoptRecordedResolution(view, run);
+      this.rerender();
+      return;
+    }
+    const run = getActiveRun();
+    if (!run || !this.enterOutcome(outcome, run, receipt)) return;
+    this.rerender();
+  }
+
+  /** Normal run chrome; CONTINUE belongs only to the outcome receipt pane. */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     renderRunHud(this, {
       screen: 'EVENT',
@@ -336,35 +341,18 @@ export class MobileRunEventScene extends Phaser.Scene {
       actions: {
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
-        // 'resolved' gets one too: a node the player is only revisiting has
-        // nothing left to tap but the way out.
-        primary: (this.phase === 'outcome' && this.outcome) || this.phase === 'resolved'
-          ? { label: 'CONTINUE ›', onPress: () => this.continueToMap() }
-          : undefined,
+        primary: undefined,
       },
     });
   }
 
-  // ---------- story (area intro → title → body panel; CHOOSING phase only) ----------
+  // ---------- persistent story + replaceable outcome contents ----------
 
-  /** Renders the narrative header (area caption, title, framed body — the
-   * body capped + made small-scrollable only if it and `choiceCount`'s own
-   * reserved footprint together would overflow the content region) for the
-   * CHOOSING phase and returns where the choice rows below it should start.
-   *
-   * `choiceCount` (not a pre-computed height) so the reserve is always the
-   * SAME formula `renderChoices` below actually lays rows out with
-   * (`runChoicePanelMinHeight(F)` × count + gaps) — this used to be a
-   * hand-picked `count * (80 + 8) - 8` that under-counted the real ~90px row
-   * height by 20-30px per screen (2026-08-19 audit alongside the desktop
-   * sibling's off-canvas "FREE" label bug), silently giving the body more
-   * scroll budget than it should have and letting the last choice row's
-   * footer text sit UNDER the fixed bottom action bar rather than fully
-   * above it. */
-  private renderStory(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef, choiceCount: number): StoryLayout {
-    const rowH = runChoicePanelMinHeight(F);
-    const rowGap = 8;
-    const reserveBelowH = eventChoiceBlockHeight(choiceCount, rowH, rowGap);
+  private renderChoosing(event: RunEventScenePresentation, layout: MobileEventChoosingLayout): void {
+    this.renderChoices(event, layout.outcomes, layout.outcomeHeader, layout.choiceRows);
+  }
+
+  private renderStory(event: RunEventScenePresentation, story: MobileEventChoosingRect): void {
     // RUNG 2 (event chains): a chain payoff opens with ONE recap line naming
     // the past this event pays off ("You have spent 14 gold on this road."),
     // worded by the run layer (`eventRecapLine`) off `eventResolutions`/the
@@ -372,37 +360,67 @@ export class MobileRunEventScene extends Phaser.Scene {
     // height budget absorbs it (here it caps + scrolls exactly like a long
     // body) and the choice-block reservation math above stays untouched.
     // `null` — the plain body — for every ungated event.
-    const recap = eventRecapLine(run, event);
-    const bodyCopy = recap ? `${recap}\n\n${event.body}` : event.body;
-    const innerX = 12;
-    const innerW = this.W - 24;
-    let y = TEMPLATE.regions.content.y;
+    const bodyCopy = event.body;
+    const metadata = [event.context.rarityLabel, event.context.storyStageLabel, event.context.visibilityLabel, event.context.dueLabel]
+      .filter((label): label is string => label !== null)
+      .join(' · ');
+    const inset = 10;
+    const innerX = story.x + inset;
+    const innerW = story.width - inset * 2;
+    this.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.7)
+      .setData('layoutAuditName', 'Compact event story pane');
+    let y = story.y + inset;
 
-    const area = eventThemeArea(event.theme);
-    const areaLine = this.add.text(innerX, y, `${area.name} — ${area.blurb}`, {
-      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'italic',
+    const areaLine = this.add.text(
+      innerX,
+      y,
+      `${event.context.biomeName} · ${event.context.areaName} — ${event.context.areaBlurb}`,
+      {
+      fontSize: `${F.tiny}px`, color: EVENT_REWARD_COLORS.textSoft, fontFamily: FONT.body, fontStyle: 'italic',
       wordWrap: { width: innerW }, lineSpacing: 2,
-    });
+      },
+    );
     auditTextBlock(areaLine, { name: 'Mobile run event area intro', maxWidth: innerW, maxHeight: F.tiny * 4 + 8, minFontSize: 8 });
     y += areaLine.height + 8;
 
-    const artH = Math.round(innerW * 0.5);
-    addRunArt(this, eventArtKey(event.theme), { x: innerX, y, width: innerW, height: artH }, 0.9);
-    this.add.rectangle(innerX, y, innerW, artH, 0x0b1420, 0.16).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+    const artH = this.embedded ? Math.min(150, innerW * 0.5, story.height * 0.32) : Math.min(140, Math.round(innerW * 0.5));
+    const storyArt = addBrightRunArt(
+      this,
+      eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined),
+      { x: innerX, y, width: innerW, height: artH },
+      BRIGHT_ART_TREATMENT.story,
+    );
+    if (event.art.kind === 'event') {
+      renderEventArtBorder(this, event.art.kind, { x: innerX, y, width: innerW, height: artH });
+    } else storyArt.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.4);
     y += artH + 10;
 
     const title = this.add.text(innerX, y, event.title, {
-      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
+      fontSize: `${F.title}px`, color: EVENT_REWARD_COLORS.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
     });
     auditTextBlock(title, { name: 'Mobile run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
-    y += title.height + 8;
+    y += title.height;
+    if (metadata) {
+      y += 3;
+      const metadataLabel = this.add.text(innerX, y, metadata, {
+        ...textRole('kicker'),
+        wordWrap: { width: innerW },
+      });
+      auditTextBlock(metadataLabel, { name: 'Mobile run event metadata', maxWidth: innerW, maxHeight: F.tiny * 3, minFontSize: 8 });
+      y += metadataLabel.height;
+      y += 7;
+    } else {
+      y += 8;
+    }
 
     const bodyPad = 12;
     const bodyBoxTop = y;
-    const bodyBox = this.add.rectangle(0, bodyBoxTop, this.W, 10, UI.panel, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.6);
+    const bodyBox = this.add.rectangle(story.x, bodyBoxTop, story.width, 10, EVENT_REWARD_COLORS.panelAlt, 0.9).setOrigin(0, 0).setStrokeStyle(1, EVENT_REWARD_COLORS.chip, 0.6);
     const bodyContainer = this.add.container(innerX, bodyBoxTop + bodyPad);
     const body = this.add.text(0, 0, bodyCopy, {
-      fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body, wordWrap: { width: innerW }, lineSpacing: 4,
+      fontSize: `${F.body}px`, color: EVENT_REWARD_COLORS.textDim, fontFamily: FONT.body, wordWrap: { width: innerW }, lineSpacing: 4,
     });
     bodyContainer.add(body);
     // Width-overflow guard only — height is handled by the scroll idiom below
@@ -410,27 +428,53 @@ export class MobileRunEventScene extends Phaser.Scene {
     auditTextBlock(body, { name: 'Mobile run event body', maxWidth: innerW, maxHeight: 6000, minFontSize: 9 });
 
     const naturalH = body.height;
-    // Everything below the stats/badge/actions band, above the fixed footer —
-    // the CHOOSING phase's choice rows sit in `content`, not the reward
-    // template's `panel` (that's only entered once a choice resolves).
-    const maxBottom = TEMPLATE.regions.footer.y - 10;
-    const budget = Math.max(70, maxBottom - bodyBoxTop - 14 - reserveBelowH);
+    const bodyLineSpacing = 4;
+    const bodyLineCount = body.getWrappedText(bodyCopy).length;
+    // The story owns a fixed bounded slice; overflow scrolls inside that
+    // slice and cannot displace the outcome group below it.
+    const maxBottom = story.y + story.height;
+    const budget = Math.max(70, maxBottom - bodyBoxTop);
     const boxInnerBudget = budget - bodyPad * 2;
 
     let boxH: number;
     if (naturalH > boxInnerBudget && boxInnerBudget > 30) {
-      boxH = boxInnerBudget + bodyPad * 2;
+      const scrollLayout = eventBodyScrollLayout(
+        naturalH,
+        boxInnerBudget,
+        bodyLineCount,
+        bodyLineSpacing,
+      );
+      const viewportH = scrollLayout.viewportHeight;
+      boxH = viewportH + bodyPad * 2;
       // The SAME small-scroll idiom as `cardInfoBox`/the deck-build gem pouch:
-      // mask + pointerdown/move/up + wheel, gated by its own hit-test.
+      // a complete-line mask, persistent track/thumb affordance, and
+      // pointerdown/move/up + wheel gated by its own hit-test.
       const maskShape = this.make.graphics({}, false);
       maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(innerX, bodyBoxTop + bodyPad, innerW, boxInnerBudget);
+      maskShape.fillRect(innerX, bodyBoxTop + bodyPad, innerW, viewportH);
       bodyContainer.setMask(maskShape.createGeometryMask());
-      const maxScroll = Math.max(0, naturalH - boxInnerBudget);
+      const maxScroll = scrollLayout.maxScroll;
       let scrollY = 0;
       let dragging = false;
       let startY = 0;
       let startScroll = 0;
+      const trackX = story.x + story.width - 5;
+      const trackY = bodyBoxTop + bodyPad;
+      this.add.rectangle(trackX, trackY, 3, viewportH, EVENT_REWARD_COLORS.border, 0.28).setOrigin(0.5, 0);
+      const initialThumb = eventBodyScrollThumb(viewportH, viewportH, naturalH, 0);
+      const thumb = this.add.rectangle(trackX, trackY, 4, initialThumb.height, EVENT_REWARD_COLORS.chip, 0.95).setOrigin(0.5, 0);
+      const applyScroll = (next: number): void => {
+        const clamped = Phaser.Math.Clamp(next, -maxScroll, 0);
+        const snapped = Phaser.Math.Clamp(
+          -Math.round((-clamped) / scrollLayout.lineAdvance) * scrollLayout.lineAdvance,
+          -maxScroll,
+          0,
+        );
+        scrollY = snapped;
+        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
+        const thumbGeometry = eventBodyScrollThumb(viewportH, viewportH, naturalH, -scrollY);
+        thumb.setY(trackY + thumbGeometry.offset);
+      };
       const inBox = (px: number, py: number): boolean => (
         px >= innerX && px <= innerX + innerW && py >= bodyBoxTop && py <= bodyBoxTop + boxH
       );
@@ -444,8 +488,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       });
       this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
         if (!dragging) return;
-        scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
-        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
+        applyScroll(startScroll + (p.worldY - startY));
       });
       // Trivial today (just clears the local `dragging` flag), but `pointerup`
       // gets the same two-phase re-dispatch risk as `pointerdown` — see
@@ -457,83 +500,62 @@ export class MobileRunEventScene extends Phaser.Scene {
       });
       this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
         if (!inBox(pointer.worldX, pointer.worldY)) return;
-        scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);
-        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
+        applyScroll(scrollY - dy);
       });
     } else {
       boxH = naturalH + bodyPad * 2;
     }
-    bodyBox.setSize(this.W, boxH);
-
-    y = bodyBoxTop + boxH + 14;
-    return { innerX, innerW, contentTop: y };
+    bodyBox.setSize(story.width, Math.min(boxH, maxBottom - bodyBoxTop));
   }
 
-  // ---------- choosing ----------
+  private renderChoices(
+    event: RunEventScenePresentation,
+    outcomes: MobileEventChoosingRect,
+    outcomeHeader: MobileEventChoosingRect,
+    choiceRows: MobileEventChoosingRect[],
+  ): void {
+    const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${event.choices.length}`, {
+      ...textRole('kicker'),
+      color: UI.textSoft,
+    }).setOrigin(1, 0);
+    auditTextBlock(count, { name: 'Compact event outcome choice count', maxWidth: outcomes.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 8 });
 
-  private renderChoices(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef, story: StoryLayout): void {
-    let y = story.contentTop;
-    // ASK the panel how tall it needs to be; never guess. The old hand-picked
-    // 80 was short of its own content, so `detail` collapsed to an ellipsis
-    // (see `runChoicePanelMinHeight`) — same bug as desktop's 84.
-    const rowH = runChoicePanelMinHeight(F);
-    const gap = 8;
-    event.choices.forEach((choice: EventChoiceDef, choiceIndex: number) => {
-      const cost = choice.cost ?? 0;
-      // `choiceLockReason` (not the bare `gold >= cost` this used to be) is
-      // the worded twin of `isEventChoiceUsable` and the ONE body both share
-      // (src/run/events.ts): `null` means usable, anything else is WHY the
-      // rung is dark — gold, an unmet chain gate, a tally bar, an
-      // unresolvable derived door, an empty pouch, no mergeable trio. The
-      // scene renders the reason; it never re-derives one.
-      const lockReason = choiceLockReason(run, choice);
-      const affordable = lockReason === null;
-      const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
-      // RESOLVED (`adoptRecordedResolution`): the rungs are still drawn, but as
-      // the RECORD of a decision already made — every row locked (the shared
-      // panel's own affordance then reads LOCKED and drops its handler), the
-      // one that was taken named and accented. A resolved node that showed a
-      // fresh-looking choice screen is the whole bug.
-      const done = this.phase === 'resolved';
-      const taken = done && choice.id === this.resolvedChoiceId;
-      // RUNG 3: a derived door (`filterFrom`) names its resolved family on the
-      // label — "Take the local make — FROST" — through the run layer's one
-      // derivation (`derivedChoiceFamily` wraps the exported
-      // `derivedChoiceFilter`; the scene never re-derives it). Skipped on a
-      // revisited/resolved node: the suffix reads CURRENT state (a board
-      // identity can drift after the pick), and a done row is a record of what
-      // was offered, not a live offer.
-      const family = done ? undefined : derivedChoiceFamily(run, choice);
+    event.choices.forEach((choice, choiceIndex: number) => {
+      const row = choiceRows[choiceIndex];
+      if (!row) return;
       const model: RunChoiceViewModel = {
         nodeId: `event-${choice.id}`,
         kind: 'event',
-        title: family !== undefined ? `${choice.label} — ${family}` : choice.label,
-        // RUNG 1: a LOCKED live rung spends its detail line on WHY; the reward
-        // hint returns the moment the rung lights. Done rows keep the record
-        // form (TAKEN / REWARD · what it was) untouched.
-        detail: !done && lockReason !== null
-          ? `LOCKED · ${lockReason}`
-          : `${taken ? 'TAKEN' : 'REWARD'} · ${choiceOutcomeHint(choice.outcome)}`,
-        footer: done ? (taken ? 'ALREADY TAKEN' : 'NOT TAKEN') : costLabel,
-        image: { textureKey: choiceArtKey(choice.outcome.kind) },
-        accent: taken ? UI.good : UI.chip,
-        enabled: !done && affordable,
+        title: choice.title,
+        detail: choice.detail,
+        footer: choice.footer,
+        image: { textureKey: choiceArtKey(choice.iconKind) },
+        accent: choice.taken ? UI.good : UI.chip,
+        enabled: choice.enabled,
       };
-      renderRunChoicePanel(this, { x: 10, y, w: this.W - 20, h: rowH }, model, {
+      renderRunChoicePanel(this, { x: row.x, y: row.y, w: row.width, h: row.height }, model, {
         font: F,
-        sfx: cost > 0 ? 'purchase' : 'uiClick',
-        // Staggered fade-and-rise, so the options assemble down the screen
-        // instead of all snapping in at once. BOTH platforms opt in — the
-        // both-platforms rule; the shared panel does the actual animating.
-        appearIndex: choiceIndex,
+        sfx: choice.cost > 0 ? 'purchase' : 'uiClick',
         onSelect: () => {
-          const outcome = resolveCurrentEventChoice(event.id, choice.id);
-          if (!outcome) return;
-          this.enterOutcome(outcome);
-          this.rerender();
+          // mergeCards (UNCONDITIONAL, 2026-09-06 user ruling: a merge always
+          // costs three cards, so it always pauses here) gets a confirm
+          // PAUSE before `resolveCurrentRunEventChoice` is ever called.
+          // The rebuilt confirm reads this exact choice's persisted V3 offer
+          // and validates its recorded locations before rendering.
+          if (choice.iconKind === 'mergeCards') {
+            this.mergeConfirmChoiceId = choice.id;
+            this.rerender();
+            return;
+          } else if (choice.costConfirm) {
+            // Any OTHER rung whose outcome costs gold pauses the same way —
+            // see `renderEventCostConfirm`'s doc comment (RunProgressStrip.ts).
+            this.costConfirmChoiceId = choice.id;
+            this.rerender();
+            return;
+          }
+          this.resolveAndEnter(choice.id);
         },
       });
-      y += rowH + gap;
     });
   }
 }

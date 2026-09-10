@@ -577,9 +577,20 @@ function clampMonsterStats(stats: CombatantStats): CombatantStats {
  * monster just passes a higher (or lower) effective `level` here (e.g.
  * baseLevel + 2, or baseLevel - 4); no separate title system lives in this
  * module.
+ *
+ * `growthBoardDeci` (2026-09-06, enemy growth by level, see
+ * `src/run/encounter.ts`'s `buildEnemyEncounter`) is the deci-PL price of the
+ * growth cards/tier-ups THIS body's `enemy.growth` list bought at its own
+ * level — growth is REPLACE, not stack (design ruling Q5): it is bought OUT
+ * OF the level's own stat budget, never added free. Only when the level's raw
+ * PL spend is POSITIVE (`rawPL > 0`) does growth carry a cost against it — a
+ * demoted title (Mob, negative PL) keeps its own un-buy path untouched, so a
+ * growth bill never fights the negative-PL "un-buy" direction `allocateMonsterPL`
+ * depends on. Floors at 0 rather than going negative twice.
  */
-export function scaleMonsterToLevel(enemy: EnemyDef, level: number): CombatantSetup {
-  const totalPL = monsterLevelPL(level);
+export function scaleMonsterToLevel(enemy: EnemyDef, level: number, growthBoardDeci: number = 0): CombatantSetup {
+  const rawPL = monsterLevelPL(level);
+  const totalPL = rawPL > 0 ? Math.max(0, rawPL - Math.floor(growthBoardDeci / 10)) : rawPL;
   const alloc = allocateMonsterPL(totalPL, profileFor(enemy.id));
   const stats = clampMonsterStats(applyLevelAllocation(enemy.stats, alloc));
   return {

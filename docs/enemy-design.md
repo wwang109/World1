@@ -1,4 +1,4 @@
-# Enemy Design: Bronze Floor, Scaling Deferred to the Run Layer
+# Enemy Design: Bronze Floor and Run-Layer Growth
 
 Every monster in `src/data/enemies.ts` — basic, elite, or boss alike — is
 authored at a **Bronze / lowest-level FLOOR**: a small basic board (2-3
@@ -23,7 +23,7 @@ Every enemy card is Bronze (10 PL). Every monster's depth-1 definition gets:
   magnitude — roughly at/around the hero baseline (150 HP, 12 atk/mp, 2
   armor/mr, 12 speed, 10% crit), never hand-inflated with extra cards, extra
   HP, or extra crit to signal "elite" or "boss".
-- **Its authored `element`/`weaponAffinity`** (identity) and its
+- **Board-derived affinity** (no authored override) and its
   `goldReward`/`xpReward`.
 
 `isElite` / `isBoss` on a `EnemyDef` are **encounter-role tags** for the run
@@ -34,18 +34,46 @@ statline as any basic. Any extra difficulty an elite or boss is meant to
 carry is a **future depth/level-scaling concern**, not something baked into
 the depth-1 definition by hand-inflating its board or stats.
 
-## Depth/level scaling (deferred)
+## Run-layer growth
 
-How board richness (bigger boards, tier-ups on repeat enemy types) and
-HP/stat magnitude change with dungeon depth or monster level is **deferred
-to the run layer** — this doc covers the depth-1 floor principle only. When
-depth-scaling is designed, it should scale up FROM the floor values in
-`src/data/enemies.ts` via a depth-multiplier system (e.g. a data table or
-formula applied at encounter-generation time), rather than having per-depth
-numbers hand-authored into these base `EnemyDef`s. In particular: do not
-re-inflate an elite's or boss's depth-1 board/HP by hand again — express any
-future "this monster is scarier at depth N" intent as a multiplier applied
-on top of its floor definition.
+All 59 live enemies author one growth milestone in `src/data/enemies.ts`:
+24 complete an inactive affinity at level 2 and 35 reinforce an established
+family. There are no tier-only exceptions and no second additions in this pass.
+The base pieces, stats, rewards, and leveling profiles are unchanged. The
+literal roster expectations and each choice's rationale live in
+`tests/run/enemyGrowthValidators.test.ts`.
+
+`src/run/encounter.ts` grants `floor(clampedLevel / 2)` growth steps. The first
+step learns the authored card; later steps, beginning at level 4 for this
+roster, distribute tier upgrades leftmost-first round-robin up to Diamond.
+Ten slots are a fit ceiling, never a target board size. Every candidate is an
+existing card from the milestone's named family. Candidates are tried in fixed
+order; smaller alternatives handle crowded title boards, and additional
+alternatives handle cards already supplied by an affix. A milestone with no
+valid candidate throws instead of disappearing or becoming a tier step.
+
+Completion intent is checked on authored base pieces plus prior growth, where
+the family must go from exactly two cards and inactive affinity to active
+affinity. Title and affix cards cannot cancel that intent; they still count for
+the actual duplicate and ten-slot fit checks. Content tests resolve every title
+ramp package, elite affix, generated modifier stack, and capped pack title.
+Every enemy earns an affinity and has its own affinity-gated cards enabled by
+level 2 under the unmodified normal recipe.
+
+Pack members grow at their clamped effective member level, including their
+title's level adjustment. The pack solver prices the exact resolved cards and
+tiers alongside remaining stat investment; growth is paid from the stat share,
+floored at zero. Base request rank, growth level, and run fight number remain
+separate from the displayed rank for reconstruction through prep and battle.
+The generic solo budget policy is unchanged; older pack-affordability numbers
+are historical measurements, not a fixed promise for newly authored boards.
+
+Thornwild intentionally retains Stone Beetle and Greenwood Sovereign as thematic
+memberships. Their actual families remain beast and bow, respectively; neither
+receives invented nature growth to match a biome label. The existing band-lean
+validator inventory retains exactly those two documented mismatches, and biome
+membership is unchanged. The current design owner is
+[enemy growth content and threat](superpowers/specs/2026-09-08-enemy-growth-content-threat-design.md).
 
 ## Slot/size bookkeeping
 
@@ -63,12 +91,29 @@ armor 1, magicResist 1, speed 10) — there is no bespoke per-monster HP/stat
 row any more, and crit was removed from the engine entirely (2026-07-23), so
 this table no longer carries an "HP"/"Key stats" column of hand-authored
 numbers. A monster's identity now lives in three places: its **cards**, its
-declared **affinity**, and its `MONSTER_PROFILES` **level-up weight profile**
+**affinity**, and its `MONSTER_PROFILES` **level-up weight profile**
 (`src/run/leveling.ts`) — the weights below are ratios (only relative
 proportions matter), not absolute point totals; see that file for the exact
 allocation algorithm.
 
-| Enemy (id) | Role | Theme | Cards | Affinity | Level-up profile emphasis |
+> **STALE "Affinity" COLUMN (2026-09-06).** `elementAffinity`/`weaponAffinity`
+> are no longer AUTHORED on any enemy in `src/data/enemies.ts` (2026-09-06
+> ruling: "affinity are just passive buffs based on the board … there should
+> be no hardcoded enemy that break the rule" — see
+> `.superpowers/sdd/2026-09-06-enemy-growth-by-level/progress.md`). Affinity is
+> now purely DERIVED from a monster's own cards, the same rule combat uses
+> (`enemyDerivedAffinity`, `src/data/enemyAffinity.ts`; a type needs 3+ cards
+> of one kind, `IDENTITY_THRESHOLD = 3`). The column below still shows the
+> value each monster USED to author (kept for its historical Cards/Theme
+> pairing) — it is no longer necessarily what that monster's board earns
+> in a fight. Small floor boards can be short of the three-card threshold;
+> their authored level-2 growth now completes the family their actual cards
+> establish. Historical creature-only labels, such as Stone Beetle's nature,
+> remain unearned. Do not trust this column for a matchup claim: read
+> `enemyDerivedAffinity(enemies[id])` for the floor, or derive affinity from
+> the resolved encounter's grown board.
+
+| Enemy (id) | Role | Theme | Cards | Affinity (as authored, historical — see note above) | Level-up profile emphasis |
 |---|---|---|---|---|---|
 | Giant Rat (`giant_rat`) | Basic | Beast thief — fast, light, chip damage | 2 | weapon: beast | speed-dominant, light attack, minimal HP |
 | Stone Beetle (`stone_beetle`) | Basic | Nature warden — armored tank, now with a bleed+guard counter-layer (Barbed Rampart, 2026-08-21) | 3 | element: nature | maxHp/armor-dominant |
@@ -232,9 +277,13 @@ then reverted after measurement.
 **A hard constraint drove every choice here**: `REFERENCE_ENEMY_DECK_SIZE`
 (`src/run/encounter.ts`) is `Math.max(...enemies[*].pieces.length)` — today 3,
 shared by 13 of the roster's 22 enemies — and feeds a LITERALLY PINNED test
-(`tests/run/packFights.test.ts`'s `soloThreatDeci(2/6/12, 'normal')` ===
-330/450/630 and the LV18/LV40 pack-engagement worked example), a file outside
-this pass's ownership. Any enemy already at 3 pieces can only be enhanced by a
+(`tests/run/packFights.test.ts`'s `soloThreatDeci` assertions and its
+LV18/LV40 pack-engagement worked example — the exact literals live in that
+test, not here, since enemy growth by level (2026-09-06) already moved them
+once (pre-growth: 330/450/630 at LV2/6/12) and will again; measured
+2026-09-07 after that repair: `soloThreatDeci(2/6/12/18/40, 'normal')` =
+400/600/750/900/1470), a file outside this pass's ownership. Any enemy
+already at 3 pieces can only be enhanced by a
 SWAP (same `pieces.length`); only the two enemies still at 2 pieces
 (`stone_beetle`, `necromancer`) could safely take a plain ADD, since that only
 brings them up TO the existing worst case, never past it. Every edit below

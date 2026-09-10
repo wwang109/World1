@@ -57,6 +57,8 @@ export interface Rect {
 }
 
 export interface RunScreenTemplate {
+  /** Event-only slots inside the persistent outcome pane, never a new page. */
+  eventOutcomePane?: { header: Rect };
   platform: RunTemplatePlatform;
   chrome: RunTemplateChrome;
   canvas: { width: number; height: number };
@@ -440,12 +442,12 @@ function buildMobileTemplate(chrome: RunTemplateChrome): RunScreenTemplate {
     title: { x: sx, y: 20, width: 220, height: 18 },
     stats: { x: sx, y: 40, width: width - sx * 2, height: 14 },
     badge: statsOnly ? unusedRect(sx) : { x: sx, y: 56, width: width - sx * 2, height: 16 },
-    actions: statsOnly ? unusedRect(sx) : { x: sx, y: 74, width: width - sx * 2, height: 22 },
+    actions: statsOnly ? unusedRect(sx) : { x: sx, y: 74, width: width - sx * 2, height: 44 },
     // statsOnly (battle): no badge/actions band to clear — content starts
     // right below the stats row (content.y ≈ 62 — see module doc).
     content: statsOnly
       ? { x: sx, y: 62, width: width - sx * 2, height: 892 - 62 - 10 - 54 }
-      : { x: sx, y: 100, width: width - sx * 2, height: 892 - 100 - 10 - 54 },
+      : { x: sx, y: 122, width: width - sx * 2, height: 892 - 122 - 10 - 54 },
     // Primary sits in the bottom footer, thumb-reachable — mobile's one
     // deliberate per-platform difference from desktop (see module doc).
     // statsOnly (battle) never renders a template footer either — the scene

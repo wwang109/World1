@@ -1,4 +1,4 @@
-import type { EnemyDef } from '../engine/types';
+import type { EnemyDef, EnemyGrowthMilestone } from '../engine/types';
 import type { ContentProblem } from './validateSkillContent';
 import { inRange, isInt, opt, req } from './validateSkillContent';
 
@@ -39,12 +39,63 @@ const STAT_FIELDS = ['maxHp', 'hp', 'attack', 'magicPower', 'armor', 'magicResis
 const DEF_FIELDS = new Set([
   'notes', 'name', 'baseDepth', 'isElite', 'isBoss',
   'elementAffinity', 'weaponAffinity', 'stats', 'boardSize', 'pieces',
-  'goldReward', 'xpReward',
+  'growth', 'goldReward', 'xpReward',
 ]);
 
+/**
+ * MIRRORS `GENERIC_GROWTH_CARDS` in `src/run/encounter.ts` — kept as its own
+ * literal rather than imported, because `src/data` must not depend on
+ * `src/run` (the reverse of the project's layering direction: engine < data <
+ * run). `tests/data/enemyGrowthGuard.test.ts` asserts the two stay equal, so a
+ * future repricing of the run-layer constant cannot silently drift from the
+ * schema's own cap without a red test naming it.
+ */
+const MAX_GROWTH_CARDS = 3;
+
+/** Exported for the sync guard against `GENERIC_GROWTH_CARDS`
+ * (`src/run/encounter.ts`) — see `MAX_GROWTH_CARDS`'s own comment. */
+export { MAX_GROWTH_CARDS };
+
 const PIECE_FIELDS = new Set(['skillId', 'slot', 'tier', 'gem']);
+const MILESTONE_FIELDS = new Set(['family', 'purpose', 'candidates']);
+const FAMILY_FIELDS = new Set(['kind', 'type']);
+const CANDIDATE_FIELDS = new Set(['skillId', 'allowDuplicate']);
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function validateGrowthMilestone(raw: unknown, where: string, problems: ContentProblem[]): void {
+  if (!isObj(raw)) { problems.push({ where, message: 'growth milestone must be an object' }); return; }
+  if (!isObj(raw.family)) {
+    problems.push({ where, message: 'family must be an object' });
+  } else {
+    const family = raw.family;
+    if (family.kind !== 'element' && family.kind !== 'weapon') {
+      problems.push({ where, message: 'family.kind must be element|weapon' });
+    } else if (!(family.kind === 'element' ? ELEMENTS : WEAPONS).includes(family.type as string)) {
+      problems.push({ where, message: 'family.type must belong to the declared ' + family.kind + ' axis' });
+    }
+    for (const key of Object.keys(family)) {
+      if (!FAMILY_FIELDS.has(key)) problems.push({ where, message: 'unknown family field ' + key });
+    }
+  }
+  req(raw, 'purpose', (v) => v === 'complete-affinity' || v === 'reinforce-family', 'complete-affinity|reinforce-family', where, problems);
+  if (!Array.isArray(raw.candidates) || raw.candidates.length === 0) {
+    problems.push({ where, message: 'candidates must be a non-empty array' });
+  } else {
+    raw.candidates.forEach((candidate, i) => {
+      const at = where + '.candidates[' + String(i) + ']';
+      if (!isObj(candidate)) { problems.push({ where: at, message: 'candidate must be an object' }); return; }
+      req(candidate, 'skillId', (v) => typeof v === 'string' && v.trim() !== '', 'a non-empty string', at, problems);
+      opt(candidate, 'allowDuplicate', (v) => v === true, 'literally true (omit to reject duplicates)', at, problems);
+      for (const key of Object.keys(candidate)) {
+        if (!CANDIDATE_FIELDS.has(key)) problems.push({ where: at, message: 'unknown candidate field ' + key });
+      }
+    });
+  }
+  for (const key of Object.keys(raw)) {
+    if (!MILESTONE_FIELDS.has(key)) problems.push({ where, message: 'unknown milestone field ' + key });
+  }
+}
 
 /** Validates the `stats` object: exactly the 7 `CombatantStats` fields, each a safe integer. */
 function validateStats(raw: unknown, where: string, problems: ContentProblem[]): void {
@@ -96,6 +147,19 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   // real, intentional example (nature affinity + a beast weapon affinity),
   // and several signature monsters carry neither and rely on their cards' own
   // typing. There is no "ambiguous badge" concern to police here.
+
+  // Structural milestone contract. Catalog-dependent checks stay in the
+  // explicit guard below and the run-layer production-resolution validators.
+  if (raw.growth !== undefined) {
+    if (!Array.isArray(raw.growth)) {
+      problems.push({ where, message: 'growth must be an array of milestones' });
+    } else {
+      if (raw.growth.length > MAX_GROWTH_CARDS) {
+        problems.push({ where, message: 'growth has ' + String(raw.growth.length) + ' cards, more than MAX_GROWTH_CARDS (' + String(MAX_GROWTH_CARDS) + ') — the PL ledger prices an unauthored/oversized list at this worst case; a longer list would under-price the encounter' });
+      }
+      raw.growth.forEach((milestone, i) => validateGrowthMilestone(milestone, where + '.growth[' + String(i) + ']', problems));
+    }
+  }
 
   req(raw, 'boardSize', inRange(1, 20), 'an integer 1..20', where, problems);
   req(raw, 'goldReward', inRange(0, 999999), 'a non-negative integer', where, problems);
@@ -212,4 +276,93 @@ export function validateEnemyDocument(doc: unknown): ContentProblem[] {
 export function enemyDefOfDocument(id: string, def: Record<string, unknown>): EnemyDef {
   const { notes: _n, ...rest } = def;
   return { id, ...rest } as unknown as EnemyDef;
+}
+
+/** The shape both sides of the affinity guard below share: an enemy's
+ * `elementAffinity`/`weaponAffinity`, however they were produced. */
+export interface EnemyAffinityLike {
+  elementAffinity?: string;
+  weaponAffinity?: string;
+}
+
+/**
+ * PERMANENT GUARD for the 2026-09-06 ruling ("affinity are just passive buffs
+ * based on the board … there should be no hardcoded enemy that break the
+ * rule"): if `elementAffinity`/`weaponAffinity` are EVER authored on an enemy
+ * again, the value must equal exactly what that enemy's own board derives —
+ * never a value the board does not produce. No enemy in the live document
+ * authors either field as of 2026-09-06 (both were removed from every entry
+ * in `src/data/enemies.ts`); this only fires if one is added back that the
+ * board does not earn.
+ *
+ * Deliberately NOT folded into `validateEnemyDocument`/`validateDef` above,
+ * and deliberately NOT importing the skill book itself: this module's own
+ * doc comment already declines a `skillId` existence check for exactly this
+ * reason ("that would make this loader depend on the skill book's load
+ * order"), and computing a board's derived affinity needs the same skill
+ * lookups. `derived` is passed in instead, computed by the one real
+ * implementation — `enemyDerivedAffinity` (`src/data/enemies.ts`), itself a
+ * thin wrapper over the engine's own `boardAffinities`
+ * (`src/engine/combat/typeIdentity.ts`) — so there is still only ONE rule for
+ * what an enemy's affinity is; this function only compares two answers, it
+ * never computes one. Wired into `tests/data/enemyAffinityGuard.test.ts`
+ * against the live TS book + skill book, which is where a caller naturally
+ * has both sides to hand; `scripts/validateContent.ts`'s raw-JSON build gate
+ * stays skill-book-free, matching the same tradeoff `src/data/content/
+ * README.md` documents for the balance/gem-band rules that need `PRICE` or
+ * the skill book and therefore live in tests too.
+ */
+export function validateEnemyAffinityMatchesBoard(
+  id: string,
+  authored: EnemyAffinityLike,
+  derived: EnemyAffinityLike,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  if (authored.elementAffinity !== undefined && authored.elementAffinity !== derived.elementAffinity) {
+    problems.push({
+      where: id,
+      message: 'elementAffinity ' + authored.elementAffinity + ' is authored but the board only derives '
+        + (derived.elementAffinity ?? '(none)') + ' — affinity is board-derived only, no authored override may disagree with it',
+    });
+  }
+  if (authored.weaponAffinity !== undefined && authored.weaponAffinity !== derived.weaponAffinity) {
+    problems.push({
+      where: id,
+      message: 'weaponAffinity ' + authored.weaponAffinity + ' is authored but the board only derives '
+        + (derived.weaponAffinity ?? '(none)') + ' — affinity is board-derived only, no authored override may disagree with it',
+    });
+  }
+  return problems;
+}
+
+/**
+ * PERMANENT GUARD for `EnemyDef.growth`: every candidate ID nested in every
+ * ordered milestone must exist in the skill book, including unused fallbacks.
+ * Deliberately a SEPARATE function from `validateDef` above
+ * for the identical reason `validateEnemyAffinityMatchesBoard` is — a
+ * `skillId` existence check needs the skill book, and this module's own doc
+ * comment already declines that dependency for `pieces[].skillId` ("that
+ * would make this loader depend on the skill book's load order"). At runtime,
+ * the resolver rejects unknown IDs and tries the next authored candidate;
+ * if none qualifies, it throws EnemyGrowthResolutionError. This preflight
+ * guard catches invalid IDs even when a valid fallback would resolve: wired into
+ * `tests/data/enemyGrowthGuard.test.ts` where a caller naturally has both the
+ * live enemy book and the skill book to hand.
+ */
+export function validateEnemyGrowthCardsExist(
+  id: string,
+  growth: readonly EnemyGrowthMilestone[] | undefined,
+  knownSkillIds: ReadonlySet<string>,
+): ContentProblem[] {
+  const problems: ContentProblem[] = [];
+  for (let i = 0; i < (growth?.length ?? 0); i += 1) {
+    const candidates = growth![i]!.candidates;
+    for (let j = 0; j < candidates.length; j += 1) {
+      const skillId = candidates[j]!.skillId;
+      if (!knownSkillIds.has(skillId)) {
+        problems.push({ where: id + '.growth[' + String(i) + '].candidates[' + String(j) + ']', message: 'growth names unknown skill id "' + skillId + '" — every growth card must exist in the skill book' });
+      }
+    }
+  }
+  return problems;
 }

@@ -1,7 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import * as encounterResolver from '../../src/run/encounter';
+import { enemies } from '../../src/data/enemies';
+import { onRequestPost } from '../../functions/battle';
 import { resolveBattle, type BattleRequest } from '../../src/run/resolveBattle';
 import { buildBattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
+import { buildEnemyEncounter, buildAutoHeroSetup } from '../../src/run/encounter';
+import { simulate } from '../../src/engine/combat/simulate';
+import { skillBook } from '../../src/data/skills';
+
+// Capture the real development route without opening a listener or server.
+const devRoute = vi.hoisted(() => ({ handle: undefined as undefined | ((req: IncomingMessage, res: ServerResponse) => void) }));
+vi.mock('node:http', () => ({
+  createServer: (handle: (req: IncomingMessage, res: ServerResponse) => void) => {
+    devRoute.handle = handle;
+    return { listen: () => undefined };
+  },
+}));
 
 const PIECES = [
   { instanceId: 'c1', skillId: 'sword_slash', tier: 'bronze', slot: 0 },
@@ -28,6 +45,86 @@ const TIMELINE_INPUT: BattleTimelineInput = {
 };
 
 describe('run/resolveBattle', () => {
+  it('rebuilds level-2/4 milestone boards, modifiers, and custom decks identically in both service twins and playback', async () => {
+    const original = enemies.cinder_sprite!;
+    enemies.cinder_sprite = { ...original, growth: [
+      { family: { kind: 'element', type: 'fire' }, purpose: 'complete-affinity', candidates: [{ skillId: 'cinder_dart' }] },
+      { family: { kind: 'element', type: 'fire' }, purpose: 'reinforce-family', candidates: [{ skillId: 'fireball' }] },
+    ] };
+    try {
+      await import('../../server/battleApi');
+      const input: BattleTimelineInput = { ...TIMELINE_INPUT, enemyTeam: [
+        { enemyId: 'cinder_sprite', level: 2, title: 'normal', rank: 0, growthLevel: 2, fightNumber: 14, modifiers: [], affix: null },
+        { enemyId: 'cinder_sprite', level: 4, title: 'normal', rank: 0, growthLevel: 4, fightNumber: 14, modifiers: ['diamond', 'swift'], affix: null },
+        { enemyId: 'cinder_sprite', level: 4, title: 'normal', rank: 0, growthLevel: 4, fightNumber: 14, modifiers: [], affix: null,
+          deck: [{ skillId: 'sword_slash', slot: 0, tier: 'silver' }] },
+        { enemyId: 'bandit_duelist', level: 3, title: 'elite', rank: 0, growthLevel: 3, fightNumber: 3, modifiers: [], affix: 'braced' },
+      ] };
+      const preview = input.enemyTeam!.map((f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers, f.affix, f.fightNumber, f.deck, f.growthLevel).setup);
+      expect(preview[0]!.pieces.map((p) => p.skillId)).toEqual(['kindling_rite', 'scorching_brand', 'cinder_dart']);
+      expect(preview[1]!.pieces.map((p) => [p.skillId, p.slot, p.tier])).toEqual([
+        ['kindling_rite', 0, 'diamond'], ['scorching_brand', 1, 'diamond'], ['cinder_dart', 2, 'diamond'], ['fireball', 3, 'diamond'],
+      ]);
+      expect(preview[2]!.pieces).toEqual([{ skillId: 'sword_slash', slot: 0, tier: 'silver' }]);
+      const payload = JSON.stringify(battleRequestOf(input));
+      const capture = vi.spyOn(encounterResolver, 'buildEnemyEncounter');
+      try {
+        const req = Object.assign(new EventEmitter(), { method: 'POST', url: '/battle' });
+        let status = 0;
+        let devBody = '';
+        const res = { writeHead: (code: number) => { status = code; }, end: (body: string) => { devBody = body; } };
+        devRoute.handle!(req as IncomingMessage, res as unknown as ServerResponse);
+        req.emit('data', payload);
+        req.emit('end');
+        expect(status).toBe(200);
+        expect(JSON.stringify(capture.mock.results.map((r) => r.value.setup))).toBe(JSON.stringify(preview));
+        capture.mockClear();
+        const production = await onRequestPost({ request: new Request('http://world1.test/battle', { method: 'POST', body: payload }) });
+        expect(production.status).toBe(200);
+        expect(await production.text()).toBe(devBody);
+        expect(JSON.stringify(capture.mock.results.map((r) => r.value.setup))).toBe(JSON.stringify(preview));
+        capture.mockClear();
+        buildBattleTimeline(input, JSON.parse(devBody));
+        expect(JSON.stringify(capture.mock.results.map((r) => r.value.setup))).toBe(JSON.stringify(preview));
+      } finally { capture.mockRestore(); }
+    } finally { enemies.cinder_sprite = original; }
+  });
+  it('preserves every foe base rank and growth level and resolves the prep board exactly once', () => {
+    const prep = buildEnemyEncounter('cinder_sprite', 4, 'normal', 0);
+    const input: BattleTimelineInput = { ...TIMELINE_INPUT, enemyId: prep.enemyId,
+      enemyLevel: prep.level, enemyTitle: prep.title, enemyRank: 0, enemyGrowthLevel: 4,
+      enemyTeam: [
+        { enemyId: prep.enemyId, level: 4, title: 'normal', rank: 0, growthLevel: 4, modifiers: [] },
+        { enemyId: 'cinder_sprite', level: 2, title: 'normal', rank: 1, growthLevel: 6, modifiers: [] },
+      ],
+    };
+    const request = battleRequestOf(input);
+    expect(request.foes.map((f) => [f.rank, f.growthLevel])).toEqual([[0, 4], [1, 6]]);
+    const singular = battleRequestOf({ ...input, enemyTeam: [] });
+    expect(singular.foes[0]!.growthLevel).toBe(4);
+    const hero = buildAutoHeroSetup(request.heroLevel, [...request.pieces], request.heroAllocation).setup;
+    const second = buildEnemyEncounter('cinder_sprite', 2, 'normal', 1, [], null, undefined, null, 6);
+    const expected = simulate({ playerTeam: [hero], enemyTeam: [prep.setup, second.setup], skillBook }, request.seed);
+    expect(resolveBattle(request).events).toEqual(expected.events);
+    const wrong = { ...request, foes: request.foes.map((f, i) => i === 0 ? { ...f, rank: prep.rank } : f) };
+    expect(resolveBattle(wrong).events).not.toEqual(expected.events);
+  });
+  it('reconstructs the depth-ramped first-boss recipe when fightNumber is explicit', () => {
+    const prep = buildEnemyEncounter('bramble_matriarch', 5, 'boss', 0, [], null, 5, null, 5);
+    expect(prep.effectiveLevel).toBe(6);
+    expect(prep.setup.pieces).toHaveLength(3);
+    const request: BattleRequest = {
+      ...REQUEST,
+      foes: [{ enemyId: prep.enemyId, level: prep.level, title: prep.title, rank: prep.baseRank,
+        growthLevel: prep.growthLevel, fightNumber: 5, modifiers: [], affix: null }],
+    };
+    const expected = simulate({
+      playerTeam: [buildAutoHeroSetup(request.heroLevel, [...request.pieces], request.heroAllocation).setup],
+      enemyTeam: [prep.setup],
+      skillBook,
+    }, request.seed);
+    expect(resolveBattle(request).events).toEqual(expected.events);
+  });
   it('is a pure function of the request — same request, same log', () => {
     const a = resolveBattle(REQUEST);
     const b = resolveBattle(REQUEST);

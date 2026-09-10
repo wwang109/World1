@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { renderSkillText } from '../../engine/keywords/compose';
 import { playSfx } from '../audio/sfxSynth';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
@@ -7,7 +8,7 @@ import { cardOfferableAtTier, minOfferableTier } from '../../engine/types';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import { gemCatalogOrder } from '../ui/gemGlossary';
+import { gemCatalogOrder, gemChipLines, gemDefinitionsText } from '../ui/gemPresentation';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
@@ -15,9 +16,12 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, TIER_COLOR, UI } from '../the
 import { CardToken } from '../ui/CardToken';
 import { captionCell, captionCellHeight, MOBILE_WIKI_TOKEN_H, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { renderCardInfoBox } from '../ui/cardInfoBox';
+import type { CardInfoBoxHandle } from '../ui/cardInfoBox';
 import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { currentRunGemInventory, isRunInProgress } from '../runStore';
+import { renderGemText } from '../../engine/keywords/gemText';
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
@@ -122,6 +126,7 @@ export class MobileWikiScene extends Phaser.Scene {
   private detailTier: SkillTier = 'bronze';
   private detailGem?: GemDef;
   private detailObjects: Phaser.GameObjects.GameObject[] = [];
+  private detailInfoBox?: CardInfoBoxHandle;
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
   private cardFilter: WikiCardFilter = 'all';
   private view: WikiView = 'cards';
@@ -163,8 +168,9 @@ export class MobileWikiScene extends Phaser.Scene {
     this.gemRows = [];
     this.catalogGems = [];
     this.detailObjects = [];
+    this.detailInfoBox = undefined;
     this.toastObjects = [];
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
     this.renderTabs();
     this.renderFilterBand();
     if (this.view === 'cards') this.renderCardCatalog();
@@ -409,15 +415,18 @@ export class MobileWikiScene extends Phaser.Scene {
       .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7);
     const diamond = this.add.rectangle(28, 20, 13, 13, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
     const name = this.add.text(44, 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
-    const meta = this.add.text(44, 26, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT'}`, {
+    // `gemChipLines` — the ONE meta line every gem surface prints. This row
+    // said "EFFECT" where every other surface used the same gem-kind label (fixed
+    // 2026-09-07; the same third-spelling defect `foeDeckEditor.ts` had).
+    const meta = this.add.text(44, 26, gemChipLines(gem).meta, {
       fontSize: `${F.tiny}px`, color: MobileWikiScene.rarityHex(gem), fontFamily: FONT.body, fontStyle: 'bold',
     });
     // The bonus itself is the headline — NOT its PL price (see detail overlay).
-    const body = this.add.text(20, 44, stripCardTextMarkup(gem.text), {
+    const body = this.add.text(20, 44, stripCardTextMarkup(renderGemText(gem)), {
       fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, wordWrap: { width: this.W - 60 }, lineSpacing: 2,
     });
     if (body.height > 26) {
-      let clipped = stripCardTextMarkup(gem.text);
+      let clipped = stripCardTextMarkup(renderGemText(gem));
       while (clipped.length > 1 && body.height > 26) { clipped = clipped.slice(0, -1); body.setText(`${clipped}…`); }
     }
     container.add([bg, diamond, name, meta, body]);
@@ -600,6 +609,8 @@ export class MobileWikiScene extends Phaser.Scene {
   // ---------- card detail overlay ----------
 
   private clearDetail(): void {
+    this.detailInfoBox?.destroy();
+    this.detailInfoBox = undefined;
     for (const o of this.detailObjects) o.destroy();
     this.detailObjects = [];
   }
@@ -697,15 +708,27 @@ export class MobileWikiScene extends Phaser.Scene {
     });
     y += 24 + 10;
 
-    const text = this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
-      fontFamily: FONT.body, fontSize: `${F.label}px`, color: '#c9b896',
-      align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 3,
-    }).setOrigin(0.5, 0).setDepth(3002);
-    objs.push(text);
-    y += text.height + 14;
+    // THE FULL BODY *AND* THE KEYWORD DEFINITIONS, through the SAME
+    // `renderCardInfoBox` -> `cardGlossaryEntries` route DeckBuild, Draft and
+    // Shop already use. This used to be a bare
+    // `stripCardTextMarkup(renderSkillText(shown))` text block — the markup
+    // stripped, which is the only tap cue, and no glossary anywhere on the
+    // scene (grep: zero `cardGlossaryEntries` hits). The Wiki is the screen a
+    // player opens to LOOK A CARD UP, and once the rule prose left the face it
+    // was the one screen with neither the rule nor a route to it.
+    //
+    // The box scrolls, so a long keyword list cannot push the ADD TO BAG
+    // button off the bottom the way a growing text block would.
+    const btnH = 40;
+    const infoTop = y;
+    const infoH = Math.max(60, this.H - infoTop - btnH - 30);
+    const infoPlate = this.add.rectangle(centerX - paneWidth / 2, infoTop, paneWidth, infoH, 0x101a2a, 1)
+      .setOrigin(0, 0).setDepth(3001).setStrokeStyle(1, UI.border, 0.5);
+    objs.push(infoPlate);
+    this.detailInfoBox = renderCardInfoBox(this, centerX - paneWidth / 2, infoTop, paneWidth, infoH, shown, { depth: 3002 });
+    y = infoTop + infoH + 10;
 
     const btnW = paneWidth;
-    const btnH = 40;
     const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
     const btnText = this.add.text(centerX, y + btnH / 2, `ADD TO BAG · ${this.detailTier.toUpperCase()}`, {
       fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
@@ -773,7 +796,7 @@ export class MobileWikiScene extends Phaser.Scene {
     objs.push(name);
     y += name.height + 6;
 
-    const meta = this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, {
+    const meta = this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT GEM'}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: MobileWikiScene.rarityHex(gem),
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(meta);
@@ -781,7 +804,7 @@ export class MobileWikiScene extends Phaser.Scene {
 
     // Effect text is the whole story here — rarity is the rank, no PL shown
     // (PL still gates pricing via gemAudit.test.ts; this is display-only).
-    const body = this.add.text(centerX, y, stripCardTextMarkup(gem.text), {
+    const body = this.add.text(centerX, y, stripCardTextMarkup(renderGemText(gem)), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.lead}px`, color: UI.textBright,
       align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 4,
     }).setOrigin(0.5, 0).setDepth(3002);
@@ -795,7 +818,22 @@ export class MobileWikiScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textDim,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(ownedText);
-    y += ownedText.height + 24;
+    y += ownedText.height + 16;
+
+    // WHAT ITS KEYWORDS MEAN — the definitions half of the `GEM EFFECT` block
+    // (2026-09-07, review 2), the desktop pane's twin. Left-aligned rather than
+    // centred because these are paragraphs, not a headline.
+    const defs = gemDefinitionsText(gem);
+    if (defs !== '') {
+      const defText = this.add.text(centerX - paneWidth / 2, y, defs, {
+        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
+        wordWrap: { width: paneWidth }, lineSpacing: 2,
+      }).setOrigin(0, 0).setDepth(3002);
+      objs.push(defText);
+      y += defText.height + 16;
+    } else {
+      y += 8;
+    }
 
     const noteText = this.add.text(centerX, y, 'Socket gems onto deck cards in DECK BUILD (tap a deck card).', {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted, align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 3,

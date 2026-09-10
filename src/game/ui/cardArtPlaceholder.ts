@@ -4,12 +4,12 @@ import { cardArtPlaceholderStyle } from './cardArtPresentation';
 
 /**
  * The card-art placeholder — what fills a card's art region while its texture
- * streams in (`cardArtLoader.ts`), and permanently for the 94 skills that
- * have no art yet.
+ * streams in (`cardArtLoader.ts`), plus a defensive fallback for an unknown
+ * skill without a catalog entry. All 183 current live skills have card art.
  *
  * Both card renderers used to draw NOTHING in that case: `CardToken` left the
  * flat 0x121e30 panel and `FantasyCardTemplateV2` a flat 0x1e2733 slab. That
- * was already visibly wrong for the art-less majority of the card pool, and
+ * was already visibly wrong for an art-less portion of the card pool, and
  * lazy loading would have made it a flicker on every card. This draws the
  * card's own identity instead: a vertical wash of its element/weapon/property
  * color over the panel navy, a soft vignette, and its type badge ghosted in

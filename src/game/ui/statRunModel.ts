@@ -2,6 +2,7 @@ import type { CombatantStats } from '../../engine/types';
 import type { InkRole, StatDensity, TextRole } from '../theme';
 import { STAT_PAIR_ROLES } from '../theme';
 import { STAT_KEYS, STAT_TOKEN, type StatKey } from './statLabels';
+import { daysUntilBoss, EXPEDITION_DAYS, expeditionDay } from './travelDay';
 
 /**
  * STAT RUNS — the pure model behind every "A 1 · B 2 · C 3" line in the game.
@@ -182,6 +183,7 @@ export function statSegmentRoles(seg: StatSegment, density: StatDensity): { valu
  * `RunProgressStrip.ts#RunProgressSnapshot`, declared here so this module
  * stays free of any Phaser-importing file. */
 export interface RunProgressFacts {
+  /** Legacy snapshot name for the absolute run.depth stop count. */
   day: number;
   wave: number;
   gold: number;
@@ -211,18 +213,26 @@ export function livesAreCritical(lives: number): boolean {
   return lives === 1;
 }
 
+/** Boss urgency and copy share the same region-day calculation as the HUD. */
+export function runBossCountdownModel(wave: number): { headline: string; sub: string; bossNow: boolean } {
+  const remaining = daysUntilBoss(wave);
+  const bossNow = remaining === 0;
+  return {
+    headline: bossNow ? 'BOSS TODAY' : `${remaining} DAY${remaining === 1 ? '' : 'S'} UNTIL BOSS`,
+    sub: `BOSS ON DAY ${EXPEDITION_DAYS}`,
+    bossNow,
+  };
+}
+
 /**
- * THE run HUD strip — DAY · WAVE · GOLD · LV · LIVES · BOSSES, in that order,
+ * THE run HUD strip — STOP · DAY · REGION DAY · GOLD · LV · LIVES · BOSSES, in that order,
  * on every run screen.
  *
- * WHAT IS DEMOTED AND WHY. The mobile strip has ~28 characters of usable
- * width, so the hierarchy has to be bought, not added. It is bought entirely
- * out of the four `identity`/`tally` segments: DAY, WAVE, LV and BOSSES go
- * `quiet` (a fainter label, a one-step-down value, the tight size), which
- * hands GOLD and LIVES the full pair. Nothing is dropped — the six stats and
- * their single-letter mobile labels are unchanged, so the line's character
- * count is identical to what shipped and cannot overflow where it did not
- * before.
+ * STOP is absolute route depth; DAY is absolute; REGION DAY resets within
+ * each five-day region.
+ * Both profiles spell those labels out. The four identity/tally segments
+ * remain quiet, leaving GOLD and LIVES as the two leads; the compact renderer
+ * retains its existing fit policy for the longer exploration labels.
  */
 export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): StatRun {
   const critical = livesAreCritical(facts.lives);
@@ -236,8 +246,9 @@ export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): S
     // BELONGS TO THE RENDERER — a label is just the word. (`statRunPlainText`
     // already normalised this, which is why it is byte-identical either way.)
     segments: [
-      { label: compact ? 'D' : 'DAY', value: `${facts.day}`, kind: 'identity', tone: 'quiet' },
-      { label: compact ? 'W' : 'WAVE', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
+      { label: 'STOP', value: `${facts.day}`, kind: 'identity', tone: 'quiet' },
+      { label: 'DAY', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
+      { label: 'REGION DAY', value: `${expeditionDay(facts.wave)}/${EXPEDITION_DAYS}`, kind: 'identity', tone: 'quiet' },
       { label: compact ? 'G' : 'GOLD', value: `${facts.gold}`, kind: 'resource', tone: 'lead' },
       // BANKED PL rides the LV segment as a `+N` delta (drawn in `INK.gain`,
       // same mechanism as a gem's `◆+N`) — the level affordance itself says
@@ -440,7 +451,7 @@ export function ledgerStatRows(facts: LedgerFacts): ReadonlyArray<readonly [Stat
     ],
     [
       { label: 'BOSSES CLEARED', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'normal' },
-      { label: 'DEEPEST WAVE', value: `${facts.deepestWave}`, kind: 'identity', tone: 'quiet' },
+      { label: 'DAYS REACHED', value: `${facts.deepestWave}`, kind: 'identity', tone: 'quiet' },
     ],
     [
       { label: 'GOLD EARNED', value: `${facts.goldEarned}`, kind: 'resource', tone: 'lead' },

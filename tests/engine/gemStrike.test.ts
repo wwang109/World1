@@ -208,22 +208,22 @@ describe('gem-appended heal/shield land their printed number and nothing else', 
     mend: {
       id: 'mend', name: 'Mend', archetypes: ['healing'], property: 'physical', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze',
-      effects: [{ kind: 'heal', power: 4 }], text: '',
+      effects: [{ kind: 'heal', power: 4 }],
     },
     plate: {
       id: 'plate', name: 'Plate', archetypes: ['defensive'], property: 'physical', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze',
-      effects: [{ kind: 'shield', power: 4 }], text: '',
+      effects: [{ kind: 'shield', power: 4 }],
     },
     mystmend: {
       id: 'mystmend', name: 'Myst Mend', archetypes: ['healing'], property: 'magical', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'holy',
-      effects: [{ kind: 'heal', power: 4 }], text: '',
+      effects: [{ kind: 'heal', power: 4 }],
     },
     truemend: {
       id: 'truemend', name: 'True Mend', archetypes: ['healing'], property: 'true', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze',
-      effects: [{ kind: 'heal', power: 4 }], text: '',
+      effects: [{ kind: 'heal', power: 4 }],
     },
     // Pure passive aura (same shape as the book's own war_banner), projecting a
     // FLAT heal bonus onto its neighbour — `mods.healFlat`, the second term a
@@ -231,13 +231,13 @@ describe('gem-appended heal/shield land their printed number and nothing else', 
     chapel: {
       id: 'chapel', name: 'Chapel', archetypes: ['support'], property: 'physical', size: 1,
       speedWeight: 5, rarity: 'common', tier: 'bronze',
-      effects: [], aura: { affects: 'adjacent', mods: { healFlat: 6 } }, text: '',
+      effects: [], aura: { affects: 'adjacent', mods: { healFlat: 6 } },
     },
     // The wall's affliction, to switch the anti-heal world rule on.
     venom: {
       id: 'venom', name: 'Venom', archetypes: ['debuff'], property: 'physical', size: 1,
       speedWeight: 5, rarity: 'common', tier: 'bronze',
-      effects: [{ kind: 'poison', stacks: 3 }], text: '',
+      effects: [{ kind: 'poison', stacks: 3 }],
     },
   };
 
@@ -423,12 +423,12 @@ describe('statStrike: one SHARE of the caster\'s scaling stat', () => {
       rally: {
         id: 'rally', name: 'Rally', archetypes: ['support'], property: 'physical', size: 1,
         speedWeight: 5, rarity: 'common', tier: 'bronze', weapon: 'sword',
-        effects: [{ kind: 'buffStat', stat: 'attack', pct: 100, turns: 5 }], text: '',
+        effects: [{ kind: 'buffStat', stat: 'attack', pct: 100, turns: 5 }],
       },
       strike: {
         id: 'strike', name: 'Strike', archetypes: ['offense'], property: 'physical', size: 1,
         speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword',
-        effects: [{ kind: 'damage', power: 0 }], text: '',
+        effects: [{ kind: 'damage', power: 0 }],
       },
     };
     const events = castOnce('rally', { attack: 20 }, {
@@ -521,7 +521,7 @@ describe('statStrike echo: one share of the host\'s WHOLE attack', () => {
       nothing: {
         id: 'nothing', name: 'Nothing', archetypes: ['offense'], property: 'physical', size: 1,
         speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword',
-        effects: [{ kind: 'damage', power: 0 }], text: '',
+        effects: [{ kind: 'damage', power: 0 }],
       },
     };
     expect(firstCastHits(castOnce('nothing', { attack: 0 }, { book, gem: echoGem() }))).toEqual([1, 1]);
@@ -788,22 +788,22 @@ describe('instance count is a resource: negate is spent PER HIT', () => {
     ward: {
       id: 'ward', name: 'Ward', archetypes: ['defensive'], property: 'physical', size: 1,
       speedWeight: 5, rarity: 'common', tier: 'bronze', weapon: 'sword',
-      effects: [{ kind: 'negate', property: 'physical', charges: 1 }], text: '',
+      effects: [{ kind: 'negate', property: 'physical', charges: 1 }],
     },
     ward2: {
       id: 'ward2', name: 'Ward II', archetypes: ['defensive'], property: 'physical', size: 1,
       speedWeight: 5, rarity: 'common', tier: 'bronze', weapon: 'sword',
-      effects: [{ kind: 'negate', property: 'physical', charges: 2 }], text: '',
+      effects: [{ kind: 'negate', property: 'physical', charges: 2 }],
     },
     onehit: {
       id: 'onehit', name: 'One Hit', archetypes: ['offense'], property: 'physical', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword',
-      effects: [{ kind: 'damage', power: 20 }], text: '',
+      effects: [{ kind: 'damage', power: 20 }],
     },
     twohit: {
       id: 'twohit', name: 'Two Hit', archetypes: ['offense'], property: 'physical', size: 1,
       speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword',
-      effects: [{ kind: 'damage', power: 10 }, { kind: 'damage', power: 10 }], text: '',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'damage', power: 10 }],
     },
   };
 

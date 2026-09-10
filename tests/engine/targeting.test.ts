@@ -25,7 +25,6 @@ const BOOK: SkillBook = {
     // power 10 flat (÷10 of the old 100%) -> 50 deci-PL, keeping the
     // highestThreat pricing assertions below intact.
     effects: [{ kind: 'damage', power: 10 }],
-    text: '',
   },
   aoe: {
     id: 'aoe',
@@ -40,7 +39,6 @@ const BOOK: SkillBook = {
     scope: 'all',
     // power 0 -> deals exactly Attack (flat model equivalent of the old 100%).
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   taunt: {
     id: 'taunt',
@@ -52,7 +50,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'taunt', amount: 50 }],
-    text: '',
   },
   aoeLeech: {
     id: 'aoeLeech',
@@ -70,7 +67,6 @@ const BOOK: SkillBook = {
       { kind: 'damage', power: 0 },
       { kind: 'lifesteal', pct: 50 },
     ],
-    text: '',
   },
 };
 

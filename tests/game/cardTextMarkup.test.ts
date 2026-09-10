@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
+import { renderSkillText } from '../../src/engine/keywords/compose';
 import {
   keywordTextColor,
   markedKeywords,
@@ -28,7 +29,7 @@ describe('card text keyword markup', () => {
 
   it('has a semantic color for every keyword used in the card data', () => {
     for (const skill of Object.values(skillBook)) {
-      for (const keyword of markedKeywords(skill.text)) {
+      for (const keyword of markedKeywords(renderSkillText(skill))) {
         expect(keywordTextColor(keyword), `missing color for {{${keyword}}} in ${skill.id}`).toBeTruthy();
       }
     }

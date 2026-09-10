@@ -1,18 +1,38 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { eventCatalog, eventCatalogIds, type EventDef, type EventOutcomeSpec } from '../../src/data/events';
+import { isEventDefV3 } from '../../src/data/eventContentV3';
+import type { LoadedEventDef } from '../../src/data/eventsContent';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
+import { biomeIds } from '../../src/data/biomes';
+import { hashSeed } from '../../src/engine/rng';
+import { biomeFor } from '../../src/run/biome';
 import {
   applyBonusDraftPick,
   applyGemChoicePick,
   applySellGemPick,
   applyUpgradeCardPick,
+  choiceLockReason,
   EVENT_CHOICE_SIZE,
+  eventBiomeEligible,
+  eventRarityEligible,
+  eventSelectionIdsForCatalog,
+  eventIdFromOrdinaryWiden,
+  firstEligibleConditionalEvent,
+  isConditionalEvent,
   isEventChoiceAffordable,
   isEventChoiceUsable,
-  resolveEventChoice,
+  resolveEventChoice as resolveCommittedEventChoice,
+  resolveEventOutcomeSpec,
+  resolveFilterFrom,
   rollEventForNode,
+  ordinaryEventIdsForCatalog,
 } from '../../src/run/events';
+import { eventInstanceAt, recordEventInstance } from '../../src/run/eventInstances';
+import {
+  correlatedMaterializedChoiceV3,
+  resolveEventChoiceV3,
+} from '../../src/run/eventsV3';
 import {
   applyDraftResult,
   availableChoices,
@@ -39,6 +59,75 @@ function startedRun(seed: number): RunState {
   return applyDraftResult(createRun(seed), draftPicksFor(seed));
 }
 
+function syntheticEvent(id: string, overrides: Partial<EventDef> = {}): EventDef {
+  return {
+    id,
+    title: id,
+    body: id,
+    theme: 'cache',
+    choices: [{ id: 'take', label: 'Take it', outcome: { kind: 'grantGold', amount: 1 } }],
+    ...overrides,
+  };
+}
+
+const frozenLookup = (eventId: string, contentVersion: number): EventDef | undefined => (
+  contentVersion === 1 ? eventCatalog[eventId] : undefined
+);
+
+function hasPlayableCommittedChoice(
+  state: RunState,
+  node: RunNode,
+  event: LoadedEventDef,
+): boolean {
+  if (!isEventDefV3(event)) {
+    return event.choices.some((choice) => (
+      isEventChoiceAffordable(state, choice) && choice.outcome.kind !== 'nothing'
+    ));
+  }
+  const instance = eventInstanceAt(state, node.id);
+  if (instance === undefined) return false;
+  const materialization = state.eventMaterializations[instance.instanceId];
+  if (materialization === undefined) return false;
+  return materialization.choiceIds.some((choiceId) => {
+    const correlated = correlatedMaterializedChoiceV3(
+      event,
+      materialization,
+      instance.instanceId,
+      choiceId,
+    );
+    return correlated !== undefined
+      && correlated.outcome.kind !== 'nothing'
+      && resolveEventChoiceV3(state, instance.instanceId, choiceId).ok;
+  });
+}
+
+function syntheticEventNode(id: string, eventSeed: number, overrides: Partial<RunNode> = {}): RunNode {
+  return {
+    id,
+    depth: 1,
+    wave: 1,
+    kind: 'event',
+    eventSeed,
+    eventTheme: 'cache',
+    ...overrides,
+  };
+}
+
+function withSyntheticResolution(state: RunState, eventId: string, choiceId: string): RunState {
+  return {
+    ...state,
+    eventResolutions: {
+      ...(state.eventResolutions ?? {}),
+      [`resolved-${eventId}-${choiceId}`]: {
+        eventId,
+        contentVersion: 1,
+        instanceId: `event:resolved-${eventId}-${choiceId}`,
+        choiceId,
+      },
+    },
+  };
+}
+
 /** Walk to the first event node reachable from a fresh run, leaving any
  * shop/fight nodes encountered along the way (fights always won). Returns
  * the state with that event node `current` (uncommitted). */
@@ -60,6 +149,29 @@ function stateAtFirstEvent(seed: number): { state: RunState; node: RunNode } {
   throw new Error('guard exceeded while looking for an event node');
 }
 
+/** Commit the exact catalog version in a direct resolver fixture before invoking
+ * the production resolver. Normal play arrives here through rollEventForNode;
+ * tests that target a specific event establish that same run-state precondition
+ * explicitly instead of relying on a newest-version fallback. */
+function resolveEventChoice(state: RunState, eventId: string, choiceId: string) {
+  const node = currentEventNode(state);
+  if (!node) return resolveCommittedEventChoice(state, eventId, choiceId, frozenLookup);
+  const version = 1;
+  const existing = eventInstanceAt(state, node.id);
+  if (existing && (existing.eventId !== eventId || existing.contentVersion !== version)) {
+    throw new Error(`direct fixture cannot rebind committed event node "${node.id}"`);
+  }
+  const committed = existing
+    ? state
+    : recordEventInstance(state, node.id, {
+        eventId,
+        contentVersion: version,
+        instanceId: `event:${node.id}`,
+        drawnDepth: node.depth,
+      });
+  return resolveCommittedEventChoice(committed, eventId, choiceId, frozenLookup);
+}
+
 /** Every outcome kind in the vocabulary, for the catalog lint. */
 const OUTCOME_KINDS = new Set([
   'grantCard',
@@ -72,6 +184,7 @@ const OUTCOME_KINDS = new Set([
   'gemChoice',
   'upgradeCard',
   'sellGem',
+  'grantMapInfo',
   // `mergeCards` (2026-08-26) — three owned same-tier cards in, a choice of
   // three at tier+1 out. Its own suite is `tests/run/cardMerge.test.ts`.
   'mergeCards',
@@ -86,8 +199,7 @@ function isSafe(choice: { cost?: number; outcome: EventOutcomeSpec }): boolean {
  * `rollEventForNode`'s priority scan once its gate opens (2026-09-02 chain
  * batch). Local predicate, same convention as this file's other lint logic. */
 function isGatedEventId(id: string): boolean {
-  const event = eventCatalog[id]!;
-  return event.requires !== undefined || event.requiresTally !== undefined;
+  return isConditionalEvent(eventCatalog[id]!);
 }
 
 /** The bag pools' actual membership — what `idsForTheme` (run/events.ts) and
@@ -95,15 +207,131 @@ function isGatedEventId(id: string): boolean {
 const UNGATED_IDS: readonly string[] = eventCatalogIds.filter((id) => !isGatedEventId(id));
 
 describe('data/events: catalog lint', () => {
-  it('has exactly 39 events (32 + the 2026-09-02 chain batch of 7), each with a unique id', () => {
-    expect(eventCatalogIds.length).toBe(39);
-    expect(new Set(eventCatalogIds).size).toBe(39);
+  const PRE_JSON_SELECTION_ORDER = [
+    'wandering_tutor', 'abandoned_cache', 'recruiter', 'gemsellers_mishap', 'crossroads_shrine',
+    'veterans_last_lesson', 'gambler', 'overloaded_caravan', 'sparring_circle', 'hermits_riddle',
+    'collapsed_barrow', 'quartermasters_error', 'beast_nest', 'sellsword_camp', 'circle_of_adepts',
+    'field_medic', 'wandering_smith', 'ruined_anvil', 'toll_bridge', 'fences_offer',
+    'cinderworks_regrind', 'ember_pit', 'retiring_smith', 'fortune_teller', 'weighing_stone',
+    'two_ravens', 'toll_collectors_ledger', 'broken_axle', 'thorn_garden_shrine', 'venomers_den',
+    'the_lapidary', 'sweep_drill', 'tutors_return', 'the_reckoning', 'the_lands_measure',
+    'factors_ledger', 'pyre_watch', 'flaw_finder', 'banner_scribe',
+  ] as const;
+
+  const LEGACY_SELECTION_ORDER = [
+    ...PRE_JSON_SELECTION_ORDER,
+    'bell_beneath_ice', 'the_bell_unbound', 'the_second_toll',
+  ] as const;
+
+  it('has exactly 44 active events (the frozen 42 plus Feathered Cairn and Far Sight), each with a unique id', () => {
+    expect(eventCatalogIds.length).toBe(44);
+    expect(new Set(eventCatalogIds).size).toBe(44);
+  });
+
+  it('authors the exact three-stage Bell chain in the JSON-backed catalog', () => {
+    expect(eventCatalog.bell_beneath_ice).toStrictEqual({
+      id: 'bell_beneath_ice',
+      title: 'The Bell Beneath the Ice',
+      theme: 'cache',
+      artId: 'bell_beneath_ice',
+      rarity: 'uncommon',
+      biomeIds: ['frostmarch'],
+      body: 'Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it.',
+      choices: [
+        { id: 'prise_it_free', label: 'Prise the frost bell free', outcome: { kind: 'cardChoice', filter: [{ elements: ['frost'] }] } },
+        { id: 'ring_it_here', label: 'Ring it beneath the ice', outcome: { kind: 'upgradeCard' } },
+        { id: 'leave_it_sleeping', label: 'Leave it sleeping', outcome: { kind: 'nothing' } },
+      ],
+    });
+    expect(eventCatalog.the_second_toll).toStrictEqual({
+      id: 'the_second_toll',
+      title: 'The Second Toll',
+      theme: 'omen',
+      artId: 'second_toll',
+      rarity: 'rare',
+      biomeIds: ['frostmarch'],
+      requires: { eventId: 'bell_beneath_ice', choiceIds: ['prise_it_free'] },
+      body: 'The bell you cut from the ice sounds once inside your pack, though nothing has touched it. Across the white distance, a cairn answers.',
+      choices: [
+        { id: 'answer_the_bell', label: 'Answer with your own name', outcome: { kind: 'grantLevel' } },
+        { id: 'bind_the_clapper', label: 'Bind the clapper shut', outcome: { kind: 'grantGold', amount: 3 } },
+        { id: 'abandon_it', label: 'Leave the bell at the cairn', outcome: { kind: 'nothing' } },
+      ],
+    });
+    expect(eventCatalog.the_bell_unbound).toStrictEqual({
+      id: 'the_bell_unbound',
+      title: 'The Bell Unbound',
+      theme: 'forge',
+      artId: 'bell_unbound',
+      rarity: 'secret',
+      biomeIds: ['emberwaste'],
+      requiresAll: [
+        { kind: 'resolution', eventId: 'bell_beneath_ice', choiceIds: ['prise_it_free'] },
+        { kind: 'resolution', eventId: 'the_second_toll', choiceIds: ['answer_the_bell'] },
+      ],
+      body: 'In the Emberwaste the Frostmarch bell finally thaws. Steam curls from its silver throat, and it speaks the name you once gave it.',
+      choices: [
+        { id: 'temper_the_voice', label: 'Temper its Frost voice in the coals', outcome: { kind: 'bonusDraft', filter: [{ elements: ['frost'] }] } },
+        { id: 'sell_the_silver', label: 'Sell the silver tongue', outcome: { kind: 'grantGold', amount: 5 } },
+        { id: 'let_it_ring_free', label: 'Let it ring and walk away', outcome: { kind: 'nothing' } },
+      ],
+    });
+  });
+
+  it('the Bell chain contributes exactly the approved existing-outcome mix', () => {
+    const bellChoices = ['bell_beneath_ice', 'the_second_toll', 'the_bell_unbound']
+      .flatMap((id) => eventCatalog[id]!.choices);
+    const counts = bellChoices.reduce<Record<string, number>>((out, choice) => {
+      out[choice.outcome.kind] = (out[choice.outcome.kind] ?? 0) + 1;
+      return out;
+    }, {});
+    expect(counts).toStrictEqual({
+      cardChoice: 1,
+      upgradeCard: 1,
+      nothing: 3,
+      grantLevel: 1,
+      grantGold: 2,
+      bonusDraft: 1,
+    });
+  });
+
+  it('keeps the exact 42-event legacy selection prefix, then appends the two active v2 ids', () => {
+    const selectionIds = eventSelectionIdsForCatalog(eventCatalogIds);
+    expect(selectionIds.slice(0, LEGACY_SELECTION_ORDER.length)).toStrictEqual(LEGACY_SELECTION_ORDER);
+    expect(selectionIds.slice(LEGACY_SELECTION_ORDER.length)).toEqual([
+      'feathered_cairn', 'feathered_cairn_far_sight',
+    ]);
+  });
+
+  it('appends future JSON event ids in canonical order without reseeding the frozen prefix', () => {
+    const withFuture = eventSelectionIdsForCatalog([...eventCatalogIds, 'z_future_event', 'a_future_event']);
+    expect(withFuture.slice(0, LEGACY_SELECTION_ORDER.length)).toStrictEqual(LEGACY_SELECTION_ORDER);
+    expect(withFuture.slice(LEGACY_SELECTION_ORDER.length)).toEqual([
+      'a_future_event', 'feathered_cairn', 'feathered_cairn_far_sight', 'z_future_event',
+    ]);
+  });
+
+  it('rejects stale or duplicate catalog inputs instead of silently corrupting selection order', () => {
+    expect(() => eventSelectionIdsForCatalog(eventCatalogIds.slice(1))).toThrow(/missing pre-JSON event id/);
+    expect(() => eventSelectionIdsForCatalog([...eventCatalogIds, eventCatalogIds[0]!])).toThrow(/duplicate catalog event id/);
   });
 
   it('every event has a theme', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       expect(['training', 'cache', 'recruit', 'forge', 'market', 'omen']).toContain(event.theme);
+    }
+  });
+
+  it('every optional rarity and biome allow-list uses supported, non-empty, duplicate-free metadata', () => {
+    const supportedRarities = ['common', 'uncommon', 'rare', 'secret'];
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      if (event.rarity !== undefined) expect(supportedRarities, `${id}: unsupported rarity`).toContain(event.rarity);
+      if (event.biomeIds === undefined) continue;
+      expect(event.biomeIds.length, `${id}: empty biome allow-list is indistinguishable from a missing one`).toBeGreaterThan(0);
+      expect(new Set(event.biomeIds).size, `${id}: duplicate biome ids make eligibility ambiguous`).toBe(event.biomeIds.length);
+      for (const biomeId of event.biomeIds) expect(biomeIds, `${id}: unknown biome ${biomeId}`).toContain(biomeId);
     }
   });
 
@@ -265,12 +493,9 @@ describe('data/events: catalog lint', () => {
     expect(pool.length).toBeGreaterThanOrEqual(4);
   });
 
-  // Census moved by the 2026-09-02 chain batch (+7 events): cardChoice
-  // 8 -> 13 (the_lands_measure x2, factors_ledger, pyre_watch, banner_scribe),
-  // gemChoice 10 -> 12 (factors_ledger, flaw_finder), sellGem 1 -> 2
-  // (flaw_finder — the second surface the merge-door reach measurement calls
-  // for: one door is a coin flip). Named-card grants unchanged at 5.
-  it('exactly 13 cardChoice, 12 gemChoice, and 2 sellGem outcomes in the catalog (2026-08-18 widening + 2026-08-19/20 batches + 2026-09-02 chain batch), and the 5 named-card grants are accounted for', () => {
+  // Feathered Cairn adds one Bow cardChoice; Far Sight adds one gemChoice.
+  // The legacy card/gem/merge census stays otherwise unchanged.
+  it('exactly 15 cardChoice, 13 gemChoice, and 2 sellGem outcomes in the active catalog, and the 5 named-card grants are accounted for', () => {
     let cardChoiceCount = 0;
     let gemChoiceCount = 0;
     let sellGemCount = 0;
@@ -283,8 +508,8 @@ describe('data/events: catalog lint', () => {
         if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
       }
     }
-    expect(cardChoiceCount).toBe(13);
-    expect(gemChoiceCount).toBe(12);
+    expect(cardChoiceCount).toBe(15);
+    expect(gemChoiceCount).toBe(13);
     expect(sellGemCount).toBe(2);
     expect(namedGrantCardCount).toBe(5);
   });
@@ -336,6 +561,337 @@ describe('data/events: catalog lint', () => {
     expect(spareBlade.cost ?? 0).toBe(0); // stays free — sparring_circle's ONLY cost-0 choice
   });
 
+});
+
+describe('run/events: conditional event eligibility', () => {
+  it('accepts an explicitly matching biome and rejects an explicit mismatch', () => {
+    const state = startedRun(5);
+    const frostEvent = syntheticEvent('frost-only', { biomeIds: ['frostmarch'] });
+    const node = syntheticEventNode('biome-explicit', 17);
+
+    expect(eventBiomeEligible(state, frostEvent, { ...node, biomeId: 'frostmarch' })).toBe(true);
+    expect(eventBiomeEligible(state, frostEvent, { ...node, biomeId: 'emberwaste' })).toBe(false);
+    expect(eventBiomeEligible(state, syntheticEvent('anywhere'), node)).toBe(true);
+  });
+
+  it('uses state.map.seed for an unstamped legacy node biome fallback', () => {
+    const mapState = startedRun(1);
+    const mapBiomeId = mapState.map.depths.flat().find((candidate) => candidate.biomeId)?.biomeId;
+    expect(mapBiomeId).toBeDefined();
+
+    const mismatchingRun = Array.from({ length: 64 }, (_unused, index) => startedRun(index + 2)).find(
+      (candidate) => candidate.map.depths.flat().find((node) => node.biomeId)?.biomeId !== mapBiomeId,
+    );
+    expect(mismatchingRun, 'fixture sweep did not find a different wave-1 biome').toBeDefined();
+
+    const splitSeedState: RunState = { ...mapState, seed: mismatchingRun!.seed };
+    const event = syntheticEvent('legacy-biome', { biomeIds: [mapBiomeId!] });
+    const unstamped = syntheticEventNode('legacy-node', 0);
+    expect(eventBiomeEligible(splitSeedState, event, unstamped)).toBe(true);
+  });
+
+  it('uses map.seed for biome-derived filters and their lock reason when the duplicate seed diverges', () => {
+    const initial = startedRun(0);
+    const node = syntheticEventNode('split-seed-filter', 0, {
+      wave: 3,
+      biomeId: undefined,
+    });
+    const state: RunState = {
+      ...initial,
+      map: { ...initial.map, seed: 2, depths: [[], [node]] },
+      currentNodeId: node.id,
+    };
+    const counterChoice = syntheticEvent('counter-choice', {
+      choices: [{
+        id: 'counter',
+        label: 'Take the counter',
+        outcome: { kind: 'bonusDraft', filterFrom: 'biomeCounter' },
+      }],
+    }).choices[0]!;
+
+    expect(eventBiomeEligible(
+      state,
+      syntheticEvent('arrowfell-only', { biomeIds: ['arrowfell'] }),
+      node,
+    )).toBe(true);
+    expect(resolveFilterFrom(state, node, 'biomeLean')).toEqual([{ weapons: ['bow'] }]);
+    expect(resolveFilterFrom(state, node, 'biomeCounter')).toBeUndefined();
+    expect(choiceLockReason(state, counterChoice)).toBe('nothing counters BOW');
+  });
+
+  it('uses the unstamped legacy node wave rather than hard-coding the opening biome band', () => {
+    const state = startedRun(1);
+    const openingBiomeId = biomeFor(state.map.seed, 1).id;
+    const laterWave = Array.from({ length: 20 }, (_unused, index) => index + 6).find(
+      (wave) => biomeFor(state.map.seed, wave).id !== openingBiomeId,
+    );
+    expect(laterWave, 'fixture sweep did not find a later band distinct from wave 1').toBeDefined();
+    const laterBiomeId = biomeFor(state.map.seed, laterWave!).id;
+    const node = syntheticEventNode('legacy-later-band', 0, { wave: laterWave!, biomeId: undefined });
+
+    expect(eventBiomeEligible(state, syntheticEvent('later-only', { biomeIds: [laterBiomeId] }), node)).toBe(true);
+    expect(eventBiomeEligible(state, syntheticEvent('opening-only', { biomeIds: [openingBiomeId] }), node)).toBe(false);
+  });
+
+  it('makes uncommon and rare eligibility deterministic with both hits and misses, while secret has no extra lottery', () => {
+    const base = syntheticEvent('rarity-probe', { biomeIds: ['frostmarch'] });
+    const nodes = Array.from({ length: 128 }, (_unused, eventSeed) => syntheticEventNode(`rarity-${eventSeed}`, eventSeed));
+
+    for (const rarity of ['uncommon', 'rare'] as const) {
+      const event = { ...base, rarity };
+      const first = nodes.map((node) => eventRarityEligible(event, node));
+      const second = nodes.map((node) => eventRarityEligible(event, node));
+      expect(first, `${rarity} produced no eligible seed`).toContain(true);
+      expect(first, `${rarity} produced no ineligible seed`).toContain(false);
+      expect(second).toEqual(first);
+    }
+
+    const secret = { ...base, rarity: 'secret' as const };
+    expect(nodes.every((node) => eventRarityEligible(secret, node))).toBe(true);
+    expect(nodes.every((node) => eventRarityEligible({ ...base, rarity: 'common' }, node))).toBe(true);
+    expect(nodes.every((node) => eventRarityEligible(base, node))).toBe(true);
+  });
+
+  it('pins the eventRarity hash domain, event id, and uncommon/rare divisors exactly', () => {
+    const ids = ['rarity-alpha', 'rarity-beta'] as const;
+    const seeds = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55] as const;
+    let sawUncommonOnlyBoundary = false;
+
+    for (const id of ids) {
+      for (const eventSeed of seeds) {
+        const node = syntheticEventNode(`exact-${id}-${eventSeed}`, eventSeed);
+        const hash = hashSeed('eventRarity', eventSeed, id);
+        const uncommon = eventRarityEligible(syntheticEvent(id, { biomeIds: ['frostmarch'], rarity: 'uncommon' }), node);
+        const rare = eventRarityEligible(syntheticEvent(id, { biomeIds: ['frostmarch'], rarity: 'rare' }), node);
+        expect(uncommon, `${id}@${eventSeed}: uncommon divisor/domain drift`).toBe(hash % 2 === 0);
+        expect(rare, `${id}@${eventSeed}: rare divisor/domain drift`).toBe(hash % 4 === 0);
+        if (hash % 4 === 2) {
+          expect(uncommon).toBe(true);
+          expect(rare).toBe(false);
+          sawUncommonOnlyBoundary = true;
+        }
+      }
+    }
+
+    expect(sawUncommonOnlyBoundary, 'fixture matrix missed the mod-4 boundary that separates uncommon from rare').toBe(true);
+  });
+
+  it('offers a secret conditional only when every authored requirement is met', () => {
+    const base = startedRun(8);
+    const node = syntheticEventNode('secret-node', 23, { biomeId: 'frostmarch' });
+    const secret = syntheticEvent('secret-chain', {
+      rarity: 'secret',
+      biomeIds: ['frostmarch'],
+      requiresAll: [
+        { kind: 'resolution', eventId: 'first_deed', choiceIds: ['answer'] },
+        { kind: 'resolution', eventId: 'second_deed', choiceIds: ['remember'] },
+      ],
+    });
+    const one = withSyntheticResolution(base, 'first_deed', 'answer');
+    const both = withSyntheticResolution(one, 'second_deed', 'remember');
+
+    expect(firstEligibleConditionalEvent(base, node, [secret])).toBeUndefined();
+    expect(firstEligibleConditionalEvent(one, node, [secret])).toBeUndefined();
+    expect(firstEligibleConditionalEvent(both, node, [secret])).toBe(secret);
+  });
+
+  it('requires legacy resolution/tally and mixed requiresAll resolution/tally gates in actual selection', () => {
+    const base = startedRun(9);
+    const node = syntheticEventNode('mixed-gates-node', 4, { biomeId: 'frostmarch' });
+    const event = syntheticEvent('mixed-gates', {
+      biomeIds: ['frostmarch'],
+      requires: { eventId: 'legacy-deed', choiceIds: ['legacy-choice'] },
+      requiresTally: { stat: 'wins', atLeast: 2 },
+      requiresAll: [
+        { kind: 'resolution', eventId: 'conjunctive-deed', choiceIds: ['conjunctive-choice'] },
+        { kind: 'tally', stat: 'livesLost', atLeast: 1 },
+      ],
+    });
+    const withBothResolutions = withSyntheticResolution(
+      withSyntheticResolution(base, 'legacy-deed', 'legacy-choice'),
+      'conjunctive-deed',
+      'conjunctive-choice',
+    );
+    const complete: RunState = {
+      ...withBothResolutions,
+      wins: 2,
+      stats: { ...withBothResolutions.stats, livesLost: 1 },
+    };
+    const withoutLegacyResolution: RunState = {
+      ...withSyntheticResolution(base, 'conjunctive-deed', 'conjunctive-choice'),
+      wins: 2,
+      stats: { ...base.stats, livesLost: 1 },
+    };
+    const withoutConjunctiveResolution: RunState = {
+      ...withSyntheticResolution(base, 'legacy-deed', 'legacy-choice'),
+      wins: 2,
+      stats: { ...base.stats, livesLost: 1 },
+    };
+
+    expect(firstEligibleConditionalEvent(withoutLegacyResolution, node, [event])).toBeUndefined();
+    expect(firstEligibleConditionalEvent({ ...complete, wins: 1 }, node, [event])).toBeUndefined();
+    expect(firstEligibleConditionalEvent(withoutConjunctiveResolution, node, [event])).toBeUndefined();
+    expect(firstEligibleConditionalEvent({ ...complete, stats: { ...complete.stats, livesLost: 0 } }, node, [event])).toBeUndefined();
+    expect(firstEligibleConditionalEvent(complete, node, [event])).toBe(event);
+  });
+
+  it('scans ordered conditional candidates through theme, drawn, biome, gates, rarity, and affordability', () => {
+    const base = startedRun(13);
+    const nodeSeed = Array.from({ length: 128 }, (_unused, seed) => seed).find((seed) => !eventRarityEligible(
+      syntheticEvent('rarity-miss', { rarity: 'rare', biomeIds: ['frostmarch'] }),
+      syntheticEventNode('conditional-scan', seed, { biomeId: 'frostmarch' }),
+    ));
+    expect(nodeSeed, 'fixture sweep did not find a rare miss').toBeDefined();
+    const node = syntheticEventNode('conditional-scan', nodeSeed!, { biomeId: 'frostmarch' });
+    const gatedState = withSyntheticResolution(base, 'source', 'open');
+    const state: RunState = {
+      ...gatedState,
+      eventInstances: {
+        ...gatedState.eventInstances,
+        prior: { eventId: 'already-drawn', contentVersion: 1, instanceId: 'event:prior', drawnDepth: 1 },
+      },
+    };
+    const candidates = [
+      syntheticEvent('wrong-theme', { theme: 'forge', biomeIds: ['frostmarch'] }),
+      syntheticEvent('already-drawn', { biomeIds: ['frostmarch'] }),
+      syntheticEvent('wrong-biome', { biomeIds: ['emberwaste'] }),
+      syntheticEvent('closed-gate', { biomeIds: ['frostmarch'], requires: { eventId: 'source', choiceIds: ['closed'] } }),
+      syntheticEvent('rarity-miss', { biomeIds: ['frostmarch'], rarity: 'rare' }),
+      syntheticEvent('unaffordable', {
+        biomeIds: ['frostmarch'],
+        choices: [
+          { id: 'buy', label: 'Buy', cost: 1, outcome: { kind: 'grantGold', amount: 1 } },
+          { id: 'leave', label: 'Leave', outcome: { kind: 'nothing' } },
+        ],
+      }),
+      syntheticEvent('eligible', { biomeIds: ['frostmarch'], requires: { eventId: 'source', choiceIds: ['open'] } }),
+      syntheticEvent('later', { biomeIds: ['frostmarch'] }),
+    ];
+
+    expect(firstEligibleConditionalEvent(state, node, candidates)?.id).toBe('eligible');
+  });
+
+  it('an ineligible conditional scan cannot mutate or perturb the ordinary theme bag', () => {
+    const base = startedRun(21);
+    const state: RunState = {
+      ...base,
+      eventThemeBags: { ...(base.eventThemeBags ?? {}), cache: ['abandoned_cache'] },
+      eventThemeBagRefills: { ...(base.eventThemeBagRefills ?? {}), cache: 7 },
+    };
+    const node = syntheticEventNode('isolated-miss', 31, { biomeId: 'emberwaste' });
+    const conditional = syntheticEvent('conditional-fixture', { biomeIds: ['frostmarch'] });
+    const inputBefore = structuredClone(state);
+
+    expect(firstEligibleConditionalEvent(state, node, [conditional])).toBeUndefined();
+    expect(state).toEqual(inputBefore);
+
+    const actual = rollEventForNode(state, node);
+    expect(state).toEqual(inputBefore);
+    const control = rollEventForNode(inputBefore, node);
+    expect(actual.event.id).toBe('abandoned_cache');
+    expect(actual).toEqual(control);
+    expect(actual.state.eventThemeBagRefills?.cache).toBe(7);
+    expect(actual.state.eventThemeBags?.cache).toEqual([]);
+  });
+
+  it('a conditional priority hit memoizes only the event id without mutating any input bag or refill field', () => {
+    const base = withSyntheticResolution(startedRun(22), 'wandering_tutor', 'pay');
+    const state: RunState = {
+      ...base,
+      eventBag: ['abandoned_cache', 'recruiter'],
+      eventBagRefills: 5,
+      eventThemeBags: {
+        ...(base.eventThemeBags ?? {}),
+        training: ['wandering_tutor', 'sparring_circle', 'hermits_riddle'],
+      },
+      eventThemeBagRefills: { ...(base.eventThemeBagRefills ?? {}), training: 7 },
+    };
+    const node = syntheticEventNode('priority-isolation', 41, { eventTheme: 'training' });
+    const inputBefore = structuredClone(state);
+
+    const result = rollEventForNode(state, node);
+
+    expect(result.event.id).toBe('tutors_return');
+    expect(state).toEqual(inputBefore);
+    expect(result.state.eventBag).toEqual(inputBefore.eventBag);
+    expect(result.state.eventBagRefills).toBe(inputBefore.eventBagRefills);
+    expect(result.state.eventThemeBags).toEqual(inputBefore.eventThemeBags);
+    expect(result.state.eventThemeBagRefills).toEqual(inputBefore.eventThemeBagRefills);
+    expect(result.state.eventInstances).toEqual({
+      ...inputBefore.eventInstances,
+      [node.id]: { eventId: 'tutors_return', contentVersion: 1, instanceId: `event:${node.id}`, drawnDepth: node.depth },
+    });
+  });
+
+  it('keeps every conditional kind out of themed, widen, and no-affordable fallback pools', () => {
+    const ordinaryUnaffordable = syntheticEvent('ordinary-unaffordable', {
+      choices: [
+        { id: 'buy', label: 'Buy', cost: 2, outcome: { kind: 'grantGold', amount: 1 } },
+        { id: 'leave', label: 'Leave', outcome: { kind: 'nothing' } },
+      ],
+    });
+    const ordinaryAffordable = syntheticEvent('ordinary-affordable', { theme: 'forge' });
+    const candidates = [
+      ordinaryUnaffordable,
+      syntheticEvent('biome-conditional', { biomeIds: ['frostmarch'] }),
+      syntheticEvent('resolution-conditional', { requires: { eventId: 'source' } }),
+      syntheticEvent('tally-conditional', { requiresTally: { stat: 'wins', atLeast: 1 } }),
+      syntheticEvent('all-conditional', { requiresAll: [{ kind: 'tally', stat: 'wins', atLeast: 1 }] }),
+      ordinaryAffordable,
+    ];
+    const catalog = Object.fromEntries(candidates.map((event) => [event.id, event]));
+    const orderedIds = candidates.map((event) => event.id);
+
+    const themedBag = ordinaryEventIdsForCatalog(catalog, orderedIds, 'cache');
+    const widenPool = ordinaryEventIdsForCatalog(catalog, orderedIds);
+    expect(themedBag).toEqual(['ordinary-unaffordable']);
+    expect(widenPool).toEqual(['ordinary-unaffordable', 'ordinary-affordable']);
+
+    const broke = { ...startedRun(24), gold: 0 };
+    const widenedId = eventIdFromOrdinaryWiden(broke, themedBag, catalog, orderedIds);
+    expect(widenedId).toBe('ordinary-affordable');
+
+    const fallbackId = eventIdFromOrdinaryWiden(
+      broke,
+      themedBag,
+      catalog,
+      orderedIds.filter((id) => id !== 'ordinary-affordable'),
+    );
+    expect(fallbackId).toBe('ordinary-unaffordable');
+  });
+
+  it('returns a memoized node before re-evaluating current conditional eligibility', () => {
+    const base = startedRun(34);
+    const node = syntheticEventNode('memo-conditional', 0, { eventTheme: 'training' });
+    const state: RunState = {
+      ...base,
+      eventInstances: {
+        ...base.eventInstances,
+        [node.id]: { eventId: 'tutors_return', contentVersion: 1, instanceId: `event:${node.id}`, drawnDepth: node.depth },
+      },
+    };
+    const result = rollEventForNode(state, node);
+    expect(result.event.id).toBe('tutors_return');
+    expect(result.state).toBe(state);
+  });
+
+  it('keeps the seeded ordinary training sequence byte-identical across a refill when no conditional is eligible', () => {
+    let state: RunState = { ...startedRun(3), gold: 999 };
+    const expected = [
+      'sweep_drill', 'hermits_riddle', 'sparring_circle', 'veterans_last_lesson', 'wandering_tutor',
+      'sweep_drill', 'hermits_riddle', 'sparring_circle', 'wandering_tutor', 'veterans_last_lesson',
+    ];
+    const actual: string[] = [];
+    for (let index = 0; index < expected.length; index++) {
+      const result = rollEventForNode(
+        state,
+        syntheticEventNode(`ordinary-${index}`, index, { eventTheme: 'training' }),
+      );
+      actual.push(result.event.id);
+      state = result.state;
+    }
+    expect(actual).toEqual(expected);
+  });
 });
 
 describe('run/events: rollEventForNode', () => {
@@ -401,7 +957,7 @@ describe('run/events: rollEventForNode', () => {
 
   it('no-repeat holds WITHIN a theme across a run (refills only that theme once exhausted)', () => {
     let state = startedRun(12);
-    const themePool = eventCatalogIds.filter((id) => eventCatalog[id]!.theme === 'cache');
+    const themePool = UNGATED_IDS.filter((id) => eventCatalog[id]!.theme === 'cache');
     const drawnFirstCycle: string[] = [];
     for (let i = 0; i < themePool.length; i++) {
       const fakeNode = { id: `cache-${i}`, depth: 1, wave: 1, kind: 'event' as const, eventSeed: i, eventTheme: 'cache' as const };
@@ -478,12 +1034,11 @@ describe('run/events: affordability-aware draw', () => {
         if (choices.length === 0) break;
         const eventNode = choices.find((n) => n.kind === 'event');
         if (eventNode) {
-          const { event } = rollEventForNode(state, eventNode);
-          const hasPlayableChoice = event.choices.some(
-            (c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing',
-          );
-          expect(hasPlayableChoice).toBe(true);
           state = chooseNode(state, eventNode.id);
+          const { state: rolledState, event } = rollEventForNode(state, eventNode);
+          state = rolledState;
+          const hasPlayableChoice = hasPlayableCommittedChoice(state, eventNode, event);
+          expect(hasPlayableChoice, `${event.id} at ${eventNode.id} seed ${String(seed)}`).toBe(true);
           state = leaveEvent(state);
           continue;
         }
@@ -999,14 +1554,14 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
       }
     }
     // Sanity on the sweep itself — matches the catalog-lint count test above
-    // (13 cardChoice, 12 gemChoice after the 2026-09-02 chain batch; the
+    // (15 cardChoice, 13 gemChoice in the active catalog; the
     // sweep deliberately includes the GATED events' rungs, since
     // `resolveEventChoice` takes the same known-gap posture for gates as for
     // affordability — the usability predicate is the guard, not the resolver)
     // so a future content edit that silently drops one of these choices out
     // of the vocabulary is also caught here.
-    expect(cardChoiceChecked).toBe(13);
-    expect(gemChoiceChecked).toBe(12);
+    expect(cardChoiceChecked).toBe(15);
+    expect(gemChoiceChecked).toBe(13);
   });
 });
 
@@ -1126,18 +1681,12 @@ describe('run/events: sellGem (2026-08-20 — the lapidary event\'s originally-w
 });
 
 describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2026-08-18 QA pass)', () => {
-  // A synthetic catalog entry, injected into the (plain, mutable)
-  // `eventCatalog` record for the duration of one test and removed
-  // immediately after — `resolveEventChoice` looks up `eventId` directly
-  // from `eventCatalog`, independent of which event a run node actually
-  // drew, so this exercises the REAL resolver/throw path without needing a
-  // live catalog entry narrow enough to trip it (none exist today — see the
-  // lint test above).
-  const RIGGED_ID = '__qa_rigged_narrow_pool__';
-
-  afterEach(() => {
-    delete (eventCatalog as Record<string, EventDef>)[RIGGED_ID];
-  });
+  // Synthetic specs go through the same pure outcome seam production uses,
+  // without mutating the frozen catalog or any nested singleton value.
+  function resolveSyntheticOutcome(outcome: EventOutcomeSpec): void {
+    const { state, node } = stateAtFirstEvent(4);
+    resolveEventOutcomeSpec(state, node, 'narrow', outcome);
+  }
 
   it('cardChoiceOutcome throws rather than silently dealing fewer than EVENT_CHOICE_SIZE cards', () => {
     // THE FIXTURE POOL: beast + healing. Non-empty (so this is NOT the
@@ -1168,39 +1717,20 @@ describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2
       narrowPool.length,
       `beast+healing is no longer shorter than EVENT_CHOICE_SIZE (${named}) — pick another structurally narrow filter, do NOT raise the number`,
     ).toBeLessThan(EVENT_CHOICE_SIZE);
-    (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
-      id: RIGGED_ID,
-      title: 'QA rig',
-      body: '',
-      theme: 'training',
-      choices: [
-        {
-          id: 'narrow',
-          label: '',
-          outcome: { kind: 'cardChoice', filter: [{ weapons: ['beast'], archetypes: ['healing'] }] },
-        },
-      ],
-    };
-    const { state } = stateAtFirstEvent(4);
-    expect(() => resolveEventChoice({ ...state, gold: 5 }, RIGGED_ID, 'narrow')).toThrow(/cardChoice/);
+    expect(() => resolveSyntheticOutcome({
+      kind: 'cardChoice',
+      filter: [{ weapons: ['beast'], archetypes: ['healing'] }],
+    })).toThrow(/cardChoice/);
   });
 
   it('gemChoiceOutcome throws rather than silently dealing fewer than EVENT_CHOICE_SIZE gems', () => {
     const twoGemIds = Object.keys(gemBook).slice(0, 2);
     expect(twoGemIds).toHaveLength(2);
-    (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
-      id: RIGGED_ID,
-      title: 'QA rig',
-      body: '',
-      theme: 'training',
-      choices: [{ id: 'narrow', label: '', outcome: { kind: 'gemChoice', filter: [{ ids: twoGemIds }] } }],
-    };
-    const { state } = stateAtFirstEvent(4);
-    expect(() => resolveEventChoice({ ...state, gold: 5 }, RIGGED_ID, 'narrow')).toThrow(/gemChoice/);
+    expect(() => resolveSyntheticOutcome({ kind: 'gemChoice', filter: [{ ids: twoGemIds }] })).toThrow(/gemChoice/);
   });
 });
 
-describe('run/events: catalog invariants still hold with the expanded (39-event) catalog', () => {
+describe('run/events: catalog invariants still hold with the expanded (44-event) catalog', () => {
   it('an event rolled at gold 0 always has an affordable, non-nothing choice (many seeds/nodes)', () => {
     for (let i = 0; i < 20; i++) {
       const seed = i * 41 + 7;
@@ -1211,12 +1741,11 @@ describe('run/events: catalog invariants still hold with the expanded (39-event)
         if (choices.length === 0) break;
         const eventNode = choices.find((n) => n.kind === 'event');
         if (eventNode) {
-          const { event } = rollEventForNode(state, eventNode);
-          const hasPlayableChoice = event.choices.some(
-            (c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing',
-          );
-          expect(hasPlayableChoice).toBe(true);
           state = chooseNode(state, eventNode.id);
+          const { state: rolledState, event } = rollEventForNode(state, eventNode);
+          state = rolledState;
+          const hasPlayableChoice = hasPlayableCommittedChoice(state, eventNode, event);
+          expect(hasPlayableChoice, `${event.id} at ${eventNode.id} seed ${String(seed)}`).toBe(true);
           state = leaveEvent(state);
           continue;
         }

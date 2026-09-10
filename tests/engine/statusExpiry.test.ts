@@ -33,51 +33,51 @@ const book: SkillBook = {
   hex: {
     id: 'hex', name: 'Hex', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'expose', pct: 50, turns: 2 }], text: '',
+    effects: [{ kind: 'expose', pct: 50, turns: 2 }],
   },
   // Recasts every rotation — the compounding engine of the original defect.
   hexLoop: {
     id: 'hexLoop', name: 'Hex Loop', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 0,
-    effects: [{ kind: 'expose', pct: 50, turns: 2 }], text: '',
+    effects: [{ kind: 'expose', pct: 50, turns: 2 }],
   },
   // Two exposes of DIFFERENT magnitude/duration in one cast: the refresh must
   // keep the stronger pct and the longer window, whichever order they arrive in.
   hexWeakThenStrong: {
     id: 'hexWeakThenStrong', name: 'Weak then Strong', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'expose', pct: 20, turns: 1 }, { kind: 'expose', pct: 50, turns: 4 }], text: '',
+    effects: [{ kind: 'expose', pct: 20, turns: 1 }, { kind: 'expose', pct: 50, turns: 4 }],
   },
   hexStrongThenWeak: {
     id: 'hexStrongThenWeak', name: 'Strong then Weak', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'expose', pct: 50, turns: 4 }, { kind: 'expose', pct: 20, turns: 1 }], text: '',
+    effects: [{ kind: 'expose', pct: 50, turns: 4 }, { kind: 'expose', pct: 20, turns: 1 }],
   },
   // Two exposes that dominate each other in NEITHER field, so both stand.
   hexSplit: {
     id: 'hexSplit', name: 'Split', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 99,
-    effects: [{ kind: 'expose', pct: 50, turns: 1 }, { kind: 'expose', pct: 30, turns: 3 }], text: '',
+    effects: [{ kind: 'expose', pct: 50, turns: 1 }, { kind: 'expose', pct: 30, turns: 3 }],
   },
   // Cadence (0 cooldown) no longer than the printed duration: the shape that
   // used to hold a pile open forever.
   tinyLoop: {
     id: 'tinyLoop', name: 'Tiny Loop', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 0,
-    effects: [{ kind: 'expose', pct: 10, turns: 1 }], text: '',
+    effects: [{ kind: 'expose', pct: 10, turns: 1 }],
   },
   // A 0-pct expose: priced at nothing, so it must deliver nothing.
   nullExpose: {
     id: 'nullExpose', name: 'Null', archetypes: ['debuff'], property: 'magical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', element: 'dark', cooldownTurns: 0,
-    effects: [{ kind: 'expose', pct: 0, turns: 1 }], text: '',
+    effects: [{ kind: 'expose', pct: 0, turns: 1 }],
   },
   // A plain 20-power hit: with attack 10 it deals exactly 30 unexposed and
   // 30 + floor(30 * 0.5) = 45 under ONE 50% expose.
   hit: {
     id: 'hit', name: 'Hit', archetypes: ['offense'], property: 'physical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 0,
-    effects: [{ kind: 'damage', power: 20 }], text: '',
+    effects: [{ kind: 'damage', power: 20 }],
   },
 } satisfies Record<string, SkillDef>;
 

@@ -112,6 +112,8 @@ describe('layoutProfile: detectProfile scene-key parity with devLaunch.LaunchSce
  */
 function withWindow<T>(stub: {
   screen?: { width: number; height: number };
+  innerWidth?: number;
+  innerHeight?: number;
   matchMedia?: (query: string) => { matches: boolean };
 }, run: () => T): T {
   const g = globalThis as { window?: unknown };
@@ -126,6 +128,18 @@ function withWindow<T>(stub: {
 }
 
 describe('layoutProfile: detectProfile precedence (?ui= > ?scene= > device sniff)', () => {
+  it('tolerates minimal browser/test windows that do not expose location', () => {
+    const g = globalThis as { window?: unknown };
+    const prev = g.window;
+    g.window = { innerWidth: 900, innerHeight: 900, matchMedia: () => ({ matches: false }) };
+    try {
+      expect(detectProfile()).toBe(MOBILE_PROFILE);
+    } finally {
+      if (prev === undefined) delete g.window;
+      else g.window = prev;
+    }
+  });
+
   it('a bare ?scene= (no ?ui=) infers the profile from the scene-key branch', () => {
     withWindow({}, () => {
       expect(detectProfile('?scene=mbattle')).toBe(MOBILE_PROFILE);
@@ -149,9 +163,29 @@ describe('layoutProfile: detectProfile precedence (?ui= > ?scene= > device sniff
     withWindow({ screen: { width: 1920, height: 1080 }, matchMedia: () => ({ matches: false }) }, () => {
       expect(detectProfile('')).toBe(DESKTOP_PROFILE);
     });
-    // Narrow but FINE pointer (a narrow desktop browser window) -> desktop —
-    // the touch guard exists specifically to keep this case off mobile.
+    // Narrow phone-shaped viewport -> mobile even when pointer capability is fine.
     withWindow({ screen: { width: 400, height: 1200 }, matchMedia: () => ({ matches: false }) }, () => {
+      expect(detectProfile('')).toBe(MOBILE_PROFILE);
+    });
+  });
+
+  it('selects mobile for a 900x900 fine-pointer viewport', () => {
+    // Regression: the old short-edge + coarse-only fallback shrank this narrow desktop window.
+    withWindow({ innerWidth: 900, innerHeight: 900, screen: { width: 1440, height: 900 }, matchMedia: () => ({ matches: false }) }, () => {
+      expect(detectProfile('')).toBe(MOBILE_PROFILE);
+    });
+  });
+
+  it('selects mobile for an 800x900 fine-pointer viewport', () => {
+    // Regression: the old short-edge + coarse-only fallback made this compact window desktop.
+    withWindow({ innerWidth: 800, innerHeight: 900, screen: { width: 1440, height: 900 }, matchMedia: () => ({ matches: false }) }, () => {
+      expect(detectProfile('')).toBe(MOBILE_PROFILE);
+    });
+  });
+
+  it('keeps a 1280x720 fine-pointer viewport desktop', () => {
+    // Regression: a width-only mobile cutoff would incorrectly classify this desktop viewport.
+    withWindow({ innerWidth: 1280, innerHeight: 720, screen: { width: 1440, height: 900 }, matchMedia: () => ({ matches: false }) }, () => {
       expect(detectProfile('')).toBe(DESKTOP_PROFILE);
     });
   });

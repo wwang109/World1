@@ -19,7 +19,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'guard', property: 'magical', pct: 50, turns: 5 }],
-    text: '',
   },
   guard_m_double: {
     id: 'guard_m_double',
@@ -34,7 +33,6 @@ const KW_BOOK: SkillBook = {
       { kind: 'guard', property: 'magical', pct: 50, turns: 5 },
       { kind: 'guard', property: 'magical', pct: 50, turns: 5 },
     ],
-    text: '',
   },
   guard_m_over: {
     id: 'guard_m_over',
@@ -46,7 +44,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'guard', property: 'magical', pct: 90, turns: 5 }], // clamps to 60
-    text: '',
   },
   // ---- Negate variants ----
   negate_m3: {
@@ -59,7 +56,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'negate', property: 'magical', charges: 1 }],
-    text: '',
   },
   negate_m1: {
     id: 'negate_m1',
@@ -71,7 +67,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'negate', property: 'magical', charges: 1 }],
-    text: '',
   },
   negate_cap: {
     id: 'negate_cap',
@@ -83,7 +78,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'negate', property: 'magical', charges: 5 }], // clamps to 3
-    text: '',
   },
   shield_negate: {
     id: 'shield_negate',
@@ -98,7 +92,6 @@ const KW_BOOK: SkillBook = {
       { kind: 'shield', power: 20 },
       { kind: 'negate', property: 'magical', charges: 1 },
     ],
-    text: '',
   },
   // ---- Enemy attacks ----
   mbolt: {
@@ -111,7 +104,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   tbolt: {
     id: 'tbolt',
@@ -123,7 +115,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   mburn: {
     id: 'mburn',
@@ -135,7 +126,6 @@ const KW_BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'burn', stacks: 10 }],
-    text: '',
   },
 };
 

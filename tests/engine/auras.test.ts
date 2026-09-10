@@ -24,7 +24,6 @@ function auraCard(id: string, aura: AuraDef): SkillDef {
     rarity: 'common',
     tier: 'bronze',
     effects: [],
-    text: '',
     aura,
   };
 }
@@ -40,7 +39,6 @@ const REACH_BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 100 }],
-    text: '',
   },
   // reach OMITTED -> defaults to 1 (old touching-only behavior).
   adj1: auraCard('adj1', { affects: 'adjacent', mods: { damageFlat: 10 } }),
@@ -235,7 +233,6 @@ describe('auraAffectedTargetSlots (UI-facing coverage)', () => {
       id: 'beacon', name: 'Beacon', archetypes: ['support'], property: 'physical', size: 1,
       rarity: 'common', tier: 'bronze', effects: [],
       aura: { affects: 'left', reach: 2, archetypeFilter: 'offense', mods: { damageFlat: 10 } },
-      text: '',
     },
   };
   // Board: offense(0) offense(1) beacon(2) defensive(3)

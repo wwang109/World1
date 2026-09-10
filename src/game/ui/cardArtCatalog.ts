@@ -4,7 +4,7 @@
  *
  * The files are `.webp` DERIVATIVES, produced by `scripts/encode-card-art.ts`
  * (`npm run art:encode`) from the `.png` masters in **`art-src/cards/`**:
- * max 1024 tall, WebP q82, ~95 KB each against the masters' ~2.3 MB. The
+ * max 1024 tall, WebP q68 against the masters' ~2.3 MB. The
  * masters live OUTSIDE `public/` because `vite build` copies `public/`
  * verbatim — while they sat beside their derivatives every deploy shipped
  * 179 MB of PNG nothing fetches. The `.webp` here is generated but IS
@@ -14,8 +14,8 @@
  *
  * Art is NOT loaded at boot. `cardArtLoader.ts` streams each texture in on
  * first use and the card renderers show `cardArtPlaceholder.ts` until it
- * lands — so a card with no catalogue entry at all (94 of 166 skills today)
- * and a card whose art is still in flight take the exact same code path.
+ * lands — so a card whose art is still in flight takes the same placeholder
+ * path that covered not-yet-catalogued cards during the all-card rollout.
  */
 export type CardArtEntry = {
   fileName: string;
@@ -200,4 +200,21 @@ export const CARD_ART_CATALOG: Record<string, CardArtEntry> = {
   bramble_covenant: { textureKey: 'card-art:bramble_covenant_anime', fileName: 'bramble-covenant-anime.webp' },
   marksmans_creed: { textureKey: 'card-art:marksmans_creed_anime', fileName: 'marksmans-creed-anime.webp' },
   rimebarb_vigil: { textureKey: 'card-art:rimebarb_vigil_anime', fileName: 'rimebarb-vigil-anime.webp' },
+  champions_challenge: { textureKey: 'card-art:champions_challenge', fileName: 'champions_challenge.webp' },
+  emberchant_rite: { textureKey: 'card-art:emberchant_rite', fileName: 'emberchant_rite.webp' },
+  frostbind_litany: { textureKey: 'card-art:frostbind_litany', fileName: 'frostbind_litany.webp' },
+  hibernation: { textureKey: 'card-art:hibernation', fileName: 'hibernation.webp' },
+  ironmarch_tithe: { textureKey: 'card-art:ironmarch_tithe', fileName: 'ironmarch_tithe.webp' },
+  quiverwardens_call: { textureKey: 'card-art:quiverwardens_call', fileName: 'quiverwardens_call.webp' },
+  standard_of_the_ninth: { textureKey: 'card-art:standard_of_the_ninth', fileName: 'standard_of_the_ninth.webp' },
+  storm_tithe: { textureKey: 'card-art:storm_tithe', fileName: 'storm_tithe.webp' },
+  writ_of_sanction: { textureKey: 'card-art:writ_of_sanction', fileName: 'writ_of_sanction.webp' },
+  blightstep_dirge: { textureKey: 'card-art:blightstep_dirge', fileName: 'blightstep_dirge.webp' },
+  forgeheart_bastion: { textureKey: 'card-art:forgeheart_bastion', fileName: 'forgeheart_bastion.webp' },
+  heartwood_sanctum: { textureKey: 'card-art:heartwood_sanctum', fileName: 'heartwood_sanctum.webp' },
+  ironhide: { textureKey: 'card-art:ironhide', fileName: 'ironhide.webp' },
+  nullshroud: { textureKey: 'card-art:nullshroud', fileName: 'nullshroud.webp' },
+  quickmend: { textureKey: 'card-art:quickmend', fileName: 'quickmend.webp' },
+  steady_draw: { textureKey: 'card-art:steady_draw', fileName: 'steady_draw.webp' },
+  the_long_watch: { textureKey: 'card-art:the_long_watch', fileName: 'the_long_watch.webp' },
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gemBook } from '../../src/data/gems';
-import { gemCatalogOrder } from '../../src/game/ui/gemGlossary';
+import { gemCatalogOrder } from '../../src/game/ui/gemPresentation';
 
 /**
  * The gem CATALOG surfaces (both wikis, the UI kit) group by rarity. That

@@ -4,7 +4,9 @@ import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applyUpgradeCardPick,
-  EVENT_CHOICE_SIZE, isEventChoiceUsable, MERGE_INPUT_COUNT, resolveEventChoice, rollEventForNode,
+  EVENT_CHOICE_SIZE, eventSelectionIdsForCatalog, isEventChoiceUsable, mergeCardsPreview, MERGE_INPUT_COUNT,
+  rollEventForNode,
+  type EventSelectionContent,
   type EventOutcome, type MergeCardsOffer,
 } from '../../src/run/events';
 import {
@@ -14,6 +16,10 @@ import {
 import { DRAFT_SET_KEYS, rollStartDraft } from '../../src/run/draft';
 import { battleGoldReward } from '../../src/run/shop';
 import { cardOfferableAtTier, type SkillTier } from '../../src/engine/types';
+import { resolveExactEventChoice } from '../fixtures/eventResolution';
+import { recordEventInstance } from '../../src/run/eventInstances';
+import { finalizeMergeCardsV3, materializeReachedEventV3, resolveEventChoiceV3 } from '../../src/run/eventsV3';
+import type { EventChoiceV3, LoadedEventDefV3 } from '../../src/data/eventContentV3';
 
 /**
  * THE CARD MERGE — three owned cards of ONE tier in, a CHOICE of three cards at
@@ -33,6 +39,18 @@ const ALL = Object.values(skillBook);
 const BOARD_SLOTS = 10; // HERO_BOARD_SLOTS, via `RUN_BOARD_SLOTS` (runState.ts)
 const SIZE1 = ALL.filter((s) => s.size === 1 && cardOfferableAtTier(s, 'bronze')).map((s) => s.id);
 const SIZE3 = ALL.filter((s) => s.size === 3 && cardOfferableAtTier(s, 'bronze')).map((s) => s.id);
+
+const frozenLookup = (eventId: string, contentVersion: number): EventDef | undefined => (
+  contentVersion === 1 ? eventCatalog[eventId] : undefined
+);
+const frozenContent: EventSelectionContent<EventDef> = {
+  catalog: eventCatalog,
+  orderedIds: eventSelectionIdsForCatalog(eventCatalogIds),
+  currentVersionOf: () => 1,
+};
+const rollFrozen = (state: RunState, node: RunNode) => (
+  rollEventForNode(state, node, frozenLookup, frozenContent)
+);
 
 // ---------------------------------------------------------------------------
 // The catalog's merge doors, and a real run parked on a real event node.
@@ -241,7 +259,7 @@ describe('run/events: the offer is legible before it is taken', () => {
       [{ skillId: SIZE1[0]!, tier: 'bronze', slot: 0 }],
       [{ skillId: SIZE1[1]!, tier: 'bronze', at: 1 }, { skillId: SIZE1[2]!, tier: 'bronze', at: 2 }],
     );
-    const result = resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
+    const result = resolveExactEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
     const { outcome, state: after } = result;
     const merge = offerFrom(result);
     expect(merge.from).toBe('bronze');
@@ -280,7 +298,7 @@ describe('run/events: the offer is legible before it is taken', () => {
         { skillId: SIZE1[3]!, tier: 'bronze', at: 2 },
       ],
     );
-    const offer = offerFrom(resolveEventChoice(bagHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const offer = offerFrom(resolveExactEventChoice(bagHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.consumed.every((c) => c.location === 'bag')).toBe(true);
     const spared = bagHeavy.pieces[0]!.instanceId;
     expect(offer.consumed.map((c) => c.instanceId), 'the equipped board piece was taken anyway').not.toContain(spared);
@@ -298,7 +316,7 @@ describe('run/events: the offer is legible before it is taken', () => {
       ],
       [{ skillId: SIZE1[3]!, tier: 'bronze', at: 7 }],
     );
-    const mixed = offerFrom(resolveEventChoice(boardHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const mixed = offerFrom(resolveExactEventChoice(boardHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(mixed.consumed[0]!.location).toBe('bag');
     expect(mixed.consumed[1]!.location).toBe('board');
     expect(boardHeavy.pieces[mixed.consumed[1]!.index]!.slot).toBe(1);
@@ -317,7 +335,7 @@ describe('run/events: the offer is legible before it is taken', () => {
           { skillId: SIZE1[1]!, tier: 'silver', at: 1 },
           { skillId: SIZE1[2]!, tier: 'silver', at: 2 },
         ]);
-      const offer = offerFrom(resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+      const offer = offerFrom(resolveExactEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
       expect(offer.from).toBe('silver');
       expect(offer.to).toBe('gold');
       for (let i = 0; i < offer.candidates.length; i += 1) {
@@ -345,15 +363,196 @@ describe('run/events: the offer is legible before it is taken', () => {
         { skillId: SIZE1[1]!, tier: 'bronze', at: 1 },
         { skillId: SIZE1[2]!, tier: 'bronze', at: 2 },
       ]);
-      const one = resolveEventChoice(mkA, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
-      const two = resolveEventChoice(mkB, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
+      const mkC = withOwned(stateAtEventNode(seed), [], [
+        { skillId: SIZE1[0]!, tier: 'bronze', at: 0 },
+        { skillId: SIZE1[1]!, tier: 'bronze', at: 1 },
+        { skillId: SIZE1[2]!, tier: 'bronze', at: 2 },
+      ]);
+      const one = resolveExactEventChoice(mkA, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
+      const two = resolveExactEventChoice(mkB, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
       expect(two.outcome).toEqual(one.outcome);
       // and the SECOND door draws its own candidates (own choice id -> own Rng),
       // so the two rungs are not the same three cards under different labels.
-      const other = resolveEventChoice(mkA, 'ember_pit', 'feed_the_coals');
+      const other = resolveExactEventChoice(mkC, 'ember_pit', 'feed_the_coals');
       expect(offerFrom(other).consumed).toEqual(offerFrom(one).consumed);
       expect(offerFrom(other).candidates).not.toEqual(offerFrom(one).candidates);
     }
+  });
+});
+
+// ===========================================================================
+/**
+ * `mergeCardsPreview` (2026-09-06) — the CHOICE ROW and a pre-resolution
+ * CONFIRM step both need to name the exact trio BEFORE any tap, i.e. before
+ * `mergeCardsOffer`'s `Rng` draw ever runs. This is the "does the warning
+ * ever lie" proof the UI pass needed: the preview is backed by the SAME
+ * `mergeCardsPlan` the gate and the finalizer already share, so it can never
+ * disagree with either, and it is a pure re-read of `state` every call —
+ * there is nothing persisted here to go stale.
+ */
+describe('run/events: mergeCardsPreview — the price knowable BEFORE any tap or Rng draw', () => {
+  it('names the same trio the seeded offer draws, and the finalizer actually consumes exactly that', () => {
+    const state = withOwned(stateAtEventNode(3),
+      [{ skillId: SIZE1[0]!, tier: 'bronze', slot: 0 }],
+      [{ skillId: SIZE1[1]!, tier: 'bronze', at: 1 }, { skillId: SIZE1[2]!, tier: 'bronze', at: 2 }],
+    );
+    const preview = mergeCardsPreview(state);
+    expect(preview).not.toBeNull();
+    const offer = offerFrom(resolveExactEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    expect(preview!.from).toBe(offer.from);
+    expect(preview!.to).toBe(offer.to);
+    expect(preview!.consumed).toEqual(offer.consumed);
+    const { merged } = applyMergeCardsPick(state, offer.candidates[0]!.skillId);
+    expect(merged!.consumed).toEqual(preview!.consumed);
+  });
+
+  it('is null exactly when the choice is gated unusable — the same authority as `isEventChoiceUsable`', () => {
+    const bare = withOwned(stateAtEventNode(3), [], []);
+    expect(mergeCardsPreview(bare)).toBeNull();
+    expect(isEventChoiceUsable(bare, mergeChoiceDef())).toBe(false);
+
+    const usable = withOwned(stateAtEventNode(3), [], [
+      { skillId: SIZE1[0]!, tier: 'bronze', at: 0 },
+      { skillId: SIZE1[1]!, tier: 'bronze', at: 1 },
+      { skillId: SIZE1[2]!, tier: 'bronze', at: 2 },
+    ]);
+    expect(mergeCardsPreview(usable)).not.toBeNull();
+    expect(isEventChoiceUsable(usable, mergeChoiceDef())).toBe(true);
+  });
+
+  it('re-reads LIVE state on every call — nothing is cached, so a board changed between two calls changes the answer', () => {
+    const before = withOwned(stateAtEventNode(3), [], [
+      { skillId: SIZE1[0]!, tier: 'bronze', at: 0 },
+      { skillId: SIZE1[1]!, tier: 'bronze', at: 1 },
+      { skillId: SIZE1[2]!, tier: 'bronze', at: 2 },
+    ]);
+    expect(mergeCardsPreview(before)).not.toBeNull();
+    // The exact "player opened DECK/BAG and sold a card" scenario the UI pass
+    // had to rule out for its choice-row/confirm preview: only two bronze
+    // cards remain, so the SAME state shape one slot lighter has no plan.
+    const changed: RunState = { ...before, bagSlots: before.bagSlots.map((c, i) => (i === 0 ? null : c)) };
+    expect(mergeCardsPreview(changed)).toBeNull();
+  });
+});
+
+// ===========================================================================
+/**
+ * SCHEMA-V3 DISPLAY SOURCE (2026-09-06) — closes a latent divergence before
+ * the first schema-v3 merge event ships. `mergeCardsPreview` used to be a
+ * pure LIVE re-derivation for every caller — correct for legacy (nothing
+ * legacy ever persists an offer, so re-reading `state` fresh is exactly
+ * right) but WRONG the instant a schema-v3 `mergeCards` event exists: v3
+ * persists its offer's `consumed` at node entry
+ * (`materializeReachedEventV3`, `eventsV3.ts`), and the finalizer
+ * (`finalizeMergeCardsV3` via `removePersistedMergeInputs`) consumes exactly
+ * THAT snapshot, index-and-instanceId matched, with no live re-derivation of
+ * its own. A board change between materialization and display — a Deck
+ * Build reorder that reassigns `.slot` without moving array position — can
+ * shift which trio a FRESH `mergeCardsPlan` read would name, so a naive live
+ * preview would show a different trio than the one about to be removed.
+ * `mergeCardsPreview` now prefers the PERSISTED v3 offer whenever one
+ * exists, falling back to the live read only when it doesn't (legacy, or a
+ * v3 event before its offer materializes).
+ */
+describe('run/events + run/eventsV3: mergeCardsPreview prefers the PERSISTED v3 offer over a live re-derivation', () => {
+  const NODE: RunNode = {
+    id: 'merge-v3-node', depth: 4, wave: 2, kind: 'event', eventSeed: 5, eventTheme: 'forge', biomeId: 'arrowfell',
+  };
+
+  function choiceV3(id: string, outcome: EventChoiceV3['outcome'], cost = 0): EventChoiceV3 {
+    return { id, label: id, cost, outcome };
+  }
+
+  function mergeEventV3(): LoadedEventDefV3 {
+    return {
+      id: 'v3_merge_probe', title: 'V3 Merge Probe', body: 'Dormant test content.', theme: 'forge', rarity: 'rare',
+      story: { storyId: 'v3_merge_probe', stage: 'setup', role: 'setup' },
+      eligibility: { fact: 'node.depth', args: { op: 'gte', value: 1 } },
+      delivery: { kind: 'ambient' }, visibility: 'visible', priority: 300,
+      once: 'run', cooldownNodes: 0,
+      choiceSet: {
+        fixed: [
+          choiceV3('merge', { kind: 'mergeCards' }),
+          choiceV3('leave', { kind: 'nothing' }),
+        ],
+      },
+      contentSchemaVersion: 3,
+    } as LoadedEventDefV3;
+  }
+
+  function boardCard(instanceId: string, slot: number, skillId: string = SIZE1[0]!): RunBoardPiece {
+    return { instanceId, skillId, tier: 'bronze', slot, gem: null };
+  }
+
+  function committedV3(seed: number, event: LoadedEventDefV3, pieces: readonly RunBoardPiece[]): RunState {
+    const drafted = startedRun(seed);
+    const base: RunState = {
+      ...drafted,
+      status: 'active',
+      currentNodeId: NODE.id,
+      map: { ...drafted.map, depths: [[], [], [], [], [NODE]] },
+      pieces: [...pieces],
+      bagSlots: new Array<RunBagSlot>(BOARD_SLOTS).fill(null),
+    };
+    return recordEventInstance(base, NODE.id, {
+      eventId: event.id, contentVersion: 1, instanceId: `event:${NODE.id}`, drawnDepth: NODE.depth,
+    });
+  }
+
+  it('a Deck Build .slot reorder (array position untouched) leaves the LIVE plan naming a different trio than the PERSISTED offer — mergeCardsPreview follows the persisted one, and the finalizer removes exactly that list', () => {
+    const event = mergeEventV3();
+    const A = boardCard('card_A', 0);
+    const B = boardCard('card_B', 1);
+    const C = boardCard('card_C', 2);
+    const D = boardCard('card_D', 3);
+    const input = committedV3(41, event, [A, B, C, D]);
+    const materialized = materializeReachedEventV3(input, NODE, event);
+    if (!materialized.ok) throw new Error(`materialization failed: ${materialized.reason}`);
+    const persistedOffer = materialized.materialization.deferredOffersByChoiceId.merge;
+    if (persistedOffer?.kind !== 'mergeCards' || persistedOffer.status === 'unavailable') {
+      throw new Error('expected a pending mergeCards offer');
+    }
+    // The persisted offer took the ascending-slot first three of an
+    // all-board, no-bag collection: A, B, C — D is the spare.
+    expect(persistedOffer.consumed.map((c) => c.instanceId)).toEqual(['card_A', 'card_B', 'card_C']);
+
+    // Simulate the Deck Build reorder: `.slot` rotates (D to the front), the
+    // `pieces` ARRAY ORDER is untouched — exactly what `setCurrentRunPieces`
+    // (runStore.ts) does with whatever `src/run/loadout.ts` computed.
+    const reordered: RunState = {
+      ...materialized.state,
+      pieces: materialized.state.pieces.map((p) => ({
+        ...p,
+        slot: p.instanceId === 'card_D' ? 0 : p.instanceId === 'card_A' ? 1 : p.instanceId === 'card_B' ? 2 : 3,
+      })),
+    };
+
+    // A LIVE-ONLY re-derivation (no persisted materialization at all) now
+    // names a DIFFERENT trio — D, A, B — proving the divergence is real, not
+    // assumed.
+    const liveOnly = mergeCardsPreview({ ...reordered, eventMaterializations: {} });
+    expect(liveOnly?.consumed.map((c) => c.instanceId)).toEqual(['card_D', 'card_A', 'card_B']);
+
+    // `mergeCardsPreview` on the REAL (materialized) reordered state instead
+    // names the PERSISTED trio — the one about to be removed — not the live
+    // one just proven different.
+    const preview = mergeCardsPreview(reordered);
+    expect(preview?.consumed.map((c) => c.instanceId)).toEqual(['card_A', 'card_B', 'card_C']);
+    expect(preview?.consumed).toEqual(persistedOffer.consumed);
+
+    // And the finalizer really does remove exactly the PERSISTED list, never
+    // the live one — the load-bearing assertion this whole block exists for.
+    const resolved = resolveEventChoiceV3(reordered, `event:${NODE.id}`, 'merge', () => event);
+    if (!resolved.ok || resolved.outcome.kind !== 'mergeCards') throw new Error('merge did not resolve to a pending offer');
+    const candidate = resolved.outcome.offer.candidates[0]!.skillId;
+    const finalized = finalizeMergeCardsV3(resolved.state, `event:${NODE.id}`, 'merge', candidate, () => event);
+    if (!finalized.ok) throw new Error('merge finalization failed');
+    const remainingIds = finalized.state.pieces.map((p) => p.instanceId);
+    expect(remainingIds).not.toContain('card_A');
+    expect(remainingIds).not.toContain('card_B');
+    expect(remainingIds).not.toContain('card_C');
+    // D — the card the live-only preview would have consumed instead — survives.
+    expect(remainingIds).toContain('card_D');
   });
 });
 
@@ -370,7 +569,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
         { skillId: SIZE3[1]!, tier: 'silver', at: 4 },
       ],
     );
-    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const offer = offerFrom(resolveExactEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     const pick = offer.candidates[1]!;
     const { state: after, outcome, merged } = applyMergeCardsPick(before, pick.skillId);
 
@@ -408,7 +607,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
         { skillId: SIZE1[2]!, tier: 'gold', slot: 2 },
       ], []);
     const pouchBefore = before.gemInventory.length;
-    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const offer = offerFrom(resolveExactEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.to).toBe('diamond');
     const { state: after } = applyMergeCardsPick(before, offer.candidates[0]!.skillId);
     expect(after.gemInventory).toHaveLength(pouchBefore + 1);
@@ -428,7 +627,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
       { skillId: SIZE1[3]!, tier: 'diamond', at: 9 },
     ]);
     // The bag is FULL (3 + 3 + 3 + 1 = 10) and the only trio is the bronze one.
-    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const offer = offerFrom(resolveExactEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     const big = offer.candidates.find((c) => skillBook[c.skillId]!.size === 3);
     const pick = big ?? offer.candidates[0]!;
     const { state: after, outcome } = applyMergeCardsPick(before, pick.skillId);
@@ -446,7 +645,7 @@ describe('run/events: the trade is never offered when it cannot be honoured', ()
     const twoOnly = withOwned(stateAtEventNode(3), [{ skillId: SIZE1[0]!, tier: 'bronze', slot: 0 }],
       [{ skillId: SIZE1[1]!, tier: 'silver', at: 1 }, { skillId: SIZE1[2]!, tier: 'gold', at: 2 }]);
     expect(isEventChoiceUsable(twoOnly, choice)).toBe(false);
-    expect(() => resolveEventChoice(twoOnly, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
+    expect(() => resolveExactEventChoice(twoOnly, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
     // And the event itself is still offered — the merge is never an event's only
     // reason to exist, so a dark rung does not delete a stop from the map.
     const others = eventCatalog[MERGE_DOOR.eventId]!.choices.filter(
@@ -467,7 +666,7 @@ describe('run/events: the trade is never offered when it cannot be honoured', ()
       { skillId: SIZE1[2]!, tier: 'diamond', at: 2 },
     ]);
     expect(isEventChoiceUsable(diamonds, choice)).toBe(false);
-    expect(() => resolveEventChoice(diamonds, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
+    expect(() => resolveExactEventChoice(diamonds, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
     // The Diamonds are not "spent for nothing" by some fallback either.
     expect(owned(applyMergeCardsPick(diamonds, SIZE1[4]!).state)).toEqual(owned(diamonds));
   });
@@ -482,7 +681,7 @@ describe('run/events: the trade is never offered when it cannot be honoured', ()
       { skillId: SIZE1[5]!, tier: 'bronze', at: 5 },
     ]);
     expect(isEventChoiceUsable(mixed, choice)).toBe(true);
-    const offer = offerFrom(resolveEventChoice(mixed, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
+    const offer = offerFrom(resolveExactEventChoice(mixed, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.from).toBe('bronze');
     expect(offer.consumed.every((c) => c.tier === 'bronze')).toBe(true);
     const after = applyMergeCardsPick(mixed, offer.candidates[0]!.skillId).state;
@@ -508,7 +707,7 @@ describe('run/events: the trade is never offered when it cannot be honoured', ()
         { skillId: SIZE1[3]!, tier: 'diamond', at: 9 },
       ]);
     expect(isEventChoiceUsable(noRoom, choice)).toBe(false);
-    expect(() => resolveEventChoice(noRoom, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
+    expect(() => resolveExactEventChoice(noRoom, MERGE_DOOR.eventId, MERGE_DOOR.choiceId)).toThrow(/mergeCards/);
     const attempted = applyMergeCardsPick(noRoom, SIZE1[4]!);
     expect(owned(attempted.state), 'inputs were consumed with no output to show').toEqual(owned(noRoom));
     expect(attempted.outcome.kind).toBe('grantGold');
@@ -570,7 +769,7 @@ describe('the merge event fires in real runs, and concentrates a collection when
       state = chooseNode(state, node.id);
       if (node.kind === 'shop') { state = leaveShop(state); continue; }
       if (node.kind === 'event') {
-        const rolled = rollEventForNode(state, node);
+        const rolled = rollFrozen(state, node);
         state = rolled.state;
         const merge = rolled.event.choices.find((c) => c.outcome.kind === 'mergeCards');
         if (merge) {
@@ -585,7 +784,7 @@ describe('the merge event fires in real runs, and concentrates a collection when
         if (pick) {
           out.events += 1;
           const beforeCount = owned(state).length;
-          const res = resolveEventChoice(state, rolled.event.id, pick.id);
+          const res = resolveExactEventChoice(state, rolled.event.id, pick.id);
           state = res.state;
           if (res.outcome.kind === 'mergeCardsPick') {
             const applied = applyMergeCardsPick(state, res.outcome.candidates[0]!.skillId);

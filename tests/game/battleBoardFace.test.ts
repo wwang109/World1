@@ -33,7 +33,12 @@ const HERO_BOARD = [
 function timelineFor(over: Partial<BattleTimelineInput> = {}) {
   const input: BattleTimelineInput = {
     pieces: HERO_BOARD, heroLevel: 3, heroAllocation: {},
-    enemyId: 'knight', enemyLevel: 5, enemyTitle: 'elite', enemyRank: 2,
+    // Level 1 (growthStepsAt(1) === 0, `src/run/encounter.ts`, 2026-09-06) —
+    // a HIGHER level would have GROWTH add its own rank steps to the
+    // rankOverride below, and 2 (title) + 2 (growth, at level 5) = 4 divides
+    // knight's 4-card deck EVENLY, uniformly stamping every card 'silver'
+    // instead of the genuinely MIXED tiers this suite exists to check.
+    enemyId: 'knight', enemyLevel: 1, enemyTitle: 'elite', enemyRank: 2,
     enemyModifiers: [], enemyAffix: 'braced', seed: 9, ...over,
   };
   return buildBattleTimeline(input, resolveBattle(battleRequestOf(input)));
@@ -50,7 +55,7 @@ describe('game/battleTimeline — the battle board face', () => {
     expect(foeTiers.length).toBeGreaterThan(1);
     expect(new Set(foeTiers.filter((t): t is NonNullable<typeof t> => t !== undefined)).size).toBeGreaterThan(1);
     expect(foeTiers).toEqual(
-      buildEnemyEncounter('knight', 5, 'elite', 2, [], 'braced').setup.pieces.map((p) => p.tier),
+      buildEnemyEncounter('knight', 1, 'elite', 2, [], 'braced').setup.pieces.map((p) => p.tier),
     );
   });
 
@@ -76,9 +81,13 @@ describe('game/battleTimeline — the battle board face', () => {
     // The half the old foe path got wrong outright: it returned the BASE def for
     // an untiered piece, so a line locked above that card's own tier stayed on
     // the drawn face. 22 pieces across the roster are in this shape today.
+    // Level 1, not 4: GROWTH (2026-09-06) spends growthStepsAt(4) = 2 rank
+    // steps even at 'normal'/rank 0, which stamps a tier onto SOME card of
+    // most 2-3-card boards — shrinking the "still genuinely untiered" pool
+    // this test needs to a real, not vacuous, case. Level 1 spends none.
     const shown: Array<{ enemyId: string; skillId: string }> = [];
     for (const enemyId of Object.keys(enemies)) {
-      const setup = buildEnemyEncounter(enemyId, 4, 'normal', 0, [], null).setup;
+      const setup = buildEnemyEncounter(enemyId, 1, 'normal', 0, [], null).setup;
       for (const p of setup.pieces) {
         const base = skillBook[p.skillId]!;
         if (p.tier === undefined && resolveDisplaySkill(base, p).effects.length !== base.effects.length) {
@@ -89,8 +98,44 @@ describe('game/battleTimeline — the battle board face', () => {
     expect(shown.length).toBeGreaterThan(0); // the case must exist, or this is vacuous
 
     const { enemyId, skillId } = shown[0]!;
-    const model = timelineFor({ enemyId, enemyLevel: 4, enemyTitle: 'normal', enemyRank: 0, enemyAffix: null });
+    const model = timelineFor({ enemyId, enemyLevel: 1, enemyTitle: 'normal', enemyRank: 0, enemyAffix: null });
     const drawn = model.foes[0]!.pieces.find((p) => p.skill.id === skillId)!;
     expect(drawn.skill.effects.length).toBeLessThan(skillBook[skillId]!.effects.length);
+  });
+});
+
+/**
+ * HERO SIDE of the same `affinityOpen` fact `resolveCombatantAffinity`/
+ * `cardAffinityOpen` produce (see `tests/game/battleTimeline.test.ts` for the
+ * enemy/authored-affinity case, `cinder_sprite`). A hero never authors an
+ * affinity, so its resolved gate is PURELY the board's own derived identity —
+ * 3+ real, placed cards of one type (`sword_slash`/`follow_through`/
+ * `twin_slash`, all `weapon: 'sword'`), built through the SAME
+ * `buildBattleTimeline` path a battle scene renders from.
+ */
+describe('game/battleTimeline — hero board affinityOpen (derived identity, no authored affinity)', () => {
+  it('3+ Sword cards on the hero board open the gate for EVERY Sword card, shut for an off-type one', () => {
+    const board = [
+      { instanceId: 'h0', skillId: 'sword_slash', tier: 'bronze' as const, slot: 0 },
+      { instanceId: 'h1', skillId: 'follow_through', tier: 'bronze' as const, slot: 1 },
+      { instanceId: 'h2', skillId: 'twin_slash', tier: 'bronze' as const, slot: 2 },
+      { instanceId: 'h3', skillId: 'second_wind', tier: 'bronze' as const, slot: 3 }, // nature, off-type
+    ];
+    const model = timelineFor({ pieces: board });
+    const bySkill = new Map(model.heroPieces.map((p) => [p.skill.id, p]));
+    expect(bySkill.get('sword_slash')!.affinityOpen).toBe(true);
+    expect(bySkill.get('follow_through')!.affinityOpen).toBe(true);
+    expect(bySkill.get('twin_slash')!.affinityOpen).toBe(true);
+    expect(bySkill.get('second_wind')!.affinityOpen).toBe(false);
+  });
+
+  it('FEWER than 3 Sword cards derives no identity at all — every piece reads shut', () => {
+    const board = [
+      { instanceId: 'h0', skillId: 'sword_slash', tier: 'bronze' as const, slot: 0 },
+      { instanceId: 'h1', skillId: 'follow_through', tier: 'bronze' as const, slot: 1 },
+      { instanceId: 'h2', skillId: 'second_wind', tier: 'bronze' as const, slot: 2 },
+    ];
+    const model = timelineFor({ pieces: board });
+    for (const p of model.heroPieces) expect(p.affinityOpen, p.skill.id).toBe(false);
   });
 });

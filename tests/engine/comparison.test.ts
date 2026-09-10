@@ -81,7 +81,7 @@ describe('readiness play order', () => {
       ...MINI_BOOK,
       heal_flat: {
         id: 'heal_flat', name: 'Heal', archetypes: ['healing'], property: 'true', size: 1,
-        speedWeight: 10, rarity: 'common', tier: 'bronze', effects: [{ kind: 'heal', power: 25 }], text: '',
+        speedWeight: 10, rarity: 'common', tier: 'bronze', effects: [{ kind: 'heal', power: 25 }],
       },
     };
     const c = cfg(

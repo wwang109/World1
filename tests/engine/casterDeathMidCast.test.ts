@@ -27,7 +27,7 @@ const book: SkillBook = {
   bramble: {
     id: 'bramble', name: 'Bramble', archetypes: ['defensive'], property: 'physical', size: 1,
     speedWeight: 1, rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
-    effects: [{ kind: 'thorns', stacks: 5 }], text: '',
+    effects: [{ kind: 'thorns', stacks: 5 }],
   },
   // DAMAGE FIRST, RIDERS AFTER — the shipped shape (`venom_fang` is exactly
   // `[damage, poison]`). Everything after the hit must die with the caster.
@@ -40,19 +40,18 @@ const book: SkillBook = {
       { kind: 'stun', turns: 1 },
       { kind: 'taunt', amount: 7 },
     ],
-    text: '',
   },
   // AoE version: the fan-out must break at the victim whose thorns killed it.
   sweep: {
     id: 'sweep', name: 'Sweep', archetypes: ['offense'], property: 'physical', size: 1,
     speedWeight: 10, rarity: 'common', tier: 'bronze', weapon: 'sword', scope: 'all', cooldownTurns: 0,
-    effects: [{ kind: 'damage', power: 6 }], text: '',
+    effects: [{ kind: 'damage', power: 6 }],
   },
   // A harmless card so the second pack member exists without perturbing anything.
   idle: {
     id: 'idle', name: 'Idle', archetypes: ['defensive'], property: 'true', size: 1,
     speedWeight: 40, rarity: 'common', tier: 'bronze', cooldownTurns: 99,
-    effects: [{ kind: 'shield', power: 1 }], text: '',
+    effects: [{ kind: 'shield', power: 1 }],
   },
 } satisfies Record<string, SkillDef>;
 

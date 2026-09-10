@@ -23,11 +23,21 @@ describe('fantasy card template model', () => {
     const longTextSkill: SkillDef = {
       ...fireball,
       name: 'Extremely Long Mythic Fireball Name',
-      text: 'Deal 20 (+Magic). Apply burn. Gain readiness. Draw a line of force through the entire lane.',
     };
     const model = buildFantasyCardTemplateModel(longTextSkill, { tier: 'diamond' });
     expect(model.titleRule).toBe('title-long');
-    expect(model.bodyRule).toBe('body-4-line');
+    // `body-3-line`, not `body-4-line` as before the 2026-09-06 card-text
+    // migration: Fireball's body is now GENERATED from its effects
+    // ("Deal 38 (+MATK) Fire damage · {{Burn}} 5.") instead of carrying the
+    // authored sentence plus its inlined burn rule, so it drops a density
+    // bucket — bigger text, more room. That is the migration's whole point,
+    // and it is measured across the catalog rather than assumed: 359 of 732
+    // card/tier pairs move to a smaller bucket and 12 to a larger one (all
+    // three of those cards are aura cards whose PRINTED CLAUSE COUNT the old
+    // `skill.effects.length` density term never counted at all).
+    expect(model.bodyRule).toBe('body-3-line');
+    // And the body IS the generated face — no authored string is left to read.
+    expect(model.body).toBe('Deal 38 (+MATK) Fire damage · {{Burn}} 5.');
     expect(model.artAnchor).toBe('center');
   });
 

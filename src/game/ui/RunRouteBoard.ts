@@ -1,19 +1,167 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, UI, textRole } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
 import { attachButtonFeel } from './motion';
+import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import {
+  bandBannerBackdropLayers,
   bandBannerLayout,
   leanColor,
   type BandBannerRowStyle,
   type BandBannerViewModel,
 } from './bandBannerViewModel';
-import { MARKER_CELLS, MIN_CELL_PX, moreLabel, runRouteLayout, type RunRouteSnapshot } from './runRouteLayout';
+import { addRunArt } from './runArt';
+import type { RunRouteSnapshot } from './runRouteLayout';
+import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
+import type { MapIntelLayoutModel } from './mapIntelLayout';
+import type { MapIntelRecord } from '../../run/runState';
+import { EXPEDITION_DAYS, expeditionDay } from './travelDay';
+import { renderRunHostButton } from './RunDestinationHost';
 
 export { snapshotRunRoute } from './runRouteLayout';
 export type { RunRouteColumnSnapshot, RunRouteSnapshot } from './runRouteLayout';
+export { mapIntelLayoutModel } from './mapIntelLayout';
+export type { MapIntelLayoutCard, MapIntelLayoutModel, MapIntelRect } from './mapIntelLayout';
+
+function mapIntelTitle(record: MapIntelRecord): string {
+  return `BAND ${record.band + 1} · ${record.snapshot.name}`;
+}
+
+function mapIntelDetail(record: MapIntelRecord): string {
+  const themes = record.snapshot.eventThemes.map((theme) => theme.toUpperCase()).join(' · ');
+  return `W${record.snapshot.fromWave}–${record.snapshot.throughWave} · ${record.snapshot.leanLabel}\nEVENTS · ${themes || 'UNKNOWN'}`;
+}
+
+/** Desktop's persistent forecast rail. It lives beside—not over—the route;
+ * its cards consume only snapshots already stored in the active run. */
+export function renderDesktopMapIntelRail(
+  scene: Phaser.Scene,
+  layout: MapIntelLayoutModel,
+): void {
+  if (layout.mode !== 'desktop') return;
+  const { rail, heading } = layout;
+  scene.add.rectangle(rail.x, rail.y, rail.width, rail.height, UI.panelMuted, 0.78).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 0.55);
+  scene.add.text(heading.x, heading.y, 'MAP INTEL', {
+    ...textRole('kicker'),
+  });
+  if (layout.cards.length === 0) {
+    scene.add.text(rail.x + rail.width / 2, rail.y + rail.height / 2, 'NO FORECASTS\nYET', {
+      ...textRole('label', { ink: 'faint' }), align: 'center',
+    }).setOrigin(0.5);
+    return;
+  }
+  for (const card of layout.cards) {
+    const { rect, record } = card;
+    scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.panelAlt, 0.9).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.55);
+    const title = scene.add.text(rect.x + 8, rect.y + 7, mapIntelTitle(record), {
+      ...textRole('label'),
+      wordWrap: { width: Math.max(10, rect.width - 16) },
+    });
+    const detail = scene.add.text(rect.x + 8, rect.y + Math.min(rect.height - 34, title.height + 11), mapIntelDetail(record), {
+      ...textRole('micro'),
+      wordWrap: { width: Math.max(10, rect.width - 16) }, lineSpacing: 2,
+    });
+    auditTextBlock(title, { name: `Desktop map intel band ${record.band}`, maxWidth: rect.width - 16, maxHeight: Math.max(14, rect.height - 30), minFontSize: 8 });
+    auditTextBlock(detail, { name: `Desktop map intel detail ${record.band}`, maxWidth: rect.width - 16, maxHeight: Math.max(14, rect.height - title.height - 16), minFontSize: 8 });
+  }
+}
+
+/** Mobile's deliberately separate MAP INTEL sheet. Its complete-card mask,
+ * scroll extent, and close plate all come from `mapIntelLayoutModel`, so the
+ * first and last persisted snapshots remain reachable without touching HUD
+ * chrome or reforecasting. */
+export function renderMobileMapIntelOverlay(
+  scene: Phaser.Scene,
+  layout: MapIntelLayoutModel,
+  onClose: () => void,
+): void {
+  if (layout.mode !== 'mobile' || !layout.mask || !layout.close) return;
+  const { rail, mask, close, heading } = layout;
+  scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.78).setOrigin(0, 0).setDepth(5500)
+    .setInteractive().on('pointerdown', () => onClose());
+  const panel = scene.add.rectangle(rail.x, rail.y, rail.width, rail.height, UI.panelAlt, 0.99).setOrigin(0, 0)
+    .setStrokeStyle(2, UI.chip, 0.9).setDepth(5501).setInteractive();
+  panel.on('pointerdown', () => undefined);
+  scene.add.text(heading.x, heading.y, 'MAP INTEL', {
+    ...textRole('title'),
+  }).setDepth(5502);
+  const closeButton = scene.add.rectangle(close.x, close.y, close.width, close.height, UI.panelMuted, 1).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 0.75).setDepth(5502).setInteractive({ useHandCursor: true });
+  const closeLabel = scene.add.text(close.x + close.width / 2, close.y + close.height / 2, 'CLOSE', {
+    ...textRole('kicker', { ink: 'primary' }),
+  }).setOrigin(0.5).setDepth(5503);
+  attachButtonFeel(scene, closeButton, { fill: UI.panelMuted, hover: UI.chipDark, follow: [closeLabel], onPress: onClose });
+
+  if (layout.cards.length === 0) {
+    scene.add.text(mask.x + mask.width / 2, mask.y + mask.height / 2, 'NO MAP INTEL YET', {
+      ...textRole('label', { ink: 'faint' }),
+    }).setOrigin(0.5).setDepth(5502);
+    return;
+  }
+
+  const cards = scene.add.container(0, 0).setDepth(5502);
+  for (const card of layout.cards) {
+    const { rect, record } = card;
+    const plate = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.panelMuted, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.6);
+    const title = scene.add.text(rect.x + 9, rect.y + 8, mapIntelTitle(record), {
+      ...textRole('label'),
+      wordWrap: { width: rect.width - 18 },
+    });
+    const detail = scene.add.text(rect.x + 9, rect.y + 42, mapIntelDetail(record), {
+      ...textRole('micro'),
+      wordWrap: { width: rect.width - 18 }, lineSpacing: 2,
+    });
+    cards.add([plate, title, detail]);
+  }
+  const maskShape = scene.make.graphics({}, false);
+  maskShape.fillStyle(0xffffff);
+  maskShape.fillRect(mask.x, mask.y, mask.width, mask.height);
+  cards.setMask(maskShape.createGeometryMask());
+
+  const trackX = rail.x + rail.width - 7;
+  scene.add.rectangle(trackX, mask.y, 3, mask.height, UI.border, 0.32).setOrigin(0.5, 0).setDepth(5503);
+  const thumbHeight = layout.maxScroll === 0 ? mask.height : Math.max(28, mask.height * (mask.height / (mask.height + layout.maxScroll)));
+  const thumb = scene.add.rectangle(trackX, mask.y, 4, thumbHeight, UI.chip, 0.95).setOrigin(0.5, 0).setDepth(5504);
+  let scroll = 0;
+  let dragging = false;
+  let startY = 0;
+  let startScroll = 0;
+  const insideMask = (x: number, y: number): boolean => x >= mask.x && x <= mask.x + mask.width && y >= mask.y && y <= mask.y + mask.height;
+  const applyScroll = (next: number): void => {
+    scroll = Phaser.Math.Clamp(next, 0, layout.maxScroll);
+    cards.setY(-scroll);
+    const travel = Math.max(0, mask.height - thumbHeight);
+    thumb.setY(mask.y + (layout.maxScroll === 0 ? 0 : travel * (scroll / layout.maxScroll)));
+  };
+  scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    // The opener/close control can rebuild this scene synchronously before
+    // Phaser redispatches the SAME pointer to this fresh generic listener.
+    // Guard before hit-testing so that stale physical click cannot begin a
+    // phantom sheet drag; a distinct later pointer still starts normally.
+    if (wasPointerConsumedByRebuild(scene, pointer)) return;
+    if (!insideMask(pointer.worldX, pointer.worldY)) return;
+    dragging = true;
+    startY = pointer.worldY;
+    startScroll = scroll;
+  });
+  scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    if (!dragging) return;
+    applyScroll(startScroll + startY - pointer.worldY);
+  });
+  scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    if (wasPointerConsumedByRebuild(scene, pointer)) return;
+    dragging = false;
+  });
+  scene.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
+    if (!insideMask(pointer.worldX, pointer.worldY)) return;
+    applyScroll(scroll + dy);
+  });
+}
 
 function trackObject(track: Phaser.GameObjects.GameObject[] | undefined, object: Phaser.GameObjects.GameObject): void {
   track?.push(object);
@@ -23,151 +171,126 @@ export function renderRunRouteBoard(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },
   route: RunRouteSnapshot,
-  opts: { mode: 'desktop' | 'mobile'; track?: Phaser.GameObjects.GameObject[] },
+  opts: { mode: 'desktop' | 'mobile'; regionName: string; track?: Phaser.GameObjects.GameObject[] },
 ): void {
-  const profile = opts.mode === 'desktop' ? DESKTOP_PROFILE : MOBILE_PROFILE;
   if (route.columns.length === 0) return;
-
-  const horizontal = opts.mode === 'desktop';
-  const primaryStart = horizontal ? bounds.x : bounds.y;
-  const primarySize = horizontal ? bounds.w : bounds.h;
-  const crossStart = horizontal ? bounds.y : bounds.x;
-  const crossSize = horizontal ? bounds.h : bounds.w;
-  const inset = profile.gap;
-  const usablePrimary = Math.max(0, primarySize - inset * 2);
-  // WHICH depths get drawn, and how big each cell is, is decided in the pure
-  // `runRouteLayout` — including the case this board could not survive before,
-  // a route too long for its lane (see that module's header). Unwindowed, the
-  // slot list IS the column list and `cellSize` is the number this function
-  // used to compute itself.
-  const layout = runRouteLayout(route.columns, usablePrimary, MIN_CELL_PX[opts.mode], MARKER_CELLS[opts.mode]);
-  const { slots, cellSize } = layout;
-  /** Centre of a slot along the primary axis — a depth spans one cell, a
-   * `'more'` marker spans several because its label is a sentence. */
-  const centerPrimary = (slot: { cell: number; span: number }): number => primaryStart + inset + cellSize * (slot.cell + slot.span / 2);
-  const routeCross = crossStart + Math.max(profile.font.label + profile.gap * 2, crossSize * 0.58);
-  const place = (primary: number, cross: number): { x: number; y: number } => horizontal
-    ? { x: primary, y: cross }
-    : { x: cross, y: primary };
-
-  // --- wave bands ----------------------------------------------------------
-  // One band per run of consecutive VISIBLE depths sharing a wave. A windowed
-  // trail can open or close mid-wave, so the band is a run of slots rather than
-  // a run of depths: a half-shown wave gets a half-height band under the same
-  // label, which is the honest drawing of "you are part-way through wave 7".
-  const drawBand = (fromCell: number, cells: number, wave: number): void => {
-    const bandStart = primaryStart + inset + cellSize * fromCell;
-    const bandSize = cellSize * cells;
-    const band = horizontal
-      ? scene.add.rectangle(bandStart, bounds.y, bandSize, bounds.h, wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0)
-      : scene.add.rectangle(bounds.x, bandStart, bounds.w, bandSize, wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0);
-    const waveLabelPos = place(bandStart + bandSize / 2, crossStart + profile.gap);
-    const waveLabel = scene.add.text(waveLabelPos.x, waveLabelPos.y, horizontal ? `WAVE ${wave}` : `— WAVE ${wave} —`, {
-      fontFamily: FONT.body,
-      fontStyle: 'bold',
-      fontSize: `${profile.font.tiny}px`,
-      color: UI.textSoft,
-    }).setOrigin(horizontal ? 0.5 : 0, 0);
-    trackObject(opts.track, band);
-    trackObject(opts.track, waveLabel);
-    auditTextBlock(waveLabel, {
-      name: `Run route wave ${wave}`,
-      maxWidth: horizontal ? Math.max(profile.font.tiny * 5, bandSize - profile.gap * 2) : Math.max(profile.font.tiny * 6, crossSize - profile.gap * 2),
-      maxHeight: profile.font.tiny * 2,
-      minFontSize: 8,
+  const model = expeditionRouteTrackModel(route);
+  const inset = opts.mode === 'desktop' ? 12 : 8;
+  const header = scene.add.text(bounds.x + inset, bounds.y + 2,
+    `EXPEDITION ROUTE · CROSSING ${opts.regionName.toUpperCase()}`, {
+      ...textRole('kicker'),
+      wordWrap: { width: Math.max(80, bounds.w - inset * 2 - 124) },
     });
+  trackObject(opts.track, header);
+  auditTextBlock(header, {
+    name: `Run route region header (${opts.mode})`,
+    maxWidth: Math.max(80, bounds.w - inset * 2 - 124),
+    maxHeight: opts.mode === 'desktop' ? 22 : 30,
+    minFontSize: 8,
+  });
+  const currentDay = scene.add.text(bounds.x + bounds.w - inset, bounds.y + 2, model.currentLabel,
+    textRole('kicker', { ink: 'primary' })).setOrigin(1, 0);
+  trackObject(opts.track, currentDay);
+  auditTextBlock(currentDay, { name: `Run route current day (${opts.mode})`, maxWidth: 116, maxHeight: 18, minFontSize: 8 });
+
+  const trackY = bounds.y + (opts.mode === 'desktop' ? 47 : 43);
+  const trackStart = bounds.x + inset + 6;
+  const trackEnd = bounds.x + bounds.w - inset - 6;
+  const step = (trackEnd - trackStart) / 4;
+  const baseLine = scene.add.rectangle(trackStart, trackY, trackEnd - trackStart, 2, UI.border, 0.35).setOrigin(0, 0.5);
+  trackObject(opts.track, baseLine);
+  const currentX = trackStart + step * (model.currentDay - 1);
+  if (currentX > trackStart) {
+    const completedLine = scene.add.rectangle(trackStart, trackY, currentX - trackStart, 2, UI.chip, 0.78).setOrigin(0, 0.5);
+    trackObject(opts.track, completedLine);
+  }
+
+  for (const day of model.days) {
+    const x = trackStart + step * (day.day - 1);
+    if (day.state === 'completed') {
+      trackObject(opts.track, scene.add.circle(x, trackY, 4, UI.chip, 0.72));
+    } else if (day.state === 'current') {
+      trackObject(opts.track, scene.add.circle(x, trackY, 7, 0, 0).setStrokeStyle(2, UI.chip, 1));
+      trackObject(opts.track, scene.add.circle(x, trackY, 3, UI.chip, 1));
+    } else {
+      trackObject(opts.track, scene.add.circle(x, trackY, 4, UI.panelMuted, 1).setStrokeStyle(1, UI.border, 0.55));
+    }
+    const label = scene.add.text(x, trackY + 10, day.label,
+      textRole('micro', { ink: day.state === 'current' ? 'accent' : day.state === 'completed' ? 'secondary' : 'faint' }))
+      .setOrigin(0.5, 0);
+    trackObject(opts.track, label);
+    auditTextBlock(label, { name: `Run route ${day.label} (${opts.mode})`, maxWidth: Math.max(42, step - 4), maxHeight: 16, minFontSize: 8 });
+  }
+}
+
+export type ExpeditionRouteDayState = 'completed' | 'current' | 'upcoming';
+
+export interface ExpeditionRouteTrackModel {
+  currentDay: number;
+  currentLabel: string;
+  days: readonly { day: number; label: string; state: ExpeditionRouteDayState }[];
+}
+
+/** Display-only regional cadence. Absolute depth/wave remain in run state and
+ * the shared HUD; the planner deliberately shows exactly one five-day band. */
+export function expeditionRouteTrackModel(route: RunRouteSnapshot): ExpeditionRouteTrackModel {
+  const current = route.columns.find((column) => column.state === 'current')
+    ?? [...route.columns].reverse().find((column) => column.state === 'cleared')
+    ?? route.columns[0];
+  const currentDay = expeditionDay(current?.wave ?? 1);
+  return {
+    currentDay,
+    currentLabel: `REGION DAY ${String(currentDay)}/${String(EXPEDITION_DAYS)}`,
+    days: Array.from({ length: 5 }, (_, index) => {
+      const day = index + 1;
+      return {
+        day,
+        label: `REGION DAY ${String(day)}/${String(EXPEDITION_DAYS)}`,
+        state: day < currentDay ? 'completed' : day === currentDay ? 'current' : 'upcoming',
+      } satisfies ExpeditionRouteTrackModel['days'][number];
+    }),
   };
+}
 
-  let bandFrom = -1;
-  let bandCells = 0;
-  let bandWave = -1;
-  for (let index = 0; index <= slots.length; index++) {
-    const slot = slots[index];
-    const wave = slot?.kind === 'column' ? slot.column.wave : -1;
-    if (wave === bandWave) { bandCells += 1; continue; }
-    if (bandFrom >= 0) drawBand(bandFrom, bandCells, bandWave);
-    bandFrom = wave >= 0 && slot ? slot.cell : -1;
-    bandCells = 1;
-    bandWave = wave;
-  }
-
-  const first = slots[0];
-  const last = slots[slots.length - 1];
-  if (!first || !last) return;
-  const routeStart = place(centerPrimary(first), routeCross);
-  const routeEnd = place(centerPrimary(last), routeCross);
-  const routeLine = horizontal
-    ? scene.add.rectangle(routeStart.x, routeCross, routeEnd.x - routeStart.x, 1, UI.border, 0.42).setOrigin(0, 0.5)
-    : scene.add.rectangle(routeCross, routeStart.y, 1, routeEnd.y - routeStart.y, UI.border, 0.42).setOrigin(0.5, 0);
-  trackObject(opts.track, routeLine);
-
-  for (const slot of slots) {
-    const primary = centerPrimary(slot);
-    const point = place(primary, routeCross);
-    const labelPos = place(primary, routeCross - (horizontal ? profile.font.label + profile.gap : crossSize * 0.34));
-
-    // A truncated end SAYS how much it is hiding, in its own cell. A trail that
-    // silently started at D14 would be a lie about where the run began; "+13
-    // BEHIND" is the same class of fact as "NOTHING COUNTERS THESE MOBS" — the
-    // answer, not an absence.
-    if (slot.kind === 'more') {
-      const marker = scene.add.text(labelPos.x, labelPos.y, moreLabel(slot), {
-        fontFamily: FONT.body,
-        fontStyle: 'bold',
-        fontSize: `${profile.font.tiny}px`,
-        color: UI.textAccent,
-      }).setOrigin(horizontal ? 0.5 : 0, horizontal ? 1 : 0.5);
-      trackObject(opts.track, marker);
-      auditTextBlock(marker, {
-        name: `Run route hidden ${slot.side}`,
-        maxWidth: horizontal ? Math.max(profile.font.tiny * 7, cellSize * slot.span) : Math.max(profile.font.tiny * 7, routeCross - crossStart - profile.gap),
-        maxHeight: profile.font.tiny * 2,
-        minFontSize: 8,
-      });
-      const tick = horizontal
-        ? scene.add.rectangle(point.x, point.y, 1, 7, UI.border, 0.6)
-        : scene.add.rectangle(point.x, point.y, 7, 1, UI.border, 0.6);
-      trackObject(opts.track, tick);
-      continue;
-    }
-
-    const column = slot.column;
-    const depthLabel = scene.add.text(labelPos.x, labelPos.y, `D${column.depth}`, {
-      fontFamily: FONT.body,
-      fontStyle: 'bold',
-      fontSize: `${profile.font.tiny}px`,
-      color: UI.textDim,
-    }).setOrigin(horizontal ? 0.5 : 0, horizontal ? 1 : 0.5);
-    trackObject(opts.track, depthLabel);
-    auditTextBlock(depthLabel, {
-      name: `Run route depth ${column.depth}`,
-      maxWidth: horizontal ? Math.max(profile.font.tiny * 3, cellSize - profile.gap) : Math.max(profile.font.tiny * 3, routeCross - crossStart - profile.gap),
-      maxHeight: profile.font.tiny * 2,
-      minFontSize: 8,
-    });
-
-    if (column.state === 'cleared') {
-      const pip = scene.add.circle(point.x, point.y, horizontal ? 5 : 4, UI.chip, 0.62);
-      trackObject(opts.track, pip);
-      continue;
-    }
-    if (column.state === 'current') {
-      const ring = scene.add.circle(point.x, point.y, horizontal ? 7 : 6, 0, 0).setStrokeStyle(2, UI.chip, 1);
-      const pip = scene.add.circle(point.x, point.y, horizontal ? 3 : 2, UI.chip, 1);
-      trackObject(opts.track, ring);
-      trackObject(opts.track, pip);
-      continue;
-    }
-
-    const previewGap = horizontal ? 16 : 12;
-    for (let previewIndex = 0; previewIndex < column.nodeCount; previewIndex++) {
-      const offset = (previewIndex - (column.nodeCount - 1) / 2) * previewGap;
-      const preview = horizontal
-        ? scene.add.rectangle(point.x, point.y + offset, 14, 10, UI.panelMuted, 0.38).setStrokeStyle(1, UI.border, 0.22)
-        : scene.add.rectangle(point.x + offset, point.y, 8, 8, UI.panelMuted, 0.38).setStrokeStyle(1, UI.border, 0.22);
-      trackObject(opts.track, preview);
-    }
-  }
+/** The full region read embedded in the planner's destination area. It owns
+ * one BACK action and never adds a screen scrim, modal, or run-state write. */
+export function renderEmbeddedBandRead(
+  scene: Phaser.Scene,
+  bounds: { x: number; y: number; w: number; h: number },
+  vm: BandBannerViewModel,
+  opts: { mode: 'desktop' | 'mobile'; onBack: () => void },
+): void {
+  const compact = opts.mode === 'mobile';
+  const pad = compact ? 12 : 16;
+  const topPad = compact ? 10 : 12;
+  const panel = scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, UI.panelAlt, 0.82).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 0.55);
+  const back = renderRunHostButton(scene, bounds.x + bounds.w - pad, bounds.y + topPad, 'BACK', compact, opts.onBack, true);
+  const buttonW = back.width;
+  const buttonH = back.height;
+  const title = scene.add.text(bounds.x + pad, bounds.y + topPad, `REGION INTEL · ${vm.name}`, {
+    ...textRole('section'),
+    wordWrap: { width: Math.max(80, bounds.w - pad * 3 - buttonW) },
+  });
+  const bodyY = bounds.y + topPad + buttonH + (compact ? 10 : 12);
+  const body = scene.add.text(bounds.x + pad, bodyY, vm.card.join('\n'), {
+    ...textRole('body'),
+    lineSpacing: compact ? 3 : 5,
+    wordWrap: { width: bounds.w - pad * 2 },
+  });
+  auditTextBlock(title, {
+    name: `Embedded region title (${opts.mode})`,
+    maxWidth: Math.max(80, bounds.w - pad * 3 - buttonW),
+    maxHeight: buttonH,
+    minFontSize: 9,
+  });
+  auditTextBlock(body, {
+    name: `Embedded region forecast (${opts.mode})`,
+    maxWidth: bounds.w - pad * 2,
+    maxHeight: Math.max(40, bounds.y + bounds.h - bodyY - pad),
+    minFontSize: 9,
+  });
+  void panel;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,8 +331,22 @@ export function renderRunBandBanner(
   const layout = bandBannerLayout(vm, opts.mode);
   const m = layout.metrics;
   const bandColor = leanColor(vm);
-  const panel = scene.add.rectangle(rect.x, rect.y, rect.w, rect.h, UI.panelMuted, 0.55).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-  trackObject(opts.track, panel);
+  for (const layer of bandBannerBackdropLayers(vm, rect)) {
+    if (layer.kind === 'image') {
+      const image = addRunArt(scene, layer.textureKey, layer.bounds, layer.alpha);
+      if (image) trackObject(opts.track, image);
+      continue;
+    }
+    const scrim = scene.add.rectangle(
+      layer.bounds.x,
+      layer.bounds.y,
+      layer.bounds.width,
+      layer.bounds.height,
+      layer.color,
+      layer.alpha,
+    ).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+    trackObject(opts.track, scrim);
+  }
   // A hairline in the band's own colour along the top edge: the lean is the
   // first thing the panel says, before a word is read.
   const leanEdge = scene.add.rectangle(rect.x, rect.y, rect.w, 2, bandColor, 0.85).setOrigin(0, 0);
@@ -280,7 +417,8 @@ export function renderRunBandBanner(
       trackObject(opts.track, bar);
     }
     const style = STYLE[row.style];
-    const text = add(innerX + row.indent, y, row.text, row.height, row.color, { bold: style.bold, display: style.display });
+    const text = add(innerX + row.indent, y, row.text, row.height, row.color, { bold: style.bold, display: style.display })
+      .setStroke(BRIGHT_ART_TREATMENT.biome.textStroke, BRIGHT_ART_TREATMENT.biome.textStrokeThickness);
     auditTextBlock(text, {
       name: `Band banner ${style.name} (${opts.mode})`,
       maxWidth: style.reservePill === true
@@ -294,11 +432,12 @@ export function renderRunBandBanner(
 
 /**
  * The FULL read — the forecast card itself, scrim + panel, same modal idiom as
- * `renderRunStatsOverlay`. The body is `vm.card`, i.e. `renderBandForecast`'s
- * own output verbatim: mobs, shops, event themes and BOTH counter sentences in
- * the exact words `tests/run/biomeForecastCounter.test.ts` pins. Nothing here
- * re-composes a sentence, so this overlay cannot disagree with the run layer,
- * and the banner above is a summary of a card the player can always open.
+ * `renderRunStatsOverlay`. The body is `vm.card`, composed from the shared
+ * `bandForecastRows` model by `bandForecastCardLines`; the complete
+ * real/synthetic matrix in `tests/game/bandForecastRows.test.ts` pins its
+ * bytes to `renderBandForecast`. This overlay itself does not recompose
+ * sentences. The separate map-intel card above still owns its own sentence
+ * composer; its unification and the forecast re-layout remain deferred.
  */
 export function renderBandReadOverlay(
   scene: Phaser.Scene,

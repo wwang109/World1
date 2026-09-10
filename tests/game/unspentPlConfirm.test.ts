@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  renderRetireConfirm, renderUnspentPlConfirm, shouldConfirmUnspentPL,
-  type BattleEntryPoint,
+  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderSellGemConfirm,
+  renderUnspentPlConfirm, shouldConfirmUnspentPL, type BattleEntryPoint,
 } from '../../src/game/ui/RunProgressStrip';
 
 /**
@@ -110,6 +110,13 @@ function makeFakeScene(): FakeScene {
         const self: Record<string, unknown> = {
           setOrigin(ox = 0, oy?: number) { state.originX = ox; state.originY = oy ?? ox; return self; },
           setDepth() { return self; },
+          setPosition(nx: number, ny: number) { state.x = nx; state.y = ny; return self; },
+          // This fake has no canvas/font metrics, so it cannot run Phaser's
+          // real word-wrap — every body this harness drives is short enough
+          // that width-wrapping never comes into play, only the authored
+          // '\n's `renderConfirmDialog` now measures via `getWrappedText`
+          // (finding 6, 2026-09-06 audit) rather than a plain `split('\n')`.
+          getWrappedText(t?: string) { return (t ?? state.content).split('\n'); },
         };
         return self;
       },
@@ -225,6 +232,196 @@ describe('renderRetireConfirm: unchanged through the shared-dialog refactor', ()
       });
       scrimOf(fake).onPointerDown!(POINTER);
       plateUnderLabel(fake, 'RETIRE').onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'CANCEL').onPointerDown!(POINTER);
+      expect(fired).toEqual(['cancel', 'confirm', 'cancel']);
+    });
+  }
+});
+
+/**
+ * `renderMergeConsumeConfirm` (2026-09-06) — the mergeCards choice's
+ * UNCONDITIONAL pre-resolution CONFIRM. Driven through the same fake-scene
+ * harness as its siblings above, same as every other confirm dialog in this
+ * file — not because a real Playwright click can't reach it (it can: a
+ * 2026-09-06 re-check found the earlier claim to that effect FALSE — see
+ * below), but for the same reason `renderUnspentPlConfirm` above is: this
+ * harness pins exactly which label sits on which handler, independent of
+ * glyph metrics, and a real canvas would only add noise to that.
+ *
+ * CORRECTED (2026-09-06): this comment used to claim a Playwright click
+ * "could not be made to register reliably in this environment even on the
+ * pre-existing, unmodified `renderRetireConfirm`". That was never a property
+ * of the dialog — it was a coordinate-space bug in the PROBE. The scenes run
+ * `Phaser.Scale.RESIZE` with the UI scale applied in the CAMERA
+ * (`src/game/renderScale.ts`), so `collectSceneTexts` reports DESIGN
+ * coordinates, not device pixels; the earlier probes ran the browser at
+ * 390x844 against a 412x892 design canvas (`cameras.main.zoom` ≈ 0.9462) and
+ * fed the design coordinates straight to `page.mouse.click` unscaled. A tall
+ * panel's buttons absorbed the ~5.7% error; a 40px-tall button ~490px down
+ * the RETIRE dialog did not. Multiplying design coordinates by
+ * `cameras.main.zoom` (or simply running the browser at EXACTLY 412x892 /
+ * 1440x900, where zoom is 1) makes scale-corrected Playwright clicks land
+ * reliably on RETIRE, the merge confirm, and every dialog added since —
+ * both platforms. See `docs/ui-workbook.md` for the capture recipe.
+ */
+describe('renderMergeConsumeConfirm: the mergeCards pre-resolution confirm', () => {
+  for (const compact of [false, true]) {
+    const platform = compact ? 'mobile' : 'desktop';
+    const body = '3 BRONZE → 1 SILVER\nShadow Bolt (BOARD 1)\nPrism Barrier (BOARD 2)\nLine Breaker (BOARD 5)';
+
+    it(`${platform}: names the trade headline and every spent card, offers CANCEL / MERGE`, () => {
+      const fake = makeFakeScene();
+      renderMergeConsumeConfirm(fake.scene as never, { compact, body, onConfirm: () => {}, onCancel: () => {} });
+      const contents = fake.texts.map((t) => t.content);
+      expect(contents).toContain('MERGE — CARDS LEAVE YOUR BOARD');
+      expect(contents).toContain('CANCEL');
+      expect(contents).toContain('MERGE');
+      expect(contents).toContain(body);
+    });
+
+    it(`${platform}: CANCEL fires onCancel, MERGE fires onConfirm, the scrim cancels (never merges)`, () => {
+      const fired: string[] = [];
+      const fake = makeFakeScene();
+      renderMergeConsumeConfirm(fake.scene as never, {
+        compact, body,
+        onConfirm: () => fired.push('confirm'),
+        onCancel: () => fired.push('cancel'),
+      });
+      scrimOf(fake).onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'MERGE').onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'CANCEL').onPointerDown!(POINTER);
+      expect(fired).toEqual(['cancel', 'confirm', 'cancel']);
+    });
+
+    it(`${platform}: a longer body (more spent cards named) grows the panel instead of clipping it`, () => {
+      // `fake.rects[1]` is the PANEL — `renderConfirmDialog` draws the scrim
+      // first, the panel second, then the two buttons — the same order every
+      // sibling dialog above already relies on implicitly via `scrimOf`
+      // (the largest rect) and `plateUnderLabel` (the smallest containing
+      // one); the panel is the one left over.
+      const two = makeFakeScene();
+      renderRetireConfirm(two.scene as never, { compact, onConfirm: () => {}, onCancel: () => {} });
+      const twoLineH = two.rects[1]!.h;
+
+      const four = makeFakeScene();
+      renderMergeConsumeConfirm(four.scene as never, { compact, body, onConfirm: () => {}, onCancel: () => {} });
+      const fourLineH = four.rects[1]!.h;
+
+      // RETIRE's body is exactly 2 lines (the untouched baseline `ph`); this
+      // merge body is 4 — two extra lines' worth of panel height, never a
+      // fixed box the extra names would have to be squeezed or clipped into.
+      expect(fourLineH).toBeGreaterThan(twoLineH);
+    });
+  }
+});
+
+/**
+ * The shared dialog's 2-line baseline panel height (finding 6, 2026-09-06
+ * audit) — pinned as an EXACT number, not just "taller than", so a future
+ * change to `renderConfirmDialog`'s sizing arithmetic cannot silently move
+ * RETIRE or the unspent-PL gate (both exactly 2 lines) without a test
+ * noticing. 176 desktop / 168 mobile are the literals `renderConfirmDialog`
+ * itself hardcodes (RunProgressStrip.ts).
+ */
+describe('renderConfirmDialog: the 2-line panel height baseline is pinned, not just "bigger than"', () => {
+  it('desktop: 176px for a 2-line body (RETIRE)', () => {
+    const fake = makeFakeScene();
+    renderRetireConfirm(fake.scene as never, { compact: false, onConfirm: () => {}, onCancel: () => {} });
+    expect(fake.rects[1]!.h).toBe(176);
+  });
+
+  it('mobile: 168px for a 2-line body (RETIRE)', () => {
+    const fake = makeFakeScene();
+    renderRetireConfirm(fake.scene as never, { compact: true, onConfirm: () => {}, onCancel: () => {} });
+    expect(fake.rects[1]!.h).toBe(168);
+  });
+
+  it('the unspent-PL gate is also exactly 2 lines and shares the same baseline', () => {
+    const desktop = makeFakeScene();
+    renderUnspentPlConfirm(desktop.scene as never, {
+      compact: false, banked: 3, onFightAnyway: () => {}, onSpendFirst: () => {}, onDismiss: () => {},
+    });
+    expect(desktop.rects[1]!.h).toBe(176);
+
+    const mobile = makeFakeScene();
+    renderUnspentPlConfirm(mobile.scene as never, {
+      compact: true, banked: 3, onFightAnyway: () => {}, onSpendFirst: () => {}, onDismiss: () => {},
+    });
+    expect(mobile.rects[1]!.h).toBe(168);
+  });
+});
+
+/**
+ * `renderEventCostConfirm` (2026-09-06, superseding user ruling: confirm on
+ * anything that COSTS) — the generic pre-resolution confirm for a rung whose
+ * outcome costs GOLD (`choice.cost > 0`), every kind except `mergeCards`.
+ * Same fake-scene harness as every sibling dialog above.
+ */
+describe('renderEventCostConfirm: the generic gold-cost pre-resolution confirm', () => {
+  for (const compact of [false, true]) {
+    const platform = compact ? 'mobile' : 'desktop';
+
+    it(`${platform}: names the caller's title and body, offers CANCEL / CONFIRM`, () => {
+      const fake = makeFakeScene();
+      renderEventCostConfirm(fake.scene as never, {
+        compact, title: 'SPEND 5 GOLD?', body: 'CHOICE OF 3 CARDS\nCosts 5 gold.',
+        onConfirm: () => {}, onCancel: () => {},
+      });
+      const contents = fake.texts.map((t) => t.content);
+      expect(contents).toContain('SPEND 5 GOLD?');
+      expect(contents).toContain('CHOICE OF 3 CARDS\nCosts 5 gold.');
+      expect(contents).toContain('CANCEL');
+      expect(contents).toContain('CONFIRM');
+    });
+
+    it(`${platform}: CANCEL fires onCancel, CONFIRM fires onConfirm, the scrim cancels`, () => {
+      const fired: string[] = [];
+      const fake = makeFakeScene();
+      renderEventCostConfirm(fake.scene as never, {
+        compact, title: 'SPEND 5 GOLD?', body: 'CHOICE OF 3 CARDS\nCosts 5 gold.',
+        onConfirm: () => fired.push('confirm'),
+        onCancel: () => fired.push('cancel'),
+      });
+      scrimOf(fake).onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'CONFIRM').onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'CANCEL').onPointerDown!(POINTER);
+      expect(fired).toEqual(['cancel', 'confirm', 'cancel']);
+    });
+  }
+});
+
+/**
+ * `renderSellGemConfirm` (2026-09-06, same ruling) — the `sellGem` picker's
+ * own pre-finalize confirm, shown after the specific gem and its price are
+ * known.
+ */
+describe('renderSellGemConfirm: the sellGem picker pre-finalize confirm', () => {
+  for (const compact of [false, true]) {
+    const platform = compact ? 'mobile' : 'desktop';
+
+    it(`${platform}: names the gem and the gold it returns, offers CANCEL / SELL`, () => {
+      const fake = makeFakeScene();
+      renderSellGemConfirm(fake.scene as never, {
+        compact, title: 'SELL BRAMBLE SLIVER?', body: '+4 GOLD',
+        onConfirm: () => {}, onCancel: () => {},
+      });
+      const contents = fake.texts.map((t) => t.content);
+      expect(contents).toContain('SELL BRAMBLE SLIVER?');
+      expect(contents).toContain('+4 GOLD');
+      expect(contents).toContain('CANCEL');
+      expect(contents).toContain('SELL');
+    });
+
+    it(`${platform}: CANCEL fires onCancel, SELL fires onConfirm, the scrim cancels (never sells)`, () => {
+      const fired: string[] = [];
+      const fake = makeFakeScene();
+      renderSellGemConfirm(fake.scene as never, {
+        compact, title: 'SELL BRAMBLE SLIVER?', body: '+4 GOLD',
+        onConfirm: () => fired.push('confirm'),
+        onCancel: () => fired.push('cancel'),
+      });
+      scrimOf(fake).onPointerDown!(POINTER);
+      plateUnderLabel(fake, 'SELL').onPointerDown!(POINTER);
       plateUnderLabel(fake, 'CANCEL').onPointerDown!(POINTER);
       expect(fired).toEqual(['cancel', 'confirm', 'cancel']);
     });

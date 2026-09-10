@@ -17,7 +17,8 @@ import {
   type RunNode,
   type RunState,
 } from '../../src/run/runState';
-import { resolveEventChoice, rollEventForNode } from '../../src/run/events';
+import { rollEventForNode } from '../../src/run/events';
+import { resolveExactEventChoice } from '../fixtures/eventResolution';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
@@ -276,11 +277,12 @@ describe('run/runState: RunStats — event resolution (eventsResolved/goldEarned
   it('resolveEventChoice increments eventsResolved by exactly 1, for whichever event actually drew on this node', () => {
     const { state: atNode, node } = stateAtFirstEvent(2);
     const { state, event } = rollEventForNode(atNode, node);
+    if (!('choices' in event)) throw new Error('stats seed contract must draw legacy event content');
     // Pick the event's own genuinely-safe choice (cost 0) — every catalog
     // event guarantees at least one (see the events catalog lint).
     const safeChoice = event.choices.find((c) => (c.cost ?? 0) === 0) ?? event.choices[0]!;
     const before = state.stats.eventsResolved;
-    const { state: after } = resolveEventChoice(state, event.id, safeChoice.id);
+    const { state: after } = resolveExactEventChoice(state, event.id, safeChoice.id);
     expect(after.stats.eventsResolved).toBe(before + 1);
   });
 
@@ -292,7 +294,7 @@ describe('run/runState: RunStats — event resolution (eventsResolved/goldEarned
     state = { ...state, gold: 50 };
     const before = state.stats;
     const cost = eventCatalog[costly.eventId]!.choices.find((c) => c.id === costly.choiceId)!.cost!;
-    const { state: after } = resolveEventChoice(state, costly.eventId, costly.choiceId);
+    const { state: after } = resolveExactEventChoice(state, costly.eventId, costly.choiceId);
     expect(after.stats.goldSpent).toBe(before.goldSpent + cost);
     expect(after.stats.eventsResolved).toBe(before.eventsResolved + 1);
     expect(after.stats.cardsBought).toBe(before.cardsBought);
@@ -308,7 +310,7 @@ describe('run/runState: RunStats — event resolution (eventsResolved/goldEarned
     const { state } = stateAtFirstEvent(2);
     const before = state.stats.goldEarned;
     const amount = (eventCatalog[grant.eventId]!.choices.find((c) => c.id === grant.choiceId)!.outcome as { kind: 'grantGold'; amount: number }).amount;
-    const { state: after } = resolveEventChoice(state, grant.eventId, grant.choiceId);
+    const { state: after } = resolveExactEventChoice(state, grant.eventId, grant.choiceId);
     expect(after.stats.goldEarned).toBe(before + amount);
     expect(after.stats.eventsResolved).toBe(state.stats.eventsResolved + 1);
   });

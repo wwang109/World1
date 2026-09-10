@@ -39,7 +39,6 @@ const card = (id: string, effects: ReturnType<typeof g>[]): SkillDef => ({
   rarity: 'epic',
   tier: 'bronze',
   effects: effects.map((e) => ({ ...e })),
-  text: '',
 });
 
 const BOOK: SkillBook = {
@@ -71,7 +70,6 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
 };
 

@@ -124,6 +124,10 @@ export const UI = {
   bgBlobA: 0x1f3b53,
   bgBlobB: 0x35281d,
   bgBlobC: 0x1b3347,
+  /** A very pale sea-glass wash used only over illustration slots. At low
+   * alpha it lifts muddy shadows and compresses micro-contrast without
+   * putting a dark veil back over the art. No text is drawn on this token. */
+  artLift: 0xe6f6f3,
   panel: 0x1b2e3f,
   panelAlt: 0x1f3344,
   panelMuted: 0x192b3b,
@@ -218,6 +222,32 @@ export const UI = {
   hp: 0x3f8f4e,
   hpBack: 0xcbb894,
   shield: 0x5f83a6,
+  /**
+   * CALCULATED-NUMBER indicator (2026-09-06). Marks a card-face number that
+   * differs from the card's own flat resolved value because THIS RENDER
+   * folded the caster's live scaling stat into it right now (`scaledLabel` /
+   * `effectLine` in `ui/skillPresentation.ts` — see `EffectSegment.calculated`
+   * for the exact rule and why it is scoped to the live-stat term only, not
+   * tier/gem folding too). A hero with 17 Attack sees "DMG 37" on a card
+   * whose printed base is 20; the same card reads "DMG 20" on a caster with
+   * no scaling stat supplied — before this token, both rendered in the same
+   * neutral cream as a keyword-less token that was NEVER computed (AOE,
+   * STUN), so a player had no way to tell which numbers were theirs.
+   *
+   * Periwinkle/indigo, hue ~241 — deliberately the one OPEN lane in
+   * `cardTextMarkup.ts`'s `KEYWORD_TEXT_COLOR` hue map: every keyword sits at
+   * hue 0-220 (red/orange/yellow/green/blue) or 271-347 (violet/rose), so 241
+   * sits between the shield/guard/negate/attuned blue family (197-218) and
+   * the expose/curse violet family (271-280) without touching either — a
+   * player must never read "this number is calculated" as "this card is
+   * poisoned/shielded/cursed". 4.75:1 / 5.68:1 against
+   * `battlePlayerCard`/`battleEnemyCard` — the SAME two grounds and the same
+   * relative-luminance measurement `KEYWORD_TEXT_COLOR`'s own doc block uses
+   * (`battlePlayerCard` is the lighter, binding one) — plus 9.15:1 against
+   * `CardToken`'s own near-black text ground, so it holds AA everywhere it
+   * actually renders.
+   */
+  textCalculated: '#b3b0f0',
 };
 
 export const TYPE_SCALE = {
@@ -447,6 +477,56 @@ export function textRoleFor(
 /** The resolved style for the LIVE profile — what a scene calls. */
 export function textRole(role: TextRole, overrides?: TextRoleOverrides): ResolvedTextStyle {
   return textRoleFor(ACTIVE_PROFILE.id, role, overrides);
+}
+
+/** The approved Start screen has a deliberately cinematic scale that is not a
+ * general UI scale: its masthead reaches 56/96px and its two action routes
+ * keep distinct weights. These semantic roles preserve those exact values
+ * without letting the scene mint its own palette or type rules. */
+export const START_SCENE_INK = {
+  eyebrow: '#dce4e7',
+  masthead: '#fff1cf',
+  primaryLabel: '#fff0c9',
+  primaryDetail: '#ffe7c0',
+  sandboxLabel: '#e6edf0',
+  sandboxDetail: '#d7e1e5',
+  lifetime: '#ffc64e',
+  seed: '#dbe1e4',
+  shadow: '#07111b',
+  primaryShadow: '#642414',
+} as const;
+
+export type StartSceneTextRole =
+  | 'eyebrow' | 'masthead' | 'primaryLabel' | 'primaryLabelCompact' | 'primaryDetail'
+  | 'sandboxLabel' | 'sandboxDetail' | 'lifetime' | 'seed';
+
+const START_SCENE_TEXT_ROLE_SPEC: Record<StartSceneTextRole, {
+  family: 'display' | 'body' | 'mono';
+  size: { mobile: number; desktop: number };
+  bold: boolean;
+  ink: Exclude<keyof typeof START_SCENE_INK, 'shadow' | 'primaryShadow'>;
+}> = {
+  eyebrow:       { family: 'display', size: { mobile: 9,  desktop: 16 }, bold: true,  ink: 'eyebrow' },
+  masthead:      { family: 'display', size: { mobile: 56, desktop: 96 }, bold: true,  ink: 'masthead' },
+  primaryLabel:  { family: 'display', size: { mobile: 22, desktop: 32 }, bold: true,  ink: 'primaryLabel' },
+  primaryLabelCompact: { family: 'display', size: { mobile: 20, desktop: 32 }, bold: true, ink: 'primaryLabel' },
+  primaryDetail: { family: 'body',    size: { mobile: 11, desktop: 15 }, bold: false, ink: 'primaryDetail' },
+  sandboxLabel:  { family: 'display', size: { mobile: 22, desktop: 28 }, bold: true,  ink: 'sandboxLabel' },
+  sandboxDetail: { family: 'body',    size: { mobile: 10, desktop: 14 }, bold: false, ink: 'sandboxDetail' },
+  lifetime:      { family: 'display', size: { mobile: 13, desktop: 17 }, bold: true,  ink: 'lifetime' },
+  seed:          { family: 'mono',    size: { mobile: 12, desktop: 14 }, bold: false, ink: 'seed' },
+};
+
+/** Start-only counterpart to `textRole`: same Phaser-shaped result, but with
+ * the approved landing composition's exact per-profile type scale. */
+export function startSceneTextRole(role: StartSceneTextRole): ResolvedTextStyle {
+  const spec = START_SCENE_TEXT_ROLE_SPEC[role];
+  return {
+    fontFamily: spec.family === 'display' ? FONT.display : spec.family === 'body' ? FONT.body : 'monospace',
+    fontSize: `${spec.size[ACTIVE_PROFILE.id]}px`,
+    fontStyle: spec.bold ? 'bold' : 'normal',
+    color: START_SCENE_INK[spec.ink],
+  };
 }
 
 /** A role's px size on the live profile — for the callers that must do their

@@ -13,6 +13,15 @@ import { BOSS_EVERY } from '../../src/run/runMap';
 import { TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { cardType, IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
 import type { SkillDef, SkillTier } from '../../src/engine/types';
+import { AFFINITY_CAPSTONE_IDS } from '../engine/fixtures/affinityCapstones';
+import { enemies } from '../../src/data/enemies';
+import { everyGatedCardOpenAtLevel2 } from '../../src/run/enemyGrowthValidators';
+
+describe('enemy growth keeps the same reachable-affinity promise', () => {
+  it('no live enemy still fields a dead affinity-gated card at level 2', () => {
+    expect(Object.values(enemies).filter((enemy) => !everyGatedCardOpenAtLevel2(enemy)).map((enemy) => enemy.id).sort()).toEqual([]);
+  });
+});
 
 /**
  * CAN THE RUN KEEP THE PROMISE THE CONTENT MAKES?
@@ -299,7 +308,7 @@ describe('a payoff family never outruns the enablers that switch it on', () => {
     // by re-running the floor against the LOOSER predicate and showing the strict
     // one is what the assertion above used.
     const capstones = ALL_CARDS.filter((s) => isGated(s) && !isGatedFromBronze(s));
-    expect(capstones.length, 'no tier-locked gated card — this check has nothing to separate').toBe(5);
+    expect(capstones.map((card) => card.id).sort()).toEqual(AFFINITY_CAPSTONE_IDS);
     for (const card of capstones) {
       expect(card.effects.some((a) => a.affinity === true && a.minTier === 'diamond'), card.id).toBe(true);
     }

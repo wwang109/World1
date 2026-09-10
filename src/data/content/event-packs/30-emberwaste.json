@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "cinderheart_crucible",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Cinderheart Crucible",
+            "body": "A smith tends the last furnace between Emberwaste and the road beyond. It wakes only for flame proven in gold or carried through a fallen tyrant.",
+            "theme": "forge",
+            "rarity": "rare",
+            "biomeIds": ["emberwaste"],
+            "story": { "storyId": "cinderheart_crucible", "stage": "payoff", "role": "payoff" },
+            "eligibility": {
+              "any": [
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "tierAtLeast": "gold", "match": { "elements": ["fire"] } } },
+                { "fact": "combat.statusUsed", "args": { "status": "burn", "result": "bossWin", "biomeId": "emberwaste" } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "bank_cinders", "label": "Bank the cinders", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 } }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "temper_fire_card",
+                    "label": "Temper a Fire card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "filter": { "where": "any", "match": { "elements": ["fire"] } } },
+                      "fallback": { "kind": "grantGold", "amount": 2 }
+                    }
+                  },
+                  {
+                    "id": "choose_fire_gem",
+                    "label": "Choose a fire-working gem",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        { "actionKinds": ["burn"] },
+                        { "ids": ["empowering_core", "mana_ward_echo"] }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

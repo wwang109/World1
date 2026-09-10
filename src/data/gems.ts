@@ -10,9 +10,15 @@ import { gemBookFromJson } from './gemsContent';
 // bonus power stacked on top of a card's authored (tier-budgeted) kit; it is
 // NEVER folded into the base-card audit.
 //
-// `GemDef` is display data layered on the engine's structural `Gem` type —
-// `name`/`text` aren't consumed by the engine, only by content/UI.
-export type GemDef = Gem & { name: string; text: string };
+// `GemDef` is display data layered on the engine's structural `Gem` type — a
+// NAME, and nothing else. `text` IS GONE (2026-09-06): a gem's face is
+// GENERATED from its own `actions`/`mods` by `renderGemText`
+// (`src/engine/keywords/gemText.ts`), reading the SAME keyword registry every
+// card face reads. So a gem can no longer describe a keyword in its own words
+// (17 of the 53 did — "poison bypasses shields", "attackers take the stack
+// count…") or print an amount that disagrees with its payload. `name` is still
+// authored, and still not consumed by the engine.
+export type GemDef = Gem & { name: string };
 
 /**
  * THE gem book — loaded from `content/gems.v1.json` via `gemsContent.ts`.

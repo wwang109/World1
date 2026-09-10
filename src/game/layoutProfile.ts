@@ -5,10 +5,9 @@
  * mental math. A desktop profile is kept for a future dedicated desktop build.
  *
  * Selection (once, at boot, before the Phaser.Game is created): `?ui=mobile|
- * desktop` wins; else mobile ⇔ shorter screen edge ≤ 500 CSS px AND a coarse
- * (touch) pointer. Phones are 320-430; smallest tablets ≈ 600 — the cutoff
- * sits in the gap, and the touch guard keeps a narrow desktop window on
- * desktop. No live switching — a per-device fact.
+ * desktop` wins; forced `?scene=` profiles come next; otherwise compact
+ * narrow windows and coarse phones use mobile. No live switching — a
+ * per-device fact.
  */
 export interface LayoutProfile {
   id: 'mobile' | 'desktop';
@@ -59,7 +58,7 @@ export const DESKTOP_PROFILE: LayoutProfile = {
 export function detectProfile(search?: string): LayoutProfile {
   // No DOM (tests / SSR): default desktop so non-browser imports are stable.
   if (typeof window === 'undefined') return DESKTOP_PROFILE;
-  const params = new URLSearchParams(search ?? window.location.search);
+  const params = new URLSearchParams(search ?? (window as Partial<Window>).location?.search ?? '');
   const ui = params.get('ui');
   if (ui === 'mobile') return MOBILE_PROFILE;
   if (ui === 'desktop') return DESKTOP_PROFILE;
@@ -68,7 +67,10 @@ export function detectProfile(search?: string): LayoutProfile {
   const screen = window.screen;
   const shortEdge = screen ? Math.min(screen.width, screen.height) : 9999;
   const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
-  return shortEdge <= 500 && coarse ? MOBILE_PROFILE : DESKTOP_PROFILE;
+  const viewportWidth = window.innerWidth || screen?.width || 9999;
+  const viewportHeight = window.innerHeight || screen?.height || 9999;
+  const compactViewport = viewportWidth <= 900 && viewportWidth / Math.max(1, viewportHeight) <= 1.25;
+  return compactViewport || (shortEdge <= 500 && coarse) ? MOBILE_PROFILE : DESKTOP_PROFILE;
 }
 
 /** The profile resolved once at module load — the whole app reads this. */

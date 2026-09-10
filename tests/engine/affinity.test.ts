@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { renderSkillText } from '../../src/engine/keywords/compose';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
 import { PRICE, powerLevelDeci, powerLevelBreakdown, capViolations, HIT_KINDS, TIER_BUDGET_DECI } from '../../src/engine/balance';
@@ -8,6 +9,10 @@ import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { cardExistsAtTier, tierResolved } from '../../src/engine/types';
 import type { Action, CombatConfig, SkillDef, SkillTier } from '../../src/engine/types';
 import type { DamageCalculation } from '../../src/engine/combat/events';
+import {
+  AFFINITY_CAPSTONE_CONTRACTS,
+  AFFINITY_CAPSTONE_IDS,
+} from './fixtures/affinityCapstones';
 
 /**
  * AFFINITY STRIKE — the board's own offensive payoff.
@@ -149,13 +154,14 @@ describe('the gate: the board decides whether the extra hit exists', () => {
     for (const c of fired) expect(c.baseDamage).toBe(affinityPower(SWORN) + c.baseStat);
   });
 
-  it('a TIE at the top of the tally opens no gate', () => {
-    // 3 swords vs 3 axes: `boardTypeIdentity` requires a UNIQUE top type, so a
-    // tie yields no identity, no affinity, and no extra hit. This is the rule a
-    // player is most likely to trip over by accident while "going wide".
+  it('a second type reaching 3 does not close the first type\'s gate', () => {
+    // 3 swords + 3 axes: each type independently clears the effect threshold.
+    // The defensive matchup identity remains a separate, singular calculation;
+    // this assertion is only about whether Sworn Edge's gated hit exists.
     const tied = heroHits(['sworn_edge', 'void_pierce', 'twin_slash', 'hemorrhage', 'rupturing_strike', 'mortal_wound']);
     expect(tied.hits.length, 'the probe must land hits').toBeGreaterThan(1);
-    expect(hitsOfPower(tied, affinityPower(SWORN)), 'a tie yields no identity, so no gated hit').toEqual([]);
+    expect(hitsOfPower(tied, affinityPower(SWORN)).length, '3 swords keep their gated effect active beside 3 axes')
+      .toBeGreaterThan(0);
   });
 
   it('the WRONG type at the threshold opens no gate', () => {
@@ -328,11 +334,10 @@ describe('THE POINT OF THE REFACTOR: affinity composes with keywords that know n
       { kind: 'poison', stacks: 6, affinity: true },
       { kind: 'stun', turns: 1, affinity: true },
     ],
-    text: '',
   };
   const UNGATED: SkillDef = { ...GATED, effects: GATED.effects.map(({ affinity: _drop, ...a }) => a as Action) };
 
-  it('the refund is exactly 1/5 of what the gated actions cost ungated', () => {
+  it('the gated action price uses the configured affinity fraction', () => {
     const gatedOnly = powerLevelDeci(UNGATED) - powerLevelDeci({ ...GATED, effects: [GATED.effects[0]!] });
     const refund = powerLevelDeci(UNGATED) - powerLevelDeci(GATED);
     expect(refund).toBe(gatedOnly - Math.floor((gatedOnly * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen));
@@ -442,7 +447,6 @@ describe('pricing', () => {
       archetypes: ['offense'], property: 'physical', weapon: 'sword',
       size: 2, rarity: 'common', tier: 'bronze',
       effects: [{ kind: 'damage', power: 32 }, { kind: 'damage', power: 20, affinity: true }],
-      text: '',
     };
     const parts = powerLevelBreakdown(probe);
     expect(parts.find((x) => x.label === 'multi-hit'), 'no multi-hit part at all').toBeUndefined();
@@ -478,17 +482,36 @@ describe('pricing', () => {
 });
 
 describe('DIAMOND CAPSTONES — an affinity payload authored only at the top tier', () => {
-  /** Every (card, tier) pair whose AUTHORED override adds an affinity payload. */
+  /**
+   * Every (card, tier) pair at which a gated hit COMES INTO EXISTENCE.
+   *
+   * Found by RESOLVING each tier and diffing against the tier below, not by
+   * looking for an authored `tierUpgrades` block. That premise went stale at
+   * the `minTier` migration — a capstone's gated hit is a `minTier: 'diamond'`
+   * action on the ONE definition, so no override is needed to add it — and it
+   * only kept working because each of the five still carried a TEXT-ONLY
+   * diamond block. The card-text migration deleted those (a text-only block is
+   * pure duplication once the face is generated), which is what made this
+   * finder return nothing and is exactly the kind of accidental dependency a
+   * structural predicate removes.
+   */
   const capstones = Object.values(skillBook).flatMap((card) =>
-    Object.keys(card.tierUpgrades ?? {})
-      .map((tier) => ({ card, tier: tier as SkillTier, skill: applyTier(card, tier as SkillTier) }))
-      .filter(({ skill }) => skill.effects.some(isGatedHit)));
+    (['silver', 'gold', 'diamond'] as SkillTier[])
+      .filter((tier) => cardExistsAtTier(card, tier))
+      .map((tier) => ({ card, tier, skill: applyTier(card, tier) }))
+      .filter(({ skill }, i, all) => {
+        if (!skill.effects.some(isGatedHit)) return false;
+        // "New at this tier": the tier below does not have one. `i === 0` is
+        // silver, whose predecessor is the card's own base kit.
+        const below = i === 0 ? applyTier(card, card.tier) : all[i - 1]!.skill;
+        return !below.effects.some(isGatedHit);
+      }));
 
   it('the capstones exist and are all at DIAMOND', () => {
     // The design statement: a card is an ordinary attack for its whole life and
     // learns its board's trick at the top tier. A capstone appearing at silver or
     // gold would quietly undo that.
-    expect(capstones.length, 'there must be authored capstones').toBeGreaterThan(0);
+    expect(capstones.map(({ card }) => card.id).sort()).toEqual(AFFINITY_CAPSTONE_IDS);
     for (const { card, tier } of capstones) {
       expect(tier, `${card.id} capstone must be at diamond`).toBe('diamond');
     }
@@ -517,13 +540,29 @@ describe('DIAMOND CAPSTONES — an affinity payload authored only at the top tie
     // an on-type board gains and any other board is buying a worse card. That is
     // only fair if both halves are printed.
     for (const { card, skill } of capstones) {
+      const contract = AFFINITY_CAPSTONE_CONTRACTS.find(({ id }) => id === card.id);
+      expect(contract, `${card.id}: exact capstone contract`).toBeDefined();
       const aff = skill.effects.find(isGatedHit);
       const dmg = skill.effects.find((a) => a.kind === 'damage' && a.affinity !== true);
       const affPower = aff && aff.kind === 'damage' ? aff.power : -1;
       const dmgPower = dmg && dmg.kind === 'damage' ? dmg.power : -1;
-      expect(skill.text, `${card.id}@diamond must print the base ${dmgPower}`).toContain(`Deal ${dmgPower} `);
-      expect(skill.text, `${card.id}@diamond must print the affinity ${affPower}`).toContain(`hit again for ${affPower}`);
-      expect(skill.text, `${card.id}@diamond must name the keyword`).toContain('{{Affinity}}');
+      expect(dmgPower, `${card.id}@diamond exact base hit`).toBe(contract!.diamond.baseHit);
+      expect(affPower, `${card.id}@diamond exact gated hit`).toBe(contract!.diamond.gatedHit);
+      // READ FROM THE GENERATOR, not from a stored string: the face is now
+      // composed from `effects` (`renderSkillText`), so this asserts the thing
+      // a player actually sees rather than a hand-authored sentence beside it.
+      const face = renderSkillText(skill);
+      expect(face, `${card.id}@diamond must print the base ${dmgPower}`).toContain(`Deal ${dmgPower} `);
+      // THE NUMBER, NOT THE VERB (2026-09-07). This used to assert
+      // `— Deal ${affPower} `, which pinned a capstone's legibility to one
+      // wording: a capstone's gated hit REPEATS the kind its own headline just
+      // delivered, so the face now says "Hit again for 48 (+MATK)" — the words
+      // the authored faces used before the generator existed, and a strictly
+      // better statement of the same fact. What this test is for is that BOTH
+      // numbers reach the player, so it asserts both numbers and the gate.
+      expect(face, `${card.id}@diamond must print the affinity ${affPower}`).toContain(`for ${affPower} `);
+      expect(face, `${card.id}@diamond must name the gated hit as a REPEAT`).toContain('— Hit again for ');
+      expect(face, `${card.id}@diamond must name the keyword`).toContain('{{Affinity}}');
     }
   });
 
@@ -558,7 +597,7 @@ describe('authoring rules', () => {
   }
 
   const TYPED = {
-    name: 'Typed Probe', text: 'Deal 10 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 5.',
+    name: 'Typed Probe',
     archetypes: ['offense'], property: 'physical', weapon: 'sword', size: 1, rarity: 'common', tier: 'bronze',
     effects: [{ kind: 'damage', power: 10 }, { kind: 'damage', power: 5, affinity: true }],
   };

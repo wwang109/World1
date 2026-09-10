@@ -27,4 +27,5 @@ tmp/
 # Local AI planning notes and candidate artwork — never ship or commit.
 /design-qa.md
 /docs/superpowers/
+/docs/run-structure-patterns.md
 /art-src/manga-staging/

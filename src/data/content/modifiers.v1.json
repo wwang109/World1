@@ -2,10 +2,10 @@
  "schemaVersion": 1,
  "notes": [
   "Enemy MODIFIERS \u2014 rogue-like affixes an encounter can stack on top of an",
-  "enemy's (level + rank + extra cards). This is CONTENT (names, blurbs, and",
-  "the tuning values behind each affix), authored here rather than in the",
-  "run-layer resolver that consumes it (`src/run/encounter.ts`). That module",
-  "still owns the MECHANISM \u2014 how a `bonusPL`/`bonusProfile` pair gets",
+  "enemy's (level + rank + extra cards). This is CONTENT (names, counter-play",
+  "answers, and the tuning values behind each affix), authored here rather than",
+  "in the run-layer resolver that consumes it (`src/run/encounter.ts`). That",
+  "module still owns the MECHANISM \u2014 how a `bonusPL`/`bonusProfile` pair gets",
   "auto-spent through the level-up PL economy, how `forceTier` overrides",
   "rank assignment after the fact, and how a `cards` list is installed onto",
   "the enemy's deck; this module owns only the DATA those mechanisms read.",
@@ -62,7 +62,7 @@
      "version": 1,
      "def": {
       "name": "BRACED",
-      "blurb": "Braced Pike - takes 20% less physical damage while braced",
+      "answer": "magical or TRUE hits, or expose to pay the tax",
       "notes": [
        "AFFIX \u2014 taxes ONE DAMAGE PROPERTY, as a percentage that never stops",
        "scaling. `guard` only matches its own property (`dealDamage`: \"True damage",
@@ -90,7 +90,6 @@
      "version": 1,
      "def": {
       "name": "DIAMOND-POWERED",
-      "blurb": "Every card upgraded to Diamond tier",
       "forceTier": "diamond"
      }
     }
@@ -103,7 +102,7 @@
      "version": 1,
      "def": {
       "name": "HOBBLING",
-      "blurb": "Hamstring - slows your next action by +16 weight",
+      "answer": "build light \u2014 cleanse cannot touch this slow",
       "notes": [
        "AFFIX \u2014 taxes TEMPO, and it is the one tax that never decays with depth:",
        "card WEIGHTS are constants, so a flat +16 on the hero's next action is",
@@ -133,7 +132,7 @@
      "version": 1,
      "def": {
       "name": "LEECHING",
-      "blurb": "Leeching Fang - heals 45% of the damage it deals",
+      "answer": "DoT, debuff or expose each cut it 20% \u2014 or burst",
       "notes": [
        "AFFIX \u2014 taxes THE CLOCK. 45% lifesteal on a scaling (+ATK) hit means a",
        "grindy board never closes the gap, however much total damage it holds.",
@@ -158,7 +157,6 @@
      "version": 1,
      "def": {
       "name": "SWIFT",
-      "blurb": "+8 PL of pure Speed (+4 SPD)",
       "bonusPL": 8,
       "bonusProfile": {
        "speed": 1
@@ -174,7 +172,7 @@
      "version": 1,
      "def": {
       "name": "VENOMOUS",
-      "blurb": "Second Bite - poison that bypasses shields, and bites harder once it lands",
+      "answer": "cleanse or ward \u2014 it bypasses shields",
       "notes": [
        "AFFIX \u2014 taxes SHIELDS AND HEALS, the two defences that answer everything",
        "else, and COMPOUNDS if left alone. Poison BYPASSES SHIELDS entirely and",

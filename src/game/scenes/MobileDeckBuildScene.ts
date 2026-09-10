@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
-import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
+import { boardAffinityPipAxes } from '../ui/affinityDisplay';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
@@ -15,7 +15,7 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
-import { gemHoverEntry } from '../ui/gemGlossary';
+import { gemHoverEntries } from '../ui/gemPresentation';
 import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
@@ -26,6 +26,7 @@ import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
+import { renderGemText } from '../../engine/keywords/gemText';
 import {
   currentHeroAllocation, currentHeroLevel,
   commitRunDeckEdit,
@@ -126,7 +127,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
     this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
     if (this.runContext) this.renderHud(); else this.renderTabs();
     this.renderHeader();
     this.renderHolding();
@@ -536,23 +537,32 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       } else if (!bagOcc[row]) { empty(bagX, row, 'right'); }
     }
 
-    // affinity pips under the deck column (mockup): "SWORD ■■■ — affinity"
-    const id = boardTypeIdentity(deckSkills);
-    const tally = new Map<string, number>();
-    for (const s of deckSkills) {
-      const t = cardType(s);
-      if (t) tally.set(`${t.type}`, (tally.get(`${t.type}`) ?? 0) + 1);
-    }
-    let topType = ''; let topCount = 0;
-    for (const [k, v] of tally) if (v > topCount) { topType = k; topCount = v; }
+    // AFFINITY pips under the deck column (mockup): "SWORD ■■■ — affinity".
+    // ONE ROW PER AXIS the board holds any cards on (0-2 rows) — element and
+    // weapon are tallied SEPARATELY (`docs/board-type-identity.md`,
+    // 2026-09-06), so a 3-fire + 3-sword deck earns BOTH and gets a FIRE row
+    // AND a SWORD row, never a single label picking a winner. Rows stack
+    // tightly (13px pitch, matching the pip spacing itself) — this is the
+    // narrowest platform and the strip above the TRASH band has little slack.
+    // ONE draw closure (not one per branch) so the ratchet's per-file
+    // `fontSize:` literal count does not double just because there can now
+    // be up to two rows — see `tests/game/textRoleAudit.test.ts`.
+    const axisRows = boardAffinityPipAxes(deckSkills);
     const py = top + colH + 8;
-    const pipLabel = id ? id.type.toUpperCase() : topType ? topType.toUpperCase() : 'NO TYPE';
-    const label = this.add.text(deckX + colW / 2 - 30, py, pipLabel, { fontSize: `${F.small}px`, color: id ? '#e8b446' : UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
-    for (let i = 0; i < 3; i++) {
-      const filled = i < Math.min(3, topCount);
-      this.add.rectangle(label.x + 8 + i * 13, py, 9, 9, filled ? 0xb78a46 : 0x16233a).setOrigin(0, 0.5).setStrokeStyle(1, 0x3a4a62, 1);
+    const rowStep = 13;
+    const drawAffinityRow = (ry: number, pipLabel: string, count: number, earned: boolean): void => {
+      const label = this.add.text(deckX + colW / 2 - 30, ry, pipLabel, { fontSize: `${F.small}px`, color: earned ? '#e8b446' : UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
+      for (let i = 0; i < 3; i++) {
+        const filled = i < Math.min(3, count);
+        this.add.rectangle(label.x + 8 + i * 13, ry, 9, 9, filled ? 0xb78a46 : 0x16233a).setOrigin(0, 0.5).setStrokeStyle(1, 0x3a4a62, 1);
+      }
+      this.add.text(label.x + 8 + 3 * 13 + 6, ry, earned ? 'affinity' : '3 to unlock', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
+    };
+    if (axisRows.length === 0) {
+      drawAffinityRow(py, 'NO TYPE', 0, false);
+    } else {
+      axisRows.forEach((row, rowIdx) => drawAffinityRow(py + rowIdx * rowStep, row.label, row.count, row.earned));
     }
-    this.add.text(label.x + 8 + 3 * 13 + 6, py, id ? 'affinity' : '3 to unlock', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
 
     // POUCH row — the affinity readout's mirror, under the BAG column: the
     // one surface the gem pouch has on the screen that spends it (a66eca4:
@@ -897,7 +907,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const infoTop = py + 30;
     this.add.text(px + 14, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     this.add.rectangle(px + 14, infoTop, pw - 28, INFO_H, 0x101a2a, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    renderCardInfoBox(this, px + 14, infoTop, pw - 28, INFO_H, resolveDisplaySkill(skill, piece));
+    renderCardInfoBox(this, px + 14, infoTop, pw - 28, INFO_H, resolveDisplaySkill(skill, piece), { gem: piece.gem ? gemBook[piece.gem.id] : null });
 
     // Current socket row.
     const curY = infoTop + INFO_H + 12;
@@ -907,7 +917,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const gem = piece.gem;
       // The engine's structural Gem has no display name/text — resolve via the catalog.
       const gemDef = gemBook[gem.id];
-      const bonus = gemDef ? stripCardTextMarkup(gemDef.text) : '';
+      const bonus = gemDef ? stripCardTextMarkup(renderGemText(gemDef)) : '';
       this.add.rectangle(px + 30, curY + 24, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       this.add.text(px + 42, curY + 6, `${gemDef?.name ?? gem.id}`, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' });
       const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
@@ -917,7 +927,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       // pricing via gemAudit.test.ts; this is display-only).
       const plLine = this.add.text(px + 42, curY + 34, gemDef ? `POWER ${totalPl} · ${gemDef.rarity.toUpperCase()} gem` : `POWER ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
       addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
-      if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 32 }, [gemHoverEntry(gemDef)]);
+      if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 32 }, gemHoverEntries(gemDef));
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
@@ -963,11 +973,11 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const diamond = this.add.rectangle(16, rowH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       const name = this.add.text(30, 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' });
       // Rarity is the rank; the bonus text is the headline info. No PL shown.
-      const desc = this.add.text(30, 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
-      let s = stripCardTextMarkup(gem.text);
+      const desc = this.add.text(30, 24, stripCardTextMarkup(renderGemText(gem)), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
+      let s = stripCardTextMarkup(renderGemText(gem));
       while (s.length > 1 && desc.height > 24) { s = s.slice(0, -1); desc.setText(`${s}…`); }
       const hoverZone = this.add.rectangle(0, 0, pw - 28, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      attachHoverTip(this, hoverZone, { x: px + 14, y: listTop + baseY, w: pw - 28, h: rowH }, [gemHoverEntry(gem)]);
+      attachHoverTip(this, hoverZone, { x: px + 14, y: listTop + baseY, w: pw - 28, h: rowH }, gemHoverEntries(gem));
       const act = this.add.rectangle(pw - 28 - 66, rowH / 2 - 14, 60, 28, 0xb78a46).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
       const actLabel = this.add.text(pw - 28 - 36, rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {

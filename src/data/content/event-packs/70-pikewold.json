@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "last_hedge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Hedge",
+            "body": "At Pikewold's far boundary, a veteran holds the last living hedge with one weathered lance and a lesson in refusing the road's advance.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": ["pikewold"],
+            "story": { "storyId": "last_hedge", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "weapons": ["lance"] } } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "archetypes": ["defensive"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "take_lance_lesson", "label": "Take the Lance lesson", "cost": 0, "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["lance"] }], "maxTier": "bronze" } },
+                { "id": "take_hedge_ward", "label": "Take the hedge ward", "cost": 0, "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["shield", "guard", "ward"] }] } },
+                { "id": "drill_then_leave", "label": "Drill, then leave", "cost": 0, "outcome": { "kind": "grantLevel" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

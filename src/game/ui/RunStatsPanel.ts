@@ -5,7 +5,7 @@ import { FONT, textRole, textRoleSize, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
 import type { Rect } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
-import { ledgerStatRows, type StatSegment } from './statRunModel';
+import { ledgerStatRows, runBossCountdownModel, type StatSegment } from './statRunModel';
 import { renderStatCell } from './statRunStrip';
 
 /**
@@ -186,7 +186,7 @@ export function renderRunBossCountdownPanel(
   const pad = 16;
   const innerX = x + pad;
   const innerW = w - pad * 2;
-  const bossNow = info.wavesRemaining <= 0;
+  const { headline, sub: subline, bossNow } = runBossCountdownModel(info.bossWave - info.wavesRemaining);
 
   // Vertically centered content block — this panel's copy is short by
   // design (a callout, not a dense grid), so it's centered in its bordered
@@ -209,13 +209,13 @@ export function renderRunBossCountdownPanel(
   // `alarm` is the ACT-NOW ink and it is spent here on purpose: a boss landing
   // THIS wave is one of the only two live alarms in the game (the other is the
   // last life). Otherwise it is a `resource`-toned countdown, not a warning.
-  const big = scene.add.text(innerX, cursor, bossNow ? 'BOSS THIS WAVE' : `${info.wavesRemaining} WAVE${info.wavesRemaining === 1 ? '' : 'S'} TO GO`, {
+  const big = scene.add.text(innerX, cursor, headline, {
     ...textRole('title', { ink: bossNow ? 'alarm' : 'resource' }), fontFamily: FONT.body,
   });
   auditTextBlock(big, { name: 'Desktop run map boss countdown headline', maxWidth: innerW, maxHeight: textRoleSize('title') + 10, minFontSize: 13 });
   cursor += textRoleSize('title') + 12;
 
-  const sub = scene.add.text(innerX, cursor, `BOSS AT WAVE ${info.bossWave}`, textRole('micro'));
+  const sub = scene.add.text(innerX, cursor, subline, textRole('micro'));
   auditTextBlock(sub, { name: 'Desktop run map boss countdown sub-line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
   cursor += 27;
 

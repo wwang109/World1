@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { buildBattleTimeline, formatDmg, isComboLive, type BattleTimeline, type BattleTimelineInput, type LogLine } from '../../src/game/battleTimeline';
+import {
+  buildBattleTimeline, cardAffinityOpen, formatDmg, isComboLive, resolveCombatantAffinity,
+  type BattleTimeline, type BattleTimelineInput, type LogLine,
+} from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
 import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
 import type { CombatEvent } from '../../src/engine/combat/events';
 import type { DamageCalculation } from '../../src/engine/combat/events';
 import { skillBook } from '../../src/data/skills';
+import type { SkillDef } from '../../src/engine/types';
+import { buildEnemyEncounter } from '../../src/run/encounter';
+import { KEYWORD_TEXT } from '../../src/engine/keywords/text';
+
+function makeSkill(overrides: Partial<SkillDef>): SkillDef {
+  return {
+    id: 'test_skill', name: 'Test Skill', archetypes: ['offense'], property: 'physical',
+    size: 1, rarity: 'common', tier: 'bronze', effects: [], ...overrides,
+  };
+}
 
 const BASE: BattleTimelineInput = {
   pieces: [
@@ -36,6 +49,36 @@ function timeline(input: BattleTimelineInput): BattleTimeline {
 }
 
 describe('game/battleTimeline', () => {
+  it('reconstructs displayed tiers from base rank and explicit growth level', () => {
+    const prep = buildEnemyEncounter('cinder_sprite', 2, 'normal', 0, [], null, undefined, null, 4);
+    const input: BattleTimelineInput = { ...BASE, enemyId: prep.enemyId, enemyLevel: 2,
+      enemyTitle: 'normal', enemyRank: 0, enemyGrowthLevel: 4,
+      enemyTeam: [{ enemyId: prep.enemyId, level: 2, title: 'normal', rank: 0, growthLevel: 4, modifiers: [] }],
+    };
+    const model = timeline(input);
+    expect(model.foes[0]!.pieces.map((p) => p.tier)).toEqual(['silver', 'silver']);
+    expect(model.foes[0]!.pieces.map((p) => [p.skill.id, p.slot])).toEqual(prep.setup.pieces.map((p) => [p.skillId, p.slot]));
+    const singular = timeline({ ...input, enemyTeam: [] });
+    expect(singular.foes[0]!.pieces.map((p) => p.tier)).toEqual(['silver', 'silver']);
+  });
+  it('reconstructs the three-card depth-ramped first-boss board for playback', () => {
+    const prep = buildEnemyEncounter('bramble_matriarch', 5, 'boss', 0, [], null, 5, null, 5);
+    const input: BattleTimelineInput = {
+      ...BASE,
+      enemyId: prep.enemyId,
+      enemyLevel: prep.level,
+      enemyTitle: prep.title,
+      enemyRank: prep.baseRank,
+      enemyGrowthLevel: prep.growthLevel,
+      enemyFightNumber: 5,
+      enemyTeam: [{ enemyId: prep.enemyId, level: prep.level, title: prep.title, rank: prep.baseRank,
+        growthLevel: prep.growthLevel, fightNumber: 5, modifiers: [], affix: null }],
+    };
+    const model = timeline(input);
+    expect(model.foes[0]!.maxHp).toBe(prep.setup.stats.maxHp);
+    expect(model.foes[0]!.pieces.map((p) => [p.skill.id, p.slot, p.tier ?? 'bronze']))
+      .toEqual(prep.setup.pieces.map((p) => [p.skillId, p.slot, p.tier ?? 'bronze']));
+  });
   it('opens with a START baseline step at full HP', () => {
     const model = timeline(BASE);
     const first = model.steps[0]!;
@@ -381,7 +424,7 @@ describe('game/battleTimeline', () => {
       // card) — a bare "Guard" left the player guessing.
       const line = lines.find((l) => l.text.includes('GUARD'));
       expect(line?.text).toContain('P.GUARD');
-      expect(line?.detail).toBe('-20% incoming physical damage, 2 turns.');
+      expect(line?.detail).toBe(KEYWORD_TEXT.guard.ruleSentence);
     });
 
     it('names a negate by the PROPERTY it covers (P./M./T.NEGATE, mirroring guard)', () => {
@@ -390,28 +433,28 @@ describe('game/battleTimeline', () => {
       // nothing about what it stops.
       const line = lines.find((l) => l.text.includes('NEGATE'));
       expect(line?.text).toContain('M.NEGATE');
-      expect(line?.detail).toBe('Fully blocks the next 1 magical hit.');
+      expect(line?.detail).toBe(KEYWORD_TEXT.negate.ruleSentence);
     });
 
     it('explains an expose status as +pct% damage taken', () => {
       const line = lines.find((l) => l.text.includes('Expose'));
-      expect(line?.detail).toBe('+30% damage taken from direct hits, 2 turns.');
+      expect(line?.detail).toBe(KEYWORD_TEXT.expose.ruleSentence);
     });
 
     it('explains a buff status with the affected stat abbreviation', () => {
       const line = lines.find((l) => l.text.includes('Buff'));
-      expect(line?.detail).toBe('+50% ATK, 2 turns.');
+      expect(line?.detail).toBe(KEYWORD_TEXT.buffStat.ruleSentence);
     });
 
     it('explains a debuff status carrying a flat (TRUE) amount rather than a pct', () => {
       const line = lines.find((l) => l.text.includes('Debuff'));
-      expect(line?.detail).toBe('-15 DEF, 2 turns.');
+      expect(line?.detail).toBe(KEYWORD_TEXT.debuffStat.ruleSentence);
     });
 
     it('leaves DoT statuses (poison/burn/bleed/stun) without a detail — they already show stacks inline', () => {
       const line = lines.find((l) => l.text.includes('Poison'));
       expect(line).toBeDefined();
-      expect(line!.detail).toBeUndefined();
+      expect(line!.detail).toBe(KEYWORD_TEXT.poison.ruleSentence);
     });
   });
 
@@ -1654,5 +1697,151 @@ describe('game/battleTimeline', () => {
       expect(liveAt(3)).toBe(true);
       expect(liveAt(4)).toBe(false);
     });
+  });
+});
+
+/**
+ * RESOLVED AFFINITY (2026-09-06, re-solved) — THE BOARD IS THE ONLY SOURCE
+ * (`docs/board-type-identity.md`: "affinity are just passive buffs based on
+ * the board … there should be no hardcoded enemy that break the rule").
+ * `resolveCombatantAffinity` mirrors `initCombatant`'s exact rule
+ * (`engine/combat/state.ts`) — it reads ONLY the board's own derived
+ * `boardAffinities` (element and weapon tallied SEPARATELY, each earning its
+ * axis at 3+ of one type with no exact tie at the top). There is no authored
+ * override any more: `CombatantSetup.elementAffinity`/`.weaponAffinity` are
+ * `@deprecated` and ignored by the engine, and this mirror ignores them too.
+ *
+ * Getting this wrong by reviving an authored-wins branch is a real, reported
+ * bug (2026-09-06): a board that earns BOTH an element affinity and a weapon
+ * affinity (e.g. 3 Fire + 3 Sword) had its weapon axis silently dropped by
+ * the old element-first `boardTypeIdentity` collapse, dimming a card whose
+ * gate the engine had actually opened. See the REGRESSION test below for the
+ * exact reported board.
+ */
+describe('resolveCombatantAffinity / cardAffinityOpen — the gate-display source of truth', () => {
+  const fireCard = makeSkill({ id: 'fire_a', element: 'fire' });
+  const fireCard2 = makeSkill({ id: 'fire_b', element: 'fire' });
+  const iceCard = makeSkill({ id: 'ice_a', element: 'frost' });
+  const swordCard = makeSkill({ id: 'sword_a', weapon: 'sword' });
+
+  it('a board derives its element affinity from 3+ of one type', () => {
+    const board = [fireCard, fireCard2, makeSkill({ id: 'fire_c', element: 'fire' }), iceCard];
+    const resolved = resolveCombatantAffinity(board);
+    expect(resolved.elementAffinity).toBe('fire');
+    expect(cardAffinityOpen(fireCard, resolved)).toBe(true);
+    expect(cardAffinityOpen(iceCard, resolved)).toBe(false); // different type — gate shut
+  });
+
+  it('with FEWER than 3 of any one type, nothing is open — an authored value can no longer rescue it', () => {
+    // `cinder_sprite`'s exact shape used to prove the OPPOSITE point here:
+    // 2 Fire cards with an authored `elementAffinity: "fire"` read open
+    // despite the board never reaching the threshold. That authored field is
+    // now ignored by the engine (`docs/board-type-identity.md`), so the same
+    // 2-card board reads closed — see the REAL CONTENT PROOF describe below,
+    // which runs this exact enemy through `buildBattleTimeline`.
+    const board = [fireCard, fireCard2];
+    const resolved = resolveCombatantAffinity(board);
+    expect(resolved.elementAffinity).toBeUndefined();
+    expect(cardAffinityOpen(fireCard, resolved)).toBe(false);
+    expect(cardAffinityOpen(fireCard2, resolved)).toBe(false);
+  });
+
+  it('with FEWER than 3 of any one type on either axis, nothing is open', () => {
+    const board = [fireCard, iceCard, swordCard];
+    const resolved = resolveCombatantAffinity(board);
+    expect(resolved.elementAffinity).toBeUndefined();
+    expect(resolved.weaponAffinity).toBeUndefined();
+    expect(cardAffinityOpen(fireCard, resolved)).toBe(false);
+    expect(cardAffinityOpen(swordCard, resolved)).toBe(false);
+  });
+
+  it('every 3-card type opens its own gated effects even when defensive affinity is tied', () => {
+    const board = [
+      fireCard, fireCard2, makeSkill({ id: 'fire_c', element: 'fire' }),
+      iceCard, makeSkill({ id: 'ice_b', element: 'frost' }), makeSkill({ id: 'ice_c', element: 'frost' }),
+      swordCard, makeSkill({ id: 'sword_b', weapon: 'sword' }), makeSkill({ id: 'sword_c', weapon: 'sword' }),
+    ];
+    const resolved = resolveCombatantAffinity(board);
+    // Defensive matchup math stays singular and unchanged in this slice.
+    expect(resolved.elementAffinity).toBeUndefined();
+    expect(resolved.weaponAffinity).toBe('sword');
+    // Effect activation is the independent threshold promised by the card text.
+    expect(resolved.effectAffinities).toEqual([
+      { kind: 'element', type: 'fire' },
+      { kind: 'element', type: 'frost' },
+      { kind: 'weapon', type: 'sword' },
+    ]);
+    expect(cardAffinityOpen(fireCard, resolved)).toBe(true);
+    expect(cardAffinityOpen(iceCard, resolved)).toBe(true);
+    expect(cardAffinityOpen(swordCard, resolved)).toBe(true);
+  });
+
+  it('REGRESSION: a board that earns BOTH an element and a weapon affinity opens BOTH (real shipped cards, the reported board)', () => {
+    // The exact board from the bug report: 3 Fire + 3 Sword. The old
+    // authored-wins mirror called `boardTypeIdentity` (element-first
+    // single-label collapse) and could only ever fill ONE of
+    // `elementAffinity`/`weaponAffinity` — the sword axis silently never
+    // opened even though the engine's own `boardAffinities` had opened it.
+    const board = ['kindling_rite', 'cinder_dart', 'ember_lash', 'sworn_edge', 'sword_slash', 'twin_slash']
+      .map((id) => skillBook[id]!);
+    const resolved = resolveCombatantAffinity(board);
+    expect(resolved.elementAffinity).toBe('fire');
+    expect(resolved.weaponAffinity).toBe('sword');
+    expect(cardAffinityOpen(skillBook.sworn_edge!, resolved)).toBe(true);
+    expect(cardAffinityOpen(skillBook.cinder_dart!, resolved)).toBe(true);
+  });
+
+  it('a typeless card (test-only) never reads open, matching the engine\'s own gate', () => {
+    const typeless = makeSkill({ id: 'typeless', element: undefined, weapon: undefined });
+    const resolved = resolveCombatantAffinity([typeless]);
+    expect(cardAffinityOpen(typeless, resolved)).toBe(false);
+  });
+});
+
+/**
+ * REAL CONTENT PROOF: `cinder_sprite` and `pyre_acolyte`
+ * (src/data/content/enemies.v1.json) are two shipped boards that used to
+ * split on exactly the axis this fix closes. `cinder_sprite` is a 2-card,
+ * all-Fire board that never reaches the 3-card board-identity threshold on
+ * its own; it used to read `affinityOpen: true` anyway because its authored
+ * `elementAffinity: "fire"` (now `@deprecated` and IGNORED by the engine,
+ * `docs/board-type-identity.md`) won outright. `pyre_acolyte` is a 3-card,
+ * all-Fire board that DOES clear the threshold on its own — the board this
+ * fix is FOR. Both run through the SAME `buildBattleTimeline` path a battle
+ * scene renders from (not a hand-built fixture), so this proves the actual
+ * rendered `BattlePiece.affinityOpen` — not just the helper in isolation
+ * above.
+ */
+describe('battle board face — affinityOpen agrees with the ENGINE-resolved affinity, not a board recount', () => {
+  it('cinder_sprite: both Fire pieces read affinityOpen: false — a 2-card board never earns the affinity, and the old authored override is gone', () => {
+    const input: BattleTimelineInput = {
+      pieces: [{ instanceId: 'h0', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+      heroLevel: 3, heroAllocation: {},
+      enemyId: 'cinder_sprite', enemyLevel: 1, enemyTitle: 'normal', enemyRank: 0,
+      enemyModifiers: [], enemyAffix: null, seed: 3,
+    };
+    const model = buildBattleTimeline(input, resolveBattle(battleRequestOf(input)));
+    const foePieces = model.foes[0]!.pieces;
+    expect(foePieces.length).toBe(2); // both Fire — never reaches the board's own 3-count threshold
+    for (const p of foePieces) {
+      expect(p.skill.element, p.skill.id).toBe('fire');
+      expect(p.affinityOpen, p.skill.id).toBe(false);
+    }
+  });
+
+  it('pyre_acolyte: all 3 Fire pieces read affinityOpen: true — a 3-card all-Fire board earns it on its own', () => {
+    const input: BattleTimelineInput = {
+      pieces: [{ instanceId: 'h0', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+      heroLevel: 3, heroAllocation: {},
+      enemyId: 'pyre_acolyte', enemyLevel: 1, enemyTitle: 'normal', enemyRank: 0,
+      enemyModifiers: [], enemyAffix: null, seed: 3,
+    };
+    const model = buildBattleTimeline(input, resolveBattle(battleRequestOf(input)));
+    const foePieces = model.foes[0]!.pieces;
+    expect(foePieces.length).toBe(3); // all Fire — clears the board's own 3-count threshold
+    for (const p of foePieces) {
+      expect(p.skill.element, p.skill.id).toBe('fire');
+      expect(p.affinityOpen, p.skill.id).toBe(true);
+    }
   });
 });

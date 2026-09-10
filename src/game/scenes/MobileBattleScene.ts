@@ -21,7 +21,7 @@ import {
   MOBILE_HP_BLOCK, mobileHpBlockLayout,
   type HpBlockLabel, type HpBlockLabelKey,
 } from '../ui/battleHpBlockLayout';
-import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_LABELS, statHoverEntry } from '../ui/statLabels';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
@@ -174,7 +174,7 @@ export class MobileBattleScene extends Phaser.Scene {
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
     this.focusedFoe = 0;
     this.autoFollow = true;
     this.lastFocusedFoe = -1;
@@ -371,7 +371,7 @@ export class MobileBattleScene extends Phaser.Scene {
     // Destroy (not just remove) the previous frame's objects — removeAll()
     // alone leaks every Text's backing canvas texture across ~30 redraws/fight.
     for (const child of [...this.children.list]) child.destroy();
-    this.cameras.main.setBackgroundColor(0x0b1420);
+    this.cameras.main.setBackgroundColor(UI.bg);
     const step = this.steps[this.idx] ?? this.steps[0] ?? { turn: this.turns[0] ?? 1, lineIndex: 0 };
     const turn = step.turn;
     const hp = this.hpByStep[this.idx] ?? this.hpByTurn.get(turn) ?? { player: 0, enemy: 0, playerMax: 1, enemyMax: 1 };

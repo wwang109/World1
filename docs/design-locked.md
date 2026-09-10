@@ -9,6 +9,7 @@ code → code wins (except here: an UNBUILT entry is a promise, not a bug).
 
 | Date | Decision | Implemented by |
 |---|---|---|
+| 2026-09-07 | **Affinity-gated effects use an independent 3-card threshold per type.** A second type reaching 3 never cancels the first type's gated effects; defensive matchup affinity remains singular and unchanged. Player copy is exactly “Requires 3 cards of this type on your board to activate this effect.” Affinity and the gated action keyword are separate entries; ATK/MATK/stat suffixes are plain notation with no glossary entry. Desktop hover uses the same complete canonical keyword bodies as full detail surfaces. | `boardEffectAffinities` (`src/engine/combat/typeIdentity.ts`), `affinityOpen` (`src/engine/combat/interpreter.ts`), `src/game/ui/cardGlossary.ts`, `src/game/ui/cardHoverEntries.ts` |
 | 2026-07-15 | Fantasy card template: frameless full-bleed art, tier color only on the WT plate + skill-text frame, `SLOT N` footprint label | `docs/card-template-spec.md`, `src/game/ui/FantasyCardTemplateV2.ts` |
 | 2026-07-19 | **Budgets are exact** — zero audit tolerance; when a card can't land exactly, the card's effects change, never the rates | `BUDGET_TOLERANCE_DECI` (`src/engine/balance.ts`) |
 | 2026-07-19 | Throughput re-price: stun and negate ≈ one Bronze card per denied performance/hit; cleanse per charge; guard at stat-buff parity; cooldown deviation at 10 PL/turn | `PRICE.stunPerTurn/negatePerCharge/cleansePerCharge/guardPerPctTurnNum/cooldownPerTurn` |

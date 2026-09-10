@@ -26,10 +26,11 @@ import { skillBook } from '../../src/data/skills';
  * `RunProgressStrip.renderRunHud` drew the shared run-header rule at a
  * hardcoded `content.y - 14`. On DESKTOP that lands at 116 against an action
  * row ending at 108 — 8px clear, which is where the number was authored. On
- * MOBILE the identical expression lands at 86, and the mobile action band is
- * 74..96 with its labels centred at 85: the rule was drawn 1px off the exact
- * centre of the DECK/BAG and RETIRE labels and read as strikethrough on EVERY
- * mobile run screen. It survived because nothing in the suite asserted where a
+ * MOBILE the identical expression originally landed at 86, and the mobile
+ * action band was 74..96 with its labels centred at 85: the rule read as a
+ * strikethrough on EVERY mobile run screen. The touch-safe band is now
+ * 74..118, so the same expression lands at 108 inside both interactive plates
+ * instead. It survived because nothing in the suite asserted where a
  * drawn line lands relative to what it has to clear — only that regions did
  * not overlap (`runScreenTemplate.test.ts`) and that labels fit inside their
  * own buttons (`controlLayoutAudit.test.ts` / `actionBarFit.test.ts`). Neither
@@ -301,6 +302,38 @@ describe('rule clearance: the shared run HUD header rule', () => {
     }
   }
 
+  it('mobile: secondary, tertiary, and primary render as distinct 44px live hit rectangles', () => {
+    const view = { width: 412, height: 892 };
+    setViewport(view);
+    const template = runScreenLayout('mobile');
+    const { scene, record } = makeScene();
+    renderRunHud(scene as never, {
+      screen: 'RUN', snapshot: SNAPSHOT, compact: true, actions: allActions(),
+    });
+    const interactiveRects = record().rects.filter((rect) => rect.interactive);
+    resetViewport();
+
+    const liveRects = (['secondary', 'tertiary', 'primary'] as const).map((role) => {
+      const slot = template.actionSlots[role];
+      const live = interactiveRects.find((rect) => (
+        rect.left === slot.x && rect.top === slot.y
+        && rect.width === slot.width && rect.height === slot.height
+      ));
+      expect(live, `${role} slot was not the rectangle made interactive by renderRunHud`).toBeDefined();
+      expect(live!.width).toBeGreaterThanOrEqual(44);
+      expect(live!.height).toBeGreaterThanOrEqual(44);
+      return live!;
+    });
+
+    const overlapArea = (a: DrawnRect, b: DrawnRect) => (
+      Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left))
+      * Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top))
+    );
+    expect(overlapArea(liveRects[0]!, liveRects[1]!)).toBe(0);
+    expect(overlapArea(liveRects[0]!, liveRects[2]!)).toBe(0);
+    expect(overlapArea(liveRects[1]!, liveRects[2]!)).toBe(0);
+  });
+
   /**
    * THE TEETH. Same recording, same predicate, but asked about the y the old
    * code computed. If this test ever goes green in both directions the audit
@@ -321,11 +354,12 @@ describe('rule clearance: the shared run HUD header rule', () => {
       resetViewport();
 
       if (platform === 'mobile') {
-        // 86 lands inside the 74..96 action band, through both labels.
-        expect(legacyY).toBe(86);
+        // 108 lands inside the now touch-safe 74..118 action band. The old
+        // formula remains wrong after the band grows: a decorative rule may
+        // not cross either live control plate even though the labels now sit
+        // higher within those larger targets.
+        expect(legacyY).toBe(108);
         expect(offenders).not.toEqual([]);
-        expect(offenders.some((o) => o.includes('DECK / BAG'))).toBe(true);
-        expect(offenders.some((o) => o.includes('RETIRE'))).toBe(true);
         expect(offenders.some((o) => o.startsWith('tap band'))).toBe(true);
       } else {
         // The same expression was harmless here, which is exactly why the
@@ -363,6 +397,8 @@ describe("rule clearance: battle's statsOnly chrome rule", () => {
 
 function bandVm(resolvedBoss: boolean): BandBannerViewModel {
   return {
+    biomeId: 'thornwild',
+    artKey: 'run-art-biome-thornwild',
     name: 'THE THORNWOOD MARCHES',
     waveRange: 'WAVES 6-10',
     leanChip: 'FIRE',

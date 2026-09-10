@@ -1,13 +1,18 @@
-> **Scope:** PROPOSAL. Gate mechanism + 7 events + lints: BUILT (77cb57b); legibility rungs 1-3: BUILT (4dcae89).
-> Still open: interactivity rung 4 (authored two-steps — recommended NOT built), and the rejected-designs register below stays binding.
+> **Scope:** LIVING PROPOSAL. The original gate mechanism + 7 events and
+> legibility rungs 1-3 are built. The World Remembers vertical slice is also
+> built: JSON-authored events, rarity, hard biome eligibility, conjunctive
+> hidden requirements, an acyclic maximum-two-edge dependency graph, and the
+> three-stage Bell chain. Interactivity rung 4 (generic authored two-steps) is
+> still intentionally not built, and the rejected-designs register below stays
+> binding.
 
 # Event content design — chains, biome-aware doors, interactivity
 
-> **Scope:** DESIGN SPEC only — no repo files were touched. Everything below is
-> grounded in the shipped code as of 2026-09-02; every mechanism cites the
-> file:line it relies on. Where a design needs a seam that does not exist yet,
-> the seam is named explicitly and justified (per the brief's rule: prefer
-> composing the 12 existing outcome kinds; new kinds/fields must be declared).
+> The older sections below preserve the design rationale and their dated line
+> references. Current event definitions live only in
+> `src/data/content/events.v1.json`; `src/data/events.ts` is the typed loading
+> facade and `src/run/events.ts` owns selection and resolution behavior. Where
+> old proposed snippets disagree with those sources, the current sources win.
 >
 > Context absorbed: `src/data/events.ts` (full header: the P19/P22 door pass,
 > doors ADDED BESIDE broad pools at lines 70–99, pool-width rule 100–107,
@@ -207,9 +212,11 @@ widths :140–249):
 - **L1 — gates resolve.** Every `requires.eventId` is a real catalog id and
   every member of `choiceIds` a real choice id on it. A dangling gate is a
   chain that can never fire: dead content, build-time loud.
-- **L2 — depth-1 chains.** The TARGET of any gate must itself be ungated (and
-  no event may require itself). This forbids cycles and unreachable ladders in
-  one rule; multi-hop chains are a deliberate later pass, not a v1 accident.
+- **L2 — bounded dependency graph (updated by World Remembers).** Resolution
+  requirements must target real events/choices; self-dependencies and cycles
+  are rejected, and the longest dependency path is at most two edges (three
+  event stages). This permits the Bell's deliberate setup → recognition →
+  payoff shape without allowing unbounded or unreachable ladders.
 - **L3 — bag health.** Every theme retains **≥ 2 UNGATED events** (upgrades
   the existing "every theme has at least 2 events" lint at :98): the bag pool
   is now `idsForTheme` minus gated ids and must never be empty.
@@ -244,6 +251,18 @@ event's body promises memory in fiction, (ii) the PAYOFF's body names the past
 act explicitly, (iii) the locked/lit rung is visible via `isEventChoiceUsable`
 dimming today and the §4 ladder's lock-reason line tomorrow. A chain that
 fails (i)–(ii) is unshippable content by this spec's own rule.
+
+### 1.7 Choice opportunity hints (built 2026-09-07)
+
+The shared event-choice presenter adds one optional, spoiler-safe signal from
+authored graph facts. A choice that queues a callback reads `MAY CONTINUE THIS
+STORY`; a choice referenced by another event's positive event-level resolution
+requirement reads `MAY UNLOCK A SPECIAL EVENT`. The derivation uses choice IDs,
+callback specs, and legacy/schema-v3 requirement ASTs; it never exposes the
+destination event's name, rarity, exact requirement, biome, timing, or chance.
+It reads no run state and changes no eligibility, priority, callback, save, or
+reward behavior. One shared view/presentation field feeds both event profiles;
+there are no screen-specific event-ID or copy branches.
 
 ---
 

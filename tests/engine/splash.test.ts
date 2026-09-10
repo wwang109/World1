@@ -46,7 +46,6 @@ const card = (id: string, over: Partial<SkillDef> = {}): SkillDef => ({
   rarity: 'common',
   tier: 'bronze',
   effects: [{ kind: 'damage', power: 0 }],
-  text: '',
   ...over,
 });
 
@@ -838,7 +837,7 @@ describe('the pairing rule: a spreader needs something to spread', () => {
       versions: [{
         version: 1,
         def: {
-          name: 'Spread Probe', text: 'Deal 10 damage.',
+          name: 'Spread Probe',
           archetypes: ['offense'], property: 'physical', weapon: 'axe',
           size: 1, rarity: 'common', tier: 'bronze',
           ...def,
@@ -856,20 +855,17 @@ describe('the pairing rule: a spreader needs something to spread', () => {
 
   it('ACCEPTS it paired with either payload', () => {
     expect(problemsOf({
-      text: 'Deal 10 damage · burden +6 weight · splash.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
     })).toBe('');
     expect(problemsOf({
-      text: 'Deal 10 damage · curse 4 for 2 turns · splash.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }],
     })).toBe('');
   });
 
   it('checks EVERY TIER: a tier that drops the payload and keeps the spreader is caught', () => {
     expect(problemsOf({
-      text: 'Deal 10 damage · burden +6 weight · splash.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
-      tierUpgrades: { silver: { text: 'Deal 14 damage · splash.', effects: [{ kind: 'damage', power: 14 }, { kind: 'splash' }] } },
+      tierUpgrades: { silver: { effects: [{ kind: 'damage', power: 14 }, { kind: 'splash' }] } },
     })).toContain('a splash action needs something to spread');
   });
 
@@ -888,14 +884,12 @@ describe('the pairing rule: a spreader needs something to spread', () => {
   it('scope: all + splash is REJECTED — but an AoE card may still carry a bare payload', () => {
     expect(problemsOf({
       scope: 'all',
-      text: 'Deal 10 damage · burden +6 weight · splash.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
     })).toContain('scope: all cannot be combined with a splash action');
     // One taxed card per foe is `slow`'s own linear reach, priced by the AoE
     // multiplier; it is band x foes that the rule refuses.
     expect(problemsOf({
       scope: 'all',
-      text: 'Deal 10 damage · burden +6 weight.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }],
     })).toBe('');
   });
@@ -903,7 +897,6 @@ describe('the pairing rule: a spreader needs something to spread', () => {
   it('the AoE rule is checked at every tier, in both inheritance directions', () => {
     // A tier that adds `scope: all` inherits the base effects (and their splash)…
     expect(problemsOf({
-      text: 'Deal 10 damage · burden +6 weight · splash.',
       effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
       tierUpgrades: { silver: { scope: 'all' }, gold: { scope: 'all' }, diamond: { scope: 'all' } },
     })).toContain('scope: all cannot be combined with a splash action');
@@ -913,7 +906,6 @@ describe('the pairing rule: a spreader needs something to spread', () => {
       effects: [{ kind: 'damage', power: 10 }],
       tierUpgrades: {
         silver: {
-          text: 'Deal 12 damage · burden +6 weight · splash.',
           effects: [{ kind: 'damage', power: 12 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
         },
       },

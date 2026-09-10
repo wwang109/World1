@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { installUnlock } from '../audio/audioBus';
-import { applyDevLaunchConfig } from '../devLaunch';
+import { applyDevLaunchConfig, buildDevEventFixture } from '../devLaunch';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { applyRenderScale } from '../renderScale';
 import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMark';
 import { RUN_ART_ASSETS } from '../ui/runArt';
+import { installDevRunFixture } from '../runStore';
 
 /** Where the wordmark block sits, as a fraction of viewport height. Boot
  * centres it (there is nothing else on screen); the title screen sits higher
@@ -146,6 +147,7 @@ export class BootScene extends Phaser.Scene {
     // arm the one-shot unlock here so sound works from the first click on.
     installUnlock();
     const launch = applyDevLaunchConfig();
+    if (launch.eventFixtureId) installDevRunFixture(buildDevEventFixture(launch.eventFixtureId, launch.seed));
     // Explicit ?scene/?view wins; otherwise the game opens on the Start
     // screen (START RUN / SANDBOX doors) regardless of profile.
     const defaultScene = 'Start';

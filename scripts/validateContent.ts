@@ -44,11 +44,18 @@ import { validateSkillDocument } from '../src/data/validateSkillContent';
 import { validateGemDocument } from '../src/data/validateGemContent';
 import { validateEnemyDocument } from '../src/data/validateEnemyContent';
 import { validateModifierDocument } from '../src/data/validateModifierContent';
+import { validateEventDocument } from '../src/data/validateEventContent';
+import { renderEventCatalogWiki, validateEventDiscoveryDocument } from './generateEventCatalog';
+import { assertGeneratedEventAggregateCurrent } from './eventPackCompiler';
+import { loadEventContent } from '../src/data/eventsContent';
 import { findDuplicateKeys } from './jsonDuplicateKeys';
 import skills from '../src/data/content/skills.v1.json';
 import gems from '../src/data/content/gems.v1.json';
 import enemies from '../src/data/content/enemies.v1.json';
 import modifiers from '../src/data/content/modifiers.v1.json';
+import eventsV2 from '../src/data/content/events.v2.json';
+import eventsV3 from '../src/data/content/events.v3.json';
+import eventDiscoveries from '../src/data/content/event-discoveries.v1.json';
 
 type Validator = (doc: unknown) => ContentProblem[];
 const documents: Array<[string, URL, unknown, Validator]> = [
@@ -56,9 +63,31 @@ const documents: Array<[string, URL, unknown, Validator]> = [
   ['src/data/content/gems.v1.json', new URL('../src/data/content/gems.v1.json', import.meta.url), gems, validateGemDocument],
   ['src/data/content/enemies.v1.json', new URL('../src/data/content/enemies.v1.json', import.meta.url), enemies, validateEnemyDocument],
   ['src/data/content/modifiers.v1.json', new URL('../src/data/content/modifiers.v1.json', import.meta.url), modifiers, validateModifierDocument],
+  ['src/data/content/events.v2.json', new URL('../src/data/content/events.v2.json', import.meta.url), eventsV2, validateEventDocument],
+  ['src/data/content/events.v3.json', new URL('../src/data/content/events.v3.json', import.meta.url), eventsV3, validateEventDocument],
 ];
 
+type VersionedContentDocument = {
+  cards?: readonly unknown[];
+  gems?: readonly unknown[];
+  enemies?: readonly unknown[];
+  modifiers?: readonly unknown[];
+  events?: readonly unknown[];
+};
+
 let failures = 0;
+
+let compiledEventPacks: ReturnType<typeof assertGeneratedEventAggregateCurrent> | undefined;
+try {
+  compiledEventPacks = assertGeneratedEventAggregateCurrent(
+    new URL('../src/data/content/event-packs/', import.meta.url),
+    new URL('../src/data/content/events.v3.json', import.meta.url),
+  );
+  console.log(`ok  src/data/content/event-packs — ${String(compiledEventPacks.sourceFiles.length)} packs, ${String(compiledEventPacks.document.events.length)} events, generated aggregate current`);
+} catch (error) {
+  failures += 1;
+  console.error(`  ERROR  ${error instanceof Error ? error.message : String(error)}`);
+}
 
 for (const [name, file, doc, validate] of documents) {
   // (1) RAW BYTES FIRST. Duplicate keys inside one object are invisible after
@@ -78,10 +107,49 @@ for (const [name, file, doc, validate] of documents) {
   }
 
   if (dupes.length === 0 && problems.length === 0) {
-    const d = doc as { cards?: unknown[]; gems?: unknown[]; enemies?: unknown[]; modifiers?: unknown[] };
-    const count = (d.cards ?? d.gems ?? d.enemies ?? d.modifiers)?.length ?? 0;
+    const d = doc as VersionedContentDocument;
+    const count = (d.cards ?? d.gems ?? d.enemies ?? d.modifiers ?? d.events)?.length ?? 0;
     console.log(`ok  ${name} — ${String(count)} documents, no problems`);
   }
+}
+
+const eventDiscoveryFile = new URL('../src/data/content/event-discoveries.v1.json', import.meta.url);
+const eventDiscoveryDupes = findDuplicateKeys(readFileSync(eventDiscoveryFile, 'utf8'));
+for (const duplicate of eventDiscoveryDupes) {
+  failures += 1;
+  console.error(`  ERROR  src/data/content/event-discoveries.v1.json line ${String(duplicate.line)} (${duplicate.path}): duplicate key "${duplicate.key}" — first seen line ${String(duplicate.firstLine)}; JSON.parse keeps only the LAST`);
+}
+const stagedEventContent = loadEventContent(eventsV3);
+const eventDiscoveryProblems = validateEventDiscoveryDocument(eventDiscoveries, stagedEventContent);
+for (const problem of eventDiscoveryProblems) {
+  failures += 1;
+  console.error(`  ERROR  src/data/content/event-discoveries.v1.json ${problem.where}: ${problem.message}`);
+}
+if (eventDiscoveryDupes.length === 0 && eventDiscoveryProblems.length === 0) {
+  console.log(`ok  src/data/content/event-discoveries.v1.json — ${String(eventDiscoveries.discoveries.length)} discoveries, no problems`);
+}
+
+const eventCatalogWiki = new URL('../docs/generated/event-catalog.md', import.meta.url);
+const sourceLabels: Readonly<Record<string, string>> = compiledEventPacks === undefined
+  ? {}
+  : Object.fromEntries(compiledEventPacks.sourceFiles.flatMap((source) =>
+    source.document.events.map((event) => [event.id, `src/data/content/event-packs/${source.name}`] as const),
+  ));
+const expectedEventCatalogWiki = renderEventCatalogWiki(
+  stagedEventContent,
+  eventDiscoveries,
+  sourceLabels,
+);
+let actualEventCatalogWiki: string | undefined;
+try {
+  actualEventCatalogWiki = readFileSync(eventCatalogWiki, 'utf8');
+} catch {
+  failures += 1;
+  console.error('  ERROR  docs/generated/event-catalog.md: missing generated event catalog; run npm run content:wiki');
+}
+if (actualEventCatalogWiki !== undefined && actualEventCatalogWiki !== expectedEventCatalogWiki) {
+  failures += 1;
+  console.error('  ERROR  docs/generated/event-catalog.md: generated catalog is stale; run npm run content:wiki');
 }
 
 if (failures > 0) {

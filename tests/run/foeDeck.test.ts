@@ -48,8 +48,15 @@ describe('run/encounter: buildEnemyEncounter with a custom deck', () => {
   });
 
   it('keeps the stat pipeline — LV / TITLE / MODIFIER dials mean what they mean today', () => {
-    const dialed = buildEnemyEncounter('bandit_duelist', 7, 'elite', 4, ['swift'], null, undefined, DECK);
-    const authored = buildEnemyEncounter('bandit_duelist', 7, 'elite', 4, ['swift'], null);
+    // Level 1 (growthStepsAt(1) === 0) — GROWTH (2026-09-06) is a NEW,
+    // DELIBERATELY EXEMPT dial for a custom deck (which already owns the
+    // whole board — see `resolveEncounterForEnemy`'s doc comment), so at any
+    // level where growth actually spends a step, the authored path's stats
+    // are reduced by it while the custom-deck path's are not; that is
+    // intentional, not a regression in the OTHER three dials this test means
+    // to hold down.
+    const dialed = buildEnemyEncounter('bandit_duelist', 1, 'elite', 4, ['swift'], null, undefined, DECK);
+    const authored = buildEnemyEncounter('bandit_duelist', 1, 'elite', 4, ['swift'], null);
     expect(dialed.setup.stats).toEqual(authored.setup.stats);
     expect(dialed.level).toBe(authored.level);
     expect(dialed.effectiveLevel).toBe(authored.effectiveLevel);

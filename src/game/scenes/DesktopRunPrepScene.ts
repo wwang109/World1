@@ -9,11 +9,12 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { boardAffinityHeadline } from '../ui/affinityDisplay';
 import { renderRetireConfirm, renderRunHud, renderUnspentPlConfirm, shouldConfirmUnspentPL, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
-import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_LABELS, statHoverEntry } from '../ui/statLabels';
 import { capabilityStatRun, foeSecondaryStatRun } from '../ui/statRunModel';
 import { renderStatRun } from '../ui/statRunStrip';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -22,6 +23,7 @@ import {
   currentBankedPL, currentEncounter, currentNode, enemyNameFor, getActiveRun, packMemberLines, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
+import { encounterDestinationLabel } from '../ui/runTravelChoiceViewModel';
 
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
@@ -149,7 +151,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
    * primary slot (same place as START/CONTINUE›/LEAVE SHOP on other screens). */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
     renderRunHud(this, {
-      screen: `PREP · ${KIND_LABEL[kind]}`,
+      screen: `PREP · ${encounterDestinationLabel(currentNode()!, currentEncounter() ?? null) ?? KIND_LABEL[kind]}`,
       compact: false,
       snapshot: snapshotRunProgress(run),
       onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
@@ -179,9 +181,10 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     const panelTop = CONTENT_TOP;
     const innerX = panelX + PANEL_PAD;
     const innerW = PANEL_W - PANEL_PAD * 2;
-    const cardNames = encounter.setup.pieces
-      .map((p) => skillBook[p.skillId]?.name)
-      .filter((n): n is string => Boolean(n));
+    const foeSkills = encounter.setup.pieces
+      .map((p) => skillBook[p.skillId])
+      .filter((s): s is SkillDef => Boolean(s));
+    const cardNames = foeSkills.map((s) => s.name);
     const cardListRows = Math.ceil(cardNames.length / 1);
     // ELITE AFFIX — present ONLY when this unit carries one (`EncounterUnit.affix`;
     // normal fights, bosses and packs carry none), so the block is conditional
@@ -206,11 +209,14 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     cursor += 16;
 
     const color = KIND_COLOR[kind];
-    const chipLabel = isPack ? `PACK ×${pack.units.length}` : encounter.title.toUpperCase();
-    this.add.rectangle(innerX, cursor, 120, 26, color, 1).setOrigin(0, 0);
-    this.add.text(innerX + 60, cursor + 13, chipLabel, {
+    const destinationLabel = encounterDestinationLabel(currentNode()!, pack);
+    const chipLabel = destinationLabel ?? (isPack ? `PACK ×${pack.units.length}` : encounter.title.toUpperCase());
+    const chipWidth = destinationLabel ? Math.min(innerW, 220) : 120;
+    this.add.rectangle(innerX, cursor, chipWidth, 26, color, 1).setOrigin(0, 0);
+    const titleText = this.add.text(innerX + chipWidth / 2, cursor + 13, chipLabel, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textOnChip,
     }).setOrigin(0.5);
+    truncateNameKeepingSuffix(titleText, chipLabel, '', chipWidth - 12);
     cursor += 26 + 12;
 
     const name = enemyNameFor(encounter.enemyId);
@@ -290,9 +296,14 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     cursor += F.body + 16;
 
     // Matchup hint + card list — fills the space the old full-height panel
-    // left empty with information a player can actually use to prep.
-    const affinity = encounter.setup.elementAffinity ?? encounter.setup.weaponAffinity;
-    this.add.text(innerX, cursor, affinity ? `AFFINITY · ${affinity.toUpperCase()}` : 'CARDS', {
+    // left empty with information a player can actually use to prep. Derived
+    // straight from the foe's own board (`boardAffinityHeadline`) — THE BOARD
+    // IS THE ONLY SOURCE (`docs/board-type-identity.md`); the enemy's
+    // authored `elementAffinity`/`weaponAffinity` are `@deprecated` and
+    // ignored by the engine, so reading them here would print an affinity
+    // the engine never grants. Shows BOTH axes when the board earns both.
+    const affinityHeadline = boardAffinityHeadline(foeSkills);
+    this.add.text(innerX, cursor, affinityHeadline ?? 'CARDS', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
     });
     cursor += F.tiny + 6;

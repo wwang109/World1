@@ -1,4 +1,5 @@
 import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
+import { renderSkillClauses, renderSkillText } from '../../engine/keywords/compose';
 import { archetypeBadges, cardTypeBadge } from './cardArtPresentation';
 import {
   FANTASY_CARD_TEMPLATE_SPEC,
@@ -50,6 +51,15 @@ export function buildFantasyCardTemplateModel(
   const width = options.width ?? FANTASY_CARD_TEMPLATE_SPEC.baseSize.width;
   const height = options.height ?? FANTASY_CARD_TEMPLATE_SPEC.baseSize.height;
   const weight = weightOf(skill);
+  // THE FACE BODY IS GENERATED from `effects` (`renderSkillText`) — there is
+  // no authored `text` field any more.
+  const body = renderSkillText(skill);
+  // DENSITY reads the POST-MERGE CLAUSE COUNT, not `effects.length`. The
+  // generator collapses the piles the engine itself merges (four `thorns`
+  // lines into one) and folds a multi-hit into a single counted clause, so the
+  // raw action count would over-penalise exactly the cards the merge rule
+  // exists to help — `rimebarb_vigil@diamond` prints 2 clauses from 5 actions.
+  const clauseCount = renderSkillClauses(skill).length;
 
   return {
     size: { width, height },
@@ -57,7 +67,7 @@ export function buildFantasyCardTemplateModel(
     skin: getFantasyCardTierSkin(tier),
     regions: FANTASY_CARD_TEMPLATE_SPEC.regions,
     titleRule: selectTitleRule(skill.name),
-    bodyRule: selectBodyRule(skill.text, skill.effects.length),
+    bodyRule: selectBodyRule(body, clauseCount),
     wtRule: selectWtRule(weight),
     artAnchor: options.artAnchor ?? 'center',
     type: cardTypeBadge(skill),
@@ -66,7 +76,7 @@ export function buildFantasyCardTemplateModel(
     slotLabel: 'Slot',
     slotBoxCount: skill.size,
     title: skill.name,
-    body: skill.text,
+    body,
     skill,
   };
 }

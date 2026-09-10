@@ -92,7 +92,6 @@ export const MINI_BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   bite: {
     id: 'bite',
@@ -104,7 +103,6 @@ export const MINI_BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 0 }],
-    text: '',
   },
   meteor: {
     id: 'meteor',
@@ -116,6 +114,5 @@ export const MINI_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 20 }],
-    text: '',
   },
 };
