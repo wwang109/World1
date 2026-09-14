@@ -1,17 +1,20 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
-import { powerLevelDeci } from '../../engine/balance';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { applyDraftPicks } from '../draftActions';
 import { DRAFT_SET_KEYS, rollStartDraftAt, type DraftSetKey, type StartDraft } from '../../run/draft';
 import { demoState } from '../demoState';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, UI, textRole } from '../theme';
 import { CardToken } from '../ui/CardToken';
-import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
-import { renderCardInfoBox } from '../ui/cardInfoBox';
-import { renderActionBar, type ActionButton } from '../ui/ActionBar';
+import { CardDetailActivation } from '../ui/cardDetailActivation';
+import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
+import { buildCardArtPlaceholder } from '../ui/cardArtPlaceholder';
+import { whenCardArtReady } from '../ui/cardArtLoader';
+import { auditControlLabel } from '../ui/controlLayoutAudit';
+import { attachButtonFeel, pressedFill } from '../ui/motion';
+import { mobileDraftActionRects, mobileDraftActions, mobileDraftLayout, type MobileDraftActionId } from '../ui/mobileDraftLayout';
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -47,11 +50,13 @@ export class MobileDraftScene extends Phaser.Scene {
   private runContext = false;
   /** skillId whose read-only detail overlay is open (the ⓘ corner badge on a
    * draft card — separate hit-zone from the card's own one-tap PICK). */
+  private readonly detailActivation = new CardDetailActivation();
   private detailSkillId: string | null = null;
 
   constructor() { super('MobileDraft'); }
 
   init(): void {
+    this.detailActivation.reset();
     // NOTHING DRAFT-RELATED IS RESET HERE. `init()` runs again on every
     // `scene.start` — including the Run Map's bounce back into the draft after
     // a page reload — and clearing the reroll count and the picks here is
@@ -113,21 +118,33 @@ export class MobileDraftScene extends Phaser.Scene {
 
   // ---------- /draft state ----------
 
-  private rerender(): void { rebuildScene(this); }
+  private rerender(preserveActivation = false): void {
+    if (!preserveActivation) this.detailActivation.reset();
+    rebuildScene(this);
+  }
+
+  private selectOrInspect(key: DraftSetKey, skillId: string, time: number): void {
+    if (this.detailActivation.release(`draft:${key}:${skillId}`, time)) {
+      this.detailSkillId = skillId;
+      this.rerender();
+      return;
+    }
+    this.pick(key, skillId);
+    this.rerender(true);
+  }
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(UI.bg);
     this.draft = this.currentHand();
     if (this.runContext) {
-      // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
-      // (still 'drafting': no board, and RETIRE only applies once 'active').
       renderRunHud(this, { screen: 'DRAFT', compact: true, snapshot: snapshotRunProgress(getActiveRun()!) });
     } else {
       this.renderTabs();
     }
     this.renderHeader();
     this.renderSet();
+    this.renderPicks();
     this.renderFooter();
     if (this.detailSkillId) this.renderDetail();
   }
@@ -153,37 +170,74 @@ export class MobileDraftScene extends Phaser.Scene {
 
   private renderHeader(): void {
     const key = DRAFT_SET_KEYS[this.setIndex]!;
-    const picked = Object.keys(this.picks).length;
-    // Run context: the HUD already occupies y≈0-96, so this content starts
-    // lower than the Sandbox's own tab-bar layout (y≈50).
-    const top = this.runContext ? 100 : 50;
-    this.add.text(12, top, `DRAFT · SET ${this.setIndex + 1}/${DRAFT_SET_KEYS.length}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
-    this.add.text(12, top + 14, SET_LABEL[key], { fontSize: `${F.heading}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(this.W - 12, top + 14, `${picked}/${DRAFT_SET_KEYS.length} PICKED`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    const layout = mobileDraftLayout(this.W, this.H, this.runContext);
+    const top = layout.header.top;
+    if (this.runContext) {
+      this.add.text(16, top, `SET ${this.setIndex + 1} OF 4`, textRole('kicker', { ink: 'label' }));
+      this.add.text(16, top + 14, SET_LABEL[key], textRole('section', { ink: 'accent' }));
+    } else {
+      this.add.text(16, top, 'DRAFT', textRole('display', { ink: 'accent' }));
+      this.add.text(16, top + 29, `SET ${this.setIndex + 1} OF 4`, textRole('kicker', { ink: 'label' }));
+      this.add.text(16, top + 43, SET_LABEL[key], textRole('section', { ink: 'accent' }));
+    }
+
+    const progressLeft = this.W - 154;
+    for (let index = 0; index < DRAFT_SET_KEYS.length; index += 1) {
+      const x = progressLeft + index * 42;
+      if (index < DRAFT_SET_KEYS.length - 1) {
+        this.add.rectangle(x + 12, top + 17, 30, 2, UI.border, 0.8).setOrigin(0, 0.5);
+      }
+      const completed = Boolean(this.picks[DRAFT_SET_KEYS[index]!]);
+      const current = index === this.setIndex;
+      this.add.circle(x, top + 17, 11, current ? UI.chipDark : UI.bg, 1)
+        .setStrokeStyle(current ? 2 : 1, current ? UI.chip : UI.border, 1);
+      this.add.text(x, top + 17, completed && !current ? '✓' : String(index + 1), {
+        ...textRole('label', { ink: current ? 'resource' : 'label' }),
+      }).setOrigin(0.5);
+      this.add.text(x, top + 35, `SET ${index + 1}`, {
+        ...textRole('micro', { ink: current ? 'accent' : 'faint' }),
+      }).setOrigin(0.5, 0);
+    }
+
+    const final = this.setIndex === DRAFT_SET_KEYS.length - 1;
+    this.add.text(16, layout.header.instructionY, final ? 'FINAL PICK' : 'CHOOSE ONE', {
+      ...textRole('section'),
+    });
+    this.add.text(16, layout.header.descriptionY, final ? 'Choose your final card to complete your deck.' : 'Pick one card to continue.', {
+      ...textRole('body', { ink: 'faint' }),
+    });
   }
 
   private renderSet(): void {
     const key = DRAFT_SET_KEYS[this.setIndex]!;
     const cards = this.draft[key];
     const picked = this.picks[key];
-    let y = this.runContext ? 146 : 96;
-    const h = 80;
-    const gap = 8;
-    for (const card of cards) {
+    const layout = mobileDraftLayout(this.W, this.H, this.runContext);
+    for (const [index, card] of cards.entries()) {
+      const box = layout.cards[index]!;
       const skill = skillBook[card.skillId];
-      if (!skill) { y += h + gap; continue; }
+      if (!skill) continue;
       const isPicked = picked === card.skillId;
       if (isPicked) {
-        this.add.rectangle(10 - 3, y - 3, this.W - 20 + 6, h + 6, 0, 0).setOrigin(0, 0).setStrokeStyle(3, 0xe8b446, 1);
+        this.add.rectangle(box.x - 3, box.y - 3, box.w + 6, box.h + 6, 0, 0).setOrigin(0, 0).setStrokeStyle(3, 0xe8b446, 1);
       }
       // PICK is drawn first so CardToken's own interactive inspect button is
       // the topmost hit target. Every other inert token pixel falls through
       // to this full-row surface (the same ordering RunRewardPanel uses).
-      const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + h / 2, this.W - 20, h, 0xffffff, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => { playSfx('uiClick'); this.pick(key, card.skillId); this.rerender(); });
-      new CardToken(this, 10 + (this.W - 20) / 2, y + h / 2, skill, {
-        width: this.W - 20,
-        height: h,
+      const hit = this.add.rectangle(box.x + box.w / 2, box.y + box.h / 2, box.w, box.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      let pressed: { x: number; y: number } | null = null;
+      hit.on('pointerdown', (p: Phaser.Input.Pointer) => { pressed = { x: p.worldX, y: p.worldY }; });
+      hit.on('pointerout', () => { if (pressed) this.detailActivation.reset(); pressed = null; });
+      hit.on('pointerup', (p: Phaser.Input.Pointer) => {
+        if (!pressed) return;
+        const moved = Math.hypot(p.worldX - pressed.x, p.worldY - pressed.y);
+        pressed = null;
+        if (moved >= 8) { this.detailActivation.reset(); return; }
+        playSfx('uiClick'); this.selectOrInspect(key, card.skillId, p.upTime);
+      });
+      new CardToken(this, box.x + box.w / 2, box.y + box.h / 2, skill, {
+        width: box.w,
+        height: box.h,
         side: 'left',
         onInspect: () => {
           playSfx('uiClick');
@@ -194,11 +248,61 @@ export class MobileDraftScene extends Phaser.Scene {
       if (isPicked) {
         // The inward corners belong to CardToken's slot-span and weight
         // badges; keep selection in the otherwise unused bottom centre.
-        this.add.text(this.W / 2, y + h - 5, '✓ PICKED', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' })
-          .setOrigin(0.5, 1).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
+        this.add.text(box.x + box.w - 10, box.y + box.h / 2, 'SELECTED', textRole('kicker', { ink: 'onAccent' }))
+          .setOrigin(1, 0.5).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
       }
-      y += h + gap;
     }
+  }
+
+  private renderPicks(): void {
+    const layout = mobileDraftLayout(this.W, this.H, this.runContext);
+    this.add.rectangle(10, layout.picksTitleY + 8, 145, 1, UI.border, 0.65).setOrigin(0, 0.5);
+    this.add.rectangle(this.W - 155, layout.picksTitleY + 8, 145, 1, UI.border, 0.65).setOrigin(0, 0.5);
+    this.add.text(this.W / 2, layout.picksTitleY, 'YOUR PICKS', {
+      ...textRole('section', { ink: 'accent' }),
+    }).setOrigin(0.5, 0);
+
+    const roleLabels = ['OFFENSE', 'DEFENSE', 'SUPPORT', 'WILD'];
+    DRAFT_SET_KEYS.forEach((key, index) => {
+      const box = layout.picks[index]!;
+      this.add.text(box.art.x + box.art.w / 2, layout.picksRoleY, roleLabels[index]!, {
+        ...textRole('kicker', { ink: 'label' }),
+      }).setOrigin(0.5, 0);
+      const skillId = this.picks[key];
+      const skill = skillId ? skillBook[skillId] : undefined;
+      if (skill) {
+        const maskShape = this.make.graphics({}, false);
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRect(box.art.x, box.art.y, box.art.w, box.art.h);
+        const mask = maskShape.createGeometryMask();
+        const artHost = this.add.container(0, 0);
+        const placeholder = buildCardArtPlaceholder(this, skill, box.art.x, box.art.y, box.art.w, box.art.h);
+        artHost.add(placeholder);
+        placeholder.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+        whenCardArtReady(this, skill.id, (artKey) => {
+          if (!artHost.scene) return;
+          const image = this.add.image(box.art.x + box.art.w / 2, box.art.y + box.art.h / 2, artKey);
+          image.setScale(Math.max(box.art.w / image.width, box.art.h / image.height));
+          image.setMask(mask);
+          artHost.add(image);
+        });
+        this.add.rectangle(box.art.x, box.art.y, box.art.w, box.art.h, 0, 0)
+          .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
+        this.add.text(box.name.x + box.name.w / 2, box.name.y, skill.name, {
+          ...textRole('micro', { ink: 'secondary' }),
+          fontFamily: FONT.display,
+          fontStyle: 'bold',
+          align: 'center',
+          wordWrap: { width: box.name.w },
+        }).setOrigin(0.5, 0);
+      } else {
+        this.add.rectangle(box.art.x, box.art.y, box.art.w, box.art.h, UI.panelMuted, 0.55)
+          .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.45);
+        this.add.text(box.art.x + box.art.w / 2, box.art.y + box.art.h / 2, '—', {
+          ...textRole('section', { ink: 'disabled' }),
+        }).setOrigin(0.5);
+      }
+    });
   }
 
   /** Read-only card detail (opened by the ⓘ corner badge, not the card
@@ -208,70 +312,60 @@ export class MobileDraftScene extends Phaser.Scene {
   private renderDetail(): void {
     const skill = this.detailSkillId ? skillBook[this.detailSkillId] : undefined;
     if (!skill) { this.detailSkillId = null; return; }
-
-    const close = (): void => { this.detailSkillId = null; this.rerender(); };
-    const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.88).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); close(); });
-
-    const closeBtn = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
-      .setOrigin(0.5).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
-    this.add.text(closeBtn.x, closeBtn.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    closeBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-      event.stopPropagation(); playSfx('uiBack'); close();
+    renderCardDetailsDrawer(this, skill, {
+      compact: true,
+      onClose: () => { this.detailSkillId = null; this.rerender(); },
     });
-
-    const paneWidth = this.W - 40;
-    const centerX = this.W / 2;
-    const cardW = 140;
-    const cardH = cardW * (690 / 420);
-    let y = 66;
-    const cardY = y + cardH / 2;
-    new FantasyCardTemplateV2(this, centerX, cardY, skill, { width: cardW, height: cardH, tier: skill.tier, glossary: false });
-    y = cardY + cardH / 2 + 10;
-
-    const name = this.add.text(centerX, y, skill.name, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.heading}px`, color: UI.textBright,
-      align: 'center', wordWrap: { width: paneWidth },
-    }).setOrigin(0.5, 0);
-    y += name.height + 4;
-
-    const plDeci = powerLevelDeci(skill);
-    const plLine = this.add.text(centerX, y, `POWER ${(plDeci / 10).toFixed(0)} · ${skill.tier.toUpperCase()}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: '#e8b446',
-    }).setOrigin(0.5, 0);
-    y += plLine.height + 10;
-
-    const infoTop = y;
-    const infoH = this.H - infoTop - 20;
-    this.add.rectangle(centerX - paneWidth / 2, infoTop, paneWidth, infoH, 0x101a2a, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    renderCardInfoBox(this, centerX - paneWidth / 2, infoTop, paneWidth, infoH, skill);
   }
 
   private renderFooter(): void {
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
-    const buttons: ActionButton[] = [];
-    // Fresh 4×5 offer off a deterministic seed stride, with the picks cleared
-    // in the same write (`reroll()` above); nav returns to set 1.
-    buttons.push({ label: 'REROLL', onPress: () => { playSfx('uiClick'); this.reroll(); this.setIndex = 0; this.rerender(); } });
-    if (this.setIndex > 0) buttons.push({ label: 'BACK', onPress: () => { playSfx('uiClick'); this.setIndex -= 1; this.rerender(); } });
-    if (this.setIndex < DRAFT_SET_KEYS.length - 1) {
-      buttons.push({ label: 'NEXT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); this.setIndex += 1; this.rerender(); } });
-    } else if (ready) {
-      buttons.push({
-        label: 'START', primary: true, flex: 2, onPress: () => {
-          playSfx('uiClick');
-          if (this.runContext) {
-            applyRunDraft();
-            this.scene.start('MobileRunMap');
-          } else {
-            applyDraftPicks(this.picks);
-            this.scene.start('MobilePrep');
-          }
-        },
-      });
-    } else {
-      buttons.push({ label: 'PICK ALL 4 TO START', flex: 2, onPress: () => {} });
-    }
-    renderActionBar(this, this.W, this.H, buttons);
+    const key = DRAFT_SET_KEYS[this.setIndex]!;
+    const layout = mobileDraftLayout(this.W, this.H, this.runContext);
+    const actions = mobileDraftActions(this.setIndex, Boolean(this.picks[key]), ready);
+    const rects = mobileDraftActionRects(layout.footer, actions);
+    const press = (id: MobileDraftActionId): void => {
+      if (id === 'back') {
+        this.setIndex -= 1;
+        this.rerender();
+      } else if (id === 'next') {
+        this.setIndex += 1;
+        this.rerender();
+      } else if (id === 'reroll') {
+        this.reroll();
+        this.setIndex = 0;
+        this.rerender();
+      } else {
+        if (this.runContext) {
+          applyRunDraft();
+          this.scene.start('MobileRunMap');
+        } else {
+          applyDraftPicks(this.picks);
+          this.scene.start('MobilePrep');
+        }
+      }
+    };
+
+    actions.forEach((action, index) => {
+      const box = rects[index]!;
+      const fill = action.enabled ? action.primary ? 0xe8b446 : 0x26394f : UI.panelMuted;
+      const border = action.primary && action.enabled ? 0xffd66b : UI.border;
+      const plate = this.add.rectangle(box.x, box.y, box.w, box.h, fill, action.enabled ? 1 : 0.7)
+        .setOrigin(0, 0).setStrokeStyle(action.primary && action.enabled ? 2 : 1, border, action.enabled ? 0.95 : 0.45);
+      const label = this.add.text(box.x + box.w / 2, box.y + box.h / 2, action.label, {
+        ...textRole('statValue', { ink: action.enabled && action.primary ? 'onAccent' : action.enabled ? 'primary' : 'disabled' }),
+      }).setOrigin(0.5);
+      auditControlLabel(plate, label, { name: `mobile-draft:${action.id}`, horizontalPadding: 8, verticalPadding: 5, minFontSize: 9 });
+      if (action.enabled) {
+        plate.setInteractive({ useHandCursor: true });
+        attachButtonFeel(this, plate, {
+          fill,
+          hover: fill,
+          press: pressedFill(fill),
+          follow: [label],
+          onPress: () => { playSfx('uiClick'); press(action.id); },
+        });
+      }
+    });
   }
 }

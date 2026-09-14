@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
+import { gemHeroStats, resolveDisplayHeroStats } from '../../engine/cards';
 import { bankedPL } from '../../run/leveling';
+import { buildAutoHeroSetup } from '../../run/encounter';
 import { runCalendar } from '../../run/runCalendar';
 import { type RunState } from '../runStore';
 import { FONT, INK, SCREEN, UI, textRole } from '../theme';
@@ -10,8 +12,18 @@ import { renderBankedPlBadge } from './RunStatPanel';
 import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
 import { attachButtonFeel, hoverFillFor } from './motion';
-import { runProgressStatRun } from './statRunModel';
+import { playerHudStatRun, runProgressStatRun } from './statRunModel';
 import { renderStatRun } from './statRunStrip';
+
+const DESKTOP_PLAYER_STAT_GLYPH = {
+  LV: '★',
+  HP: '♥',
+  ATK: '⚔',
+  MATK: '✦',
+  DEF: '🛡',
+  MDEF: '♦',
+  SPD: '➤',
+} as const;
 
 /**
  * THE run HUD — one identical header drawn on EVERY Run Mode screen (map,
@@ -47,12 +59,19 @@ export interface RunProgressSnapshot {
    * valid; `snapshotRunProgress` always fills it. Drives the LV segment's
    * `+N` delta (see `statRunModel.ts#runProgressStatRun`). */
   bankedPL?: number;
+  /** Current display totals from the same allocation + hero-gem fold as prep. */
+  heroStats?: import('../../engine/types').CombatantStats;
+  /** Socketed hero-gem contribution, shown as the shared `◆+N` attribution. */
+  heroGemAdds?: Partial<import('../../engine/types').CombatantStats>;
 }
 
 /** Builds the HUD's display-only snapshot straight off `RunState` — no
  * decisions; legacy field names remain only for callers outside this slice. */
 export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapshot {
   const calendar = runCalendar(run);
+  const pieces = run.pieces.map((piece) => ({ ...piece }));
+  const heroSetup = buildAutoHeroSetup(run.heroLevel, pieces, run.heroAllocation).setup;
+  const heroGemAdds = gemHeroStats(pieces);
   return {
     day: calendar.stop,
     wave: calendar.absoluteDay,
@@ -63,6 +82,8 @@ export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapsho
     wins: run.wins,
     losses: run.losses,
     bankedPL: bankedPL(run.heroLevel, run.heroAllocation),
+    heroStats: resolveDisplayHeroStats(heroSetup.stats, pieces),
+    heroGemAdds,
   };
 }
 
@@ -96,8 +117,8 @@ export interface RunHudOptions {
   /** Mobile (`true`) vs desktop (`false`) — same discriminator every other
    * shared UI module in this codebase uses. */
   compact: boolean;
-  /** Press handler for the banked-PL badge slot; omit to render no badge
-   * (banked PL is 0, or the screen doesn't support the panel). */
+  /** Press handler for level allocation. Desktop binds it to the LV capability
+   * cell when PL is banked; compact keeps the existing separate PL badge. */
   onOpenStatPanel?: () => void;
   /**
    * Mobile-only opener for `RunStatsPanel.ts#renderRunStatsOverlay` — when
@@ -256,6 +277,69 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
 
   const { statsEndX } = drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
 
+  // Desktop keeps the title/progress row intact, then gives the hero's live
+  // capabilities the left side of one shared middle row. LV itself carries
+  // the banked-PL cue/action, so Run and Bag use identical cell geometry.
+  // Mobile remains on its unchanged compact composition.
+  if (!opts.compact && opts.snapshot.heroStats) {
+    const band = t.regions.badge;
+    const bandPlate = scene.add.rectangle(
+      band.x, band.y - 4, band.width, band.height + 8, UI.panelAlt, 0.38,
+    ).setOrigin(0, 0);
+    track(opts.track, bandPlate);
+    const banked = opts.snapshot.bankedPL ?? 0;
+    const statRun = playerHudStatRun(opts.snapshot.heroStats, opts.snapshot.heroGemAdds, opts.snapshot.heroLevel, banked);
+    const statAreaX = band.x + 16;
+    const statAreaWidth = band.width - 32;
+    // LV is short; HP/current-max is the widest fact. Weighted cells keep the
+    // established readable HP size after adding LV instead of shrinking all
+    // seven cells to the width of the longest one.
+    const cellWeights = statRun.segments.map((segment) => (
+      segment.label === 'LV' ? 0.6 : segment.label === 'HP' ? 1.35
+        : segment.label === 'MATK' || segment.label === 'MDEF' ? 1.05 : 0.9
+    ));
+    const totalCellWeight = cellWeights.reduce((sum, weight) => sum + weight, 0);
+    let cellOffset = 0;
+    statRun.segments.forEach((segment, index) => {
+      const cellWidth = statAreaWidth * cellWeights[index]! / totalCellWeight;
+      const levelUpAvailable = segment.label === 'LV' && banked > 0 && Boolean(opts.onOpenStatPanel);
+      if (levelUpAvailable) {
+        const hit = scene.add.rectangle(
+          statAreaX + cellOffset, band.y, cellWidth, band.height, UI.chip, 0.16,
+        ).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.8).setInteractive({ useHandCursor: true });
+        track(opts.track, hit);
+        hit.on('pointerdown', () => { playSfx('uiClick'); opts.onOpenStatPanel!(); });
+      }
+      if (index > 0) {
+        const separator = scene.add.rectangle(
+          statAreaX + cellOffset, band.y + 3, 1, band.height - 6, UI.border, 0.38,
+        ).setOrigin(0, 0);
+        track(opts.track, separator);
+      }
+      const cellInset = index === 0 ? 0 : 16;
+      const cellX = statAreaX + cellOffset + cellInset;
+      const cellBudget = cellWidth - (index === 0 ? 16 : 32);
+      const glyph = DESKTOP_PLAYER_STAT_GLYPH[segment.label as keyof typeof DESKTOP_PLAYER_STAT_GLYPH];
+      const icon = scene.add.text(cellX, band.y + 4, glyph, {
+        fontFamily: FONT.body,
+        fontStyle: 'bold',
+        fontSize: '17px',
+        color: segment.label === 'HP' ? INK.alarm : levelUpAvailable ? UI.textAccent : INK.label,
+      }).setOrigin(0, 0);
+      track(opts.track, icon);
+      const iconGap = 6;
+      renderStatRun(scene, { segments: [segment], separator: '' }, {
+        x: cellX + icon.width + iconGap,
+        y: band.y + 4,
+        maxWidth: cellBudget - icon.width - iconGap,
+        align: 'left',
+        density: 'grid',
+        track: opts.track,
+      });
+      cellOffset += cellWidth;
+    });
+  }
+
   // ---- mobile STATS opener: the whole stats-strip rect is the tap target,
   // plus a tiny "⌄" hint right after the line, so it reads as pressable
   // instead of a plain readout (replaces the old floating STATS corner tag).
@@ -271,15 +355,15 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     track(opts.track, hint);
   }
 
-  // ---- banked-PL badge — its OWN slot (no longer fighting stats for the corner) ----
-  if (opts.onOpenStatPanel) {
+  // ---- compact keeps its established separate banked-PL badge ----
+  if (opts.compact && opts.onOpenStatPanel) {
     const badgeRect = t.regions.badge;
-    const badgeX = opts.compact ? badgeRect.x + badgeRect.width : badgeRect.x + badgeRect.width;
+    const badgeX = badgeRect.x + badgeRect.width;
     const badge = renderBankedPlBadge(scene, badgeX, badgeRect.y, F.stats, opts.onOpenStatPanel);
     void badge;
   }
 
-  // ---- fixed action row ----
+  // ---- fixed actions (same row as desktop player stats; own row on mobile) ----
   const a = opts.actions ?? {};
   drawSlotButton(scene, t.actionSlots.back, a.back, 'back', F.action, opts.track);
   drawSlotButton(scene, t.actionSlots.secondary, a.secondary, 'secondary', F.action, opts.track);
@@ -288,7 +372,7 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
 
   // Divider under the header, at the content region's top edge.
   //
-  // IT MUST CLEAR THE ACTION BAND, not sit a hardcoded 14px above the content
+  // IT MUST CLEAR THE ACTION/STAT BAND, not sit a hardcoded 14px above the content
   // top (fixed 2026-08-28). `content.y - 14` was authored against DESKTOP,
   // where the action row ends at y=108 and content starts at 130 — 8px of
   // clearance. On MOBILE the same arithmetic lands the line INSIDE the

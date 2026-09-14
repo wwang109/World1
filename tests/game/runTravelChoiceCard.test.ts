@@ -3,6 +3,7 @@ import type Phaser from 'phaser';
 import { eventCatalog, eventRuntimeCatalog } from '../../src/data/events';
 import { shopCatalog } from '../../src/data/shopTypes';
 import { createRun } from '../../src/run/runState';
+import { buildEnemyEncounter } from '../../src/run/encounter';
 import { INK, UI } from '../../src/game/theme';
 import {
   runTravelChoiceCardCopy,
@@ -51,15 +52,15 @@ describe('travel card identity and actions', () => {
 
   it.each(['EASY', 'MEDIUM', 'HARD'])('derives COMBAT · %s from the existing model title', (tier) => {
     const fight: RunTravelChoiceViewModel = { ...event, kind: 'fight', title: `FIGHT · ${tier}`, event: undefined, artKey: undefined };
-    expect(runTravelChoiceCardCopy(fight)).toMatchObject({ eyebrow: `COMBAT · ${tier}`, action: 'INSPECT ENCOUNTER ›' });
+    expect(runTravelChoiceCardCopy(fight)).toMatchObject({ eyebrow: `COMBAT · ${tier}`, action: 'FIGHT ›' });
   });
 
   it('keeps the temporary boss continuation and all safe pending return actions', () => {
     const boss: RunTravelChoiceViewModel = { ...event, kind: 'boss', title: 'BOSS', event: undefined };
-    expect(runTravelChoiceCardCopy(boss)).toMatchObject({ eyebrow: 'MANDATORY DESTINATION', action: 'CONTINUE ›' });
+    expect(runTravelChoiceCardCopy(boss)).toMatchObject({ eyebrow: 'BOSS', action: 'CONTINUE ›' });
     expect(runTravelChoiceCardCopy(shop, true).action).toBe('RETURN TO SHOP ›');
     expect(runTravelChoiceCardCopy(boss, true).action).toBe('RETURN TO BOSS ›');
-    expect(runTravelChoiceCardCopy({ ...event, kind: 'fight', title: 'FIGHT · EASY', event: undefined }, true).action).toBe('RETURN TO FIGHT ›');
+    expect(runTravelChoiceCardCopy({ ...event, kind: 'fight', title: 'FIGHT · EASY', event: undefined }, true).action).toBe('FIGHT ›');
   });
 
   it('never advertises an enabled action or earned receipt for a disabled ordinary card', () => {
@@ -268,6 +269,26 @@ describe('travel cards reserve art, copy, receipt, and a separate 40px action', 
 });
 
 describe('route card visual hierarchy', () => {
+  it.each([false, true])('compact=%s: encounter art and expanded roster omit repeated region and raw cues', (compact) => {
+    const model = buildRunTravelChoiceViewModel(createRun(404),
+      { id: 'clarity', kind: 'fight', depth: 9, wave: 3, fightOption: 'hard' }, null,
+      { variant: 'solo', units: [buildEnemyEncounter('bandit_duelist', 6, 'elite', undefined, ['swift'], 'braced')] });
+    const bounds = { x: 0, y: 0, width: compact ? 392 : 280, height: 600 };
+    const layout = runTravelChoiceCardLayout(bounds, model, { compact, expanded: true });
+    const probe = travelMotionProbe();
+    renderRunTravelChoiceCard(probe.scene, bounds, model, { compact, expanded: true, onSelect: () => undefined });
+    const copy = probe.objects.map((object) => object.text).filter(Boolean).join('\n');
+    expect(copy).not.toMatch(/REGION ·|ELEMENT ·|WEAPON ·|MODIFIERS ·|AFFIX ·|CARD TYPES|AFFINITY/i);
+    expect(copy).toContain('COMBAT · HARD');
+    expect(copy).toContain('Bandit Duelist · LV 8');
+    expect(copy).toContain('ELITE · OFFENSE / DEFENSIVE');
+    expect(copy).toContain('THREAT · 1 FOE · 5 CARDS');
+    expect(copy).toMatch(/VICTORY · \+\d+ GOLD/);
+    expect(copy).toContain('FIGHT ›');
+    expect(layout.dossier).not.toHaveProperty('terrain');
+    expect(probe.objects.filter((object) => !object.text && object.y >= layout.art!.y
+      && object.y < layout.art!.y + layout.art!.height)).toHaveLength(0);
+  });
   it.each([false, true])('compact=%s: difficulty and kind headers use the existing semantic colors', (compact) => {
     const cases: Array<[RunTravelChoiceViewModel, string]> = [
       [event, INK.accent], [shop, INK.gain],
@@ -281,7 +302,8 @@ describe('route card visual hierarchy', () => {
       renderRunTravelChoiceCard(probe.scene, { x: 0, y: 0, width: 392, height: 0 }, model, { compact, onSelect: () => undefined });
       const eyebrow = probe.objects.find((object) => object.text === runTravelChoiceCardCopy(model).eyebrow)!;
       expect(eyebrow.style.color, model.title).toBe(color);
-      expect(probe.objects.some((object) => object.fillColor === UI.panelMuted && object.y === eyebrow.y && !object.interactive)).toBe(true);
+      expect(probe.objects.some((object) => object.fillColor === UI.panelMuted && object.y < eyebrow.y
+        && object.y + object.height > eyebrow.y && !object.interactive)).toBe(true);
       expect(probe.objects.filter((object) => object.interactive)).toHaveLength(1);
     }
   });

@@ -57,6 +57,10 @@ the display conversion and days-until-boss countdown.
 - Noncombat columns retain their existing event choices and at most one shop;
   combat columns remain homogeneous **EASY / MEDIUM / HARD**, with no event
   substitutions. The shop generator, shop placement and shop screen are unchanged.
+- Encounter cards retain difficulty, enemy/pack names, levels, title/archetypes,
+  foe/card counts, victory gold and FIGHT. Region identity belongs to the existing
+  region panel; encounter cards omit repeated region labels and raw element,
+  weapon, modifier and affix cues on both profiles.
 - Event cards show the actual previewed event title and exact event art when
   available, with the existing theme-art fallback otherwise. `previewEventForNode`
   (`src/run/eventPreview.ts`) uses the existing deterministic selector and discards
@@ -77,7 +81,10 @@ the display conversion and days-until-boss countdown.
   or cancel action on the arrival panel.
 - `RUN LEDGER` is an explicit map-header action on both profiles, opening the
   existing run stats overlay without changing its calculations. `EXPLORE REGION`
-  opens the current region/band forecast. Earned future `MAP INTEL` stays a
+  opens the current region/band forecast with region name/tagline, boss and mob
+  names, shops and events. Its player-facing read omits matchup/counter claims;
+  internal forecast counter facts remain available to other consumers.
+  Earned future `MAP INTEL` stays a
   separate persisted discovery surface, shown as a desktop rail or compact sheet.
 
 The 900×900 boot-time compact policy and exact viewport verification recipe
@@ -136,9 +143,9 @@ create interest is by changing **what the deck has to answer**.
 
 **Every elite fight now carries EXACTLY ONE affix**, dealt from
 `ELITE_AFFIX_IDS` (the `MODIFIER_PRESETS` entries flagged `affix: true`) and
-surfaced on `EncounterUnit.affix` — so `previewEncounter`
-(`src/game/runStore.ts`), which returns the SAME `rollEncounter` the FIGHT
-button runs, names it **before** the fight. Look the id up in
+surfaced on `EncounterUnit.affix`. `previewEncounter`
+(`src/game/runStore.ts`) returns the SAME `rollEncounter` the FIGHT
+button runs; encounter cards omit the raw affix cue. Look the id up in
 `MODIFIER_PRESETS` for its `name`/`blurb`.
 
 | affix | card installed | what it taxes | answered by |

@@ -20,6 +20,7 @@ vi.mock('phaser', () => ({ default: { Scene: class {} } }));
 // contracts guard destination/preview/modal seams; real pixel and interaction
 // verification is the separate exact-viewport Task 6 gate.
 const source = (name: string) => readFileSync(join(process.cwd(), 'src/game/scenes', name), 'utf8');
+const uiSource = (name: string) => readFileSync(join(process.cwd(), 'src/game/ui', name), 'utf8');
 
 describe.each([
   ['Desktop', 'DesktopRunMapScene.ts', 'DesktopDeck', false],
@@ -35,7 +36,7 @@ describe.each([
   });
 
   it('keeps the deck, ledger, and retire controls in the approved fixed action roles', () => {
-    expect(src).toMatch(/back:\s*\{ label: 'DECK\/BAG'/);
+    expect(src).toContain(`back: { label: '${compact ? 'DECK/BAG' : 'BAG'}'`);
     expect(src).toMatch(/secondary:\s*\{ label: 'RUN LEDGER', onPress: \(\) => \{ this\.statsOverlayOpen = true;/);
     expect(src).toMatch(/tertiary:\s*\{ label: 'RETIRE', danger: true/);
     expect(src).toContain(`this.scene.start('${deck}')`);
@@ -55,7 +56,12 @@ describe.each([
   });
 
   it('routes every original destination safely without an invented mixed column or boss mechanic', () => {
+    if (compact) {
+      expect(src).toMatch(/if \(node\.kind === 'event'\) \{\s*this\.scene\.start\('MobileRunEvent'\);\s*return;\s*\}/);
+      expect(src).toMatch(/if \(node\.kind === 'shop'\) \{\s*this\.destination\.open\('MobileShop', node\.id, options\);\s*return;\s*\}/);
+    } else {
     expect(src).toMatch(new RegExp(`node\\.kind === 'shop' \\? '${profile}Shop' : node\\.kind === 'event' \\? '${profile}RunEvent' : '${profile}RunPrep'`));
+    }
     expect(src).not.toMatch(/rollEventForNode|chooseNode\(|generateRunMap|ensureWaves|eventToCombat|mixedChoices|\.splice\(/);
     expect(src).not.toMatch(/kind:\s*['"](?:fight|event|boss|shop)['"]/);
     expect(src).not.toMatch(/from ['"].*ShopScene/);
@@ -118,6 +124,26 @@ describe.each([
     expect(src).toContain('NO DISCOVERIES YET');
     expect(src).toContain('`MAP INTEL · ${intelCount}`');
   });
+
+  if (!compact) it('defers region-width rebuilds until the pointer event ends so shop cards cannot receive the toggle click', () => {
+    expect(src).toContain('this.destination.hide();');
+    expect(src).toContain("this.input.once('pointerup', apply)");
+    expect(src).toContain("this.input.once('pointerupoutside', apply)");
+    expect(src).toContain('this.time.delayedCall(0, finish)');
+  });
+
+  if (!compact) it('cancels an embedded shop gesture before hiding its scene for resize or parent overlays', () => {
+    const host = uiSource('RunDestinationHost.ts');
+    const hide = host.match(/hide\(\): void \{([\s\S]*?)\n  \}/)?.[1] ?? '';
+    const cancelAt = hide.indexOf("child.input.emit('pointerupoutside')");
+    const disableAt = hide.indexOf('child.input.enabled = false');
+    expect(cancelAt).toBeGreaterThan(-1);
+    expect(disableAt).toBeGreaterThan(cancelAt);
+  });
+
+  if (!compact) it('keeps HUD modals above an embedded destination scene', () => {
+    expect(src).toContain('if (modalOpen) this.scene.bringToTop();');
+  });
 });
 
 describe('route progress leads the planner on every viewport', () => {
@@ -169,6 +195,7 @@ describe('approved regional track renderer', () => {
       fillColor, strokeWidth: 0, style: { fontSize: 9 },
       setOrigin() { return this; },
       setStrokeStyle(width: number) { this.strokeWidth = width; return this; },
+      setRotation() { return this; },
       setFontSize() { return this; }, setData() { return this; },
     });
     const scene = {
@@ -194,10 +221,13 @@ describe('approved regional track renderer', () => {
       mode,
       regionName: 'THE THORNWILD',
     });
-    expect(text).toContain('EXPEDITION ROUTE · CROSSING THE THORNWILD');
-    expect(text.filter((value) => /^DAY [1-5]$/.test(value))).toEqual(['DAY 3', 'DAY 1', 'DAY 2', 'DAY 3', 'DAY 4', 'DAY 5']);
+    expect(text).toContain(mode === 'mobile'
+      ? 'EXPEDITION ROUTE · THORNWILD'
+      : 'EXPEDITION ROUTE · CROSSING THE THORNWILD');
+    expect(text.filter((value) => /^DAY [1-5]$/.test(value))).toEqual(['DAY 1', 'DAY 2', 'DAY 3', 'DAY 4', 'DAY 5']);
     expect(text.some((value) => /^D\d+$/.test(value))).toBe(false);
-    expect(circles.filter((circle) => circle.strokeWidth === 2)).toHaveLength(1);
+    expect(circles.filter((circle) => circle.strokeWidth === 3)).toHaveLength(1);
+    expect(circles.filter((circle) => circle.strokeWidth === 2)).toHaveLength(5);
   });
 });
 
@@ -413,6 +443,63 @@ describe('actual boss arrival and prep navigation', () => {
     });
     return node;
   }
+
+  function destinationOpenProbe(scene: DesktopRunMapScene | MobileRunMapScene) {
+    const destination = (scene as unknown as {
+      destination: { open: (key: string, nodeId: string, options: readonly RunNode[]) => void };
+    }).destination;
+    return vi.spyOn(destination, 'open').mockImplementation(() => undefined);
+  }
+
+  it('Mobile: a fresh event commits once and launches the dedicated full-screen Event scene', () => {
+    const node = installNode('event');
+    const pick = vi.spyOn(runStore, 'pickNode');
+    const probe = sceneProbe(true);
+    const open = destinationOpenProbe(probe.scene);
+    probe.drawChoice();
+    probe.actions[0]!.press();
+    expect(pick).toHaveBeenCalledExactlyOnceWith(node.id);
+    expect(probe.start).toHaveBeenCalledExactlyOnceWith('MobileRunEvent');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('Mobile: RETURN TO EVENT launches full-screen without reselecting the pending node', () => {
+    installNode('event', undefined, true);
+    const pick = vi.spyOn(runStore, 'pickNode');
+    const probe = sceneProbe(true);
+    const open = destinationOpenProbe(probe.scene);
+    probe.drawChoice();
+    const before = JSON.stringify(runStore.getActiveRun());
+    probe.actions[0]!.press();
+    expect(pick).not.toHaveBeenCalled();
+    expect(probe.start).toHaveBeenCalledExactlyOnceWith('MobileRunEvent');
+    expect(open).not.toHaveBeenCalled();
+    expect(JSON.stringify(runStore.getActiveRun())).toBe(before);
+  });
+
+  it('Desktop: Event remains embedded in the route host', () => {
+    const node = installNode('event');
+    const pick = vi.spyOn(runStore, 'pickNode');
+    const probe = sceneProbe(false);
+    const open = destinationOpenProbe(probe.scene);
+    probe.drawChoice();
+    probe.actions[0]!.press();
+    expect(pick).toHaveBeenCalledExactlyOnceWith(node.id);
+    expect(open).toHaveBeenCalledExactlyOnceWith('DesktopRunEvent', node.id, expect.any(Array));
+    expect(probe.start).not.toHaveBeenCalled();
+  });
+
+  it('Mobile: Shop remains embedded in the route host', () => {
+    const node = installNode('shop');
+    const pick = vi.spyOn(runStore, 'pickNode');
+    const probe = sceneProbe(true);
+    const open = destinationOpenProbe(probe.scene);
+    probe.drawChoice();
+    probe.actions[0]!.press();
+    expect(pick).toHaveBeenCalledExactlyOnceWith(node.id);
+    expect(open).toHaveBeenCalledExactlyOnceWith('MobileShop', node.id, expect.any(Array));
+    expect(probe.start).not.toHaveBeenCalled();
+  });
 
   for (const compact of [false, true]) {
     const profile = compact ? 'Mobile' : 'Desktop';

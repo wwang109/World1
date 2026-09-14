@@ -26,6 +26,7 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
+import { renderBattleLogLine } from '../ui/battleLogLine';
 
 const F = MOBILE_PROFILE.font;
 /**
@@ -471,7 +472,7 @@ export class MobileBattleScene extends Phaser.Scene {
       prevTurn = t;
       this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
       const textMaxW = this.W - textX - (line.detail ? 26 : 14);
-      this.boundedText(textX, ly, line.text, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body }, textMaxW);
+      renderBattleLogLine(this, textX, ly, line, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body }, textMaxW);
       if (line.detail) {
         this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
         const zone = this.add.rectangle(0, ly - 3, this.W, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
@@ -750,8 +751,7 @@ export class MobileBattleScene extends Phaser.Scene {
   /**
    * Vertical scrubber over `steps` (event-level, not turn-level): a MAJOR tick
    * (14×3, gold once passed) at each turn's first step, a MINI tick (7×2,
-   * dimmer gold once passed) for every other step — matches the
-   * `.vtick`/`.vmini` mockup (docs/mockups/mobile-battle-final.html).
+   * dimmer gold once passed) for every other step.
    */
   private renderScrubber(cx: number, top: number, height: number): void {
     const n = this.steps.length;

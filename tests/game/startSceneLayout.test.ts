@@ -24,14 +24,14 @@ describe('startSceneLayout', () => {
     expect(offsets.icons[2] - offsets.separators[1]).toBeGreaterThan(25 * offsets.unit);
   });
 
-  it('selects landing-specific painted backgrounds and one ornamental CTA frame', () => {
+  it('uses the desktop landing painting on both profiles and one ornamental CTA frame', () => {
     expect(startSceneAssetPaths('desktop')).toEqual({
       background: '/game-art/placeholders/start-background-desktop.webp',
       ctaFrame: '/game-art/placeholders/start-cta-frame.webp',
       icons: '/game-art/placeholders/start-icons.webp',
     });
     expect(startSceneAssetPaths('mobile')).toEqual({
-      background: '/game-art/placeholders/start-background-mobile.webp',
+      background: '/game-art/placeholders/start-background-desktop.webp',
       ctaFrame: '/game-art/placeholders/start-cta-frame.webp',
       icons: '/game-art/placeholders/start-icons.webp',
     });
@@ -107,15 +107,34 @@ describe('startSceneLayout', () => {
     expect(layout.seed).toEqual({ x: 720, y: 755, width: 282, height: 48 });
   });
 
-  it('matches the approved portrait composition with the journey controls in the lower half', () => {
+  it('matches the desktop-like portrait rhythm with mobile sizing', () => {
     const layout = startSceneLayout('mobile', 412, 892);
 
     expect(layout.centerX).toBe(206);
-    expect(layout.eyebrowY).toBe(390);
-    expect(layout.title).toEqual({ x: 206, y: 435, fontSize: 56 });
-    expect(layout.primary).toEqual({ x: 206, y: 520, width: 310, height: 82 });
-    expect(layout.sandbox).toEqual({ x: 206, y: 586, width: 210, height: 48 });
-    expect(layout.seed).toEqual({ x: 206, y: 682, width: 248, height: 46 });
+    expect(layout.eyebrowY).toBe(241);
+    expect(layout.title).toEqual({ x: 206, y: 315, fontSize: 56 });
+    expect(layout.primary).toEqual({ x: 206, y: 459, width: 310, height: 82 });
+    expect(layout.sandbox).toEqual({ x: 206, y: 575, width: 210, height: 48 });
+    expect(layout.seed).toEqual({ x: 206, y: 748, width: 248, height: 46 });
+  });
+
+  it('keeps the mobile hierarchy close to desktop normalized positions', () => {
+    const desktop = startSceneLayout('desktop', 1440, 900);
+    const mobile = startSceneLayout('mobile', 412, 892);
+    const pairs: Array<readonly [number, number]> = [
+      [mobile.eyebrowY, desktop.eyebrowY],
+      [mobile.title.y, desktop.title.y],
+      [mobile.ruleY, desktop.ruleY],
+      [mobile.primary.y, desktop.primary.y],
+      [mobile.sandbox.y, desktop.sandbox.y],
+      [mobile.lifetimeY, desktop.lifetimeY],
+      [mobile.lowerRuleY, desktop.lowerRuleY],
+      [mobile.seed.y, desktop.seed.y],
+    ];
+
+    for (const [mobileY, desktopY] of pairs) {
+      expect(Math.abs(mobileY / 892 - desktopY / 900)).toBeLessThanOrEqual(0.002);
+    }
   });
 
   it.each([

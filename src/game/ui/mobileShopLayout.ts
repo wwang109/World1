@@ -20,6 +20,55 @@ export interface MobileShopPage {
   canNext: boolean;
 }
 
+export interface MobileShopBrowseState {
+  selectedCardIndex: number | null;
+  detailCardIndex: number | null;
+}
+
+export function activateMobileShopCard(
+  state: MobileShopBrowseState,
+  index: number,
+  openDetails: boolean,
+): MobileShopBrowseState {
+  return { selectedCardIndex: index, detailCardIndex: openDetails ? index : null };
+}
+
+export function closeMobileShopCardDetails(state: MobileShopBrowseState): MobileShopBrowseState {
+  return { ...state, detailCardIndex: null };
+}
+
+/** Fixed composition for the Run Shop browse state. The merchandise list is
+ * the only flexible/scrolling band; identity, owned summary and actions stay
+ * visible in the short embedded host as well as the full phone scene. */
+export function mobileRunShopBrowseLayout(width: number, height: number, top = 6) {
+  const edge = 6;
+  const gap = 6;
+  const header: MobileShopBox = { x: edge, y: top, width: width - edge * 2, height: 54 };
+  const tabY = header.y + header.height + gap;
+  const tabWidth = (header.width - gap) / 2;
+  const tabs = {
+    cards: { x: edge, y: tabY, width: tabWidth, height: 40 },
+    gems: { x: edge + tabWidth + gap, y: tabY, width: tabWidth, height: 40 },
+  };
+  const footerHeight = 50;
+  const footerY = height - edge - footerHeight;
+  const actionWidth = (header.width - gap) / 2;
+  const footer = {
+    x: edge,
+    y: footerY,
+    width: header.width,
+    height: footerHeight,
+    leave: { x: edge, y: footerY, width: actionWidth, height: footerHeight },
+    buy: { x: edge + actionWidth + gap, y: footerY, width: actionWidth, height: footerHeight },
+  };
+  const sell: MobileShopBox = { x: edge, y: footer.y - gap - 30, width: header.width, height: 30 };
+  const pouch: MobileShopBox = { x: edge, y: sell.y - gap - 30, width: header.width, height: 30 };
+  const owned: MobileShopBox = { x: edge, y: pouch.y - gap - 36, width: header.width, height: 36 };
+  const shelfY = tabs.cards.y + tabs.cards.height + gap;
+  const shelf: MobileShopBox = { x: edge, y: shelfY, width: header.width, height: Math.max(120, owned.y - gap - shelfY) };
+  return { header, tabs, shelf, owned, pouch, sell, footer };
+}
+
 /** Catalog order is authored order. Paging is only a view over that immutable
  * list: no shuffle, duplicate, or dropped trailing page. */
 export function mobileShopPage(ids: readonly string[], requestedPage: number): MobileShopPage {

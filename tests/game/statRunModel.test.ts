@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  capabilityStatRun, deckMetaStatRun, foeSecondaryStatRun, ledgerStatRows,
-  livesAreCritical, pouchStatRun, runBossCountdownModel, runProgressStatRun, statDeltaInk, statLabelInk,
+  capabilityStatRun, deckInventoryMetaStatRun, deckMetaStatRun, foeSecondaryStatRun, ledgerStatRows,
+  livesAreCritical, playerHudStatRun, pouchStatRun, runBossCountdownModel, runProgressStatRun, statDeltaInk, statLabelInk,
   statRunPlainText, statSegmentRoles, statValueInk,
   type StatKind, type StatSegment,
 } from '../../src/game/ui/statRunModel';
+import { snapshotRunProgress } from '../../src/game/ui/RunProgressStrip';
+import { createRun } from '../../src/run/runState';
 import { INK, TEXT_ROLE_SPEC } from '../../src/game/theme';
 
 /**
@@ -119,12 +121,13 @@ describe('statRunModel: density -> which size pair a segment draws at', () => {
 describe('statRunModel: the run HUD strip', () => {
   const facts = { day: 3, wave: 2, gold: 137, heroLevel: 4, lives: 2, bossesCleared: 1 };
 
-  it('shows the SAME seven stats in the SAME order on both platforms', () => {
+  it('moves LV out of the desktop summary while preserving the compact summary', () => {
     const m = runProgressStatRun(facts, true);
     const d = runProgressStatRun(facts, false);
-    expect(m.segments.map((s) => s.kind)).toEqual(d.segments.map((s) => s.kind));
-    expect(m.segments.map((s) => s.value)).toEqual(d.segments.map((s) => s.value));
     expect(m.segments).toHaveLength(7);
+    expect(m.segments.map((s) => s.label)).toContain('LV');
+    expect(d.segments).toHaveLength(6);
+    expect(d.segments.map((s) => s.label)).not.toContain('LV');
   });
 
   it('GOLD and LIVES are the two leads; everything else is demoted', () => {
@@ -148,22 +151,22 @@ describe('statRunModel: the run HUD strip', () => {
     expect(livesAreCritical(1)).toBe(true);
     expect(livesAreCritical(0)).toBe(false);
     expect(livesAreCritical(3)).toBe(false);
-    const lastLife = runProgressStatRun({ ...facts, lives: 1 }, true).segments[5]!;
-    const preRun = runProgressStatRun({ ...facts, lives: 0 }, true).segments[5]!;
+    const lastLife = runProgressStatRun({ ...facts, lives: 1 }, true).segments.find((segment) => segment.label === '♥')!;
+    const preRun = runProgressStatRun({ ...facts, lives: 0 }, true).segments.find((segment) => segment.label === '♥')!;
     expect(statValueInk(lastLife)).toBe('alarm');
     expect(statValueInk(preRun)).toBe('vital');
   });
 
   it('LIVES 3 and LIVES 1 do not look alike — the user’s "a zero is not neutral" rule', () => {
-    const three = runProgressStatRun({ ...facts, lives: 3 }, true).segments[5]!;
-    const one = runProgressStatRun({ ...facts, lives: 1 }, true).segments[5]!;
+    const three = runProgressStatRun({ ...facts, lives: 3 }, true).segments.find((segment) => segment.label === '♥')!;
+    const one = runProgressStatRun({ ...facts, lives: 1 }, true).segments.find((segment) => segment.label === '♥')!;
     expect(statValueInk(three)).not.toBe(statValueInk(one));
   });
 
   it('GOLD does not read the same as BOSSES — the complaint in one assertion', () => {
     const s = runProgressStatRun(facts, true).segments;
     const gold = s[3]!;
-    const bosses = s[6]!;
+    const bosses = s.find((segment) => segment.label === 'B')!;
     expect(statValueInk(gold)).not.toBe(statValueInk(bosses));
     expect(statLabelInk(gold)).not.toBe(statLabelInk(bosses));
     expect(statSegmentRoles(gold, 'roomy').value).not.toBe(statSegmentRoles(bosses, 'roomy').value);
@@ -176,20 +179,18 @@ describe('statRunModel: the run HUD strip', () => {
   // (the same mechanism a gem's `◆+N` uses, so the renderer needs nothing new).
   // ------------------------------------------------------------------------
 
-  it('LV gains a `+N` delta in the GAIN ink when PL is banked — both platforms', () => {
-    for (const compact of [true, false]) {
-      const lv = runProgressStatRun({ ...facts, bankedPL: 3 }, compact).segments[4]!;
-      expect(lv.label).toBe('LV');
-      expect(lv.delta).toBe('+3');
-      expect(statDeltaInk(lv)).toBe('gain');
-    }
+  it('compact LV retains its banked-PL delta while desktop LV lives in the capability row', () => {
+    const compactLv = runProgressStatRun({ ...facts, bankedPL: 3 }, true).segments.find((segment) => segment.label === 'LV')!;
+    expect(compactLv.delta).toBe('+3');
+    expect(statDeltaInk(compactLv)).toBe('gain');
+    expect(runProgressStatRun({ ...facts, bankedPL: 3 }, false).segments.map((segment) => segment.label)).not.toContain('LV');
   });
 
   it('no delta at zero/absent banked — nothing is owed, so nothing is added', () => {
     // Absent covers the two hand-built pre-run snapshots (EMPTY_HUD_SNAPSHOT).
     expect(runProgressStatRun(facts, true).segments[4]!.delta).toBeUndefined();
     expect(runProgressStatRun({ ...facts, bankedPL: 0 }, true).segments[4]!.delta).toBeUndefined();
-    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, false).segments[4]!.delta).toBeUndefined();
+    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, false).segments.every((segment) => segment.delta === undefined)).toBe(true);
   });
 
   it('the delta is the ONLY thing banked PL changes about the line', () => {
@@ -354,6 +355,70 @@ describe('statRunModel: the run ledger', () => {
   it('the ten cells are no longer ten identical numbers', () => {
     const inks = new Set(ledgerStatRows(facts).flat().map((s) => statValueInk(s)));
     expect(inks.size).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('statRunModel: persistent desktop player stats', () => {
+  it('shows current/max HP and the six canonical capability labels in their established order', () => {
+    const run = playerHudStatRun(
+      { maxHp: 105, hp: 83, attack: 2, magicPower: 1, armor: 1, magicResist: 1, speed: 14 },
+      { speed: 4 },
+      3,
+    );
+
+    expect(run.segments.map((segment) => [segment.label, segment.value])).toEqual([
+      ['LV', '3'], ['HP', '83/105'], ['ATK', '2'], ['MATK', '1'], ['DEF', '1'], ['MDEF', '1'], ['SPD', '14'],
+    ]);
+    expect(run.segments.find((segment) => segment.label === 'SPD')?.delta).toBe('◆+4');
+  });
+
+  it('puts banked PL on the desktop LV capability cell', () => {
+    const run = playerHudStatRun(
+      { maxHp: 105, hp: 83, attack: 2, magicPower: 1, armor: 1, magicResist: 1, speed: 14 },
+      {},
+      3,
+      4,
+    );
+
+    expect(run.segments.find((segment) => segment.label === 'LV')).toMatchObject({ value: '3', delta: '+4' });
+  });
+
+  it('derives totals from the committed run allocation and socketed hero gems', () => {
+    const run = {
+      ...createRun(41),
+      heroLevel: 3,
+      heroAllocation: { maxHp: 1, attack: 1 },
+      pieces: [{
+        instanceId: 'hud-card', skillId: 'sword_slash', tier: 'bronze' as const, slot: 0,
+        gem: {
+          kind: 'stat' as const, id: 'hud-speed-gem', rarity: 'rare' as const,
+          scope: 'hero' as const, mods: { hero: { speed: 4 } },
+        },
+      }],
+    };
+
+    expect(snapshotRunProgress(run)).toMatchObject({
+      heroStats: { maxHp: 105, hp: 105, attack: 2, magicPower: 1, armor: 1, magicResist: 1, speed: 14 },
+      heroGemAdds: { speed: 4 },
+    });
+  });
+});
+
+describe('statRunModel: run Bag inventory-only meta', () => {
+  it('keeps only SLOTS, PL, and GEMS because LV and player stats are already in the shared HUD', () => {
+    const run = deckInventoryMetaStatRun({
+      heroLevel: 3,
+      stats: { maxHp: 105, attack: 2, magicPower: 1, speed: 14 },
+      gemAdds: { speed: 4 },
+      used: 7,
+      slots: 10,
+      powerLevel: 31,
+      gemsSocketed: 1,
+      gemsOwned: 4,
+    });
+    expect(run.segments.map((segment) => [segment.label, segment.value])).toEqual([
+      ['SLOTS', '7/10'], ['PL', '31'], ['GEMS', '1/4'],
+    ]);
   });
 });
 

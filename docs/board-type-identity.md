@@ -1,4 +1,4 @@
-# Deck Affinity (v1 — updated 2026-09-07)
+# Deck Affinity (v1 — updated 2026-09-12)
 
 Every card is typed by exactly one **weapon or element** (enforced by
 `tests/engine/elements.test.ts`). When a combatant's board leans hard into one
@@ -33,15 +33,20 @@ type, the board gains that type's **affinity**.
 
 ## Effect
 
-**The weapon/element triangle, unlocked.** The affinity becomes the
-combatant's attunement for matchups — the element tally fills `elementAffinity`,
-the weapon tally fills `weaponAffinity`, and a board that leans into both fills
-both. Standard matchup math then applies both
-ways: your attacks deal **+50%** into the type your affinity beats, and take
-**−25%** from that type; attacks of the type that beats your affinity deal
-**+50%** into you. A dual-affinity board is therefore defended on both axes and
-exposed on both — a magical attacker is answered by the element affinity, a
-physical one by the weapon affinity.
+**Matchups compare the attacking card's type with the target's affinity.**
+The element tally fills the defender's `elementAffinity`; the weapon tally fills
+`weaponAffinity`. An attacking card does **not** need its caster to have affinity
+to gain its matchup bonus. Magical attacks consult the target's elemental
+affinity; physical attacks consult its weapon affinity. True damage ignores both.
+
+An advantageous attack deals **+50%** damage; a disadvantaged attack deals
+**−25%**. Sword/Axe/Lance and the four-element wheel retain their existing
+advantages and disadvantages. Holy and Dark are mutually advantageous.
+
+**Beast exception (user-approved 2026-09-12):** Beast attacks are neutral into
+every weapon affinity, including Bow. Bow attacks still deal **+50%** damage
+against Beast affinity. This one-way bonus no longer implies a reverse Beast
+damage penalty. It does not alter any other matchup or the affinity threshold.
 
 There is still **no flat same-type damage bonus** — the old v1 "+20% on matching
 cards" was removed 2026-07-22, and nothing about an identity multiplies a card's
@@ -103,8 +108,9 @@ the gate is the separate flag. It ships gated or ungated from one row.
 
 PL-neutral, like all matchups: the swing lives in board composition (and the
 counterplay it exposes), not in any card's price. The audited PL table is
-unchanged. Deck-building tradeoff: stacking one type unlocks the triangle in
-your favor but hands the enemy a known attack vector into you.
+unchanged. Deck-building tradeoff: stacking one type establishes a defensive
+matchup profile and can unlock explicitly gated effects, while giving enemies
+a known attack vector into you.
 
 ## Explicitly deferred (explore later)
 

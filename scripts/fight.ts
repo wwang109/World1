@@ -13,7 +13,7 @@
 // index, so in a pack fight the reader could not tell which foe was hit.
 import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
-import { fmtDamage } from './logFormat';
+import { fmtAffinity, fmtDamage } from './logFormat';
 import type { BoardPiece, CombatantSetup, Gem, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook as shippedSkillBook } from '../src/data/skills';
@@ -614,8 +614,15 @@ for (const e of events) {
         // so both are printed, and the wall left standing after them.
         shieldNote = ` (${e.blocked} blocked${spent !== e.blocked ? `, ${spent} shield spent` : ''}; ${left} shield left)`;
       }
+      // THE AFFINITY TAG, on the SAME bracket mechanism the DoT source tag uses
+      // (`[burn]`) — deliberately, because narrow mode breaks on brackets, so this
+      // becomes its own `affinity fire` line under the hp line for free. A gated
+      // payload used to render as an anonymous second hit; 18 shipped cards are
+      // exactly "one plain hit, then one gated hit", and the pair was unreadable.
+      // The type comes off the EVENT (`e.affinity`) — nothing here re-derives it.
+      const affinityNote = fmtAffinity(e.affinity);
       console.log(
-        `${t} │  ${tag(e.side, e.unit)} takes ${e.amount} ${e.property}${shieldNote} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
+        `${t} │  ${tag(e.side, e.unit)} takes ${e.amount} ${e.property}${shieldNote} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}${affinityNote}`,
       );
       if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;

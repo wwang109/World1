@@ -211,7 +211,7 @@ export const STAT_RULE: Record<StatLabelKey, { title: string; body: string }> = 
   },
   speed: {
     title: `${STAT_TOKEN.speed} — ${STAT_LONG_NAME.speed}`,
-    body: 'Adds readiness each turn. Playing a card costs weight.',
+    body: 'Adds readiness each turn.',
   },
 };
 
@@ -381,7 +381,7 @@ export type KeywordTextTable = { [K in Action['kind']]: KeywordTextDef<K> };
  */
 export const AURA_RULE_ENTRY = {
   title: 'Aura',
-  body: 'Provides effects to affected cards within range.',
+  body: 'Buffs your other cards in range.',
 } as const;
 
 /**
@@ -414,6 +414,44 @@ const STATUS_MARKUP: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'e
 };
 
 /**
+ * THE COMPACT HEADLINE FACE LABELS — the words `summarizeEffectSegments`
+ * (`skillPresentation.ts`) prints for the card’s own accumulated
+ * damage/heal/shield number, and the small set of card-level meta badges
+ * (AoE reach, the affinity gate’s untyped fallback, the empty-kit
+ * placeholder, the weight-vs-size mismatch pair) that live beside it.
+ *
+ * `damage`/`heal`/`shield` are the SAME word this table’s own `damage`/
+ * `heal`/`shield` rows print via `faceToken` below — both readers cite this
+ * one export so the badge word cannot drift between the per-action row and
+ * the accumulated headline number the way `attunedShieldLabel`’s doc comment
+ * describes happening to THAT label (2026-09-12 audit).
+ */
+export const HEADLINE_LABEL = {
+  damage: 'DMG',
+  heal: 'HEAL',
+  shield: 'SHLD',
+  /**
+   * The affinity gate's roll-back clause (an ungated hit that turns out to be
+   * gated after all) spells this one out in full — `'SHIELD'`, not the
+   * `SHLD` abbreviation above. That is an existing asymmetry with the plain
+   * headline token, preserved here rather than corrected: this export is a
+   * single-sourcing pass, and unifying the two spellings would be a wording
+   * change nobody has approved.
+   */
+  shieldFull: 'SHIELD',
+  /** A card whose cast fans out to every living foe (`isAoeSkill`). */
+  aoe: 'AOE',
+  /** The affinity gate's label when the card has no element/weapon to name. */
+  affinity: 'AFFINITY',
+  /** The empty-kit placeholder for a card with no printable effect at all. */
+  passive: 'PASSIVE',
+  /** This card's Weight undercuts its size (`weightOf(skill) < size * 10`). */
+  lightweight: 'LIGHTWEIGHT',
+  /** This card's Weight exceeds its size (`weightOf(skill) > size * 10`). */
+  heavy: 'HEAVY',
+} as const;
+
+/**
  * THE SHARED RULE of the eleven cross-cast riders, stated once and attached to
  * all of them rather than re-typed per row.
  */
@@ -424,6 +462,24 @@ const GLOBAL_TURNS = 'Duration decreases at the end of each global turn.';
 
 /** Every affliction the `ward`/`cleanse` pair speak about, named once. */
 const AFFLICTIONS = 'poison, burn, bleed, stat debuffs and expose';
+
+/**
+ * THE Attuned Shield face LABEL — "SHIELD" or "SHIELD: LANCE" — the single
+ * source both this row's own `faceToken` (below) and
+ * `skillPresentation.ts`'s `case 'attunedShield'` (kept there only for its
+ * live-stat `effectLine` fold, which this pure layer cannot do — see that
+ * file) read, so the compact badge cannot say one thing in the registry and
+ * another on the actual rendered face. A 2026-09-12 audit found exactly that:
+ * the two strings had been kept in sync BY HAND, which holds only until the
+ * next edit touches one and not the other.
+ *
+ * ALL CAPS to match every other kind's compact `faceToken` (`SHLD`, `PSN`,
+ * `THORN`, ...) — the long-form `faceClause` below keeps its own Title Case
+ * convention instead, the same as every other row's clause.
+ */
+export function attunedShieldLabel(type: Element | WeaponType | undefined): string {
+  return type === undefined ? 'SHIELD' : `SHIELD: ${typeName(type).toUpperCase()}`;
+}
 
 export const KEYWORD_TEXT: KeywordTextTable = {
   // ── setup ────────────────────────────────────────────────────────────────
@@ -454,7 +510,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a, ctx) => damageClause([a.power], ctx),
     ruleTitle: '',
     ruleSentence: '',
-    faceToken: (a) => ({ text: `DMG ${a.power}` }),
+    faceToken: (a) => ({ text: `${HEADLINE_LABEL.damage} ${a.power}` }),
   },
   heal: {
     composeGroup: 'headline',
@@ -472,7 +528,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     },
     ruleTitle: '',
     ruleSentence: '',
-    faceToken: (a) => ({ text: `HEAL ${a.power}` }),
+    faceToken: (a) => ({ text: `${HEADLINE_LABEL.heal} ${a.power}` }),
   },
   // `shield` USED to sit with the two plain sinks above (2026-09-06, corrected
   // same day). It does not belong there: unlike `damage`/`heal` it carries a
@@ -504,18 +560,66 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     },
     ruleTitle: 'Shield',
     ruleSentence: 'Absorb X matching damage and prevent Bleed while active.',
-    faceToken: (a) => ({ text: `SHLD ${a.power}`, keyword: 'shield' }),
+    faceToken: (a) => ({ text: `${HEADLINE_LABEL.shield} ${a.power}`, keyword: 'shield' }),
   },
+  // FACE LABEL (user-locked 2026-09-12, asked twice: "say shield: sword or
+  // something" / "it s suppose to be shield: lance example") reads "Shield"
+  // now — the face used to say `{{Attuned}} shield 16 (+DEF) — Lance`,
+  // naming the MECHANISM ("attuned") on the face, exactly what this table's
+  // own split exists to forbid (see the file header). The heading a tap
+  // opens stays `Attuned Shield` (`ruleTitle`, unchanged) and so does the
+  // definition (`ruleSentence`, unchanged) — only the face's label changed.
+  //
+  // TOKEN COLLISION, FOUND AND FIXED (2026-09-12): a first pass at this
+  // rename moved `displayToken` from `'attuned'` to `'shield'` to match the
+  // literal word the face now prints — but three OTHER kinds already declare
+  // `displayToken: 'shield'` (the plain `shield` row above, `shieldBurst`,
+  // `overhealShield`), and `{{X}}` resolves its lookup id as
+  // `X.toLowerCase()` regardless of what word an author chooses to display
+  // (`cardTextMarkup.ts`). A shared id would have let an attuned card's face
+  // tap open PLAIN Shield's glossary entry and paint plain Shield's colour
+  // (`#8fb3f2`) instead of this keyword's own (`attuned: '#90b5e1'`,
+  // `cardTextMarkup.ts`) — the same bug class test (E) below exists to catch
+  // (`shieldBreak` vs `disrupt`, a mismatched heading), except here the ids
+  // were IDENTICAL rather than merely similar.
+  //
+  // The fix is the EXPLICIT-ID markup `{{Shield|attuned}}`
+  // (`cardTextMarkup.ts`): the face still shows the word "Shield" (the hard
+  // requirement), but the id it resolves to for colour/tap purposes is
+  // `'attuned'` — unique again, and still contained in `ruleTitle`
+  // ("Attuned Shield".includes("attuned")), so the tap-to-glossary
+  // containment invariant (`gemTextRegistry.test.ts` "(E) one name per
+  // keyword") holds on the id that is actually unique, not on the word that
+  // merely happens to look like another keyword's.
   attunedShield: {
     composeGroup: 'headline',
     displayToken: 'attuned',
     faceClause: (a, ctx) => {
+      // `type` is undefined only when this clause renders INSIDE an
+      // `{{Affinity}} {Type} —` wrap (`ctx.gated`) — the wrap already named
+      // the type, so naming it again here would say it twice. The untyped
+      // fallback drops the colon rather than leaving one dangling: `Shield 8
+      // (+DEF)`, not `Shield: 8 (+DEF)`.
       const type = ctx.gated ? undefined : (ctx.element ?? ctx.weapon);
-      return tidy(`{{Attuned}} shield ${a.power} ${defenseSuffix(ctx)}${type === undefined ? '' : ` — ${typeName(type)}`}`);
+      return tidy(
+        type === undefined
+          ? `{{Shield|attuned}} ${a.power} ${defenseSuffix(ctx)}`
+          : `{{Shield:|attuned}} ${typeName(type)} ${a.power} ${defenseSuffix(ctx)}`,
+      );
     },
     ruleTitle: 'Attuned Shield',
-    ruleSentence: 'Gain X Attuned Shield that absorbs 2 matching damage per Shield and 1 other same-property damage, using Attuned Shield first when matched and last otherwise.',
-    faceToken: (a) => ({ text: `ATTUNED SHLD ${a.power}`, keyword: 'attuned' }),
+    ruleSentence: 'Bonus defense against matching damage.',
+    // Reachable this time: `attunedShieldLabel` (above, before `KEYWORD_TEXT`)
+    // is the ONE label string, read by this row AND by
+    // `skillPresentation.ts`'s own `case 'attunedShield'` (kept there for the
+    // `effectLine`/live-stat fold this pure layer cannot do) — so even though
+    // that case still shadows this arm of `faceTokenOf`'s `default:` branch
+    // in production, the two can no longer drift, because there is only one
+    // string left to drift from.
+    faceToken: (a, ctx) => {
+      const type = ctx.element ?? ctx.weapon;
+      return { text: `${attunedShieldLabel(type)} ${a.power}`, keyword: 'attuned' };
+    },
   },
   // `statStrike` is the Resonant Echo gem's payload and has ZERO authored card
   // uses, so it is deferred out of the markup requirement rather than forced
@@ -593,10 +697,10 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   slow: {
     composeGroup: 'payload',
     displayToken: 'slow',
-    faceClause: (a) => `{{Slow}} +${a.weight}wt`,
+    faceClause: (a) => `{{Slow}} ${a.weight}`,
     ruleTitle: 'Slow',
     ruleSentence: 'Add X Weight to the next card this turn.',
-    faceToken: (a) => ({ text: `SLOW +${a.weight}`, keyword: 'slow' }),
+    faceToken: (a) => ({ text: `SLOW ${a.weight}`, keyword: 'slow' }),
   },
   burden: {
     composeGroup: 'payload',
@@ -1016,7 +1120,7 @@ export const HEAVY_RULE_ENTRY = {
 export const TRUE_RULE_ENTRY = {
   damage: {
     title: '(T) Damage',
-    body: 'Deal X damage plus the higher of ATK or MATK. Ignores type matchups.',
+    body: 'Base damage ignores defense and type matchups.',
   },
   heal: {
     title: '(T) Healing',

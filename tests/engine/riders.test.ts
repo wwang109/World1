@@ -114,8 +114,8 @@ describe('special ability riders', () => {
   it('rider magnitudes are priced per unit (decimal-precise deci-PL)', () => {
     const base = skillBook['hamstring']!;
     const lighter = { ...base, effects: [base.effects[0]!, { kind: 'slow' as const, weight: 8 }] };
-    // 16 -> 40 deci; 8 -> 20 deci: exactly proportional.
-    expect(powerLevelDeci(base) - powerLevelDeci(lighter)).toBe(20);
+    // 16 -> 80 deci; 8 -> 40 deci: exactly proportional.
+    expect(powerLevelDeci(base) - powerLevelDeci(lighter)).toBe(40);
   });
 });
 

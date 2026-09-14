@@ -67,6 +67,21 @@ describe('runScreenLayout: projection onto the live viewport', () => {
     expect(projected).toBe(base);
   });
 
+  it('grows the desktop player-stat band from the left gutter to the right-anchored actions', () => {
+    const base = runScreenTemplate('desktop');
+    const projected = projectRunScreenTemplate(base, { width: 1746, height: 900 });
+    const badge = projected.regions.badge;
+    const actions = projected.regions.actions;
+
+    expect(badge.x).toBe(base.regions.badge.x);
+    expect(badge.width).toBe(base.regions.badge.width + 306);
+    expect(actions.x).toBe(base.regions.actions.x + 306);
+    expect(actions.x - (badge.x + badge.width)).toBe(
+      base.regions.actions.x - (base.regions.badge.x + base.regions.badge.width),
+    );
+    expect(actions.y).toBe(badge.y);
+  });
+
   for (const platform of PLATFORMS) {
     for (const chrome of CHROMES) {
       for (const view of VIEWS[platform]) {

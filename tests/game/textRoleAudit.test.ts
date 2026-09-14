@@ -7,6 +7,7 @@ import {
   type InkRole, type TextRole,
 } from '../../src/game/theme';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../../src/game/layoutProfile';
+import { BATTLE_LOG_COLOR } from '../../src/game/ui/battleLogLine';
 
 /**
  * THE TYPE-SYSTEM GUARD — the hole that let 67 distinct raw text colours and
@@ -106,6 +107,17 @@ describe('theme: every INK role is legible on every ground the game paints', () 
       for (const [groundName, ground] of groundEntries) {
         const ratio = contrastRatio(hex, ground);
         expect(ratio, `UI.${name} (${hex}) on ${groundName}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_SMALL);
+      }
+    }
+  });
+});
+
+describe('battle log semantic body colors', () => {
+  it('every role clears small-text AA on the desktop and mobile log grounds', () => {
+    for (const [role, color] of Object.entries(BATTLE_LOG_COLOR)) {
+      for (const [groundName, ground] of [['desktop', UI.panel], ['mobile', UI.battleLog]] as const) {
+        const ratio = contrastRatio(color, ground);
+        expect(ratio, `${role} ${color} on ${groundName}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_SMALL);
       }
     }
   });

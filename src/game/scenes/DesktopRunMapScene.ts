@@ -32,6 +32,7 @@ import {
   type RunNode,
 } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
+import { desktopRunMapPanelColumns } from '../ui/desktopRunMapPanelLayout';
 
 const F = DESKTOP_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
@@ -54,6 +55,9 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private statsOverlayOpen = false;
   /** EXPLORE REGION replaces the planner's cards with the current-band read. */
   private bandReadOpen = false;
+  /** Desktop-only width toggle. Shops open with the region art collapsed so
+   * the embedded workspace can use the room; the player can expand it. */
+  private regionPaneCollapsed = false;
   /** The band model this render drew, kept so the embedded panel shows the
    * SAME read as the region pane (one forecast per render, never a second roll). */
   private band: BandBannerViewModel | null = null;
@@ -66,10 +70,31 @@ export class DesktopRunMapScene extends Phaser.Scene {
     this.retireConfirmOpen = false;
     this.statsOverlayOpen = false;
     this.bandReadOpen = false;
+    this.regionPaneCollapsed = false;
     this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
+
+  /** A width-changing rebuild must wait until the current pointerdown has
+   * finished. Otherwise the newly widened child shop can receive that same
+   * click at a card position that did not exist when the player pressed. */
+  private setRegionPaneCollapsed(collapsed: boolean): void {
+    // The embedded scene sits under this scene and Phaser does not clip input
+    // to the destination camera. Disable it for the complete pointer gesture so
+    // the region toggle cannot also activate a shop card after the resize.
+    this.destination.hide();
+    this.regionPaneCollapsed = collapsed;
+    let applied = false;
+    const finish = (): void => {
+      if (applied) return;
+      applied = true;
+      this.rerender();
+    };
+    const apply = (): void => { this.time.delayedCall(0, finish); };
+    this.input.once('pointerup', apply);
+    this.input.once('pointerupoutside', apply);
+  }
 
   create(): void {
     this.destination.hide();
@@ -109,10 +134,11 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // depth), but still real GameObjects the HUD audit's text-bounds overlap
     // check (rightly) flags, since it has no notion of one object being drawn
     // UNDER another. Skipping the trail while a modal owns the screen is the
-    // honest fix: nothing is drawn that could never be seen. (Mirrors
-    // MobileRunMapScene's identical guard.)
+    // default for page-replacing modals. The stat drawer is the deliberate
+    // exception: its interactive scrim keeps the retained route inert.
     const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen;
     if (!modalOpen) this.renderTrail(run);
+    else if (this.statPanelOpen) this.renderTrail(run);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: false,
@@ -140,6 +166,11 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.rerender(); },
       });
     }
+    // Embedded destinations are separate Phaser scenes and normally sit above
+    // the route owner. A HUD modal belongs to this parent, so restore the
+    // parent to the top after drawing it; otherwise the shop obscures level-up
+    // and ledger panels even though their scrim was created correctly.
+    if (modalOpen) this.scene.bringToTop();
   }
 
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
@@ -152,7 +183,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
       snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
       onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
       actions: run ? {
-        back: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        back: { label: 'BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
         secondary: { label: 'RUN LEDGER', onPress: () => { this.statsOverlayOpen = true; this.rerender(); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
@@ -164,8 +195,9 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const content = TEMPLATE.regions.content;
     const slot = TEMPLATE.contentSlots.choices;
-    const leftW = slot.x - content.x - 24;
-    const plannerW = content.x + content.width - slot.x;
+    const columns = desktopRunMapPanelColumns(
+      { x: content.x, width: content.width }, slot.x, this.regionPaneCollapsed,
+    );
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
 
@@ -173,12 +205,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const records = currentMapIntel();
     const intel = mapIntelLayoutModel(records, { width: SCREEN.width, height: SCREEN.height });
     const regionH = records.length > 0 ? intel.rail.y - slot.y - 16 : bottom - slot.y;
-    this.renderRegionPane(content.x, slot.y, leftW, regionH, band, snapshotRunProgress(run).wave, records.length);
+    this.renderRegionPane(columns.region.x, slot.y, columns.region.width, regionH, band, snapshotRunProgress(run).wave, records.length);
     // Earned snapshots retain their existing rail geometry below the pane.
     // Its empty state is now the approved footer's NO DISCOVERIES YET.
     if (records.length > 0) {
       const dx = content.x - intel.rail.x;
-      const dw = leftW - intel.rail.width;
+      const dw = columns.region.width - intel.rail.width;
       const relocate = (rect: typeof intel.rail) => ({ ...rect, x: rect.x + dx, width: rect.width + dw });
       renderDesktopMapIntelRail(this, {
         ...intel, rail: relocate(intel.rail), heading: relocate(intel.heading),
@@ -186,25 +218,53 @@ export class DesktopRunMapScene extends Phaser.Scene {
       });
     }
 
-    this.add.rectangle(slot.x, slot.y, plannerW, bottom - slot.y, UI.panel, 0.94).setOrigin(0, 0)
+    this.add.rectangle(columns.planner.x, slot.y, columns.planner.width, bottom - slot.y, UI.panel, 0.94).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.75);
     const routeTop = slot.y + 12;
     const routeH = 82;
-    renderRunRouteBoard(this, { x: slot.x + 16, y: routeTop, w: plannerW - 32, h: routeH }, snapshotRunRoute(run), {
+    renderRunRouteBoard(this, { x: columns.planner.x + 16, y: routeTop, w: columns.planner.width - 32, h: routeH }, snapshotRunRoute(run), {
       mode: 'desktop', regionName: band.name,
     });
     const choicesTop = routeTop + routeH + 12;
-    this.renderChoiceColumn(slot.x + 16, choicesTop, plannerW - 32, bottom - 16 - choicesTop);
+    this.renderChoiceColumn(columns.planner.x + 16, choicesTop, columns.planner.width - 32, bottom - 16 - choicesTop);
   }
 
   /** The approved region pane leads with the real biome painting. The lower
    * summary is deliberately short; EXPLORE REGION still owns the full read. */
   private renderRegionPane(x: number, y: number, w: number, h: number, band: BandBannerViewModel, wave: number, intelCount: number): void {
+    if (this.regionPaneCollapsed) {
+      this.add.rectangle(x, y, w, h, UI.panel, 0.98).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.7);
+      addRunArt(this, band.artKey, { x: x + 1, y: y + 1, width: w - 2, height: h - 2 });
+      this.add.rectangle(x + 1, y + h - 132, w - 2, 131, UI.panelMuted, 0.94).setOrigin(0, 0);
+      const expand = this.add.rectangle(x + w - 44, y + 12, 32, 32, UI.chip, 1).setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      const expandLabel = this.add.text(x + w - 28, y + 28, '›', textRole('section', { ink: 'onAccent' })).setOrigin(0.5);
+      attachButtonFeel(this, expand, {
+        fill: UI.chip, hover: UI.border, follow: [expandLabel], lift: 0,
+        onPress: () => this.setRegionPaneCollapsed(false),
+      });
+      const name = this.add.text(x + 12, y + h - 116, band.name, {
+        ...textRole('section'), wordWrap: { width: w - 24 }, maxLines: 2,
+      });
+      auditTextBlock(name, { name: 'Desktop collapsed region name', maxWidth: w - 24, maxHeight: 48, minFontSize: 9 });
+      const countdown = runBossCountdownModel(wave);
+      this.add.text(x + 12, y + h - 48, countdown.headline, textRole('micro', {
+        ink: countdown.bossNow ? 'alarm' : 'resource',
+      }));
+      return;
+    }
     const footerH = 64;
     const artH = h - footerH;
     const footerY = y + artH;
     this.add.rectangle(x, y, w, h, UI.panel, 0.98).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.7);
     addRunArt(this, band.artKey, { x: x + 1, y: y + 1, width: w - 2, height: artH - 1 });
+    const collapse = this.add.rectangle(x + w - 44, y + 12, 32, 32, UI.panelAlt, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
+    const collapseLabel = this.add.text(x + w - 28, y + 28, '‹', textRole('section', { ink: 'accent' })).setOrigin(0.5);
+    attachButtonFeel(this, collapse, {
+      fill: UI.panelAlt, hover: UI.chipDark, follow: [collapseLabel], lift: 0,
+      onPress: () => this.setRegionPaneCollapsed(true),
+    });
     const scrimH = Math.min(260, artH - 1);
     const scrim = this.add.graphics();
     scrim.fillGradientStyle(UI.panelMuted, UI.panelMuted, UI.panelMuted, UI.panelMuted, 0, 0, 0.96, 0.96);
@@ -294,6 +354,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
           if (!pending) pickNode(node.id);
           if (node.kind === 'boss') { this.rerender(); return; }
           if (node.kind === 'event' || node.kind === 'shop') {
+            if (node.kind === 'shop') this.regionPaneCollapsed = true;
             this.destination.open(node.kind === 'event' ? 'DesktopRunEvent' : 'DesktopShop', node.id, options);
             return;
           }

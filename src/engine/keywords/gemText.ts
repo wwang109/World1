@@ -32,8 +32,8 @@ import {
  * So: a gem's face is `faceClauseOf` per action — the identical function a
  * card's face calls — and a gem's helper is `ruleEntriesOf` per action, the
  * identical definition a card's keyword opens. There is no gem vocabulary at
- * all. The two things a gem has that a card does not are its SCOPE opener
- * ("Hero:" / "This card:", a real parameter with no other home) and the two
+ * all. The two things a gem has that a card does not are its passive/scope
+ * opener (derived from its modifier payload) and the two
  * stat-mod tables in `text.ts`, which reuse `STAT_TOKEN` / `STAT_RULE`.
  *
  * HOST-LESS. Every clause renders with `RenderCtx.host = 'gem'`, standalone
@@ -63,12 +63,13 @@ export function gemCategoryOf(gem: Gem): GemCategory {
 }
 
 /**
- * The SCOPE OPENER a category's face leads with.
+ * The PASSIVE / SCOPE OPENER a category's face leads with.
  *
- * Two of the four are real information with nowhere else to live: a stat gem's
- * numbers mean nothing until you know whether they land on the HERO or on THIS
- * CARD, and that is `scope`, a field the face has to carry. The other two are
- * empty on purpose. `Sliver` never had an opener. `Echo` used to be required to
+ * Modifier-only gems are always on while equipped, so their values are labelled
+ * Passive. Card-scoped modifiers retain the explicit this-card qualifier; the
+ * unqualified Passive label denotes hero stats. Triggered and duration effects
+ * are never labelled passive. Their two categories remain empty on purpose.
+ * `Sliver` never had an opener. `Echo` used to be required to
  * open "Echo:" (gem ruleset R1.1, when the text was authored prose that could
  * lie about its own category) — but the generated face's first clause is the
  * `statStrike` clause, which already reads "Echo 1/2", so an "Echo:" prefix
@@ -79,8 +80,8 @@ export function gemCategoryOf(gem: Gem): GemCategory {
 export const GEM_OPENER: Record<GemCategory, string> = {
   Sliver: '',
   Echo: '',
-  Core: 'This card:',
-  Charm: 'Hero:',
+  Core: 'Passive (this card):',
+  Charm: 'Passive:',
 };
 
 /**

@@ -37,20 +37,27 @@ describe('buildRunTravelChoiceViewModel', () => {
 
   it.each([
     ['easy', 'EASY'], ['standard', 'MEDIUM'], ['hard', 'HARD'],
-  ] as const)('keeps the %s fight tier and encounter detail without event art or metadata', (fightOption, label) => {
+  ] as const)('keeps the %s fight tier and encounter basics', (fightOption, label) => {
     const node: RunNode = { id: fightOption, kind: 'fight', depth: 3, wave: 1, fightOption };
-    expect(buildRunTravelChoiceViewModel(createRun(404), node, eventCatalog.the_second_toll!, solo())).toEqual({
+    expect(buildRunTravelChoiceViewModel(createRun(404), node, eventCatalog.the_second_toll!, solo())).toMatchObject({
       nodeId: fightOption, kind: 'fight', title: `FIGHT · ${label}`,
       detail: `${label} · Bandit Duelist · LV 6 · NORMAL`, accent: 0x4a7ab5, enabled: true,
     });
   });
 
-  it('keeps the previewed elite affix footer and its alarm ink', () => {
+  it('keeps elite basics without region, raw type, modifier or affix cues', () => {
     const node: RunNode = { id: 'elite', kind: 'fight', depth: 9, wave: 3, fightOption: 'hard' };
-    expect(buildRunTravelChoiceViewModel(createRun(404), node, null, solo('elite', 'braced'))).toEqual({
+    const model = buildRunTravelChoiceViewModel(createRun(404), node, null, solo('elite', 'braced'));
+    expect(model).toMatchObject({
       nodeId: 'elite', kind: 'fight', title: 'FIGHT · HARD',
-      detail: 'HARD · Bandit Duelist · LV 8 · ELITE', footer: 'AFFIX · BRACED', footerInk: 'alarm',
+      detail: 'HARD · Bandit Duelist · LV 8 · ELITE',
       accent: 0x4a7ab5, enabled: true,
+    });
+    expect(model.footer).toBeUndefined();
+    expect(model.dossier).toEqual({
+      difficulty: 'HARD',
+      roster: [{ name: 'Bandit Duelist', level: 8, tier: 'ELITE', archetypes: 'OFFENSE / DEFENSIVE' }],
+      danger: '1 FOE · 5 CARDS', reward: 'VICTORY · +4 GOLD',
     });
   });
 
@@ -58,22 +65,31 @@ describe('buildRunTravelChoiceViewModel', () => {
     const unit = buildEnemyEncounter('bandit_duelist', 6);
     const pack: EncounterPack = { variant: 'pair', units: [unit, structuredClone(unit)] };
     const node: RunNode = { id: 'pack', kind: 'fight', depth: 9, wave: 3, fightOption: 'standard' };
-    expect(buildRunTravelChoiceViewModel(createRun(404), node, null, pack).detail)
+    const model = buildRunTravelChoiceViewModel(createRun(404), node, null, pack);
+    expect(model.detail)
       .toBe('MEDIUM · PACK OF 2 · Bandit Duelist · LV 6');
+    expect(model.dossier).toEqual({
+      difficulty: 'MEDIUM',
+      roster: [
+        { name: 'Bandit Duelist', level: 6, tier: 'NORMAL', archetypes: 'OFFENSE / DEFENSIVE' },
+        { name: 'Bandit Duelist', level: 6, tier: 'NORMAL', archetypes: 'OFFENSE / DEFENSIVE' },
+      ],
+      danger: '2 FOES · 8 CARDS', reward: 'VICTORY · +4 GOLD',
+    });
   });
 
   it('keeps a boss mandatory identity, detail and skull art', () => {
     const node: RunNode = { id: 'boss', kind: 'boss', depth: 15, wave: 5 };
     expect(buildRunTravelChoiceViewModel(createRun(404), node, eventCatalog.the_second_toll!, solo('boss'))).toEqual({
-      nodeId: 'boss', kind: 'boss', title: 'BOSS', detail: 'Bandit Duelist · LV 10 · BOSS',
+      nodeId: 'boss', kind: 'boss', title: 'REGION BOSS', detail: 'Bandit Duelist · LV 10 · BOSS',
       artKey: 'run-art-icon-boss-skull', accent: 0xc36a57, enabled: true,
     });
   });
 
   it.each(['fight', 'boss'] as const)('keeps a missing %s encounter defensively blank', (kind) => {
-    const node: RunNode = { id: kind, kind, depth: 3, wave: 1 };
+    const node: RunNode = { id: kind, kind, depth: 3, wave: kind === 'boss' ? 5 : 1 };
     const model = buildRunTravelChoiceViewModel(createRun(404), node, null, null);
-    expect(model.title).toBe(kind.toUpperCase());
+    expect(model.title).toBe(kind === 'boss' ? 'REGION BOSS' : 'FIGHT');
     expect(model.detail).toBe('');
     expect(model.footer).toBeUndefined();
   });

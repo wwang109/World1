@@ -148,7 +148,7 @@ describe('approved five-day expedition track', () => {
   it.each([1, 2, 3, 4, 5, 6, 10])('wave %i has five unambiguous regional-day positions and exactly one current marker', (wave) => {
     const model = expeditionRouteTrackModel(snapshotRunRoute(runAtWave(7, wave)));
     expect(model.days.map((day) => day.label)).toEqual([
-      'REGION DAY 1/5', 'REGION DAY 2/5', 'REGION DAY 3/5', 'REGION DAY 4/5', 'REGION DAY 5/5',
+      'DAY 1', 'DAY 2', 'DAY 3', 'DAY 4', 'DAY 5',
     ]);
     expect(model.days.filter((day) => day.state === 'current')).toHaveLength(1);
     expect(model.days.find((day) => day.state === 'current')?.day).toBe(((wave - 1) % 5) + 1);
@@ -164,7 +164,7 @@ describe('approved five-day expedition track', () => {
   it('starts a fresh regional track after day five instead of spilling into a second day group', () => {
     const model = expeditionRouteTrackModel(snapshotRunRoute(runAtWave(7, 6)));
     expect(model.currentDay).toBe(1);
-    expect(model.currentLabel).toBe('REGION DAY 1/5');
+    expect(model.currentLabel).toBe('DAY 1/5');
     expect(model.days.map((day) => day.state)).toEqual(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
   });
 });

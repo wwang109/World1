@@ -870,6 +870,13 @@ export function dealDamage(
      */
     attackType?: Element | WeaponType;
     source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
+    /**
+     * The card type that opened this hit's affinity gate (`affinityMark`). Set
+     * ONLY by `applyStrike` for a hit whose action carries `affinity: true`; every
+     * other caller — DoT ticks, thorns, fatigue, attrition — omits it, and so does
+     * every ungated card hit, which is why their events are unchanged.
+     */
+    affinity?: Element | WeaponType;
     calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
 ): boolean {
@@ -956,6 +963,8 @@ export function dealDamage(
     matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
     guarded: guarded > 0 ? guarded : undefined,
     exposed: exposed > 0 ? exposed : undefined,
+    // ABSENT unless the hit was affinity-gated, so an ungated log is byte-identical.
+    ...(opts.affinity !== undefined ? { affinity: opts.affinity } : {}),
     hpAfter: victim.stats.hp,
     source,
     ...(ctx.source ? { sourceCard: ctx.source } : {}),
@@ -997,6 +1006,26 @@ function affinityOpen(caster: CombatantState, skill: SkillDef): boolean {
   return type.kind === 'element'
     ? caster.elementAffinity === type.type
     : caster.weaponAffinity === type.type;
+}
+
+/**
+ * THE AFFINITY MARKER for one resolving action: the card type that opened the
+ * gate, or `undefined` when the action was never gated.
+ *
+ * NOT A SECOND GATE. It is only ever read AFTER `applyAction`'s single
+ * `affinityOpen` check has already let the action through, so reaching it with
+ * `affinity: true` means the gate is open by construction. What it produces is a
+ * REPORTING fact — "this fired because of affinity, and here is which one" — and
+ * it deliberately returns the TYPE rather than a bare boolean so the log can name
+ * it exactly as the card face's `affinityWrap` does ("Affinity Fire").
+ *
+ * `cardType` is `undefined` only for a typeless card, which `affinityOpen` already
+ * refuses to open for; the optional chain keeps that unreachable case honest
+ * instead of asserting.
+ */
+function affinityMark(skill: SkillDef, action: Action): Element | WeaponType | undefined {
+  if (action.affinity !== true) return undefined;
+  return cardType(skill)?.type;
 }
 
 /** Element wheel (magical) / weapon triangle (physical) result for a card vs a defender. */
@@ -1100,6 +1129,14 @@ interface StrikeParts {
   effectiveStat: number;
   /** Flat attacker-side adds: aura / card-scope gem `damageFlat` + a triggered combo. */
   flatBonus: number;
+  /**
+   * PRESENTATION ONLY — the card type that opened this hit's affinity gate, or
+   * `undefined` for an ordinary hit. It changes NO arithmetic below; it is carried
+   * so the emitted `damage` event can say the hit fired because of affinity (see
+   * `affinity` on the damage event, ./events.ts) rather than leaving a gated
+   * payload looking like an anonymous second hit.
+   */
+  affinity?: Element | WeaponType;
 }
 
 /**
@@ -1153,6 +1190,9 @@ function applyStrike(
   const hpBefore = enemy.stats.hp;
   const landed = dealDamage(ctx, enemy, amount, property, {
     matchup,
+    // The affinity marker rides straight through: `applyStrike` neither derives
+    // nor re-checks it (the gate was decided once, in `applyAction`).
+    ...(parts.affinity !== undefined ? { affinity: parts.affinity } : {}),
     // Only a real card hit carries a type, so only a card hit can trigger the
     // doubling on an attuned pool.
     ...(cardType(skill) ? { attackType: cardType(skill)!.type } : {}),
@@ -1314,6 +1354,7 @@ function applyAction(
         // this cast, against THIS victim (see `CastCtx.bonusByTarget`). A
         // gem-appended hit takes neither, exactly as before.
         flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat + (cast.bonusByTarget[enemy.index] ?? 0),
+        affinity: affinityMark(skill, action),
       });
       break;
     }
@@ -1387,6 +1428,10 @@ function applyAction(
         baseStat: statTerm(caster.stats[scalingStatName(caster, property)]),
         effectiveStat: statTerm(scaleStat(caster, property)),
         flatBonus: 0,
+        // A gated `statStrike` is a gated HIT and is marked exactly like a gated
+        // `damage` action; no shipped card carries one yet, and this is why one
+        // authored tomorrow needs no further engine change.
+        affinity: affinityMark(skill, action),
       });
       break;
     }

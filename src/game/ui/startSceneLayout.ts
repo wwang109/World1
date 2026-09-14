@@ -75,7 +75,7 @@ export function startSceneAssetPaths(profile: StartSceneProfile): {
   icons: string;
 } {
   return {
-    background: `/game-art/placeholders/start-background-${profile}.webp`,
+    background: '/game-art/placeholders/start-background-desktop.webp',
     ctaFrame: '/game-art/placeholders/start-cta-frame.webp',
     icons: '/game-art/placeholders/start-icons.webp',
   };
@@ -121,14 +121,14 @@ export function startSceneLayout(
     const offsetY = Math.round((height - 892) / 2);
     return {
       centerX,
-      eyebrowY: 390 + offsetY,
-      title: { x: centerX, y: 435 + offsetY, fontSize: 56 },
-      ruleY: 477 + offsetY,
-      primary: { x: centerX, y: 520 + offsetY, width: 310, height: 82 },
-      sandbox: { x: centerX, y: 586 + offsetY, width: 210, height: 48 },
-      lifetimeY: 630 + offsetY,
-      lowerRuleY: 650 + offsetY,
-      seed: { x: centerX, y: 682 + offsetY, width: 248, height: 46 },
+      eyebrowY: 241 + offsetY,
+      title: { x: centerX, y: 315 + offsetY, fontSize: 56 },
+      ruleY: 377 + offsetY,
+      primary: { x: centerX, y: 459 + offsetY, width: 310, height: 82 },
+      sandbox: { x: centerX, y: 575 + offsetY, width: 210, height: 48 },
+      lifetimeY: 659 + offsetY,
+      lowerRuleY: 699 + offsetY,
+      seed: { x: centerX, y: 748 + offsetY, width: 248, height: 46 },
       vignette: { x: centerX, y: 526 + offsetY, width: 542, height: 500 },
     };
   }

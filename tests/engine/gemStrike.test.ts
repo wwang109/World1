@@ -923,7 +923,7 @@ describe('gem hit premium: every hit a gem appends pays extraHitPremium, uncondi
   it('a NON-hit rider pays no premium — the price of every existing rider gem is unmoved', () => {
     const riders: Gem[] = [
       { kind: 'effect', id: 'poison', rarity: 'common', actions: [{ kind: 'poison', stacks: 2 }] },
-      { kind: 'effect', id: 'slow', rarity: 'common', actions: [{ kind: 'slow', weight: 8 }] },
+      { kind: 'effect', id: 'slow', rarity: 'common', actions: [{ kind: 'slow', weight: 4 }] },
       { kind: 'effect', id: 'heal', rarity: 'common', actions: [{ kind: 'heal', power: 4 }] },
       { kind: 'effect', id: 'shield', rarity: 'common', actions: [{ kind: 'shield', power: 4 }] },
       { kind: 'effect', id: 'guard', rarity: 'common', actions: [{ kind: 'guard', property: 'magical', pct: 20, turns: 1 }] },

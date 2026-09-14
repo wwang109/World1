@@ -71,6 +71,21 @@ Prefer reproducible evidence over impressions.
 ### UI and play flow
 
 - Use current `?scene=` routes from `docs/ui-workbook.md`.
+- **Review Run Mode destinations in their real host.** Events, shops, ordinary
+  encounters, and boss arrivals are player-facing states inside the run map's
+  bounded `CHOOSE YOUR NEXT STOP` panel. Reach them through `desktop-runmap`
+  or `mrunmap` and select the destination, or use a current screenshot of that
+  embedded state. Do not use `desktop-shop`, `mobile-shop`,
+  `desktop-runevent`, or `mrunevent` by themselves as the visual reference for
+  a run-map review or mockup: those routes expose child/debug scenes without
+  `RunDestinationHost`'s bounds, camera crop, host controls, or surrounding
+  route context. Direct child-scene routes are valid only when the task
+  explicitly targets that standalone renderer in isolation.
+- Before proposing or generating a run destination redesign, verify the fresh
+  capture visibly includes its real parent surface (for example
+  `CHOOSE YOUR NEXT STOP` plus `BACK` / `LEAVE SHOP` for an embedded shop).
+  If it does not, stop and obtain the correctly hosted state rather than
+  designing from the detached child scene.
 - Review both 1440×900 desktop and 412×892 mobile. They are distinct layouts,
   not interchangeable responsive snapshots.
 - Start both the Vite client and battle API for battle or prep surfaces.

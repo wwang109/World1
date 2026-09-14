@@ -144,11 +144,11 @@ describe('deck build scenes: the pouch is visible where it is spent', () => {
 
     it(`${file}: renders the POUCH row and teaches the socket interaction`, () => {
       expect(src).toContain('pouchStatRun(');
-      expect(src, 'the teach line must name the interaction').toContain('deck card to socket');
+      expect(src, 'the teach line must name the interaction').toContain('for details / gem socket');
     });
 
     it(`${file}: the empty-pouch copy is context-split — the WIKI pointer is Sandbox-only`, () => {
-      const at = src.indexOf('if (pouch.length === 0)');
+      const at = src.indexOf('emptyText: this.runContext');
       expect(at, 'empty-pouch branch not found').toBeGreaterThan(-1);
       const block = src.slice(at, at + 900);
       expect(block).toContain('this.runContext');

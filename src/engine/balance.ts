@@ -239,17 +239,17 @@ export const PRICE = {
    */
   cooldownRefundStepDeci: [50, 30, 20] as readonly number[],
 
-  /** slow: weight * (slowPerWeightNum/Den) — 1 PL per +4 weight. */
+  /** slow: weight * (slowPerWeightNum/Den) — 1 PL per +2 weight. */
   slowPerWeightNum: 5,
-  slowPerWeightDen: 2,
+  slowPerWeightDen: 1,
 
   /**
    * burden: weight * (burdenPerWeightNum/Den) — `slow`'s OWN per-point rate,
-   * 1 PL per +4 weight, charged for ONE card.
+   * 1 PL per +2 weight, charged for ONE card.
    *
    * THE UNIT IS `slow`, NOT AN INVENTED SCALE: burden owes the same currency
    * (extra weight) as slow, to a board PIECE instead of to the unit's next
-   * action. One piece, so one card's worth: slow's 5/2 exactly.
+   * action. One piece, so one card's worth: slow's 5/1 exactly.
    *
    * NO DEFERRAL DISCOUNT, AND NO DEFERRAL PREMIUM. A burden rides its piece
    * until that piece is next played, with no turn limit, whereas a `slow` is
@@ -260,24 +260,23 @@ export const PRICE = {
    * pretend to measure it.
    *
    * COVERAGE IS PRICED SEPARATELY: this rate buys the tax on the ANCHOR, and a
-   * `splash` on the same cast pays its OWN flat, standalone price
-   * (`splashFlatDeci` below) for spreading it — never a multiplier on this
-   * rate (user-locked 2026-08-21).
+   * `splash` on the same cast pays its OWN standalone card-tier price for
+   * spreading it — never a multiplier on this rate.
    *
-   * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap: a
-   * size-1 card can carry at most `burden 40` alone (100 deci = the size-1
-   * control ceiling, and all of Bronze), or `burden 32 + splash` once the
-   * spreader's own 20 deci joins the family spend.
+   * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the tier-aware cap.
+   * A size-1 Bronze card can carry at most `burden 20` alone (100 deci), while a
+   * Bronze `burden + splash` card has 20 deci left after Splash's 80-deci price,
+   * enough for `burden 4`. Higher ranks receive both the larger Control cap and
+   * the explicit 100/120/140-deci card Splash price.
    */
   burdenPerWeightNum: 5,
-  burdenPerWeightDen: 2,
+  burdenPerWeightDen: 1,
 
   /**
-   * splash: FLAT, STANDALONE price for the payload-less SPREADER — 20 deci
-   * (2 PL) per cast, like every other keyword's own rate (user-locked
-   * 2026-08-21, verbatim: "every gem pl is standalone" / "it doesnt make sense
-   * to increase cost because of splash and host" / "why did you make splash
-   * different").
+   * splash: BASE / TIERLESS price for the payload-less SPREADER — 80 deci
+   * (8 PL). Card copies add the tier adjustment in `actionsPriceDeci`; gems
+   * have no card tier and keep this exact standalone rate. Payload magnitude
+   * never changes what the spreader costs.
    *
    * REPLACES the coverage-multiplier model (`splashBandFloorNum/Den`, x2 on the
    * summed price of the cast's card-targeting siblings, 2026-08-21 morning).
@@ -285,33 +284,15 @@ export const PRICE = {
    * siblings' magnitudes — a `burden 8 + splash` cast paid more for the same
    * spread than a `burden 4 + splash` cast did — which the ruling above
    * reverses: what the spreader does (widen the anchor to the band) is the
-   * same act at any payload size, so it costs the same flat rate at any
-   * payload size. The keyword row lives in `keywords/pricing.ts` like every
-   * other flat price; `actionsPriceDeci` no longer special-cases it.
+   * same act at any payload size, so its price never depends on sibling
+   * magnitude. The keyword row carries the tierless base price;
+   * `actionsPriceDeci` adds only the authored card's tier adjustment.
    *
-   * WHY 20 AND NOT 10 OR 15 (the candidate rates weighed): two constraints,
-   * both hard.
-   *   • THE splash gem (the one gem whose ONLY action is `splash` — see
-   *     gems.v1.json) prices at exactly this rate, and a gem must land EXACTLY
-   *     on a rarity band (RARITY_PL_DECI: 20/40/60/80). 20 = Common exactly;
-   *     10 and 15 land on no band at all. (15 also breaks the whole-PL-parts
-   *     invariant every rate in this table obeys.)
-   *   • Re-solve movement across the four shipped splash cards is minimal at
-   *     20: `arc_cascade` and `sapping_arc` (whose spread cost the multiplier
-   *     already priced at 20) keep every magnitude, and `shockwave_slam` /
-   *     `line_breaker` drop only their burden weight 6 -> 4 (a burden part
-   *     must itself be a whole PL once splash is its own part, pinning burden
-   *     weights to multiples of 4 — their damage lines and tier ladders keep
-   *     the pre-split numbers). 10 would have moved all four; 40 (the next
-   *     band up) would price the spreader above both payloads it spreads.
-   *
-   * WHAT 20 DECI SAYS: a spread is worth about one extra small payload — the
-   * band's guaranteed second piece carrying a modest tax — priced once,
-   * host-blind and payload-blind, erring cheap for the same reason the old
-   * floor-of-2 did: band width (1..3 pieces) is the VICTIM's board's to
-   * decide, never the holder's.
+   * The one splash-only gem therefore lands on Legendary exactly. Bronze
+   * Splash cards also pay 80 deci; higher card ranks pay the explicit
+   * 100/120/140 deci curve below.
    */
-  splashFlatDeci: 20,
+  splashFlatDeci: 80,
 
   /**
    * curse: TWO TERMS, summed —
@@ -352,9 +333,10 @@ export const PRICE = {
    * only if that card fires. Whole-PL steps land on `amount × turns` multiples
    * of 8 with even amounts (curse 4/2t = 20 deci, curse 8/2t = 40).
    *
-   * CONTROL family, so a curse cannot dodge the lockdown ceiling: at those rates
-   * a size-1 card can carry `curse 20 for 2 turns` and nothing more (100 deci),
-   * and `curse + splash` halves that again through the coverage multiplier.
+   * CONTROL family, so a curse cannot dodge the tier-aware lockdown ceiling. At
+   * Bronze a size-1 card can carry `curse 20 for 2 turns` and nothing more (100
+   * deci); pairing Curse with Splash instead spends 80 deci on the spreader and
+   * leaves 20 deci for the Bronze payload.
    *
    * DERIVED, NOT MEASURED — flagged for a `npm run sim` re-tune once curse cards
    * have play data, the same standing caveat `stunPerTurn` and `tauntPerPoint`
@@ -816,6 +798,18 @@ export const PRICE = {
     speed: 5,
   } as Record<BuffableStat, number>,
 } as const;
+
+/**
+ * Card-only Splash curve (user-locked 2026-09-13): the same spread grows from
+ * 8 PL at Bronze to 10/12/14 PL at Silver/Gold/Diamond. Gems are tierless and
+ * therefore continue to use `PRICE.splashFlatDeci` directly.
+ */
+export const CARD_SPLASH_PRICE_DECI: Readonly<Record<SkillTier, number>> = {
+  bronze: 80,
+  silver: 100,
+  gold: 120,
+  diamond: 140,
+};
 
 /**
  * Extra kit budget (deci) granted for a card's board size at its tier —
@@ -1295,6 +1289,8 @@ export function actionsPriceDeci(
    * the card it will be socketed into.
    */
   kit: readonly Action[] = actions,
+  /** Card tier for tier-aware authored-card terms. Omit for tierless gems. */
+  tier?: SkillTier,
 ): number {
   let selfDeci = 0;
   let foeDeci = 0;
@@ -1317,10 +1313,8 @@ export function actionsPriceDeci(
   if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here. That includes the
-  // SPREADER: `splash` prices at its own flat standalone rate
-  // (`PRICE.splashFlatDeci`) like any other keyword — the coverage-multiplier
-  // shape this function used to apply was reversed by user ruling 2026-08-21
-  // ("every gem pl is standalone").
+  // SPREADER: `splash` prices standalone from its payload. The table supplies
+  // the 80-deci tierless/gem base; a card context adds its tier adjustment.
   for (const action of actions) {
     // The table rate plus the ONE kit-aware term (0 for every kind but the
     // conditional riders, and 0 for those unless the kit supplies their
@@ -1329,6 +1323,9 @@ export function actionsPriceDeci(
     // the rest of the offensive share, and telescopes exactly through
     // `powerLevelBreakdown`'s per-action parts.
     const base = priceActionDeci(action, property, KEYWORD_PRICING)
+      + (action.kind === 'splash' && tier !== undefined
+        ? CARD_SPLASH_PRICE_DECI[tier] - PRICE.splashFlatDeci
+        : 0)
       + selfSynergyPremiumDeci(action, kit, property);
     /**
      * THE AFFINITY REFUND — the whole of affinity's pricing, in one place, for
@@ -1386,7 +1383,7 @@ export function actionsPriceDeci(
  */
 export function powerLevelDeci(raw: SkillDef): number {
   const skill = tierResolved(raw);
-  let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope);
+  let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope, skill.effects, skill.tier);
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -1469,10 +1466,9 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
     // action blind to its siblings would report a smaller part than
     // `powerLevelDeci` charges — breaking the "parts sum exactly" invariant.
     //
-    // `splash` is an ordinary flat-priced part here (its own whole-PL row,
-    // `PRICE.splashFlatDeci`) — the combined "burden + splash" part died with
-    // the coverage-multiplier model it reported (user ruling 2026-08-21).
-    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects));
+    // `splash` is its own tier-priced part here; the combined
+    // "burden + splash" part died with the coverage-multiplier model.
+    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects, skill.tier));
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
@@ -1488,8 +1484,8 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
   // DELTA the multiplier adds, the same telescoping trick `multi-hit` above
   // already uses (raw parts + this delta = the scoped total, exactly).
   if (skill.scope === 'all') {
-    const raw = actionsPriceDeci(skill.effects, skill.property, 'one');
-    const scoped = actionsPriceDeci(skill.effects, skill.property, 'all');
+    const raw = actionsPriceDeci(skill.effects, skill.property, 'one', skill.effects, skill.tier);
+    const scoped = actionsPriceDeci(skill.effects, skill.property, 'all', skill.effects, skill.tier);
     push('aoe reach', scoped - raw);
   }
 
@@ -1523,24 +1519,26 @@ export function isOnBudget(skill: SkillDef): boolean {
  * chain-stun lockdown or triple-stacked DoT bombs. Each effect FAMILY has a
  * per-size ceiling on the PL a single card may invest in it (deci, by card
  * size 1/2/3). Control/buffs grow +5 PL per extra slot; DoTs double that.
- * Independent of TIER — tiers scale raw power (damage/shield/heal points and
- * DoT stacks via the price ladder), never lockdown — WITH ONE NAMED EXCEPTION:
- * `cleanse` (user-locked 2026-08-17, see `TIER_SCALED_FAMILIES` below) is
+ * Most families are independent of tier. Control now follows the tier budget
+ * (user-locked 2026-09-13) so tier-priced Splash and deliberately growing
+ * control payloads can remain cap-honest; Stun keeps its separate hard maximum.
+ * `cleanse` also scales (user-locked 2026-08-17; see
+ * `TIER_SCALED_FAMILIES` below) because it is
  * self-repair, the mirror of a heal, and heals already scale freely with
  * tier; it gets its own `cleanse` family below rather than living inside
  * `empower` so the "lockdown never scales" rule stays intact for every other
  * empower member (negate/ward/buffStat/guard/lifesteal/comboBonus/thorns).
  * Extra rules: stun is hard-capped at 1 performance per card; auras are
- * exempt (passive board identity, priced per reach). `applyTier` never scales
- * control/empower magnitudes, so rank-ups can't break a compliant base card.
+ * exempt (passive board identity, priced per reach). `autoScaleTier` never grows
+ * Control/empower magnitudes automatically; authored `tierUpgrades` may grow
+ * Control deliberately under its tier-aware cap. Empower remains cap-frozen.
  * Every card in the book is tested against `capViolations` — when designing
  * a card, run `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
   /** stun, slow, burden, curse, splash, disrupt, stat-down, expose,
-   * shieldBreak — one whole discrete effect. `splash` counts its own flat
-   * price (`PRICE.splashFlatDeci`) here, so a spread cannot buy reach past
-   * the control ceiling either. */
+   * shieldBreak — one whole discrete effect. `splash` counts its tier-aware
+   * card price here, so a spread cannot buy reach past the card's tier cap. */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
@@ -1594,25 +1592,28 @@ export const MAX_EXPOSE_PCT = 50;
 export const MAX_GUARD_PCT = 60;
 
 /**
- * Every family's cap was FROZEN across tiers (user-locked 2026-07-23): a
- * single stat can never exceed its fixed per-size cap no matter the tier, so
+ * Most families' caps are FROZEN across tiers (user-locked 2026-07-23): a
+ * member of those families cannot exceed its fixed per-size cap, so
  * ranking a card up buys NEW EFFECTS, not bigger numbers. (Was: damage/shield/
  * heal scaled ×1.5/2/2.5 — removed.) A card that can't absorb its tier budget
  * within the caps diversifies into other lines — the documented authoring
  * pattern, and what the tier scaler enforces.
  *
- * ONE FAMILY NOW SCALES (user-locked 2026-08-17): `cleanse`. The user's
- * ruling — tier is a PL budget, and spending a bigger budget on more of the
+ * TWO FAMILIES SCALE: `cleanse` (user-locked 2026-08-17) and `control`
+ * (user-locked 2026-09-13). Cleanse's ruling — tier is a PL budget, and
+ * spending a bigger budget on more of the
  * same self-repair ability must be legal, exactly as it already is for a
  * heal — is a deliberate, named carve-out, not a reversal of the 2026-07-23
- * rule for anything else. Every OTHER cap family (control, dot, empower,
- * damage, shield, heal) stays frozen; `negate`/`ward`/`stun`/etc. do not move.
- * `effectCapDeci` grows a member of this set with `TIER_BUDGET_DECI[tier]`
- * exactly like a tier budget itself (base × budget / 100), so cleanse's cap
- * lands on 100/150/200/250 deci at Bronze/Silver/Gold/Diamond — the same
- * ladder the tier budgets themselves use.
+ * rule for anything else. Control scales so its Splash term and authored
+ * payload can grow with rank; Stun still cannot exceed one performance because
+ * `MAX_STUN_PER_CARD` is enforced separately. Every other cap family stays
+ * frozen. `effectCapDeci` grows a member of this set with `TIER_BUDGET_DECI[tier]`
+ * exactly like a tier budget itself (base × budget / 100), so both caps land
+ * on 100/150/200/250 deci at Bronze/Silver/Gold/Diamond for size 1 — the same
+ * ladder the tier budgets themselves use. `autoScaleTier` still freezes
+ * Control action magnitudes; explicit `tierUpgrades` author their growth.
  */
-const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set(['cleanse']);
+const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set(['control', 'cleanse']);
 
 /**
  * DAMAGE INSTANCES — the kinds that produce a separately-resolved hit. Instance
@@ -1639,9 +1640,8 @@ export const OFFENSIVE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KE
 /**
  * CARD-TARGETING kinds — the ones that land on one of the VICTIM'S BOARD CARDS
  * (`burden`, `curse`) rather than on the victim as a unit, and therefore the
- * exact set the `splash` SPREADER widens. (Pricing no longer reads this set:
- * `splash` prices at its own flat standalone rate, `PRICE.splashFlatDeci`,
- * user-locked 2026-08-21.)
+ * exact set the `splash` SPREADER widens. Pricing does not read this set:
+ * Splash prices standalone from whichever payload it widens.
  *
  * Read from the keyword table's own `cardTargeting` facet, so the content
  * validator (which refuses a splash with nothing to spread) and the gem gate
@@ -1661,8 +1661,7 @@ export const SCALABLE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEY
 
 /**
  * A family's per-size cap (sizes outside 1-3 clamp to the nearest row).
- * Flat families (damage/shield/heal) scale with the card's tier; the rest
- * ignore `tier`.
+ * Only the families named by `TIER_SCALED_FAMILIES` scale with card tier.
  */
 export function effectCapDeci(family: keyof typeof EFFECT_CAPS_DECI, size: number, tier: SkillTier = 'bronze'): number {
   const base = EFFECT_CAPS_DECI[family][Math.min(3, Math.max(1, size))]!;
@@ -1684,7 +1683,7 @@ export function capViolations(raw: SkillDef): string[] {
     // DIFFERENT family (the poison/thorns line that arms it), so a filtered
     // list alone would charge the discounted rate here and the full rate in
     // `powerLevelDeci` — a cap check quietly softer than the budget check.
-    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope, skill.effects);
+    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope, skill.effects, skill.tier);
   const check = (family: keyof typeof EFFECT_CAPS_DECI, kinds: ReadonlySet<Action['kind']>): void => {
     const deci = spent(kinds);
     const cap = effectCapDeci(family, skill.size, skill.tier);

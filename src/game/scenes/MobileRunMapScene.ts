@@ -110,9 +110,11 @@ export class MobileRunMapScene extends Phaser.Scene {
     // higher Phaser depth), but still real GameObjects the HUD audit's text-
     // bounds overlap check (rightly) flags, since it has no notion of one
     // object being drawn UNDER another. Skipping the trail while a modal owns
-    // the screen is the honest fix: nothing is drawn that could never be seen.
+    // the screen is the default for page-replacing modals. The stat sheet is
+    // the deliberate exception: its interactive scrim keeps the route inert.
     const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen || this.mapIntelOpen;
     if (!modalOpen) this.renderTrail(run);
+    else if (this.statPanelOpen) this.renderTrail(run);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -289,8 +291,12 @@ export class MobileRunMapScene extends Phaser.Scene {
         onSelect: () => {
           if (!pending) pickNode(node.id);
           if (node.kind === 'boss') { this.rerender(); return; }
-          if (node.kind === 'event' || node.kind === 'shop') {
-            this.destination.open(node.kind === 'event' ? 'MobileRunEvent' : 'MobileShop', node.id, options);
+          if (node.kind === 'event') {
+            this.scene.start('MobileRunEvent');
+            return;
+          }
+          if (node.kind === 'shop') {
+            this.destination.open('MobileShop', node.id, options);
             return;
           }
           this.scene.start('MobileRunPrep');

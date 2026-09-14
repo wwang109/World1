@@ -225,8 +225,9 @@ export function runBossCountdownModel(wave: number): { headline: string; sub: st
 }
 
 /**
- * THE run HUD strip — STOP · DAY · REGION DAY · GOLD · LV · LIVES · BOSSES, in that order,
- * on every run screen.
+ * THE run HUD summary. Compact keeps STOP · DAY · REGION DAY · GOLD · LV ·
+ * LIVES · BOSSES. Desktop omits LV because the persistent capability band
+ * now places it immediately before HP.
  *
  * STOP is absolute route depth; DAY is absolute; REGION DAY resets within
  * each five-day region.
@@ -256,10 +257,10 @@ export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): S
       // Absent at 0: a zero here is genuinely neutral (nothing is owed), and
       // the mobile strip's ~28-char budget is bought back the moment the
       // player spends.
-      {
+      ...(compact ? [{
         label: 'LV', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet',
         ...((facts.bankedPL ?? 0) > 0 ? { delta: `+${facts.bankedPL}` } : {}),
-      },
+      } satisfies StatSegment] : []),
       { label: compact ? '♥' : 'LIVES', value: `${facts.lives}`, kind: 'vital', tone: 'lead', alarm: critical },
       { label: compact ? 'B' : 'BOSSES', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'quiet' },
     ],
@@ -305,6 +306,29 @@ export function capabilityStatRun(
       tone: key === 'maxHp' ? 'lead' : 'normal',
       ...(gemDelta(key, gemAdds) !== undefined ? { delta: gemDelta(key, gemAdds)! } : {}),
     })),
+  };
+}
+
+/** Desktop Run HUD capability row. It uses the shared six-stat grammar while
+ * making HP's live/current meaning explicit as `current/max`. */
+export function playerHudStatRun(
+  stats: Readonly<CombatantStats>,
+  gemAdds: Partial<CombatantStats> = {},
+  heroLevel?: number,
+  bankedPL = 0,
+): StatRun {
+  const run = capabilityStatRun(stats, { gemAdds, compact: false });
+  return {
+    ...run,
+    segments: [
+      ...(heroLevel === undefined ? [] : [{
+        label: 'LV', value: `${heroLevel}`, kind: 'identity', tone: 'quiet',
+        ...(bankedPL > 0 ? { delta: `+${bankedPL}` } : {}),
+      } satisfies StatSegment]),
+      ...run.segments.map((segment, index) => (
+        index === 0 ? { ...segment, value: `${stats.hp}/${stats.maxHp}` } : segment
+      )),
+    ],
   };
 }
 
@@ -390,6 +414,19 @@ export function deckMetaStatRun(facts: DeckMetaFacts, compact = false): StatRun 
       { label: 'SLOTS', value: `${facts.used}/${facts.slots}`, kind: 'capacity', tone: 'lead' },
       { label: 'PL', value: `${facts.powerLevel}`, kind: 'cost', tone: 'normal' },
       { label: compact ? '◆' : 'GEMS', value: `${facts.gemsSocketed}/${facts.gemsOwned}`, kind: 'capacity', tone: 'quiet' },
+    ],
+  };
+}
+
+/** Run-context Bag meta. The shared HUD already owns LV and every live player
+ * stat, so this secondary line keeps only facts about the inventory itself. */
+export function deckInventoryMetaStatRun(facts: DeckMetaFacts): StatRun {
+  return {
+    separator: ' · ',
+    segments: [
+      { label: 'SLOTS', value: `${facts.used}/${facts.slots}`, kind: 'capacity', tone: 'lead' },
+      { label: 'PL', value: `${facts.powerLevel}`, kind: 'cost', tone: 'normal' },
+      { label: 'GEMS', value: `${facts.gemsSocketed}/${facts.gemsOwned}`, kind: 'capacity', tone: 'quiet' },
     ],
   };
 }

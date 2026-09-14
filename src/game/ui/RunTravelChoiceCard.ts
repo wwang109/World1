@@ -19,7 +19,7 @@ export interface RunTravelChoiceCardLayout {
   footer?: Rect;
   requirements?: { heading: Rect; lines: Rect[] };
   action: Rect;
-  dossier?: { terrain: Rect; summary: Rect; toggle?: Rect };
+  dossier?: { summary: Rect; toggle?: Rect };
 }
 
 /** Presentation only: kinds and event identity are owned by the supplied model. */
@@ -162,14 +162,13 @@ function encounterDossierLayout(bounds: Rect, model: RunTravelChoiceViewModel, o
   const title = { x, y: eyebrow.y + eyebrow.height + 5, width, height: compact ? 30 : 44 };
   const artH = compact ? 58 : Math.min(160, width * 0.52, height * 0.24);
   const art = { x, y: title.y + title.height + 8, width, height: artH };
-  const terrain = { x: x + 6, y: art.y + art.height - 20, width: width - 12, height: 16 };
   const action = { x, y: bounds.y + height - pad - 40, width, height: 40 };
   const footer = { x, y: action.y - 28, width, height: 20 };
   const summary = { x, y: footer.y - 24, width, height: 18 };
   const toggle = compact ? { x, y: summary.y - 36, width, height: 30 } : undefined;
   const detailY = art.y + art.height + 12;
   const detail = { x, y: detailY, width, height: Math.max(1, (toggle?.y ?? summary.y) - detailY - 8) };
-  return { bounds: { ...bounds, height }, eyebrow, title, art, detail, footer, action, dossier: { terrain, summary, toggle } };
+  return { bounds: { ...bounds, height }, eyebrow, title, art, detail, footer, action, dossier: { summary, toggle } };
 }
 
 export function runTravelChoiceCardMinHeight(
@@ -290,13 +289,8 @@ function renderEncounterDossier(
   text(layout.eyebrow, copy.eyebrow, 'kicker', colors.ink);
   text(layout.title, copy.title, opts.compact ? 'statValue' : 'section', 'primary');
   if (model.artKey) addRunArt(scene, model.artKey, layout.art!, model.enabled ? 1 : 0.5);
-  const terrain = layout.dossier!.terrain;
-  scene.add.rectangle(terrain.x - 6, terrain.y - 3, terrain.width + 12, 23, UI.panelMuted, 0.9).setOrigin(0, 0);
-  text(terrain, `REGION · ${dossier.region.toUpperCase()}`, 'micro', 'secondary');
   const detailed = !opts.compact || opts.expanded;
-  const cueLines = detailed ? [...new Set(dossier.roster.flatMap((member) => member.cues))] : [];
-  const cueH = cueLines.length ? Math.min(layout.detail.height * 0.33, cueLines.length * 22 + 8) : 0;
-  const rowH = Math.max(1, (layout.detail.height - cueH) / dossier.roster.length);
+  const rowH = Math.max(1, layout.detail.height / dossier.roster.length);
   dossier.roster.forEach((member, index) => {
     const row = { x: layout.detail.x, y: layout.detail.y + index * rowH, width: layout.detail.width, height: rowH };
     if (index > 0) scene.add.rectangle(row.x, row.y - 3, row.width, 1, UI.border, 0.5).setOrigin(0, 0);
@@ -304,8 +298,6 @@ function renderEncounterDossier(
     text({ ...row, y: row.y + rowH * 0.52, height: Math.max(1, rowH * 0.48 - 5) },
       `${member.tier}${detailed && member.archetypes ? ` · ${member.archetypes}` : ''}`, 'micro', 'secondary');
   });
-  if (cueLines.length) text({ x: layout.detail.x, y: layout.detail.y + layout.detail.height - cueH + 4, width: layout.detail.width, height: cueH - 4 },
-    cueLines.join('\n'), 'micro', 'accent');
   text(layout.dossier!.summary, `THREAT · ${dossier.danger}`, 'micro', colors.ink);
   text(layout.footer!, dossier.reward, 'label', 'gain');
   const button = (rect: Rect, value: string, onPress: () => void): void => {

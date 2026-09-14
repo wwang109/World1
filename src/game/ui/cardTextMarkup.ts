@@ -7,6 +7,14 @@
  *
  * The keyword id is the lowercased brace content; the display text keeps the
  * author's casing.
+ *
+ * EXPLICIT ID (2026-09-12): a token may instead be `{{Display|id}}` for the
+ * rare case where the word a face must SHOW and the keyword it must RESOLVE
+ * TO (colour, glossary heading) are two different things — e.g. Attuned
+ * Shield's face reads "Shield" (the hard-locked label) but must resolve to
+ * ITS OWN colour/heading, not plain Shield's (`KEYWORD_TEXT.attunedShield`,
+ * `src/engine/keywords/text.ts`). Every other authored token omits the pipe
+ * and keeps exactly today's behaviour: id = display text, lowercased.
  */
 
 export interface CardTextSegment {
@@ -17,6 +25,22 @@ export interface CardTextSegment {
 
 const MARKUP_PATTERN = /\{\{([^{}]+)\}\}/g;
 
+/**
+ * One `{{...}}` token's brace content, split into the DISPLAYED word (author's
+ * casing) and the lookup id (always lowercased) — the one place both halves
+ * of the explicit-id syntax are parsed, so `parseCardTextMarkup`,
+ * `stripCardTextMarkup` and `markedKeywords` cannot disagree on the split.
+ */
+function splitMarkupToken(raw: string): { display: string; id: string } {
+  const trimmed = raw.trim();
+  const pipeIndex = trimmed.indexOf('|');
+  if (pipeIndex === -1) return { display: trimmed, id: trimmed.toLowerCase() };
+  return {
+    display: trimmed.slice(0, pipeIndex).trim(),
+    id: trimmed.slice(pipeIndex + 1).trim().toLowerCase(),
+  };
+}
+
 /** Split text into plain and keyword segments, in order. */
 export function parseCardTextMarkup(text: string): CardTextSegment[] {
   const segments: CardTextSegment[] = [];
@@ -26,8 +50,8 @@ export function parseCardTextMarkup(text: string): CardTextSegment[] {
     if (index > lastIndex) {
       segments.push({ text: text.slice(lastIndex, index) });
     }
-    const token = match[1]!.trim();
-    segments.push({ text: token, keyword: token.toLowerCase() });
+    const { display, id } = splitMarkupToken(match[1]!);
+    segments.push({ text: display, keyword: id });
     lastIndex = index + match[0].length;
   }
   if (lastIndex < text.length) {
@@ -36,17 +60,17 @@ export function parseCardTextMarkup(text: string): CardTextSegment[] {
   return segments;
 }
 
-/** Plain rendering: `{{poison}}` -> `poison`. */
+/** Plain rendering: `{{poison}}` -> `poison`; `{{Shield|attuned}}` -> `Shield`. */
 export function stripCardTextMarkup(text: string): string {
-  return text.replace(MARKUP_PATTERN, (_match, token: string) => token.trim());
+  return text.replace(MARKUP_PATTERN, (_match, token: string) => splitMarkupToken(token).display);
 }
 
 /** Lowercased keyword ids marked in the text, in order, deduplicated. */
 export function markedKeywords(text: string): string[] {
   const keywords: string[] = [];
   for (const match of text.matchAll(MARKUP_PATTERN)) {
-    const keyword = match[1]!.trim().toLowerCase();
-    if (!keywords.includes(keyword)) keywords.push(keyword);
+    const { id } = splitMarkupToken(match[1]!);
+    if (!keywords.includes(id)) keywords.push(id);
   }
   return keywords;
 }

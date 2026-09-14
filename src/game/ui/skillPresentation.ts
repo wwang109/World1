@@ -1,6 +1,6 @@
 import { OFFENSIVE_KINDS } from '../../engine/balance';
 import { renderCtxOf } from '../../engine/keywords/compose';
-import { CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf } from '../../engine/keywords/text';
+import { attunedShieldLabel, CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf, HEADLINE_LABEL } from '../../engine/keywords/text';
 import { tierResolved, weightOf, type BuffableStat, type SkillDef } from '../../engine/types';
 import { STAT_TOKEN } from './statLabels';
 
@@ -352,7 +352,7 @@ export function summarizeEffectSegments(
   // card as an otherwise-identical single-target one. Led so it survives this
   // line's own ellipsis clamp (CardToken.ts) rather than being the first
   // thing truncated off a crowded face.
-  if (isAoeSkill(skill)) segments.push({ text: 'AOE' });
+  if (isAoeSkill(skill)) segments.push({ text: HEADLINE_LABEL.aoe });
   let damage = 0;
   let heal = 0;
   let shield = 0;
@@ -402,10 +402,24 @@ export function summarizeEffectSegments(
       // then the two facts that make it a different card from a plain shield:
       // the RATE and the TYPE it is tuned to.
       case 'attunedShield': {
+        // THIS CASE SURVIVES (2026-09-12 audit) only for what the pure
+        // registry cannot do: `effectLine` folds the CASTER's live
+        // Armor/Magic Resist into the printed number, the same live-stat
+        // treatment the plain `shield` line above gets. The LABEL WORD
+        // itself is not re-derived here any more — `attunedShieldLabel`
+        // (`engine/keywords/text.ts`) is the one place that decides "SHIELD"
+        // vs "SHIELD: LANCE", read by this case AND by that row's own
+        // `faceToken`, so the two cannot drift back into two spellings the
+        // way they did before this fix. `attunedType` is undefined only for
+        // a hypothetical TRUE-property card with neither element nor weapon
+        // (no shipped card does this — attunement has nothing to attune to);
+        // `attunedShieldLabel` already returns the bare `SHIELD` fallback for
+        // that case, never a dangling `SHIELD:`.
         const attunedType = skill.element ?? skill.weapon;
-        const attunedLine = effectLine('ATTUNED SHLD', action.power, skill.property, stats, skill.property !== 'true', mode, 'defense');
+        const attunedLabel = attunedShieldLabel(attunedType);
+        const attunedLine = effectLine(attunedLabel, action.power, skill.property, stats, skill.property !== 'true', mode, 'defense');
         extras.push({
-          text: attunedType === undefined ? attunedLine.text : `${attunedLine.text} (2x vs ${attunedType.toUpperCase()})`,
+          text: attunedLine.text,
           keyword: 'attuned',
           calculated: attunedLine.calculated,
         });
@@ -419,9 +433,9 @@ export function summarizeEffectSegments(
     }
     if (action.affinity === true) {
       const parts: string[] = [];
-      if (damage !== beforeDamage) parts.push(`${damage - beforeDamage} DMG`);
-      if (heal !== beforeHeal) parts.push(`${heal - beforeHeal} HEAL`);
-      if (shield !== beforeShield) parts.push(`${shield - beforeShield} SHIELD`);
+      if (damage !== beforeDamage) parts.push(`${damage - beforeDamage} ${HEADLINE_LABEL.damage}`);
+      if (heal !== beforeHeal) parts.push(`${heal - beforeHeal} ${HEADLINE_LABEL.heal}`);
+      if (shield !== beforeShield) parts.push(`${shield - beforeShield} ${HEADLINE_LABEL.shieldFull}`);
       damage = beforeDamage;
       heal = beforeHeal;
       shield = beforeShield;
@@ -433,7 +447,7 @@ export function summarizeEffectSegments(
       // — see `EffectSegment.gateClosed`'s doc comment for the exact rule and
       // why this is a caller-supplied boolean rather than something computed
       // here from `skill.element`/`skill.weapon` alone).
-      extras.push({ text: `${ownType === undefined ? 'AFFINITY' : ownType.toUpperCase()}:`, keyword: 'affinity' });
+      extras.push({ text: `${ownType === undefined ? HEADLINE_LABEL.affinity : ownType.toUpperCase()}:`, keyword: 'affinity' });
       extras.push({
         text: parts.join(' '),
         keyword: 'affinity',
@@ -449,13 +463,13 @@ export function summarizeEffectSegments(
   // "Gain 96 (+DEF) physical shield", and a 'DEF' label beside a now-'DEF' stat
   // token rendered the useless "DEF 96 +DEF". The label names the OUTPUT, the
   // token names the STAT; they must not be the same word.
-  const shieldLabel = 'SHLD';
+  const shieldLabel = HEADLINE_LABEL.shield;
   if (damage) {
-    const line = effectLine('DMG', damage, property, stats, true, mode, 'offense');
+    const line = effectLine(HEADLINE_LABEL.damage, damage, property, stats, true, mode, 'offense');
     segments.push({ text: line.text, calculated: line.calculated });
   }
   if (heal) {
-    const line = effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense');
+    const line = effectLine(HEADLINE_LABEL.heal, heal, property, stats, property !== 'true', mode, 'defense');
     segments.push({ text: line.text, calculated: line.calculated });
   }
   // Shield gets the 'shield' keyword color (KEYWORD_TEXT_COLOR) — unlike bare
@@ -471,11 +485,11 @@ export function summarizeEffectSegments(
     segments.push({ text: line.text, keyword: 'shield', calculated: line.calculated });
   }
   const weightReduction = skill.size * 10 - weightOf(skill);
-  if (weightReduction > 0) segments.push({ text: `LIGHTWEIGHT ${weightReduction}` });
-  else if (weightReduction < 0) segments.push({ text: `HEAVY ${-weightReduction}` });
+  if (weightReduction > 0) segments.push({ text: `${HEADLINE_LABEL.lightweight} ${weightReduction}` });
+  else if (weightReduction < 0) segments.push({ text: `${HEADLINE_LABEL.heavy} ${-weightReduction}` });
   segments.push(...extras);
   if (auraSegment) segments.push(auraSegment);
-  return segments.length > 0 ? segments : [{ text: 'PASSIVE' }];
+  return segments.length > 0 ? segments : [{ text: HEADLINE_LABEL.passive }];
 }
 
 export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed', affinityOpen?: boolean): string {

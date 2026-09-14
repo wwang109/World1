@@ -37,9 +37,10 @@ export function elementMatchup(attack: Element | undefined, affinity: Element | 
   return 'neutral';
 }
 
-/** Attacker's weapon type vs the defender's weapon affinity. Bows are always neutral. */
+/** Attacker card vs defender affinity. Beast attacks are neutral; Bow still beats Beast. */
 export function weaponMatchup(attack: WeaponType | undefined, affinity: WeaponType | undefined): Matchup {
   if (!attack || !affinity) return 'neutral';
+  if (attack === 'beast') return 'neutral';
   if (WEAPON_BEATS[attack] === affinity) return 'advantage';
   if (WEAPON_BEATS[affinity] === attack) return 'disadvantage';
   return 'neutral';

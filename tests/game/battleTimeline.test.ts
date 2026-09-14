@@ -1700,6 +1700,103 @@ describe('game/battleTimeline', () => {
   });
 });
 
+describe('battle log semantic body segments', () => {
+  const MULTI: BattleTimelineInput = {
+    ...BASE,
+    enemyTeam: [
+      { enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [] },
+      { enemyId: 'giant_rat', level: 1, title: 'normal', rank: 0, modifiers: [] },
+    ],
+  };
+
+  const semantic = (line: LogLine): Array<[string, string]> =>
+    (line.segments ?? []).filter((segment) => segment.role !== 'neutral')
+      .map((segment) => [segment.text, segment.role]);
+
+  it('START and READY color every combatant name while only SPD deltas use readiness mint', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 16, speedModifier: 0, speed: 16, readinessBefore: 0, readinessAfter: 16 },
+      { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 15, speedModifier: 0, speed: 15, readinessBefore: 0, readinessAfter: 15 },
+      { turn: 1, kind: 'gain', side: 'enemy', unit: 1, baseSpeed: 12, speedModifier: 0, speed: 12, readinessBefore: 0, readinessAfter: 12 },
+      { turn: 1, kind: 'end' },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const model = buildBattleTimeline(MULTI, { events, result: 'win', turns: 2 });
+    const lines = [...model.linesByTurn.values()].flat();
+    const start = lines.find((line) => line.tag === 'START')!;
+    const ready = lines.find((line) => line.tag === 'READY')!;
+
+    expect(semantic(start)).toEqual([
+      [model.heroName, 'player'],
+      [model.foes[0]!.name, 'enemy'],
+      [model.foes[1]!.name, 'enemy'],
+    ]);
+    expect(semantic(ready)).toEqual([
+      [model.heroName, 'player'], ['+16', 'readiness'],
+      [model.foes[0]!.name, 'enemy'], ['+15', 'readiness'],
+      [model.foes[1]!.name, 'enemy'], ['+12', 'readiness'],
+    ]);
+  });
+
+  it('PLAY colors its actor, multi-foe target, and BANKED value without coloring card or weight', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1, targetUnit: 1, targetPolicy: 'lowestHp' },
+      { turn: 1, kind: 'cost', side: 'player', unit: 0, readinessBefore: 16, readinessAfter: 10, paid: 6 },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const model = buildBattleTimeline(MULTI, { events, result: 'win', turns: 2 });
+    const play = [...model.linesByTurn.values()].flat().find((line) => line.tag === 'PLAY')!;
+    expect(semantic(play)).toEqual([
+      [model.heroName, 'player'],
+      [`${model.foes[1]!.name} #2`, 'enemy'],
+      ['10', 'readiness'],
+    ]);
+  });
+
+  it('colors direct damage, healing, shield gain, and both blocked and drained shield values', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'damage', side: 'enemy', unit: 0, amount: 18, blocked: 0, property: 'physical', hpAfter: 82, source: 'skill' },
+      { turn: 1, kind: 'damage', side: 'player', unit: 0, amount: 20, blocked: 12, property: 'physical', hpAfter: 92, source: 'skill', shieldDrain: { physical: 12, magical: 0, true: 0 } },
+      { turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 7, overheal: 0, flat: false, hpAfter: 99 },
+      { turn: 1, kind: 'shieldGain', side: 'player', unit: 0, property: 'magical', amount: 9, wasted: 0, totalAfter: 9 },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+    const lines = [...model.linesByTurn.values()].flat();
+    expect(semantic(lines.find((line) => line.text.includes('−18'))!)).toEqual([
+      [model.foeName, 'enemy'], ['−18', 'damage'],
+    ]);
+    expect(semantic(lines.find((line) => line.text.includes('12 BLOCKED'))!)).toEqual([
+      [model.heroName, 'player'], ['8 DMG', 'damage'], ['12 BLOCKED', 'shield'], ['P.SHIELD -12', 'shield'],
+    ]);
+    expect(semantic(lines.find((line) => line.text.includes('+7 HP'))!)).toEqual([
+      [model.heroName, 'player'], ['+7 HP', 'heal'],
+    ]);
+    expect(semantic(lines.find((line) => line.text.includes('+9 M.SHIELD'))!)).toEqual([
+      [model.heroName, 'player'], ['+9 M.SHIELD', 'shield'],
+    ]);
+  });
+
+  it.each(['poison', 'burn', 'bleed'] as const)('%s tick uses its canonical ailment role', (source) => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'damage', side: 'enemy', unit: 0, amount: 6, blocked: 0, property: 'physical', hpAfter: 94, source },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+    const effect = [...model.linesByTurn.values()].flat().find((line) => line.tag === 'EFFECT')!;
+    expect(semantic(effect)).toEqual([[model.foeName, 'enemy'], ['−6', source]]);
+  });
+
+  it('semantic metadata is additive: every segmented row reconstructs its legacy text byte-for-byte', () => {
+    const model = timeline(BASE);
+    const segmented = [...model.linesByTurn.values()].flat().filter((line) => line.segments !== undefined);
+    expect(segmented.length).toBeGreaterThan(10);
+    for (const line of segmented) {
+      expect(line.segments!.map((segment) => segment.text).join(''), `${line.tag}: ${line.text}`).toBe(line.text);
+    }
+  });
+});
+
 /**
  * RESOLVED AFFINITY (2026-09-06, re-solved) — THE BOARD IS THE ONLY SOURCE
  * (`docs/board-type-identity.md`: "affinity are just passive buffs based on

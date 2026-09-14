@@ -14,34 +14,10 @@ import {
 import type { Element, EnemyDef, WeaponType } from '../../src/engine/types';
 import { EXPECTED_ON_LEAN, onLeanCount } from '../fixtures/bandLeanCounts';
 
-/**
- * The band forecast's ROW LIST (`src/run/bandForecastRows.ts`) — the one
- * ordered walk both `biomeForecast.ts#renderBandForecast` (the terminal
- * serializer) and `bandBannerViewModel.ts` (the Phaser card) now consume,
- * replacing the pre-refactor shape where the Phaser side read the ASCII
- * renderer's OWN OUTPUT (`renderBandForecast(f).split('\n')`) — a string
- * pre-wrapped and pre-indented for a monospaced terminal.
- *
- * STRUCTURAL REFACTOR ONLY: this suite does not re-litigate whether a claim
- * is TRUE the way `tests/run/biomeForecastCounter.test.ts` does at length —
- * it holds three NEW properties the row list introduces:
- *
- *   1. TRUTH AT THE ROW LEVEL — a claim row's `types` is checked against the
- *      engine's OWN matchup math (`elementMatchup`/`weaponMatchup`), and its
- *      `block` is read directly off the row rather than inferred from
- *      indentation the way `biomeForecastCounter.test.ts#parseBlocks` has to.
- *   2. TOTALITY — every row, of every style, yields at least one line on
- *      BOTH sides. A `continue` or a filter that silently drops a style
- *      would fail this even if a byte-identical-output test stayed green.
- *   3. NO ORPHAN FACTS — each renderer's full output is EXACTLY the
- *      concatenation of its own per-row composer over `bandForecastRows`, in
- *      order — nothing hand-appended outside the fold.
- *
- * `tests/run/biomeForecastCounter.test.ts` (untouched by this refactor) still
- * pins `renderBandForecast`'s exact bytes; `tests/game/bandBannerViewModel.test.ts`
- * still pins that the banner agrees with the card. This file is the one that
- * would fail if the shared row list itself dropped or mis-attributed a fact.
- */
+/** The shared forecast retains every internal fact. The terminal prints all
+ * rows, while the player-facing Explore card deliberately omits claim and
+ * bossEntryCounter rows. Tests retain internal truth, exact terminal bytes,
+ * complete non-counter content, and the phone-width contract. */
 
 /** Every type name a counter claim could legitimately print. */
 const COUNTER_VOCABULARY: readonly string[] = [
@@ -201,18 +177,19 @@ describe('bandForecastRows: block membership and claim truth', () => {
       expect(bossRow?.style === 'claim' && bossRow.claim.kind).toBe('unsure');
       if (bossRow?.style !== 'claim') continue;
       expect(rowToAsciiLines(bossRow).join(' ')).toBe('no counter is sure.');
-      expect(rowToCardLines(bossRow).join(' ')).toBe('no counter is sure.');
+      expect(rowToCardLines(bossRow)).toEqual([]);
     }
   });
 });
 
 describe('bandForecastRows: totality — no style is silently dropped', () => {
-  it('every row yields at least one ASCII line and one card line', () => {
+  it('every internal row remains in ASCII; Explore omits only counter rows', () => {
     let rowsSeen = 0;
     for (const f of sampleForecasts()) {
       for (const row of bandForecastRows(f)) {
         expect(rowToAsciiLines(row).length).toBeGreaterThanOrEqual(1);
-        expect(rowToCardLines(row).length).toBeGreaterThanOrEqual(1);
+        if (row.style === 'claim' || row.style === 'bossEntryCounter') expect(rowToCardLines(row)).toEqual([]);
+        else expect(rowToCardLines(row).length).toBeGreaterThanOrEqual(1);
         rowsSeen++;
       }
     }
@@ -261,7 +238,11 @@ describe('bandForecastRows: totality — no style is silently dropped', () => {
       '  omen',
     ];
     expect(bandForecastRows(split).flatMap((row) => rowToAsciiLines(row))).toEqual(expected);
-    expect(bandForecastRows(split).flatMap((row) => rowToCardLines(row))).toEqual(expected);
+    expect(bandForecastRows(split).flatMap((row) => rowToCardLines(row))).toEqual([
+      'TEST REACH', '[NATURE] w1-5', 'Read every path.', '', 'BOSS',
+      '  one of these:', '  Ash Face', '  Storm Face', '', 'MOBS', '  Test Mob',
+      '', 'SHOPS', '  Test Shop', '', 'EVENTS', '  omen',
+    ]);
   });
 
   it('pins the unresolved-empty and long definite claim branches', () => {
@@ -270,9 +251,10 @@ describe('bandForecastRows: totality — no style is silently dropped', () => {
     expect(emptyLines).toContain('  (unresolved)');
     expect(emptyLines).not.toContain('  one of these:');
     const colonLines = bandForecastRows(colonFlip!).flatMap((row) => rowToCardLines(row));
-    expect(colonLines).toEqual(renderBandForecast(colonFlip!).split('\n'));
-    expect(colonLines).toContain('+50% on this boss:');
-    expect(colonLines).toContain('lightning and nature.');
+    expect(colonLines).toContain('  Test Boss');
+    expect(colonLines.join('\n')).not.toMatch(/counter|hits? |\+50%/i);
+    expect(renderBandForecast(colonFlip!)).toContain('+50% on this boss:');
+    expect(renderBandForecast(colonFlip!)).toContain('lightning and nature.');
   });
 });
 
@@ -291,9 +273,20 @@ describe('bandForecastRows: no orphan facts', () => {
     }
   });
 
-  it('the invariant this refactor must not break: the two renderers stay byte-identical', () => {
+  it('Explore keeps names, shops and events without modifying internal forecast facts', () => {
     for (const f of sampleForecasts()) {
-      expect(bandBannerViewModel(f).card.join('\n')).toBe(renderBandForecast(f));
+      const before = structuredClone(f);
+      const asciiBefore = renderBandForecast(f);
+      const card = bandBannerViewModel(f).card;
+      expect(card.join('\n')).not.toMatch(/counter|hits? |\+50%/i);
+      expect(card).toContain(f.name.toUpperCase());
+      expect(card).toContain(f.tagline);
+      if (f.boss) expect(card).toContain(`  ${f.boss.name}`);
+      for (const boss of f.bossCandidates) if (!f.boss) expect(card).toContain(`  ${boss.name}`);
+      for (const entry of [...f.mobs, ...f.shops]) expect(card).toContain(`  ${entry.name}`);
+      for (const theme of f.eventThemes) expect(card).toContain(`  ${theme}`);
+      expect(f).toEqual(before);
+      expect(renderBandForecast(f)).toBe(asciiBefore);
     }
   });
 

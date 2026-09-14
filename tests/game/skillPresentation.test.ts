@@ -309,8 +309,9 @@ describe('summarizeEffects — desktop composition mode', () => {
 
 // User ruling (2026-08-20): splash's face unit is WT — "BAND" was internal
 // jargon. A broader token sweep was reverted the same day ("I didn't tell
-// you to change other only the ones i requested") — SLOW/CLEANSE keep their
-// long-standing forms. comboBonus was RE-RULED later the same day: it may say
+// you to change other only the ones i requested"). CLEANSE keeps its
+// long-standing form; SLOW was separately re-ruled on 2026-09-13 as `SLOW N`.
+// comboBonus was RE-RULED later the same day: it may say
 // COMBO (the user's own word), but ONLY paired with battle playback greying
 // the token out when the combo isn't live (see CardToken's `comboLive` /
 // battleTimeline's `isComboLive` — tests in battleTimeline.test.ts pin that
@@ -336,9 +337,9 @@ describe('summarizeEffects — ruled token forms', () => {
     expect(summarizeEffects(skill)).toBe('CURSE -4 DMG 2t');
   });
 
-  it('SLOW keeps its long-standing bare form (sweep reverted per user)', () => {
+  it('SLOW uses the compact amount with no redundant sign or unit', () => {
     const skill = makeSkill({ effects: [{ kind: 'slow', weight: 6 }] });
-    expect(summarizeEffects(skill)).toBe('SLOW +6');
+    expect(summarizeEffects(skill)).toBe('SLOW 6');
   });
 
   it('CLEANSE keeps its long-standing bare count (sweep reverted per user)', () => {
@@ -368,9 +369,12 @@ describe('summarizeEffects — ruled token forms', () => {
  * the loudest possible form of this bug, and it is what these tests pin.
  */
 describe('summarizeEffects — ATTUNED SHIELD', () => {
-  it('prints the plating, the 2-for-1 rate, and the type it is tuned to', () => {
+  it('prints the plating and the type it is tuned to, as its own label', () => {
+    // LABEL RENAMED 2026-09-12 (user-locked): `SHIELD: LANCE` IS the label
+    // now — the 2-for-1 rate moved to the glossary (`Attuned Shield` entry,
+    // unchanged) rather than being spelled out on the face as `(2x vs LANCE)`.
     const skill = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
-    expect(summarizeEffects(skill)).toBe('ATTUNED SHLD 24 (2x vs LANCE)');
+    expect(summarizeEffects(skill)).toBe('SHIELD: LANCE 24');
   });
 
   it('takes the defensive stat, exactly like the plain shield line beside it', () => {
@@ -380,15 +384,15 @@ describe('summarizeEffects — ATTUNED SHIELD', () => {
     // magical one — never Attack.
     const physical = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
     expect(summarizeEffects(physical, { attack: 99, magicPower: 0, armor: 6, magicResist: 0 }))
-      .toBe('ATTUNED SHLD 30 (2x vs LANCE)');
+      .toBe('SHIELD: LANCE 30');
     const magical = makeSkill({ property: 'magical', element: 'fire', effects: [{ kind: 'attunedShield', power: 24 }] });
     expect(summarizeEffects(magical, { attack: 0, magicPower: 99, armor: 0, magicResist: 4 }))
-      .toBe('ATTUNED SHLD 28 (2x vs FIRE)');
+      .toBe('SHIELD: FIRE 28');
   });
 
   it("composition mode names the stat, the same as the plain shield line", () => {
     const skill = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
-    expect(summarizeEffects(skill, undefined, 'composition')).toBe('ATTUNED SHLD 24 +DEF (2x vs LANCE)');
+    expect(summarizeEffects(skill, undefined, 'composition')).toBe('SHIELD: LANCE 24 +DEF');
   });
 
   it('does NOT fold into the plain shield total — they are different currencies', () => {
@@ -399,7 +403,7 @@ describe('summarizeEffects — ATTUNED SHIELD', () => {
       weapon: 'sword',
       effects: [{ kind: 'shield', power: 14 }, { kind: 'attunedShield', power: 8 }],
     });
-    expect(summarizeEffects(skill)).toBe('SHLD 14 · ATTUNED SHLD 8 (2x vs SWORD)');
+    expect(summarizeEffects(skill)).toBe('SHLD 14 · SHIELD: SWORD 8');
   });
 
   it('an AFFINITY-gated attuned shield fills its gate label instead of dangling', () => {
@@ -409,14 +413,18 @@ describe('summarizeEffects — ATTUNED SHIELD', () => {
     });
     // The label and payload remain separate rich segments so only the payload
     // can dim, but they form one grammatical badge with a plain-space joiner.
-    expect(summarizeEffects(skill)).toBe('SHLD 14 · SWORD: ATTUNED SHLD 8 (2x vs SWORD)');
+    // The type is named twice here (gate label + the payload's own new
+    // "SHIELD: SWORD" label) — a pre-existing quirk of the gate wrap, not
+    // introduced by the rename: the old string named it twice too
+    // ("SWORD: ATTUNED SHLD 8 (2x vs SWORD)").
+    expect(summarizeEffects(skill)).toBe('SHLD 14 · SWORD: SHIELD: SWORD 8');
   });
 
   it('every shipped card carrying the keyword actually prints it', () => {
     const cards = Object.values(skillBook).filter((c) => c.effects.some((a) => a.kind === 'attunedShield'));
     expect(cards.length, 'the keyword has shipped content — this test is not vacuous').toBeGreaterThan(0);
     for (const card of cards) {
-      expect(summarizeEffects(card), card.id).toContain('ATTUNED SHLD');
+      expect(summarizeEffects(card), card.id).toContain('SHIELD:');
     }
   });
 });
@@ -496,7 +504,7 @@ describe('summarizeEffectSegments — affinity gate display state (2026-09-06)',
       ],
     });
     const segments = summarizeEffectSegments(skill, undefined, 'summed', false);
-    const payload = segments.find((s) => s.text.startsWith('ATTUNED SHLD'));
+    const payload = segments.find((s) => s.text.startsWith('SHIELD:'));
     expect(payload!.gateClosed).toBe(true);
     expect(segments.find((s) => s.text === 'SWORD:')!.gateClosed).toBeFalsy();
   });

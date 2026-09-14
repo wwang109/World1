@@ -2,14 +2,12 @@ import { enemies } from '../../data/enemies';
 import type { LoadedEventDef } from '../../data/eventsContent';
 import { shopCatalog } from '../../data/shopTypes';
 import { skillBook } from '../../data/skills';
-import { MODIFIER_PRESETS } from '../../data/modifiers';
 import { BAND_WAVES, biomeFor } from '../../run/biome';
 import { battleGoldReward } from '../../run/shop';
 import type { EncounterPack } from '../../run/encounter';
 import { eventRequirementReceipt } from '../../run/eventRequirementReceipt';
 import type { RunNode, RunNodeKind, RunState } from '../../run/runState';
 import { UI, type InkRole } from '../theme';
-import { affixMapFooter, presentEliteAffix } from './affixPresentation';
 import { eventThemeBlurb } from './eventThemeBlurb';
 import { biomeArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
 import { shopMapFooter } from './shopMapFooter';
@@ -26,8 +24,7 @@ export interface RunTravelChoiceViewModel {
   enabled: boolean;
   dossier?: {
     difficulty: string;
-    region: string;
-    roster: { name: string; level: number; tier: string; archetypes: string; cues: string[] }[];
+    roster: { name: string; level: number; tier: string; archetypes: string }[];
     danger: string;
     reward: string;
   };
@@ -102,25 +99,14 @@ export function buildRunTravelChoiceViewModel(
     const biome = biomeFor(state.seed, node.wave, node.biomeId);
     const dossier = node.kind === 'fight' && encounter ? {
       difficulty: node.fightOption ? FIGHT_TIER_LABEL[node.fightOption] : '',
-      region: biome.name,
       roster: encounter.units.map((unit) => {
         const cards = unit.setup.pieces.flatMap((piece) => skillBook[piece.skillId] ? [skillBook[piece.skillId]!] : []);
-        const elements = [...new Set(cards.flatMap((card) => card.element ? [card.element] : []))];
-        const weapons = [...new Set(cards.flatMap((card) => card.weapon ? [card.weapon] : []))];
         const archetypes = [...new Set(cards.flatMap((card) => card.archetypes))];
-        const modifiers = unit.modifiers.flatMap((id) => MODIFIER_PRESETS[id] ? [MODIFIER_PRESETS[id]!.name] : []);
-        const affix = presentEliteAffix(unit.affix);
         return {
           name: enemies[unit.enemyId]?.name ?? unit.enemyId,
           level: unit.effectiveLevel,
           tier: unit.title === 'boss' ? 'MINIBOSS' : unit.title.toUpperCase(),
           archetypes: archetypes.join(' / ').toUpperCase(),
-          cues: [
-            ...(elements.length ? [`ELEMENT · ${elements.join(' / ').toUpperCase()}`] : []),
-            ...(weapons.length ? [`WEAPON · ${weapons.join(' / ').toUpperCase()}`] : []),
-            ...(modifiers.length ? [`MODIFIERS · ${modifiers.join(' / ')}`] : []),
-            ...(affix ? [affix.chipLabel] : []),
-          ],
         };
       }),
       danger: `${encounter.units.length} ${encounter.units.length === 1 ? 'FOE' : 'FOES'} · ${encounter.units.reduce((sum, unit) => sum + unit.setup.pieces.length, 0)} CARDS`,
@@ -136,7 +122,6 @@ export function buildRunTravelChoiceViewModel(
       title: encounterDestinationLabel(node, encounter)
         ?? (node.fightOption ? `FIGHT · ${FIGHT_TIER_LABEL[node.fightOption]}` : 'FIGHT'),
       detail: encounter ? encounterHintDetail(encounter, node.kind === 'fight' ? node.fightOption : undefined) : '',
-      ...affixMapFooter(encounter),
       ...(dossier ? { dossier, artKey: biomeArtKey(biome.id) } : {}),
       ...(node.kind === 'boss' ? { artKey: RUN_ART_KEYS.icon.bossSkull } : {}),
     };

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 
 import { classifyShopShelfGesture } from '../../src/game/ui/shopGestureArbitration';
 import { desktopShopShelfLayout } from '../../src/game/ui/desktopShopLayout';
@@ -23,12 +22,6 @@ describe('shop Card Details redesign', () => {
     expect(classifyShopShelfGesture(20, 4)).toBe('drag');
   });
 
-  it('names the offer modal Card Details on both platforms', () => {
-    const desktop = readFileSync('src/game/scenes/DesktopShopScene.ts', 'utf8');
-    const mobile = readFileSync('src/game/scenes/MobileShopScene.ts', 'utf8');
-
-    expect(desktop).toContain('Card Details');
-    expect(mobile).toContain('Card Details');
-    expect(desktop).not.toContain('renderDock(shopId)');
-  });
+  // Rendered title/actions and real scene routing are exercised by
+  // cardDetailsDrawer.test.ts and cardDetailSceneActivation.test.ts.
 });

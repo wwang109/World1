@@ -105,30 +105,28 @@ export function elementEntry(element: Element): GlossaryEntry {
     const opposite = element === 'holy' ? 'Dark' : 'Holy';
     return {
       title: `${capitalize(element)} element`,
-      body: `Deals +50% damage to enemies with ${opposite} Affinity. Deals normal damage to enemies with ${capitalize(element)} Affinity.`,
+      body: `Deals +50% damage against ${opposite} Affinity.`,
     };
   }
   const index = ELEMENT_ORDER.indexOf(element);
   const beats = ELEMENT_ORDER[(index + 1) % ELEMENT_ORDER.length]!;
-  const beatenBy = ELEMENT_ORDER[(index + ELEMENT_ORDER.length - 1) % ELEMENT_ORDER.length]!;
   return {
     title: `${capitalize(element)} element`,
-    body: `Deals +50% damage against ${capitalize(beats)} Affinity and -25% damage against ${capitalize(beatenBy)} Affinity.`,
+    body: `Deals +50% damage against ${capitalize(beats)} Affinity.`,
   };
 }
 
 export function weaponEntry(weapon: WeaponType): GlossaryEntry {
   if (weapon === 'bow') {
-    return { title: 'Bow weapon', body: 'Deals +50% damage to enemies with Beast Affinity. Has no other weapon matchup.' };
+    return { title: 'Bow weapon', body: 'Deals +50% damage against Beast Affinity.' };
   }
   if (weapon === 'beast') {
-    return { title: 'Beast weapon', body: 'Deals -25% damage to enemies with Bow Affinity. Bow attacks deal +50% damage to enemies with Beast Affinity. Has no other weapon matchup.' };
+    return { title: 'Beast weapon', body: 'Deals neutral damage to all types.' };
   }
   const beats = WEAPON_TRIANGLE[weapon]!;
-  const beatenBy = (Object.keys(WEAPON_TRIANGLE) as WeaponType[]).find((key) => WEAPON_TRIANGLE[key] === weapon)!;
   return {
     title: `${capitalize(weapon)} weapon`,
-    body: `Deals +50% damage against ${capitalize(beats)} Affinity and -25% damage against ${capitalize(beatenBy)} Affinity.`,
+    body: `Deals +50% damage against ${capitalize(beats)} Affinity.`,
   };
 }
 
@@ -228,7 +226,23 @@ export function skillKeywordEntries(raw: SkillDef): GlossaryEntry[] {
   if (skill.aura) {
     push(AURA_RULE_ENTRY);
   }
-  if (skill.effects.filter((action) => action.kind === 'damage').length > 1) {
+  // ONLY UNCONDITIONAL damage lines count toward Multi-Hit. An `affinity`-gated
+  // second hit is exactly what `countDamageActions` (combat/interpreter.ts)
+  // excludes from its own divisor, and what `kindred_flame`'s content notes
+  // spell out as a pricing rule: "the premium prices a hit COUNT the card
+  // RELIABLY has, and a gated hit makes that count board-dependent — one hit
+  // off-type, two on-type." A card that hits once off its own type and twice
+  // on it is not reliably a two-hit card, so it does not get the keyword.
+  // (`minTier` needs no matching check of its OWN here — but a `minTier`
+  // action that SURVIVES `tierResolved` above is not automatically
+  // unconditional: `{ affinity: true, minTier: 'diamond' }` is a documented
+  // composite (`src/engine/types.ts`, the five capstones' shape) that exists
+  // only from Diamond and, once it exists, still only fires on the right
+  // board. `tierResolved` only ever removes the tier gate; it is the
+  // `affinity !== true` clause below — already needed for the ungated
+  // `affinity` case — that catches this one too, because the composite still
+  // carries `affinity: true` after the tier strip.)
+  if (skill.effects.filter((action) => action.kind === 'damage' && action.affinity !== true).length > 1) {
     push(MULTI_HIT_RULE_ENTRY);
   }
   if (weightOf(skill) < skill.size * 10) {

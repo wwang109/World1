@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ACTIVE_PROFILE } from './layoutProfile';
 import { setViewport, viewport } from './viewport';
 import { rebuildScene } from './sceneRebuild';
+import { resolveBrowserViewportSize } from './ui/mobileDraftLayout';
 
 /**
  * Canvas sizing -- "fill the window" plus device-pixel-ratio rendering.
@@ -41,9 +42,9 @@ import { rebuildScene } from './sceneRebuild';
  *    canvas before the browser scales the canvas up).
  *
  *    So `installFillHost` sizes the PARENT element to `window x DPR` physical
- *    pixels and pins the canvas itself to `100vw x 100vh` with CSS. Phaser
- *    therefore builds a full-density backing store, while the canvas still
- *    displays at exactly the window size. Phaser's own input maths stays
+ *    pixels and pins the canvas itself to the live visible viewport with CSS.
+ *    Phaser therefore builds a full-density backing store, while the canvas
+ *    still displays at exactly the visible window size. Phaser's own input maths stays
  *    correct without help: `displayScale` is derived from
  *    `baseSize / canvas.getBoundingClientRect()`, which is precisely DPR.
  */
@@ -68,11 +69,24 @@ export function devicePixels(): number {
 }
 
 /** The CSS size the canvas fills -- the browser window. */
-function cssSize(): { width: number; height: number } {
+function cssSize(): { width: number; height: number; left: number; top: number } {
   const host = typeof document === 'undefined' ? null : document.getElementById('app');
-  const width = window.innerWidth || host?.clientWidth || DESIGN.width;
-  const height = window.innerHeight || host?.clientHeight || DESIGN.height;
-  return { width, height };
+  if (typeof window === 'undefined') return { width: DESIGN.width, height: DESIGN.height, left: 0, top: 0 };
+  const useVisualViewport = ACTIVE_PROFILE.id === 'mobile';
+  const style = useVisualViewport ? window.getComputedStyle(document.documentElement) : null;
+  const safe = (name: string): number => Math.max(0, Number.parseFloat(style?.getPropertyValue(name) ?? '0') || 0);
+  const resolved = resolveBrowserViewportSize(window, useVisualViewport, {
+    top: safe('--w1-safe-top'),
+    right: safe('--w1-safe-right'),
+    bottom: safe('--w1-safe-bottom'),
+    left: safe('--w1-safe-left'),
+  });
+  return {
+    width: resolved.width || host?.clientWidth || DESIGN.width,
+    height: resolved.height || host?.clientHeight || DESIGN.height,
+    left: resolved.left,
+    top: resolved.top,
+  };
 }
 
 /**
@@ -132,16 +146,22 @@ export function installFillHost(): () => void {
   host.style.top = '0';
   host.style.overflow = 'hidden';
   // The canvas is pinned to the VISUAL window while its backing store follows
-  // the (DPR-inflated) parent -- see the module doc, part 2.
+  // the (DPR-inflated) parent. Mobile uses VisualViewport pixel variables so
+  // dynamic browser chrome and safe-area insets cannot cover the footer.
   const style = document.createElement('style');
-  style.textContent = '#app > canvas { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; }';
+  style.textContent = '#app > canvas { position: fixed; left: var(--w1-viewport-left, 0px); top: var(--w1-viewport-top, 0px); width: var(--w1-viewport-width, 100vw); height: var(--w1-viewport-height, 100vh); }';
   document.head.appendChild(style);
 
   const size = (): void => {
     const dpr = devicePixels();
-    const { width, height } = cssSize();
+    const { width, height, left, top } = cssSize();
     host.style.width = String(Math.round(width * dpr)) + 'px';
     host.style.height = String(Math.round(height * dpr)) + 'px';
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--w1-viewport-left', `${left}px`);
+    rootStyle.setProperty('--w1-viewport-top', `${top}px`);
+    rootStyle.setProperty('--w1-viewport-width', `${width}px`);
+    rootStyle.setProperty('--w1-viewport-height', `${height}px`);
     publishViewport();
   };
   size();
@@ -263,6 +283,10 @@ export function installRenderScale(game: Phaser.Game): void {
       if (viewportChanged) relayoutScene(scene);
     }
   });
+  // VisualViewport resize does not consistently emit a Window resize on
+  // mobile Safari. `main.ts` sizes the parent first, then this later-registered
+  // listener asks Phaser to re-read that parent and emit its normal RESIZE.
+  window.visualViewport?.addEventListener('resize', () => game.scale.refresh());
 }
 
 /**

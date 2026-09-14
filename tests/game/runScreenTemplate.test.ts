@@ -117,13 +117,22 @@ describe('runScreenTemplate', () => {
     expect(overlaps(hitRects[1]!, hitRects[2]!)).toBe(false);
   });
 
-  it('preserves the distinct compact desktop action geometry', () => {
+  it('places desktop actions on the same row as the player-stat band', () => {
     const template = runScreenTemplate('desktop');
 
-    expect(template.regions.actions).toEqual({ x: 948, y: 74, width: 460, height: 34 });
+    expect(template.regions.actions).toEqual({ x: 948, y: 76, width: 460, height: 34 });
+    expect(template.regions.actions.y).toBe(template.regions.badge.y);
     expect(template.actionSlots.secondary.height).toBe(34);
     expect(template.actionSlots.tertiary.height).toBe(34);
     expect(template.actionSlots.primary.height).toBe(34);
+  });
+
+  it('reserves the desktop row left side for player stats/PL and reclaims the old action row without changing mobile', () => {
+    const desktop = runScreenTemplate('desktop');
+    expect(desktop.regions.badge).toEqual({ x: 32, y: 76, width: 904, height: 34 });
+    expect(desktop.regions.content.y).toBe(122);
+    expect(runScreenTemplate('mobile').regions.badge).toEqual({ x: 10, y: 56, width: 392, height: 16 });
+    expect(runScreenTemplate('mobile').regions.content.y).toBe(122);
   });
 
   // ---- statsOnly chrome (battle's HUD, 2026-08-04 decision) — kicker/title/

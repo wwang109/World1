@@ -1,5 +1,18 @@
 # Icon Generation Prompts — copy one block per generation
 
+## GEM RARITY JEWELS (2026-09-13)
+
+One isolated faceted elongated jewel per transparent square image, matching the
+selected compact GEM DETAILS reference: icy white/cyan Common, blue Rare,
+violet Epic, amber/gold Legendary. No text, frames, checkerboard or UI chrome.
+The four families are visual rarity identities, not a gem upgrade ladder.
+
+Masters: `art-src/ui/gems/{common,rare,epic,legendary}.png`.
+Derivatives: `public/game-art/ui/gems/{common,rare,epic,legendary}.webp`.
+Encode only `npm run art:encode -- --group gems` (max height 256, quality 0.84).
+Preload keys: `gem-rarity-{rarity}`. `GemToken` contain-fits the asset for
+Shop shelves, owned inventory and the shared Shop/Deck gem inspector.
+
 ## WEAPONS
 
 ```

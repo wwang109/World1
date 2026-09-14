@@ -26,6 +26,7 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
+import { renderBattleLogLine } from '../ui/battleLogLine';
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -621,7 +622,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       prevTurn = t;
       this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
       const textMaxW = w - (textX - x) - (line.detail ? 30 : 16);
-      this.boundedText(textX, ly, line.text, { fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.text }, textMaxW);
+      renderBattleLogLine(this, textX, ly, line, { fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.text }, textMaxW);
       if (line.detail) {
         this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
         const zone = this.add.rectangle(x, ly - 3, w, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });

@@ -349,6 +349,12 @@ export const INK = {
   alarm: '#ef7b61',
   /** How much ROOM there is: deck slots, gem sockets, card counts. 5.74 */
   capacity: '#7fb2d9',
+  /** Enemy identity inside combat-log BODY rows; headers/tags keep their existing palette. */
+  combatEnemy: '#e49fae',
+  /** Shield gained, blocked, or drained inside combat-log BODY rows. */
+  combatShield: '#8eb8e8',
+  /** SPD deltas and BANKED readiness; pale mint, deliberately distinct from healing green. */
+  readiness: '#b6dac7',
   /** Dark ink for text sitting ON a bronze/accent fill. 7.10 on `UI.chip`. */
   onAccent: '#1a1208',
   /** Dark ink for text sitting ON a danger fill. 4.76 on `UI.bad`. */

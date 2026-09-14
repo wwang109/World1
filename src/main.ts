@@ -32,6 +32,8 @@ import { devicePixels, installFillHost, installRenderScale, manageTextResolution
 const sizeFillHost = installFillHost();
 window.addEventListener('resize', sizeFillHost);
 window.addEventListener('orientationchange', sizeFillHost);
+window.visualViewport?.addEventListener('resize', sizeFillHost);
+window.visualViewport?.addEventListener('scroll', sizeFillHost);
 
 // Phaser has already registered `text`; register alone refuses an existing
 // key. Wrap its original factory so all normal Text behavior is preserved.

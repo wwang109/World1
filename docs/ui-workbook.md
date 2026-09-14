@@ -363,9 +363,10 @@ await page.screenshot({ path: 'runmap-desktop.png' });
 await browser.close();
 ```
 
-## Reference captures (`docs/screenshots/`)
+## Review captures
 
-Committed captures are point-in-time references — many predate the current
-scenes (720×1280 era). Trust only captures you re-take against the current
-routes; when a screen changes materially, re-capture at both profiles and
-commit alongside the change.
+Do not keep point-in-time screenshots or HTML mockups in tracked documentation;
+they become misleading as the scenes evolve. Capture the current routes at both
+required profiles into `tmp/`, inspect them during review, and record the route,
+viewport, console, and layout-audit evidence in the local SDD ledger. Git history
+retains any old committed captures needed for historical archaeology.

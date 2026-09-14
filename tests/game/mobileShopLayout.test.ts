@@ -2,13 +2,45 @@ import { describe, expect, it } from 'vitest';
 import { shopTypeIds } from '../../src/data/shopTypes';
 import { MOBILE_PROFILE } from '../../src/game/layoutProfile';
 import {
+  activateMobileShopCard,
+  closeMobileShopCardDetails,
   mobileShopConfirmButtonLayout,
   mobileShopPage,
+  mobileRunShopBrowseLayout,
   mobileShopShelfHeaderLayout,
   mobileShopStorefrontLayout,
 } from '../../src/game/ui/mobileShopLayout';
 
 describe('mobile shop layout', () => {
+  it.each([[392, 438], [412, 740], [412, 892]])('keeps the Run Shop browse flow fixed inside %ix%i', (width, height) => {
+    const layout = mobileRunShopBrowseLayout(width, height);
+
+    expect(layout.tabs.cards.y).toBeGreaterThanOrEqual(layout.header.y + layout.header.height);
+    expect(layout.shelf.height).toBeGreaterThanOrEqual(120);
+    expect(layout.owned.y).toBeGreaterThanOrEqual(layout.shelf.y + layout.shelf.height);
+    expect(layout.pouch.y).toBeGreaterThanOrEqual(layout.owned.y + layout.owned.height);
+    expect(layout.sell.y).toBeGreaterThanOrEqual(layout.pouch.y + layout.pouch.height);
+    expect(layout.footer.y).toBeGreaterThanOrEqual(layout.sell.y + layout.sell.height);
+    expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(height - 6);
+    expect(layout.footer.leave.width).toBeGreaterThanOrEqual(120);
+    expect(layout.footer.buy.width).toBeGreaterThanOrEqual(120);
+  });
+
+  it('selects on the first card tap, opens on the completed same-card activation, and keeps selection after close', () => {
+    const initial = { selectedCardIndex: null, detailCardIndex: null };
+    const selected = activateMobileShopCard(initial, 2, false);
+    expect(selected).toEqual({ selectedCardIndex: 2, detailCardIndex: null });
+
+    const opened = activateMobileShopCard(selected, 2, true);
+    expect(opened).toEqual({ selectedCardIndex: 2, detailCardIndex: 2 });
+    expect(closeMobileShopCardDetails(opened)).toEqual({ selectedCardIndex: 2, detailCardIndex: null });
+  });
+
+  it('moves selection without opening details when the second tap targets another card', () => {
+    const selected = { selectedCardIndex: 1, detailCardIndex: null };
+    expect(activateMobileShopCard(selected, 4, false)).toEqual({ selectedCardIndex: 4, detailCardIndex: null });
+  });
+
   it('separates the 412x892 storefront gold balance from its heading and keeps the catalog in two columns', () => {
     const layout = mobileShopStorefrontLayout(
       MOBILE_PROFILE.canvas.width,

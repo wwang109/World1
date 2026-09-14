@@ -102,7 +102,7 @@ describe('(A) registry self-consistency: every rule-bearing keyword invites its 
   it('defines Aura once outside the Action-only registry', () => {
     expect(AURA_RULE_ENTRY).toEqual({
       title: 'Aura',
-      body: 'Provides effects to affected cards within range.',
+      body: 'Buffs your other cards in range.',
     });
   });
 

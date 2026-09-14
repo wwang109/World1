@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { renderGemDetailsDrawer, type GemDetailsSlot } from '../ui/gemDetailsDrawer';
+import { CardDetailActivation } from '../ui/cardDetailActivation';
+import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { instancePowerLevelDeci } from '../../engine/balance';
@@ -9,8 +12,6 @@ import { buildAutoHeroSetup } from '../../run/encounter';
 import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
 import { nextSkillTier } from '../../run/shop';
 import { gemBook } from '../../data/gems';
-import { stripCardTextMarkup } from '../ui/cardTextMarkup';
-import { GEM_RARITY_COLOR } from '../theme';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
@@ -19,16 +20,14 @@ import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '..
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntries } from '../ui/gemPresentation';
 import { cardHoverEntries } from '../ui/cardHoverEntries';
-import { powerLevelEntry } from '../ui/cardGlossary';
-import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { deckMetaStatRun, pouchStatRun } from '../ui/statRunModel';
+import { deckInventoryMetaStatRun, deckMetaStatRun, pouchStatRun } from '../ui/statRunModel';
 import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { renderGemText } from '../../engine/keywords/gemText';
 import {
   currentHeroAllocation, currentHeroLevel,
   commitRunDeckEdit,
@@ -76,6 +75,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    *  rebuild idiom exactly like `pendingTrash` (it IS a pending dialog). */
   private pendingMerge: { target: MergeSource; dragged: MergeSource } | null = null;
   /** Deck piece instanceId whose gem-socket panel is open (survives restart). */
+  private readonly detailActivation = new CardDetailActivation();
+  private inspectCard: Source | null = null;
   private socketFor: string | null = null;
   private layout!: ColLayout;
   private draggables: Array<{ token: CardToken; bounds: Phaser.Geom.Rectangle; src: Source }> = [];
@@ -91,6 +92,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    * flip elsewhere never tears a single frame. */
   private runContext = false;
   private retireConfirmOpen = false;
+  private statPanelOpen = false;
 
   constructor() { super('DesktopDeck'); }
 
@@ -128,9 +130,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.trashTop = 0;
     this.trashH = 0;
     this.runContext = getDeckBuildContext() === 'run';
+    this.statPanelOpen = false;
   }
 
   create(): void {
+    this.detailActivation.reset();
     this.draggables = [];
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     // Hero-scope stat gems (e.g. +4 SPD) fold in here too, the SAME math the
@@ -144,9 +148,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.renderHolding();
     this.renderColumns();
     this.renderTrash();
+    this.wireDrag();
     if (this.pendingTrash) this.renderConfirm();
     if (this.pendingMerge) this.renderMergeConfirm();
     if (this.socketFor) this.renderSocketPanel();
+    if (this.inspectCard) this.renderCardDetails();
     if (this.retireConfirmOpen) {
       // `onCancel`/`onConfirm` don't need to manually consume the pointer
       // here (unlike the shop scenes) — this scene's `wireDrag` guards on
@@ -158,7 +164,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
       });
     }
-    this.wireDrag();
+    if (this.runContext && this.statPanelOpen) {
+      renderRunStatPanel(this, {
+        compact: false,
+        onCancel: () => { this.statPanelOpen = false; this.rerender(); },
+        onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
+        onChanged: () => this.rerender(),
+      });
+    }
   }
 
   /** THE run HUD — identical header on every run screen. ‹ MAP is this
@@ -171,6 +184,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       screen: 'DECK',
       compact: false,
       snapshot: snapshotRunProgress(run),
+      onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
       actions: {
         back: { label: '‹ MAP', onPress: () => this.scene.start('DesktopRunMap') },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
@@ -199,9 +213,9 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       // this — the flag is cleared in the same synchronous handler, before
       // the rebuild. This structural guard is what actually protects it.
       if (wasPointerConsumedByRebuild(this, p)) return;
-      if (this.pendingTrash || this.pendingMerge || this.socketFor || this.retireConfirmOpen) return; // dialog/panel owns input
+      if (this.pendingTrash || this.pendingMerge || this.socketFor || this.inspectCard || this.statPanelOpen || this.retireConfirmOpen) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
-      if (!hit) return;
+      if (!hit) { this.detailActivation.reset(); return; }
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
       totalMove = 0;
       start = { x: p.worldX, y: p.worldY };
@@ -212,6 +226,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
       totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
+      if (totalMove >= 6) this.detailActivation.reset();
       dragging.token.setPosition(p.worldX, p.worldY);
       if (dropHint) {
         const { top, colH, colW, rowH, gap, deckX, bagX } = this.layout;
@@ -221,6 +236,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
           dropHint.setVisible(true).setPosition(x, top + row * (rowH + gap)).setSize(colW, rowH);
         } else dropHint.setVisible(false);
       }
+    });
+    this.input.on('pointerupoutside', () => {
+      this.detailActivation.reset();
+      if (dragging) dragging.token.setPosition(dragging.home.x, dragging.home.y).setDepth(0).setAlpha(1);
+      dragging = null; dropHint?.destroy(); dropHint = null; ghost?.destroy(); ghost = null;
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       // Symmetric with the `pointerdown` guard above — Phaser's
@@ -233,19 +253,41 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       if (wasPointerConsumedByRebuild(this, p)) return;
       if (!dragging) return;
       const src = dragging.src;
+      dragging.token.setPosition(dragging.home.x, dragging.home.y).setDepth(0).setAlpha(1);
       dragging = null;
       dropHint?.destroy(); dropHint = null;
       ghost?.destroy(); ghost = null;
-      // A CLICK (no real movement) on a DECK card opens its gem-socket panel
-      // instead of resolving as a drop.
-      if (totalMove < 6 && src.where === 'deck') {
-        playSfx('uiClick');
-        this.socketFor = src.instanceId;
-        this.rerender();
+      if (totalMove < 6) {
+        const key = src.where === 'deck' ? `deck:${src.instanceId}` : src.where === 'bag' ? `bag:${src.index}` : 'hold';
+        if (this.detailActivation.release(key, p.upTime)) {
+          this.inspectCard = src;
+          this.rerender();
+        }
         return;
       }
+      this.detailActivation.reset();
       this.resolveDrop(src, p.worldX, p.worldY);
       this.rerender(); // mutations applied above; re-render (snaps back if no move)
+    });
+  }
+
+  private renderCardDetails(): void {
+    const src = this.inspectCard;
+    if (!src) return;
+    const piece = src.where === 'deck' ? this.pieces.find(p => p.instanceId === src.instanceId) : null;
+    const card = src.where === 'deck' ? piece : src.where === 'bag' ? this.bagSlots[src.index] : this.hold;
+    if (!card) { this.inspectCard = null; return; }
+    const base = skillBook[card.skillId];
+    if (!base) { this.inspectCard = null; return; }
+    const shown = piece ? resolveDisplaySkill(base, piece) : applyTier(base, card.tier);
+    renderCardDetailsDrawer(this, shown, {
+      compact: false,
+      gem: piece?.gem ? gemBook[piece.gem.id] : null,
+      powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
+      onClose: () => { this.inspectCard = null; this.rerender(); },
+      primaryAction: piece ? { label: 'GEM SOCKET', enabled: true, onPress: () => {
+        this.inspectCard = null; this.socketFor = piece.instanceId; this.rerender();
+      } } : undefined,
     });
   }
 
@@ -372,7 +414,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // reader sees the same eight facts, the same lead on SLOTS, the same PL
     // `cost` ink, just at desktop's own role sizes.
     const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2 - 10;
-    renderStatRun(this, deckMetaStatRun({
+    const facts = {
       heroLevel: this.heroLevel,
       stats,
       gemAdds,
@@ -381,7 +423,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       powerLevel: Math.round(plDeci / 10),
       gemsSocketed,
       gemsOwned: gemsSocketed + this.gemInventory.length,
-    }), { x: SCREEN.width - gx, y, maxWidth: SCREEN.width - gx * 2, align: 'right' });
+    };
+    renderStatRun(this, this.runContext ? deckInventoryMetaStatRun(facts) : deckMetaStatRun(facts), {
+      x: SCREEN.width - gx, y, maxWidth: SCREEN.width - gx * 2, align: 'right',
+    });
   }
 
   /** Dashed rectangle border (matches mobile's transfer/trash strip style). */
@@ -473,6 +518,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, deckX + colW / 2, rowTop(row) + h / 2, skill, {
           width: colW, height: h, side: 'left', slotLabel: label, deck: deckSkills, stats: this.heroStats,
+          onInspect: () => { this.inspectCard = { where: 'deck', instanceId: piece.instanceId, card: piece }; this.rerender(); },
           // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆
           // badge; while gems WAIT in the pouch, an empty socket shows the
           // muted ◇ outline in the same rail slot — the existing badge's
@@ -494,6 +540,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     for (let row = 0; row < SLOTS; row++) {
       const card = this.bagSlots[row];
       if (card) {
+        const detailIndex = row;
         // Tier fold (display-only, no gem — bag cards can't hold one) so a
         // bag card's face — including whether it reads AoE — matches its
         // OWN owned tier, not always the bronze base.
@@ -502,7 +549,9 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         const span = this.sizeOf(card.skillId);
         const h = rowH * span + gap * (span - 1);
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
-        const tok = new CardToken(this, bagX + colW / 2, rowTop(row) + h / 2, skill, { width: colW, height: h, side: 'right', slotLabel: label, deck: bagSkills, stats: this.heroStats });
+        const tok = new CardToken(this, bagX + colW / 2, rowTop(row) + h / 2, skill, { width: colW, height: h, side: 'right', slotLabel: label, deck: bagSkills, stats: this.heroStats,
+          onInspect: () => { this.inspectCard = { where: 'bag', index: detailIndex, card }; this.rerender(); },
+        });
         this.makeDraggable(tok, { where: 'bag', index: row, card: { ...card } });
         this.attachCardHover(tok, skill);
         row += span - 1;
@@ -543,7 +592,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // run's baseline the same way `renderStatRun` aligns its own pieces.
     // `textRole('micro')` — no new px/hex literal, the ratchet stays put.
     const pouchRun = renderStatRun(this, pouchStatRun(pouchCount), { x: bagX, y: py - 10, maxWidth: colW - 8 });
-    this.add.text(pouchRun.endX + 8, py - 10 + pouchRun.height, '— click a deck card to socket', textRole('micro')).setOrigin(0, 1);
+    this.add.text(pouchRun.endX + 8, py - 10 + pouchRun.height, '— double-click for details / gem socket', textRole('micro')).setOrigin(0, 1);
   }
 
   /** TRASH strip along the bottom of the content area. */
@@ -579,7 +628,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const entries = cardHoverEntries(skill);
     const gemDef = gem ? gemBook[gem.id] : undefined;
     if (gemDef) entries.push(...gemHoverEntries(gemDef));
-    addHoverTipZone(this, { x: tok.x - tok.width / 2, y: tok.y - tok.height / 2, w: tok.width, h: tok.height }, entries);
+    // Keep the outward info controls above their own hit area instead of covering them with this later hover zone.
+    addHoverTipZone(this, { x: tok.x - tok.width / 2 + 44, y: tok.y - tok.height / 2, w: Math.max(1, tok.width - 88), h: tok.height }, entries);
   }
 
   private resolveDrop(src: Source, px: number, py: number): void {
@@ -707,116 +757,47 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    * `this.gemInventory`.
    */
   private renderSocketPanel(): void {
-    const piece = this.pieces.find((p) => p.instanceId === this.socketFor);
+    const piece = this.pieces.find(p => p.instanceId === this.socketFor);
     if (!piece) { this.socketFor = null; return; }
     const skill = skillBook[piece.skillId];
     if (!skill) { this.socketFor = null; return; }
-
     const close = (): void => { this.socketFor = null; this.rerender(); };
-    const scrim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
-    scrim.on('pointerdown', () => { playSfx('uiBack'); close(); });
-
-    const pouch = this.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
-    const rowH = 52;
-    const pw = 520;
-    // Fixed-height "what this card does" block — scrollable (see
-    // `renderCardInfoBox`) so a keyword-heavy card never grows the panel.
-    const INFO_H = 128;
-    const listH = Math.max(1, pouch.length) * (rowH + 8);
-    const ph = 120 + INFO_H + 14 + listH + 24;
-    const px = (SCREEN.width - pw) / 2;
-    const py = Math.max(40, (SCREEN.height - ph) / 2);
-    this.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
-
-    const basePl = (instancePowerLevelDeci(skill, { gem: null }) / 10).toFixed(0);
-    const totalPl = (instancePowerLevelDeci(skill, { gem: piece.gem ?? null }) / 10).toFixed(0);
-    this.add.text(px + 20, py + 14, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: `${F.name}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(px + pw - 20, py + 18, 'click outside to close', { fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body }).setOrigin(1, 0);
-
-    // Card info block: full skill text + a glossary entry for every
-    // abbreviation the card face uses (drag/wheel-scrollable if it overflows).
-    // Resolved (tier + socketed-gem) so this text matches the face's number —
-    // NOT fed into the PL numbers above, which price the base card only (see
-    // `resolveDisplaySkill`'s doc comment on why those must stay separate).
-    const infoTop = py + 40;
-    this.add.text(px + 20, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
-    this.add.rectangle(px + 20, infoTop, pw - 40, INFO_H, UI.panel, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    renderCardInfoBox(this, px + 20, infoTop, pw - 40, INFO_H, resolveDisplaySkill(skill, piece), { gem: piece.gem ? gemBook[piece.gem.id] : null });
-
-    // Current socket row.
-    const curY = infoTop + INFO_H + 14;
-    this.add.rectangle(px + 20, curY, pw - 40, rowH, UI.panelMuted, 0.8).setOrigin(0, 0).setStrokeStyle(1, piece.gem ? GEM_RARITY_COLOR[piece.gem.rarity] : UI.border, 0.9);
-    if (piece.gem) {
-      const gem = piece.gem;
-      // The engine's structural Gem has no display name/text — resolve via the catalog.
-      const gemDef = gemBook[gem.id];
-      const bonus = gemDef ? stripCardTextMarkup(renderGemText(gemDef)) : '';
-      this.add.rectangle(px + 40, curY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(px + 56, curY + 8, `${gemDef?.name ?? gem.id} — ${bonus}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
-      // Rank only for the gem — no PL arithmetic breakdown (PL still gates
-      // pricing via gemAudit.test.ts; this is display-only).
-      const plLine = this.add.text(px + 56, curY + 28, gemDef ? `POWER ${totalPl} · ${gemDef.rarity.toUpperCase()} gem` : `POWER ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
-      addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
-      if (gemDef) addHoverTipZone(this, { x: px + 20, y: curY, w: pw - 40, h: rowH / 2 }, gemHoverEntries(gemDef));
-      const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
-      this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-      un.on('pointerdown', () => {
+    const slots: GemDetailsSlot[] = [];
+    const current = piece.gem ? gemBook[piece.gem.id] : undefined;
+    if (current) slots.push({ key: 'socket', label: 'SOCKETED', gem: current, action: {
+      label: 'UNSOCKET', enabled: true, onPress: () => {
         playSfx('uiClick');
         const { piece: updated, gem: removed } = unsocketGem(piece);
-        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
+        this.pieces = this.pieces.map(p => p.instanceId === piece.instanceId ? updated : p);
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
         close();
-      });
-    } else {
-      const emptyLine = this.add.text(px + 40, curY + rowH / 2, `Empty socket · POWER ${basePl}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
-      addHoverTipZone(this, { x: emptyLine.x, y: emptyLine.y - emptyLine.height / 2, w: emptyLine.width, h: emptyLine.height }, [powerLevelEntry()]);
-    }
-
-    // Pouch list.
-    let ly = curY + rowH + 18;
-    this.add.text(px + 20, ly - 12, `GEM POUCH · ${pouch.length}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
-    if (pouch.length === 0) {
-      // Context-split copy (a66eca4): the WIKI pointer is a SANDBOX fact —
-      // the wiki (and its ADD TO POUCH) is unreachable mid-run, where gems
-      // come from event grants and shop stock instead. Pointing a run player
-      // at a sandbox tab was one leg of the "my gems vanished" misread.
-      this.add.text(px + 20, ly + 10, this.runContext
+      },
+    } });
+    this.gemInventory.forEach((id, index) => {
+      const gem = gemBook[id];
+      if (!gem) return;
+      slots.push({ key: `pouch:${index}`, label: `POUCH ${index + 1}`, gem, action: {
+        label: piece.gem ? 'SWAP' : 'SOCKET', enabled: true, onPress: () => {
+          if (this.gemInventory[index] !== gem.id) return;
+          const result = piece.gem ? swapGem(piece, gem) : { piece: socketGem(piece, gem), displaced: null };
+          if (!result.piece) return;
+          playSfx('uiClick');
+          this.gemInventory = this.gemInventory.filter((_, i) => i !== index);
+          this.pieces = this.pieces.map(p => p.instanceId === piece.instanceId ? result.piece! : p);
+          if (result.displaced) this.gemInventory = [...this.gemInventory, result.displaced.id];
+          close();
+        },
+      } });
+    });
+    renderGemDetailsDrawer(this, current ?? slots[0]?.gem ?? null, {
+      compact: false, view: { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height },
+      onClose: close, context: skill.name,
+      slots, selectedKey: slots[0]?.key,
+      emptyText: this.runContext
         ? 'No gems in the pouch — events and shops on the map grant them.'
-        : 'No gems in the pouch — collect some in the WIKI › GEMS tab.', { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: FONT.body });
-    }
-    pouch.forEach((gem, index) => {
-      const rowY = ly + 8 + index * (rowH + 8) - 8;
-      this.add.rectangle(px + 20, rowY, pw - 40, rowH, UI.panel, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-      this.add.rectangle(px + 40, rowY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(px + 56, rowY + 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
-      // Rarity is the rank; the bonus text is the headline info. No PL shown.
-      const desc = this.add.text(px + 56, rowY + 28, stripCardTextMarkup(renderGemText(gem)), { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
-      let s = stripCardTextMarkup(renderGemText(gem));
-      while (s.length > 1 && desc.width > pw - 220) { s = s.slice(0, -1); desc.setText(`${s}…`); }
-      addHoverTipZone(this, { x: px + 20, y: rowY, w: pw - 40, h: rowH }, gemHoverEntries(gem));
-      const act = this.add.rectangle(px + pw - 130, rowY + 8, 96, rowH - 16, UI.chip).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
-      this.add.text(px + pw - 82, rowY + rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-      act.on('pointerdown', () => {
-        playSfx('uiClick');
-        // consume ONE copy of this gem id from the pouch
-        const at = this.gemInventory.indexOf(gem.id);
-        if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);
-        let updated = piece;
-        let displaced: typeof piece.gem | null = null;
-        if (piece.gem) {
-          const result = swapGem(piece, gem);
-          updated = result.piece;
-          displaced = result.displaced;
-        } else {
-          updated = socketGem(piece, gem) ?? piece;
-        }
-        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
-        if (displaced) this.gemInventory = [...this.gemInventory, displaced.id];
-        close();
-      });
+        : 'No gems in the pouch — collect some in the WIKI › GEMS tab.',
     });
   }
-
   private renderConfirm(): void {
     const src = this.pendingTrash!;
     const skill = skillBook[src.card.skillId];

@@ -1,7 +1,14 @@
 {
-  // Start "World1: dev + api" (Run Task) first, then launch one of these to
-  // open the running game in a debuggable browser. Add ?scene=desktop-prep,
-  // ?scene=mprep, etc. per docs/ui-workbook.md "Launch routes".
+  // F5 = "World1: dev + api (Edge)" -- it runs the "World1: dev + api" task
+  // (Vite :5173 + battle service :8787, both required by the thin-client rule)
+  // and only opens the browser once BOTH have reported ready.
+  //
+  // VSCode's F5 default is whatever the Run and Debug dropdown last had
+  // selected, falling back to the FIRST entry here. Keep the dev + api config
+  // first so a fresh checkout gets the working one.
+  //
+  // Add ?scene=desktop-prep, ?scene=mprep, etc. per docs/ui-workbook.md
+  // "Launch routes".
   "version": "0.2.0",
   "configurations": [
     {
@@ -10,29 +17,54 @@
       "request": "launch",
       "preLaunchTask": "World1: dev + api",
       "url": "http://localhost:5173/",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "presentation": { "group": "1-run", "order": 1 }
     },
     {
-      "name": "World1: open game (Edge)",
+      "name": "World1: dev + api (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "World1: dev + api",
+      "url": "http://localhost:5173/",
+      "webRoot": "${workspaceFolder}",
+      "presentation": { "group": "1-run", "order": 2 }
+    },
+    {
+      "name": "World1: dev + api, mobile (Edge, 412x892)",
+      "type": "msedge",
+      "request": "launch",
+      "preLaunchTask": "World1: dev + api",
+      "url": "http://localhost:5173/?scene=mprep",
+      "webRoot": "${workspaceFolder}",
+      "runtimeArgs": ["--window-size=412,892"],
+      "presentation": { "group": "1-run", "order": 3 }
+    },
+    {
+      "name": "World1: open game only (Edge, servers already up)",
       "type": "msedge",
       "request": "launch",
       "url": "http://localhost:5173/",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "presentation": { "group": "2-attach", "order": 1 }
     },
     {
-      "name": "World1: open game (Chrome)",
+      "name": "World1: open game only (Chrome, servers already up)",
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:5173/",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "presentation": { "group": "2-attach", "order": 2 }
     },
     {
-      "name": "World1: mobile layout (Edge, 412x892)",
-      "type": "msedge",
+      "name": "World1: debug battle api (server)",
+      "type": "node",
       "request": "launch",
-      "url": "http://localhost:5173/?scene=mprep",
-      "webRoot": "${workspaceFolder}",
-      "runtimeArgs": ["--window-size=412,892"]
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "api"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "presentation": { "group": "3-server", "order": 1 }
     }
   ]
 }

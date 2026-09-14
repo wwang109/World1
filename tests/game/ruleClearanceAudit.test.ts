@@ -17,6 +17,8 @@ import {
   type FantasyTemplateTextRuleKey,
 } from '../../src/game/ui/fantasyCardTemplateSpec';
 import { skillBook } from '../../src/data/skills';
+import { createRun } from '../../src/run/runState';
+import { clearRun, installDevRunFixture } from '../../src/game/runStore';
 
 /**
  * RULE CLEARANCE AUDIT — a hairline may never be drawn through the thing it is
@@ -226,6 +228,8 @@ function makeScene(): { scene: unknown; record: () => Recording } {
 
 const SNAPSHOT: RunProgressSnapshot = {
   day: 12, wave: 7, gold: 148, heroLevel: 5, lives: 3, bossesCleared: 1, wins: 9, losses: 2,
+  heroStats: { maxHp: 105, hp: 83, attack: 2, magicPower: 3, armor: 4, magicResist: 5, speed: 14 },
+  heroGemAdds: { speed: 4 },
 };
 
 /** Every action role a run screen can populate — the WORST case for the rule,
@@ -255,6 +259,122 @@ const VIEWS: Record<'mobile' | 'desktop', Array<{ width: number; height: number 
 };
 
 describe('rule clearance: the shared run HUD header rule', () => {
+  it('draws the player capability row on desktop while mobile keeps its compact header', () => {
+    const render = (compact: boolean): Recording => {
+      setViewport(compact ? { width: 412, height: 892 } : { width: 1440, height: 900 });
+      const { scene, record } = makeScene();
+      renderRunHud(scene as never, { screen: 'RUN', snapshot: SNAPSHOT, compact, actions: allActions() });
+      const rec = record();
+      resetViewport();
+      return rec;
+    };
+
+    const desktopText = render(false).texts.map((text) => text.content);
+    expect(desktopText).toEqual(expect.arrayContaining(['LV', ' 5', 'HP', ' 83/105', 'ATK', 'MATK', 'DEF', 'MDEF', 'SPD']));
+
+    const mobileText = render(true).texts.map((text) => text.content);
+    expect(mobileText).not.toContain('83/105');
+    expect(mobileText).not.toContain('ATK');
+  });
+
+  it('desktop: Run and Bag keep identical stat geometry and LV owns the PL affordance', () => {
+    setViewport({ width: 1440, height: 900 });
+    installDevRunFixture({ ...createRun(43), heroLevel: 2 });
+    const template = runScreenLayout('desktop');
+    const runRender = makeScene();
+    renderRunHud(runRender.scene as never, {
+      screen: 'RUN',
+      snapshot: { ...SNAPSHOT, heroLevel: 2, bankedPL: 3 },
+      compact: false,
+      actions: allActions(),
+      onOpenStatPanel: () => {},
+    });
+    const bagRender = makeScene();
+    renderRunHud(bagRender.scene as never, {
+      screen: 'DECK',
+      snapshot: { ...SNAPSHOT, heroLevel: 2, bankedPL: 3 },
+      compact: false,
+      actions: allActions(),
+    });
+    const rec = runRender.record();
+    const bagRec = bagRender.record();
+    clearRun();
+    resetViewport();
+
+    const statBodies = new Set(['LV', ' 2', 'HP', ' 83/105', 'ATK', 'MATK', 'DEF', 'MDEF', 'SPD']);
+    const statTexts = rec.texts.filter((entry) => (
+      statBodies.has(entry.content) && entry.top >= template.regions.badge.y
+    ));
+    for (const body of statBodies) {
+      expect(statTexts.some((entry) => entry.content === body), `missing desktop stat text ${body}`).toBe(true);
+    }
+    const statBounds = {
+      left: Math.min(...statTexts.map((entry) => entry.left)),
+      top: Math.min(...statTexts.map((entry) => entry.top)),
+      right: Math.max(...statTexts.map((entry) => entry.left + entry.width)),
+      bottom: Math.max(...statTexts.map((entry) => entry.top + entry.height)),
+    };
+    expect(rec.texts.some((entry) => entry.content === '3 PL TO SPEND')).toBe(false);
+    expect(rec.texts.some((entry) => entry.content === ' +3')).toBe(true);
+    const lvButton = rec.rects.find((entry) => (
+      entry.interactive && entry.top === template.regions.badge.y && entry.left < template.regions.actions.x
+    ));
+    expect(lvButton).toBeDefined();
+
+    const statContents = new Set(['LV', ' 2', ' +3', 'HP', ' 83/105', 'ATK', 'MATK', 'DEF', 'MDEF', 'SPD']);
+    const positions = (recording: Recording) => recording.texts
+      .filter((entry) => statContents.has(entry.content) && entry.top >= template.regions.badge.y)
+      .map(({ content, left, top }) => ({ content, left, top }));
+    expect(positions(rec).filter((entry) => entry.content !== ' +3')).toEqual(
+      positions(bagRec).filter((entry) => entry.content !== ' +3'),
+    );
+
+    const band = template.regions.badge;
+    expect(band.width).toBeGreaterThanOrEqual(900);
+    expect(statBounds.left).toBeGreaterThanOrEqual(band.x);
+    expect(statBounds.top).toBeGreaterThanOrEqual(band.y);
+    expect(statBounds.bottom).toBeLessThanOrEqual(band.y + band.height);
+    expect(statBounds.right).toBeLessThanOrEqual(band.x + band.width);
+    expect(statTexts.find((entry) => entry.content === ' 83/105')!.fontSize).toBeGreaterThanOrEqual(16);
+  });
+
+  it('desktop: every player-stat segment is icon-led and remains inside the stat band', () => {
+    setViewport({ width: 1440, height: 900 });
+    installDevRunFixture({ ...createRun(43), heroLevel: 2 });
+    const template = runScreenLayout('desktop');
+    const { scene, record } = makeScene();
+    renderRunHud(scene as never, {
+      screen: 'RUN',
+      snapshot: { ...SNAPSHOT, heroLevel: 2, bankedPL: 3 },
+      compact: false,
+      actions: allActions(),
+      onOpenStatPanel: () => {},
+    });
+    const rec = record();
+    clearRun();
+    resetViewport();
+
+    const iconLabelPairs = [
+      ['★', 'LV'],
+      ['♥', 'HP'],
+      ['⚔', 'ATK'],
+      ['✦', 'MATK'],
+      ['🛡', 'DEF'],
+      ['♦', 'MDEF'],
+      ['➤', 'SPD'],
+    ] as const;
+    for (const [glyph, label] of iconLabelPairs) {
+      const iconText = rec.texts.find((entry) => entry.content === glyph);
+      const labelText = rec.texts.find((entry) => entry.content === label);
+      expect(iconText, `${label} is missing its ${glyph} glyph`).toBeDefined();
+      expect(labelText).toBeDefined();
+      expect(iconText!.left).toBeLessThan(labelText!.left);
+      expect(labelText!.left - (iconText!.left + iconText!.width)).toBeGreaterThanOrEqual(3);
+      expect(labelText!.left - (iconText!.left + iconText!.width)).toBeLessThanOrEqual(10);
+      expect(iconText!.left + iconText!.width).toBeLessThanOrEqual(template.regions.badge.x + template.regions.badge.width);
+    }
+  });
+
   for (const platform of ['mobile', 'desktop'] as const) {
     for (const view of VIEWS[platform]) {
       const label = `${platform} @ ${view.width}x${view.height}`;
@@ -362,10 +482,11 @@ describe('rule clearance: the shared run HUD header rule', () => {
         expect(offenders).not.toEqual([]);
         expect(offenders.some((o) => o.startsWith('tap band'))).toBe(true);
       } else {
-        // The same expression was harmless here, which is exactly why the
-        // constant was believed correct: 116 against a row ending at 108.
-        expect(legacyY).toBe(116);
-        expect(offenders).toEqual([]);
+        // Desktop now also places actions in the shared y=76..110 middle row,
+        // so the legacy content-relative formula cuts that row as well.
+        expect(legacyY).toBe(108);
+        expect(offenders).not.toEqual([]);
+        expect(offenders.some((o) => o.startsWith('tap band'))).toBe(true);
       }
     }
   });

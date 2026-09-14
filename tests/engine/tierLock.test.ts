@@ -6,6 +6,7 @@ import {
   capViolations,
   guaranteedPowerLevelDeci,
   instancePowerLevelDeci,
+  MAX_STUN_PER_CARD,
   powerLevelBreakdown,
   powerLevelDeci,
   PRICE,
@@ -330,19 +331,25 @@ describe('PRICING: a locked line costs nothing below its lock and full price at 
     expect(echoTerm(diamond), 'a diamond host is a bigger echo').toBeGreaterThan(echoTerm(host));
   });
 
-  it('a locked line is CAPPED at the tier it appears and not before', () => {
-    // `stun 2` breaks the size-1 control cap (100 deci) outright. Locked to Gold it
-    // must be legal at Bronze/Silver — where it does not exist — and a violation
-    // from Gold up. A lock that hid a cap break would be a hole in the audit.
+  it('a locked stun is absent before its tier and keeps the separate stun maximum after', () => {
+    // The size-1 Control cap grows with tier, so `stun 2` fits its PL ceiling at
+    // Gold/Diamond. It must still be absent at Bronze/Silver, then rejected only
+    // by the independent MAX_STUN_PER_CARD rule once the locked line appears.
     const overCap: SkillDef = {
       ...LOCK_PROBE, id: 'lock_cap_probe',
       effects: [{ kind: 'damage', power: 20 }, { kind: 'stun', turns: 2, minTier: 'gold' }],
     };
-    expect(capViolations(applyTier(overCap, 'bronze')), 'bronze: the line does not exist').toEqual([]);
-    expect(capViolations(applyTier(overCap, 'silver')), 'silver: the line does not exist').toEqual([]);
+    for (const tier of ['bronze', 'silver'] as SkillTier[]) {
+      const resolved = applyTier(overCap, tier);
+      expect(resolved.effects.some((effect) => effect.kind === 'stun'), `${tier}: locked stun is absent`).toBe(false);
+      expect(capViolations(resolved), `${tier}: the absent line cannot violate a cap`).toEqual([]);
+    }
     for (const tier of ['gold', 'diamond'] as SkillTier[]) {
       const violations = capViolations(applyTier(overCap, tier));
-      expect(violations.join('|'), `${tier}: the cap must bind`).toContain('control');
+      expect(violations, `${tier}: only the separate stun maximum binds`).toEqual([
+        `stun 2 exceeds the ${MAX_STUN_PER_CARD}-performance cap`,
+      ]);
+      expect(violations.join('|'), `${tier}: tier-aware Control cap stays clean`).not.toContain('control');
     }
   });
 });

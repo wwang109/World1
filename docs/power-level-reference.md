@@ -39,10 +39,10 @@ immediately):
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` |
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum/Den` | `PRICE.exposePerPctTurnNum/Den` — guard parity |
 | `cleanse` | `charges * cleansePerCharge` | `PRICE.cleansePerCharge` — priced per effect removed (user-locked 2026-07-19); the one `SCALABLE` keyword outside damage/heal/shield (user-locked 2026-08-17) — see the effect-cap section below |
-| `slow` | `weight * slowPerWeightNum/Den` | `PRICE.slowPerWeightNum/Den` |
-| `burden` | `weight * burdenPerWeightNum/Den` | `PRICE.burdenPerWeightNum/Den` — `slow`'s CARD-scope sibling at `slow`'s OWN per-point rate: one card taxed, one card's worth of tempo. The lifetime divergence (a burden always eventually gets paid; a slow often expires unpaid) is called a wash rather than measured |
+| `slow` | `weight * slowPerWeightNum/Den` | `PRICE.slowPerWeightNum/Den` — 1 PL per +2 Weight (user-locked 2026-09-12); affected cards were re-solved by reducing damage or effect magnitude rather than exceeding their rank budgets |
+| `burden` | `weight * burdenPerWeightNum/Den` | `PRICE.burdenPerWeightNum/Den` — 1 PL per +2 Weight, matching `slow`; `burden` taxes one card until it plays, while `slow` taxes the unit's next play during the current turn |
 | `curse` | `amount * cursePerAmountNum/Den` + `amount * turns * cursePerAmountTurnNum/Den` | `PRICE.cursePerAmountNum/Den` (the near-certain FIRST denial, at the flat-damage rate over the conditional-trigger discount — the anchor may be a card that cools out the whole window) + `PRICE.cursePerAmountTurnNum/Den` (the REPEATS: one further firing per `BASELINE_COOLDOWN + 1` turns). Derived, not measured — flagged for an `npm run sim` re-tune, like `stunPerTurn` |
-| `splash` (the SPREADER) | `splashFlatDeci` — one flat price per cast | `PRICE.splashFlatDeci` — FLAT and STANDALONE like every other keyword (user-locked 2026-08-21: "every gem pl is standalone" / "why did you make splash different"). The spreader has no fields, and what it does — widen the cast's card-targeting effects (`burden`, `curse`) from the anchor to the band — is the same act at any payload size, so it costs the same at any payload size. 20 deci is CHOSEN with two constraints: THE splash gem (`ripple_sliver`, splash-only) must land exactly on a rarity band (20 = Common; the other candidates, 10 and 15, land on none), and re-solve movement across the four shipped splash cards is minimal (two kept every magnitude, two dropped burden 6 → 4 with damage lines untouched). Replaced the coverage-multiplier model (`splashBandFloorNum/Den`, ×2 on the card-targeting share), which had made splash the one keyword priced off its siblings' magnitudes — see `docs/history/pl-changelog.md` |
+| `splash` (the SPREADER) | standalone price by card tier; tierless base for gems | `CARD_SPLASH_PRICE_DECI` — 80/100/120/140 deci on Bronze/Silver/Gold/Diamond cards (user-locked 2026-09-13). `PRICE.splashFlatDeci` remains the tierless 80-deci price used by the Splash-only Ripple Sliver. Payload magnitude never changes the price, and spread behavior is unchanged. |
 | `disrupt` | escalating brackets, marginal per point | `PRICE.disruptBrackets` via `disruptCostDeci` — user-locked 2026-07-25; hard tempo denial must cost disproportionately more at large magnitudes |
 | `lifesteal` | `pct * lifestealPerPctNum/Den` | `PRICE.lifestealPerPctNum/Den` |
 | `shieldBreak` | `amount * shieldBreakPerPointNum/Den` | `PRICE.shieldBreakPerPointNum/Den` |
@@ -79,20 +79,26 @@ run `npm test` — the audit names any cap it breaks.**
   · `cleanse` (its own family, see below) ·
   `damage` · `shield` · `heal`. Membership sets:
   `CONTROL_KINDS` / `DOT_KINDS` / `EMPOWER_KINDS` / `CLEANSE_KINDS`.
-- **Every family's cap is FROZEN across tiers** (user-locked 2026-07-23),
-  with ONE NAMED EXCEPTION added 2026-08-17 — ranking a card up buys NEW
-  EFFECTS, not bigger numbers in a capped family. The flat families'
-  (damage/shield/heal) caps are a Diamond-size ceiling — a loose guardrail,
-  not a diversify-forcer.
+- Most family caps remain frozen across tiers. Two named families scale with
+  `TIER_BUDGET_DECI`: `cleanse` (2026-08-17) and `control` (2026-09-13).
+  The flat damage/shield/heal caps remain a Diamond-size ceiling — a loose
+  guardrail, not a diversify-forcer.
+- **`control` TIER-SCALES (user-locked 2026-09-13)**: the size-1 cap is
+  100/150/200/250 deci at Bronze/Silver/Gold/Diamond. Splash remains a Control
+  effect and contributes its full tier-aware card price to that family spend;
+  the cap does not exclude or refund the spreader. This permits deliberately
+  authored control growth at higher ranks. Stun remains independently capped
+  at one performance by `MAX_STUN_PER_CARD`, even when the Control PL ceiling
+  has room for more.
 - **`cleanse` TIER-SCALES (user-locked 2026-08-17)**: "PL is calculated and
   the tiers are just based on size and amount of PL a card has" / "if the PL
   amount is increased then you can add more" — a bigger tier budget spent on
   more cleanse charges must be legal, exactly as it already is for a heal.
   `cleanse` was split OUT of `empower` into its own cap family
-  (`EFFECT_CAPS_DECI.cleanse`, `TIER_SCALED_FAMILIES = {'cleanse'}`) rather
+  (`EFFECT_CAPS_DECI.cleanse`; `TIER_SCALED_FAMILIES` contains `control` and
+  `cleanse`) rather
   than tier-scaling `empower` wholesale, so `negate`/`ward`/`buffStat`/
-  `guard`/`lifesteal`/`comboBonus`/`thorns` — and every `control` keyword,
-  `stun`'s 1-turn lock included — stay exactly as frozen as before. At size 1
+  `guard`/`lifesteal`/`comboBonus`/`thorns` stay frozen. At size 1
   the cap and the rate-solved value coincide at every tier: 4/6/8/10 charges =
   100/150/200/250 deci (`PRICE.cleansePerCharge` unchanged at 25). `autoScaleTier`
   (`src/engine/cards.ts`) now treats `cleanse` as a sink kind alongside
@@ -101,9 +107,9 @@ run `npm test` — the audit names any cap it breaks.**
 - Extra rules: **stun ≤ `MAX_STUN_PER_CARD` per card**; auras are exempt
   (passive board identity, priced per reach); weight is bounded in native
   units (`WEIGHT_MIN`, `WEIGHT_MAX_BY_SIZE`); size ≤ `MAX_CARD_SIZE`.
-- `applyTier` never scales control/empower magnitudes (`cleanse` excepted,
-  per its own cap family above), so rank-ups can't break a compliant base
-  card.
+- The generic `applyTier` auto-scaler still does not invent Control or empower
+  growth; authored `tierUpgrades` may deliberately grow Control within the
+  tier-aware cap. Cleanse remains a generic scalable sink.
 
 **Scope (user-locked 2026-07-20): these caps are DECK-BUILDING rules only.**
 They bind what a single authored card may invest. Runtime stacking on top is

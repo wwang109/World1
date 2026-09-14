@@ -215,11 +215,15 @@ describe('bandBannerViewModel', () => {
     });
   });
 
-  it('the banner agrees with the pinned forecast CARD, band for band', () => {
+  it('internal banner claims agree with the terminal forecast while Explore omits counters', () => {
     for (const f of sampleForecasts()) {
       const vm = bandBannerViewModel(f);
       const card = renderBandForecast(f);
-      expect(vm.card.join('\n')).toBe(card);
+      expect(vm.card.join('\n')).not.toMatch(/counter|hits? |\+50%/i);
+      expect(vm.card).toContain(f.name.toUpperCase());
+      expect(vm.card).toContain(f.tagline);
+      for (const mob of f.mobs) expect(vm.card).toContain(`  ${mob.name}`);
+      for (const shop of f.shops) expect(vm.card).toContain(`  ${shop.name}`);
       // The card's own mob sentence and the banner's mob claim must be the
       // same ANSWER: either both say nothing counters, or both name the type.
       const cardSaysNone = card.includes('nothing counters\nthese mobs.');

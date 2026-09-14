@@ -197,7 +197,7 @@
      "def": {
       "name": "Armor Break",
       "notes": [
-       "Frozen debuff (already at the size-1 control cap, 100 deci); a physical",
+       "The debuff magnitude is frozen by autoScaleTier at the Bronze size-1 Control cap (100 deci); the tier-aware cap grows while a physical",
        "Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100",
        "= 200. Diamond 30 (150) + 100 = 250.",
        "",
@@ -471,6 +471,11 @@
      "version": 1,
      "def": {
       "name": "Braced Pike",
+      "notes": [
+       "Mixed-role ladder (2026-09-13): Guard and Damage grow together instead of",
+       "sending every rank increase into Damage. Guard 20/30/40/50% for 2 turns",
+       "and Damage 12/18/24/30 land exactly on 10/15/20/25 PL."
+      ],
       "archetypes": [
        "offense",
        "defensive"
@@ -488,10 +493,54 @@
         "turns": 2
        },
        {
-        "kind": "damage",
+       "kind": "damage",
         "power": 12
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 30,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 18
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 24
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -544,8 +593,8 @@
        "damage-only growth (84 \\u2014 verified against `autoScaleTier`). At GOLD",
        "the bramble pile finally roots the target: `stun` (100 deci) joins",
        "thorns (empower, unaffected) at ZERO cost to the control family \\u2014",
-       "this kit spends nothing else there, so stun fits with 100 deci of",
-       "size-3 control cap (200) to spare. Damage sinks the rest: Gold 94 (470)",
+       "this kit spends nothing else there, so stun fits with 300 deci of",
+       "the Gold size-3 Control cap (400) to spare. Damage sinks the rest: Gold 94 (470)",
        "+ thorns 200 + stun 100 \\u2212 570 (size-3 grant) = 200 = Gold exactly.",
        "Diamond keeps the same control kit and grows damage: 122 (610) + 200 +",
        "100 \\u2212 660 (grant) = 250 exactly.",
@@ -612,11 +661,11 @@
        "cooldown turn is the cheaper of the two in play (a 20% cadence loss against a",
        "50% one) and it is the one that reads on the card face, so the sweep is authored",
        "as cooldown 4 at Gold and Diamond both.",
-       "The frozen slow is 20 deci of that 190, so damage 34 (170) closes it:",
-       "Gold    damage 34 (170) + slow 8 (20) + reach (60) - cooldown 4 (50) = 200 exact.",
+       "The frozen slow is 40 deci of that 190, so damage 30 (150) closes it:",
+       "Gold    damage 30 (150) + slow 8 (40) + reach (60) - cooldown 4 (50) = 200 exact.",
        "Diamond same offense + shield 10 (50) - cooldown 4 (50) = 250 exact.",
-       "The slow's own family spend at reach is floor(20 x 33/25) = 26 deci, far",
-       "under the flat size-1 control cap (100 deci)."
+       "The slow's own family spend at reach is floor(40 x 33/25) = 52 deci, far",
+       "under the Gold size-1 Control cap (200 deci); the slow magnitude is frozen by autoScaleTier, not the cap."
       ],
       "archetypes": [
        "offense",
@@ -630,7 +679,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 16
+        "power": 12
        },
        {
         "kind": "slow",
@@ -644,7 +693,7 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 34
+          "power": 30
          },
          {
           "kind": "slow",
@@ -658,7 +707,7 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 34
+          "power": 30
          },
          {
           "kind": "slow",
@@ -828,7 +877,7 @@
        "Gold    damage 30 (150) + disrupt 6 (40) + reach (60) - cooldown 4 (50) = 200 exact.",
        "Diamond same offense + shield 10 (50) - cooldown 4 (50) = 250 exact.",
        "The disrupt's own family spend at reach is floor(40 x 33/25) = 52 deci,",
-       "comfortably under the flat size-1 control cap (100 deci)."
+       "comfortably under the Gold size-1 Control cap (200 deci); the disrupt magnitude is frozen by autoScaleTier, not the cap."
       ],
       "archetypes": [
        "offense",
@@ -900,10 +949,10 @@
        "`autoScaleTier`, exact and cap-compliant on its own). At GOLD the card",
        "gains a whole ability Silver cannot afford: `stun` \u2014 debuffStat 25%\u00d72t",
        "(50 deci) + stun 1 turn (100 deci, `stunPerTurn`) = 150 deci, exactly",
-       "the size-2 control cap at every tier (flat by design), with no room",
-       "for a bigger debuff OR a second stun turn (`MAX_STUN_PER_CARD` = 1) \u2014",
+       "the Gold size-2 Control cap (300 deci) is not the binding rule; the card budget leaves no room",
+       "for a bigger debuff, while `MAX_STUN_PER_CARD` = 1 separately forbids a second stun turn \u2014",
        "so the ability itself, not a bigger number, is what Gold buys. Damage",
-       "sinks the remainder: Gold 52 (260) + control 150 (frozen) \u2212 size-2",
+       "sinks the remainder: Gold 52 (260) + control 150 (magnitude frozen by autoScaleTier) \u2212 size-2",
        "grant (210) = 200 = Gold exactly. Diamond keeps the same control kit",
        "and grows damage further: 68 (340) + 150 \u2212 240 (grant) = 250 exactly.",
        "",
@@ -1273,7 +1322,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 14
+        "power": 8
        },
        {
         "kind": "slow",
@@ -1497,7 +1546,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 12
+        "power": 4
        },
        {
         "kind": "slow",
@@ -1625,10 +1674,10 @@
      "def": {
       "name": "Hex of Frailty",
       "notes": [
-       "Refit for the size-1 control cap (10 PL): 50%\u00d72t = 100 deci exactly",
+       "Refit for the Bronze size-1 Control cap (10 PL): 50%\u00d72t = 100 deci exactly",
        "(was 40%\u00d73t = 12 PL funded by extra weight).",
-       "Curse theme: the debuff is frozen (already at the size-1 control cap,",
-       "100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.",
+       "Curse theme: the debuff magnitude is frozen by autoScaleTier at the Bronze size-1 Control cap",
+       "(100 deci); the cap grows by tier while a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.",
        "Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.",
        "",
        "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
@@ -2008,7 +2057,7 @@
        "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, half-price at 2.5 deci per point",
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
-       "The MDEF debuff is frozen control, so it survives the swap untouched and the",
+       "The MDEF debuff magnitude is frozen by autoScaleTier (the Control cap still grows), so it survives the swap untouched and the",
        "whole Diamond budget delta lands on the damage split: 26 + 20 = 46 on a holy",
        "board against an auto-scaled single 42.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
@@ -2514,7 +2563,7 @@
        "way. Those authored tier blocks are gone with it: the auto-scaler already",
        "reproduced their effects exactly.",
        "PRICE unchanged and exact at every tier: shieldBreak 16 = 20 deci",
-       "(PRICE.shieldBreakPerPointNum/Den, 5/4, frozen control) + damage 16/26/36/46 =",
+       "(PRICE.shieldBreakPerPointNum/Den, 5/4, magnitude frozen by autoScaleTier while the Control cap grows) + damage 16/26/36/46 =",
        "80/130/180/230 -> 100/150/200/250."
       ]
      }
@@ -2908,7 +2957,7 @@
       "name": "Ruinous Hex",
       "notes": [
        "expose 50%\u00d72 (50*2*1 = 100) = Bronze exactly. pct clamped to <=50 at apply.",
-       "Expose is frozen (already at the size-1 control cap, 100 deci, and the",
+       "Expose magnitude is frozen by autoScaleTier at the Bronze size-1 Control cap (100 deci) and the",
        "50%-apply-time clamp); a Dark damage tick sinks the rest. Silver 10",
        "(50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
        "= 250.",
@@ -2935,7 +2984,7 @@
        "the RESOLVED kit, and the face text reads in the same direction as the log.",
        "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
        "own price and no term reads a sibling's position, so the numbers above hold.",
-       "This card: UNCHANGED by the refinement, and back to its pre-ruling behaviour. `expose` is a damage AMPLIFIER \u2014 a stat effect in everything but name \u2014 so it is SETUP and amplifies this card's own hit again (Diamond: 31 -DEF6 +EXPOSE12 = 37, not the 25 the one-class rule gave). Expose is still frozen at the size-1 control cap, so the price is the same."
+       "This card: UNCHANGED by the refinement, and back to its pre-ruling behaviour. `expose` is a damage AMPLIFIER \u2014 a stat effect in everything but name \u2014 so it is SETUP and amplifies this card's own hit again (Diamond: 31 -DEF6 +EXPOSE12 = 37, not the 25 the one-class rule gave). Expose magnitude remains frozen by autoScaleTier while the Control cap grows, so the price is the same."
       ],
       "archetypes": [
        "debuff"
@@ -3102,7 +3151,7 @@
      "def": {
       "name": "Scorching Brand",
       "notes": [
-       "The armor debuff is frozen (control); burn grows moderately, damage sinks the rest."
+       "The armor-debuff magnitude is frozen by autoScaleTier while the tier-aware Control cap grows; burn grows moderately and damage sinks the rest."
       ],
       "archetypes": [
        "offense",
@@ -3359,7 +3408,7 @@
        "(crippling_strike's bronze kit is also 25%x2t): damage 10 (50) +",
        "debuffStat 25%x2t (50, statPctTurn) = 100 = Bronze exactly. No",
        "tierUpgrades: damage alone is a scalable sink already present at",
-       "Bronze, so autoScaleTier grows it and leaves the frozen control kit in",
+       "Bronze, so autoScaleTier grows it and leaves the Control kit's magnitude frozen in",
        "place \\u2014 verified against `applyTier`: silver damage 20 (100+50=150),",
        "gold damage 30 (150+50=200), diamond damage 40 (200+50=250)."
       ],
@@ -3703,7 +3752,7 @@
        "IS the whole Bronze budget, so the card is stun-only. Size 1 / default",
        "weight keeps the total at exactly 100 (stun 100 + weight 0 + size 0).",
        "Stun cannot grow (hard-capped at 1 performance/card, and already the",
-       "full size-1 control cap at 100 deci); a physical Axe smash sinks the",
+       "full Bronze size-1 Control cap at 100 deci); the separate MAX_STUN_PER_CARD rule freezes Stun while a physical Axe smash sinks the",
        "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30",
        "(150) + 100 = 250.",
        "",
@@ -3764,7 +3813,7 @@
       "notes": [
        "Same teaching order as Gutting Cleave (shieldBreak before bleed), plus",
        "expose. shieldBreak (80 raw = 64*1.25) + expose 20%x2t (40 raw) = 120,",
-       "both control-family and well under the size-3 control cap (200). Bronze:",
+       "both Control-family and well under the Bronze size-3 Control cap (200). Bronze:",
        "120 + bleed 8 (80) + damage 56 (280) = 480 raw - 380 (size-3 grant) =",
        "100 exactly. Hand-authored ladder, same trap/fix as the other two bleed",
        "cards: shieldBreak+expose frozen, bleed 8/10/11/12, damage climbing",
@@ -4822,16 +4871,9 @@
      "def": {
       "name": "Sanctum Thorn",
       "notes": [
-       "THE heal -> ward -> thorns CHAIN CARD (2026-08-18 hybrid pass): all three keywords",
-       "of the requested chain on one card. ward 2 (100) + thorns 5 (50) = 150 =",
-       "EXACTLY the size-2 empower cap (150) \u2014 the two frozen empower members",
-       "fully saturate the cap between them, so heal is the only line with any",
-       "room left. Bronze: ward 100 + thorns 50 + heal 18*5=90 = 240 raw -",
-       "140 (size-2 grant) = 100 exactly. No tierUpgrades: heal alone absorbs",
-       "every higher budget (silver 34, gold 52, diamond 68 \u2014 confirmed by",
-       "running `autoScaleTier`, since ward+thorns are both frozen and never move).",
-       "Creates the ward+thorns pair (previously zero cards) and stacks onto",
-       "the existing heal+ward / heal+thorns pairs in one kit."
+       "Heal, Ward, and Thorns remain the card's core chain. Ward 2 and Thorns 5",
+       "stay fixed; Shield joins from Silver at 10/20/30 while Heal grows",
+       "18/24/32/38. Every rank is exact-budget and cap-clean."
       ],
       "archetypes": [
        "healing",
@@ -4852,10 +4894,72 @@
         "stacks": 5
        },
        {
-        "kind": "heal",
+       "kind": "heal",
         "power": 18
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         },
+         {
+          "kind": "heal",
+          "power": 24
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         },
+         {
+          "kind": "heal",
+          "power": 32
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         },
+         {
+          "kind": "heal",
+          "power": 38
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -4946,11 +5050,9 @@
      "def": {
       "name": "Warded Reprisal",
       "notes": [
-       "heal+ward, physical mirror of Aegis of the Unbroken (magical/holy):",
-       "ward 1 (50, frozen) + heal 10 (50) = 100 = Bronze exactly. No",
-       "tierUpgrades: heal alone absorbs every higher budget (silver 20, gold",
-       "30, diamond 40 \u2014 verified against `autoScaleTier`). Third heal+ward",
-       "card in the book \u2014 deepens the heal -> ward link in the chain."
+       "Mixed-role ladder (2026-09-13): Ward grows 1/1/2/2 while Heal grows",
+       "10/20/20/30. Each rank invests in prevention and recovery without",
+       "losing either effect, and lands exactly on 10/15/20/25 PL."
       ],
       "archetypes": [
        "healing",
@@ -4967,10 +5069,48 @@
         "charges": 1
        },
        {
-        "kind": "heal",
+       "kind": "heal",
         "power": 10
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 20
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "heal",
+          "power": 20
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "heal",
+          "power": 30
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -5117,7 +5257,7 @@
      "def": {
       "name": "Umbral Ward",
       "notes": [
-       "ward+debuffStat: BOTH frozen (empower + control), no scalable sink at",
+       "ward+debuffStat: BOTH magnitudes frozen by autoScaleTier (empower + Control, whose cap still grows), no scalable sink at",
        "Bronze \u2014 CAP-HIT, same shape as unbreakable_stance. ward 1 (50) +",
        "debuffStat 25%x2t (50) = 100 = Bronze exactly. Hand-authored ladder",
        "adds a magical damage sink at Silver/Gold/Diamond: +10/20/30 power =",
@@ -5323,30 +5463,9 @@
      "def": {
       "name": "Barbed Rampart",
       "notes": [
-       "bleed+guard: a new pairing for the Opened Wound (every other bleed",
-       "card pairs with shieldBreak/expose/debuffStat/nothing) \u2014 a defensive",
-       "bleeder that fortifies while it wounds. DoT-sink authoring trap:",
-       "`autoScaleTier` would grow bleed to its cap immediately (silver 12,",
-       "gold 17, diamond 20) and crash damage to 0 at Silver/Gold \u2014 hand-",
-       "authored instead. guard 20%x2t (40, frozen) + bleed (moderate growth)",
-       "+ damage (growing sink): Bronze bleed 3 (30) + damage 6 (30) = 100.",
-       "Silver bleed 5 (50) + damage 12 (60) = 150. Gold bleed 7 (70) + damage",
-       "18 (90) = 200. Diamond bleed 8 (80) + damage 26 (130) = 250 (all + the",
-       "frozen guard 40).",
-       "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
-       "The first ruling was general \u2014 \"any attack always come first before applying",
-       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
-       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
-       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
-       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
-       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
-       "(they stay exactly where the card authored them). The authored `effects` below",
-       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
-       "the RESOLVED kit, and the face text reads in the same direction as the log.",
-       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
-       "own price and no term reads a sibling's position, so the numbers above hold.",
-       "This card: UNCHANGED by the refinement. The self `guard` was never a rider and still opens the cast; the `bleed` is a DoT and still trails the lunge. Resolved: guard, damage, bleed."
+       "Mixed-role ladder (2026-09-13): Guard 20/25/30/40%, Bleed 3/5/7/8,",
+       "and Damage 6/10/14/18 grow together across the four ranks. The resolved",
+       "cast still applies Guard, deals Damage, then applies Bleed as aftermath."
       ],
       "archetypes": [
        "defensive",
@@ -5383,12 +5502,12 @@
          {
           "kind": "guard",
           "property": "physical",
-          "pct": 20,
+          "pct": 25,
           "turns": 2
          },
          {
           "kind": "damage",
-          "power": 12
+          "power": 10
          }
         ]
        },
@@ -5401,12 +5520,12 @@
          {
           "kind": "guard",
           "property": "physical",
-          "pct": 20,
+          "pct": 30,
           "turns": 2
          },
          {
           "kind": "damage",
-          "power": 18
+          "power": 14
          }
         ]
        },
@@ -5419,12 +5538,12 @@
          {
           "kind": "guard",
           "property": "physical",
-          "pct": 20,
+          "pct": 40,
           "turns": 2
          },
          {
           "kind": "damage",
-          "power": 26
+          "power": 18
          }
         ]
        }
@@ -5637,14 +5756,9 @@
      "def": {
       "name": "Plague Ritual",
       "notes": [
-       "poison+cleanse: the self-cleansing venom-user \u2014 poison the foe, purge",
-       "your own ailments. poison stays frozen at 5 (the DoT-sink trap would",
-       "otherwise sweep it to cap and starve the sink, same failure as",
-       "poison_bloom); `cleanse` (the one tier-scaling family) alone absorbs",
-       "every higher budget, the same shape as warding_prayer/purify. Bronze:",
-       "poison 5 (50) + cleanse 2 (50) = 100. Silver poison 5 (50) + cleanse 4",
-       "(100) = 150. Gold poison 5 (50) + cleanse 6 (150) = 200. Diamond",
-       "poison 5 (50) + cleanse 8 (200) = 250."
+       "Mixed-role ladder (2026-09-13): Poison 5/10/10/15 and Cleanse 2/2/4/4",
+       "alternate growth across ranks. Every copy remains exact-budget and",
+       "never loses either its offensive pile or self-cleanse capacity."
       ],
       "archetypes": [
        "support",
@@ -5670,11 +5784,11 @@
         "effects": [
          {
           "kind": "poison",
-          "stacks": 5
+          "stacks": 10
          },
          {
           "kind": "cleanse",
-          "charges": 4
+          "charges": 2
          }
         ]
        },
@@ -5682,11 +5796,11 @@
         "effects": [
          {
           "kind": "poison",
-          "stacks": 5
+          "stacks": 10
          },
          {
           "kind": "cleanse",
-          "charges": 6
+          "charges": 4
          }
         ]
        },
@@ -5694,11 +5808,11 @@
         "effects": [
          {
           "kind": "poison",
-          "stacks": 5
+          "stacks": 15
          },
          {
           "kind": "cleanse",
-          "charges": 8
+          "charges": 4
          }
         ]
        }
@@ -5751,37 +5865,10 @@
      "def": {
       "name": "Shockwave Slam",
       "notes": [
-       "SHOWCASE CARD for the `burden + splash` pairing (2026-08-18; re-authored",
-       "2026-08-21 when `splash` became the payload-less SPREADER; re-solved later",
-       "the same day when splash moved to its FLAT standalone price). `burden` is",
-       "`slow` at CARD scope: +weight on the anchor's NEXT play, Math.max'd like",
-       "slow, then spent. `splash` spreads that burden across the BAND \u2014 the anchor",
-       "plus its edge-to-edge neighbours. NOTHING WRAPS (the board is a line):",
-       "neither the band nor the anchor, which falls back to the LAST CARD PLAYED",
-       "when the cursor is parked past the last card (2026-08-19 ruling).",
-       "PRICE (flat-splash re-solve, user ruling 2026-08-21 \u2014 splash is a",
-       "standalone keyword, never a multiplier on its siblings): burden 4 = 10 deci",
-       "(PRICE.burdenPerWeightNum/Den, 5/2 \u2014 slow's own per-point rate, for slow's",
-       "own currency on ONE card) + splash = 20 deci flat (PRICE.splashFlatDeci) +",
-       "damage 14 = 70. 10 + 20 + 70 = 100 = Bronze exactly, size 1 so no grant and",
-       "weight 10 is baseline (0 delta). Control-family spend is 30 deci (burden +",
-       "the spreader's own price), well under the size-1 control cap (100).",
-       "THE RE-SOLVE MOVED THE BURDEN, NOT THE DAMAGE (6 -> 4): with splash",
-       "reported as its own whole-PL part, a burden part must itself land on a",
-       "whole PL, which pins burden weight to multiples of 4 (weight x 5/2 deci).",
-       "Weight 8 would have made this card a recolor of arc_cascade's kit; 4 keeps",
-       "the damage line and the whole tier ladder at their pre-split numbers and",
-       "keeps the two showcases distinct (light-tax/heavy-hit here, heavy-tax/",
-       "light-hit there).",
-       "WEIGHT 4: a spread burden lands on up to three cards at once, so it buys",
-       "stall breadth rather than depth \u2014 a real fraction of a turn of readiness",
-       "on a baseline-weight card without ever locking one out (nothing stacks; a",
-       "re-burden takes the max).",
-       "SINGLE-TARGET, deliberately: `scope: all` + splash is rejected by",
-       "validateSkillContent \u2014 the spreader spreads across ONE victim's board, not",
-       "across a team. No tierUpgrades: damage alone absorbs every higher",
-       "budget (silver 24, gold 34, diamond 44 \u2014 burden and splash are control and",
-       "stay frozen at every tier, verified against `autoScaleTier`)."
+       "Offense-focused Splash ladder (2026-09-13): Damage 2/8/12/16 and Burden",
+       "2/2/4/6 accompany the card-tier Splash price of 8/10/12/14 PL.",
+       "Splash still widens Burden across one victim's anchor band; spread geometry",
+       "and the single-target restriction are unchanged."
       ],
       "archetypes": [
        "offense",
@@ -5795,16 +5882,63 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 14
+        "power": 2
        },
        {
         "kind": "burden",
-        "weight": 4
+        "weight": 2
        },
        {
         "kind": "splash"
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 8
+         },
+         {
+          "kind": "burden",
+          "weight": 2
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 12
+         },
+         {
+          "kind": "burden",
+          "weight": 4
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "burden",
+          "weight": 6
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -5817,30 +5951,10 @@
      "def": {
       "name": "Arc Cascade",
       "notes": [
-       "MAGICAL SPREAD (content-designer pass, 2026-08-19; re-authored 2026-08-21",
-       "for the spreader model, re-verified under the flat splash price the same",
-       "day) \u2014 opens the band tax to the MATK side.",
-       "shockwave_slam was the only such card in the book and it is physical/axe;",
-       "this card is magical/lightning with no weapon, and trades a HEAVIER burden",
-       "for a LIGHTER damage line than shockwave (8 vs 4 weight, 12 vs 14 damage) \u2014",
-       "same control-family shape, a different point on the tax-vs-damage axis, so",
-       "the two showcase cards read as distinct builds (control-leaning vs",
-       "damage-leaning) rather than a recolor of the same card.",
-       "PRICE (flat-splash re-solve, user ruling 2026-08-21 \u2014 splash is a",
-       "standalone keyword, never a multiplier): burden 8 = 20 deci",
-       "(PRICE.burdenPerWeightNum/Den) + splash = 20 deci flat",
-       "(PRICE.splashFlatDeci) + damage 12 = 60. 20 + 20 + 60 = 100 = Bronze",
-       "exactly, size 1 so no grant and weight 10 is baseline (0 delta). NOTHING",
-       "MOVED in the re-solve: the multiplier happened to charge this card's",
-       "spread exactly 20, the same number the flat rate now names directly.",
-       "Control-family spend is 40 deci, under the size-1 control cap (100 \u2014",
-       "verified with capViolations).",
-       "No tierUpgrades: damage alone absorbs every higher budget (silver 22,",
-       "gold 32, diamond 42 \u2014 control stays frozen at every tier, verified against",
-       "`autoScaleTier`).",
-       "SINGLE-TARGET, deliberately, like every spreader card: `scope: all` +",
-       "splash is rejected by validateSkillContent \u2014 the spread covers ONE",
-       "victim's board, not a team."
+       "Debuff-focused Splash ladder (2026-09-13): Damage 2/4/6/8 and Burden",
+       "2/6/10/14 accompany the card-tier Splash price of 8/10/12/14 PL.",
+       "The Lightning hit stays secondary while the spread tax becomes the rank's",
+       "main identity; spread behavior itself is unchanged."
       ],
       "archetypes": [
        "offense",
@@ -5854,16 +5968,63 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 12
+        "power": 2
        },
        {
         "kind": "burden",
-        "weight": 8
+        "weight": 2
        },
        {
         "kind": "splash"
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 4
+         },
+         {
+          "kind": "burden",
+          "weight": 6
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 6
+         },
+         {
+          "kind": "burden",
+          "weight": 10
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 8
+         },
+         {
+          "kind": "burden",
+          "weight": 14
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -5876,37 +6037,10 @@
      "def": {
       "name": "Line Breaker",
       "notes": [
-       "SLOW + SPREAD BURDEN PAIRING (content-designer pass, 2026-08-19;",
-       "re-authored 2026-08-21 for the spreader model; re-solved later the same",
-       "day under the flat splash price) \u2014 the double tempo tax:",
-       "`slow` taxes the UNIT (whatever the enemy plays for the rest of this turn),",
-       "`burden` taxes a CARD (paid whenever that piece is next played), and",
-       "`splash` spreads the burden across the band. `castSelect.ts` sums both",
-       "scopes onto one cast (`weightOf(skill) + mods.weightDelta +",
-       "c.nextWeightPenalty + piece.nextWeightPenalty`), so when the two land on",
-       "the same upcoming piece within the turn this card double-taxes it rather",
-       "than paying just one tempo cost.",
-       "PRICE (flat-splash re-solve, user ruling 2026-08-21 \u2014 splash is a",
-       "standalone keyword, never a multiplier): slow 8 = 20 deci",
-       "(PRICE.slowPerWeightNum/Den, 5/2). burden 4 = 10 deci",
-       "(PRICE.burdenPerWeightNum/Den, the same 5/2 for the same currency on one",
-       "card). splash = 20 deci flat (PRICE.splashFlatDeci). Control-family spend",
-       "(slow + burden + the spreader's own price) is 50 deci \u2014 HALF the size-1",
-       "control cap (100), verified with capViolations; the cap stays nowhere",
-       "near breached at any tier, since control is frozen and only the damage",
-       "sink grows.",
-       "damage 10 = 50. 50 + 50 = 100 = Bronze exactly, size 1 so no grant and",
-       "weight 10 is baseline (0 delta). THE RE-SOLVE MOVED THE BURDEN, NOT THE",
-       "DAMAGE (6 -> 4): a burden part must itself land on a whole PL now that",
-       "splash is its own part, which pins burden weight to multiples of 4 \u2014",
-       "and 4 keeps the damage line and the whole tier ladder at their pre-split",
-       "numbers.",
-       "No tierUpgrades: damage alone absorbs every higher budget (silver 20,",
-       "gold 30, diamond 40 \u2014 slow, burden and splash all stay frozen at every",
-       "tier, verified against `autoScaleTier`).",
-       "WEAPON LANCE, NOT AXE (shockwave_slam's weapon), and a four-line kit",
-       "rather than shockwave's three \u2014 differentiates from the existing",
-       "showcase on both the weapon and the mechanic-pairing axis."
+       "Balanced Lance Splash ladder (2026-09-13): Damage 2/6/10/14 and Burden",
+       "2/4/6/8 accompany the card-tier Splash price of 8/10/12/14 PL.",
+       "Slow remains removed; the growing attack and spread Burden share every",
+       "rank increase and land exactly on 10/15/20/25 PL."
       ],
       "archetypes": [
        "offense",
@@ -5920,20 +6054,63 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 10
-       },
-       {
-        "kind": "slow",
-        "weight": 8
+        "power": 2
        },
        {
         "kind": "burden",
-        "weight": 4
+        "weight": 2
        },
        {
         "kind": "splash"
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 6
+         },
+         {
+          "kind": "burden",
+          "weight": 4
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "burden",
+          "weight": 6
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 14
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -5950,8 +6127,8 @@
        "heavy PURE debuff for DEF (armor_break) and MDEF (hex_of_frailty) but",
        "ATK/MATK debuffing only existed as a light rider bolted onto a damage",
        "card (crippling_strike, silencing_slash). This is armor_break's exact",
-       "shape, restated on ATK: -50%\u00d72t debuffStat is frozen `control` at the",
-       "size-1 cap (100 deci) at every tier; an Axe chop sinks the rest.",
+       "shape, restated on ATK: -50%\u00d72t debuffStat is frozen by autoScaleTier at",
+       "100 deci while the size-1 Control cap grows by tier; an Axe chop sinks the rest.",
        "Bronze: 100 = Bronze exactly. Silver 10 (50) + 100 = 150. Gold 20 (100)",
        "+ 100 = 200. Diamond 30 (150) + 100 = 250 \u2014 verified with",
        "`powerLevelDeci`/`capViolations` at every tier (zero cap violations,",
@@ -6020,8 +6197,8 @@
       "notes": [
        "ATK/MATK debuff parity pass (2026-08-19, issue #39): the MATK-side twin",
        "of Disarming Blow, same shape as hex_of_frailty's MDEF version restated",
-       "on MATK. -50%\u00d72t debuffStat is frozen `control` at the size-1 cap (100",
-       "deci) at every tier; a Frost bolt sinks the rest. Bronze: 100 = Bronze",
+       "on MATK. -50%\u00d72t debuffStat is frozen by autoScaleTier at 100 deci while",
+       "the size-1 Control cap grows by tier; a Frost bolt sinks the rest. Bronze: 100 = Bronze",
        "exactly. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
        "30 (150) + 100 = 250 \u2014 verified with `powerLevelDeci`/`capViolations`",
        "at every tier (zero cap violations, exact budget match).",
@@ -7031,7 +7208,7 @@
        "8 x 2 x 5/4 = 20 for the repeats (PRICE.cursePerAmountTurnNum/Den: one further",
        "firing per BASELINE_COOLDOWN+1 turns). damage 12 = 60. 40 + 60 = 100 = Bronze",
        "exactly, size 1 so no grant and weight 10 is baseline (0 delta).",
-       "Control-family spend is 40 deci, under the size-1 control cap (100 - verified",
+       "Control-family spend is 40 deci, under the Bronze size-1 Control cap (100 - verified",
        "with capViolations).",
        "AMOUNT 8 AGAINST 2 TURNS, not 4 against 4: the same 40 deci either way, but a",
        "DEEP short curse actually bites (8 off one hit is most of a bronze card's",
@@ -7039,7 +7216,7 @@
        "notices. The window only has to outlive the anchor's next play, and 2 turns is",
        "already generous against the 4-turn cooldown stride.",
        "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold 32,",
-       "diamond 42 - curse is control and stays frozen at every tier, verified against",
+       "diamond 42 - the curse magnitude stays frozen by autoScaleTier while the Control cap grows, verified against",
        "`autoScaleTier`)."
       ],
       "archetypes": [
@@ -7074,34 +7251,10 @@
      "def": {
       "name": "Sapping Arc",
       "notes": [
-       "SHOWCASE CARD for `curse + splash` (2026-08-21) \u2014 the SPREADER doing its job",
-       "on the second card-targeting keyword. `splash` carries no payload: it widens",
-       "this card's curse from the anchor to the whole BAND (the anchor plus its",
-       "edge-to-edge neighbours, 1..3 pieces, never wrapping), exactly as it widens a",
-       "burden on Shockwave Slam. That is the whole point of splitting the keyword: one",
-       "spreader, any card-targeting payload.",
-       "PRICE (flat-splash re-solve, user ruling 2026-08-21 \u2014 splash is a",
-       "standalone keyword, never a multiplier): curse 4 for 2 turns = 20 deci",
-       "(4 x 5/2 = 10 first denial + 4 x 2 x 5/4 = 10 repeats) + splash = 20 deci",
-       "flat (PRICE.splashFlatDeci). damage 12 = 60. 20 + 20 + 60 = 100 = Bronze",
-       "exactly, size 1 so no grant and weight 10 is baseline (0 delta). NOTHING",
-       "MOVED in the re-solve: the multiplier happened to charge this card's",
-       "spread exactly 20, the same number the flat rate now names directly.",
-       "Control-family spend is 40 deci (the spreader's own price counts there",
-       "too), under the size-1 control cap (100 - verified with capViolations).",
-       "AMOUNT 4, NOT 8: the curse line is half of Dulling Hex's, and the 20 deci",
-       "that frees is what buys the spreader \u2014 breadth bought with depth. Dulling",
-       "Hex is the same 40 deci of control spent the other way (8 on one card), and",
-       "the two read as a real choice rather than a strict upgrade - which is also",
-       "why they carry the same damage line.",
-       "SWORD/PHYSICAL, against Dulling Hex's dark/magical: curse now exists on both",
-       "sides of the damage split, and the spreader family covers axe (Shockwave),",
-       "lance (Line Breaker), lightning (Arc Cascade) and now sword.",
-       "SINGLE-TARGET, deliberately: `scope: all` + splash is rejected by",
-       "validateSkillContent \u2014 the spread covers ONE victim's board, not a team.",
-       "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold 32,",
-       "diamond 42 - curse and splash are control and stay frozen at every tier,",
-       "verified against `autoScaleTier`)."
+       "Balanced Curse Splash ladder (2026-09-13): Damage 2/6/10/14 and Curse",
+       "2/4/6/8 for 2 turns accompany the card-tier Splash price of 8/10/12/14 PL.",
+       "Splash still widens the Curse from the anchor to its band; the spread",
+       "geometry, payload meaning, and single-target restriction are unchanged."
       ],
       "archetypes": [
        "offense",
@@ -7115,17 +7268,67 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 12
+        "power": 2
        },
        {
         "kind": "curse",
-        "amount": 4,
+        "amount": 2,
         "turns": 2
        },
        {
         "kind": "splash"
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 6
+         },
+         {
+          "kind": "curse",
+          "amount": 4,
+          "turns": 2
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "curse",
+          "amount": 6,
+          "turns": 2
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 14
+         },
+         {
+          "kind": "curse",
+          "amount": 8,
+          "turns": 2
+         },
+         {
+          "kind": "splash"
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -7563,30 +7766,26 @@
        "form (shockwave_slam, arc_cascade and line_breaker all carry splash), so a",
        "player could never meet the weight tax on its own. That is dulling_hex's own",
        "stated rationale, applied to the other card-targeting keyword.",
-       "GAP 2, THE SPREADER HAD ALMOST NO HOST: `ripple_sliver` (THE splash gem) is a",
-       "BARE spreader, so THE SPLASH GATE's `nothingToSpread` arm drops it on any host",
-       "with no card-targeting payload and its `hostAlreadySplashes` arm drops it on",
-       "the four cards that already splash \u2014 leaving dulling_hex the ONLY legal host",
-       "in a 125-card book. This is the second, and the first on the burden axis:",
-       "socket the spreader here and the +8 tax covers the whole band.",
-       "PRICE: damage 16 = 80 deci + burden 8 = 20 deci (PRICE.burdenPerWeightNum/Den,",
-       "5/2) = 100 = Bronze exactly, size 1 so no grant and weight 10 is baseline",
-       "(0 delta). Control-family spend is 20 deci, far under the size-1 control cap",
+       "GAP 2, A CLEAN HOST FOR THE SPREADER: `ripple_sliver` is the Legendary bare",
+       "Splash gem, so THE SPLASH GATE drops it on hosts with nothing to spread or",
+       "hosts that already carry Splash. Leaden Bite supplies an anchor-only Burden",
+       "payload without its own spreader: socket the gem here and the +8 tax covers",
+       "the whole band.",
+       "PRICE: damage 12 = 60 deci + burden 8 = 40 deci (PRICE.burdenPerWeightNum/Den,",
+       "5/1) = 100 = Bronze exactly, size 1 so no grant and weight 10 is baseline",
+       "(0 delta). Control-family spend is 40 deci, under the Bronze size-1 Control cap",
        "(100 \u2014 verified with capViolations).",
-       "WEIGHT 8, NOT 4 OR 16: the anchor-only form goes DEEP where the spread form",
-       "goes BROAD \u2014 the same trade dulling_hex (curse 8 on one card) makes against",
-       "sapping_arc (curse 4 across the band). 8 is double shockwave_slam's spread tax",
-       "and lands the burden part on a whole PL (weight x 5/2, so multiples of 4).",
-       "Deliberately NOT 16: socketed with ripple_sliver that would put the heaviest",
-       "board disruption in the game behind one Common gem \u2014 the very reason the",
-       "retired ladder's Epic/Legendary rungs were never shipped.",
+       "WEIGHT 8: the anchor-only form goes DEEP where authored Splash cards go BROAD.",
+       "It also lands the Burden part on a whole PL (weight x 5/1, so multiples of 2).",
+       "The Legendary Ripple Sliver can trade a socket for wider coverage without",
+       "changing Leaden Bite's authored anchor payload.",
        "BEAST/PHYSICAL, against the spreader family's axe (Shockwave Slam), lance",
        "(Line Breaker), sword (Sapping Arc) and lightning (Arc Cascade): the burden",
        "lane now reaches the natural-weapon class. beast+debuff is a 3-card pool that",
        "no fixture pins \u2014 the narrow-pool fixture in tests/run/events.test.ts pins",
        "bow+debuff at exactly 2, deliberately avoided here.",
-       "No tierUpgrades: damage alone absorbs every higher budget (silver 26, gold 36,",
-       "diamond 46 \u2014 burden is control and stays frozen at every tier, verified",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold 32,",
+       "diamond 42 \u2014 the burden magnitude stays frozen by autoScaleTier while the Control cap grows, verified",
        "against `autoScaleTier`)."
       ],
       "archetypes": [
@@ -7601,7 +7800,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 16
+        "power": 12
        },
        {
         "kind": "burden",
@@ -9622,11 +9821,11 @@
        "`cleanse + debuffStat` is a new signature: cleanse ships on 6 cards",
        "(purify, warding_prayer, purge_the_rot, graveside_rite, poison_ritual,",
        "penitent_mending) and has never sat beside a stat debuff.",
-       "CLEANSE IS THE TIER SINK BECAUSE IT IS THE ONLY FAMILY THAT SCALES.",
-       "`control` (where debuffStat lives) is FROZEN at 100 deci for size 1 at",
-       "every tier, so the two debuff lines top out at Silver and cannot absorb",
-       "Gold or Diamond. `cleanse` is the single named carve-out in",
-       "TIER_SCALED_FAMILIES (user-locked 2026-08-17): its cap is",
+       "CLEANSE IS THE AUTHORED TIER SINK EVEN THOUGH BOTH CLEANSE AND CONTROL CAPS SCALE.",
+       "`control` (where debuffStat lives) has a 100/150/200/250-deci size-1 cap,",
+       "but autoScaleTier freezes these debuff magnitudes, so they top out at Silver and cannot absorb",
+       "Gold or Diamond. `cleanse` was the first named carve-out in",
+       "TIER_SCALED_FAMILIES (user-locked 2026-08-17); Control joined it in 2026-09-13. Its cap is",
        "floor(100 * TIER_BUDGET_DECI / 100) = 100 / 150 / 200 / 250, so a bigger",
        "budget legally buys more self-repair. Same structural trick",
        "poison_ritual uses, on the opposite half of the card.",
@@ -9638,8 +9837,8 @@
        "  Silver:  25*2 = 50 + 25*2 = 50 + cleanse 2 (50) = 150 = Silver exactly.",
        "  Gold:    50 + 50 + cleanse 4 (4*25 = 100) = 200 = Gold exactly.",
        "  Diamond: 50 + 50 + cleanse 6 (6*25 = 150) = 250 = Diamond exactly.",
-       "CAP CHECK: control spend 50 / 100 / 100 / 100 against the frozen size-1",
-       "control ceiling of 100 (Silver onward sits exactly on it). Cleanse spend",
+       "CAP CHECK: Control spend 50 / 100 / 100 / 100 against its tier-aware size-1",
+       "ceiling of 100 / 150 / 200 / 250. Cleanse spend",
        "50 / 50 / 100 / 150 against its OWN tier-scaled ceiling 100 / 150 / 200",
        "/ 250 \u2014 clear at every rank.",
        "WHOLE-PL CHECK: 30 / 20 / 50, then 50 / 50 / 50, 50 / 50 / 100,",
@@ -9776,26 +9975,26 @@
        "disrupt is BRACKETED and MARGINAL (points 1-5 at 5 deci, 6-10 at 15):",
        "  disrupt 6 = 5*5 + 1*15 = 25 + 15 = 40",
        "  disrupt 8 = 5*5 + 3*15 = 25 + 45 = 70",
-       "  Bronze:  disrupt 6 (40) + slow 8 (floor(8*5/2) = 20)",
+       "  Bronze:  disrupt 6 (40) + slow 4 (floor(4*5/1) = 20)",
        "         + buffStat speed 20% x 2t (20*2*1 = 40)",
        "         = 40 + 20 + 40 = 100 = Bronze exactly.",
-       "  Silver:  disrupt 8 (70) + slow 8 (20) + buffStat 30% x 2t (60)",
+       "  Silver:  disrupt 6 (40) + slow 6 (30) + buffStat 40% x 2t (80)",
        "         = 150 = Silver exactly.",
-       "  Gold:    disrupt 8 (70) + slow 12 (floor(12*5/2) = 30)",
+       "  Gold:    disrupt 8 (70) + slow 6 (floor(6*5/1) = 30)",
        "         + buffStat 50% x 2t (100) = 200 = Gold exactly.",
-       "  Diamond: damage 10 (10*5 = 50) + disrupt 8 (70) + slow 12 (30)",
+       "  Diamond: damage 10 (10*5 = 50) + disrupt 8 (70) + slow 6 (30)",
        "         + buffStat 50% x 2t (100) = 250 = Diamond exactly.",
-       "CAP CHECK: control (disrupt + slow) 60 / 90 / 100 / 100 against the",
-       "frozen size-1 ceiling of 100; empower (buffStat) 40 / 60 / 100 / 100",
+       "CAP CHECK: control (disrupt + slow) 60 / 70 / 100 / 100 against the",
+       "frozen size-1 ceiling of 100; empower (buffStat) 40 / 80 / 100 / 100",
        "against its own 100; damage 50 at Diamond against the size-1 damage",
        "ceiling of 300. Nothing over.",
-       "WHOLE-PL CHECK: every slow weight is a multiple of 4 (slowPerWeight is",
-       "5/2, so 8 -> 20 and 12 -> 30 are whole PL; 10 would price 2.5 PL), every",
+       "WHOLE-PL CHECK: every slow weight is even (slowPerWeight is",
+       "5/1, so 4 -> 20 and 6 -> 30 are whole PL), every",
        "disrupt amount lands on a clean bracket total (6 -> 40, 8 -> 70), every",
        "pct x turns product is a multiple of 10, and damage 10 is even.",
        "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250 on unconditional effects,",
-       "and no line ever shrinks (disrupt 6 -> 8 -> 8 -> 8, slow 8 -> 8 -> 12 ->",
-       "12, SPD 20 -> 30 -> 50 -> 50)."
+       "and no line ever shrinks (disrupt 6 -> 6 -> 8 -> 8, slow 4 -> 6 -> 6 ->",
+       "6, SPD 20 -> 40 -> 50 -> 50)."
       ],
       "archetypes": [
        "support",
@@ -9813,7 +10012,7 @@
        },
        {
         "kind": "slow",
-        "weight": 8
+        "weight": 4
        },
        {
         "kind": "buffStat",
@@ -9827,16 +10026,16 @@
         "effects": [
          {
           "kind": "disrupt",
-          "amount": 8
+          "amount": 6
          },
          {
           "kind": "slow",
-          "weight": 8
+          "weight": 6
          },
          {
           "kind": "buffStat",
           "stat": "speed",
-          "pct": 30,
+          "pct": 40,
           "turns": 2
          }
         ]
@@ -9849,7 +10048,7 @@
          },
          {
           "kind": "slow",
-          "weight": 12
+          "weight": 6
          },
          {
           "kind": "buffStat",
@@ -9871,7 +10070,7 @@
          },
          {
           "kind": "slow",
-          "weight": 12
+          "weight": 6
          },
          {
           "kind": "buffStat",
@@ -9894,49 +10093,11 @@
      "def": {
       "name": "Writ of Sanction",
       "notes": [
-       "THE FIRST CARD TO SPREAD BOTH CARD-SCOPE TAXES AT ONCE. There are four",
-       "splash cards in the book and every one of them spreads a SINGLE payload:",
-       "shockwave_slam and arc_cascade spread a burden, line_breaker spreads a",
-       "burden (its slow is unit-scope and does not ride the spreader),",
-       "sapping_arc spreads a curse. CARD_TARGETING_KINDS is exactly",
-       "{ burden, curse } and this is the first cast to carry both, so one",
-       "spreader widens the weight tax and the damage denial together across",
-       "the whole band \u2014 up to three of the victim's pieces come back both",
-       "slower and softer.",
-       "IT IS ALSO THE BOOK'S SECOND HOLY DEBUFF CARD. Measured over the 166:",
-       "debuff is axe 13 / frost 7 / lance 6 / dark 5 / beast 5 / nature 4 /",
-       "lightning 3 / bow 3 / sword 3 / fire 1 / HOLY 1 (judgment_light, which",
-       "is offense-first). Holy is the book's judgement/censure element and had",
-       "no pure debuff at all; a writ that binds a weapon rather than smiting",
-       "it is exactly that flavour.",
-       "AND IT HAS NO HIT AT BRONZE. The Bronze copy is 100% control \u2014 the",
-       "entire size-1 control budget spent on denial, with nothing recouped in",
-       "damage. Cast it BEFORE your attackers, not with them.",
-       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0).",
-       "curse is TWO summed terms \u2014 the first denial at 5/2 per point and the",
-       "repeats at 5/4 per point-turn (cursePerAmountTurnDen = BASELINE_COOLDOWN",
-       "+ 1 = 4):",
-       "  curse 12 for 2t = floor(12*5/2) + floor(12*2*5/4) = 30 + 30 = 60",
-       "  burden 8        = floor(8*5/2) = 20",
-       "  splash          = 20 flat (splashFlatDeci; standalone, payload-blind,",
-       "                    never a multiplier on what it spreads)",
-       "  Bronze:  60 + 20 + 20 = 100 = Bronze exactly.",
-       "  Silver:  damage 10 (50) + 60 + 20 + 20 = 150 = Silver exactly.",
-       "  Gold:    damage 20 (100) + 60 + 20 + 20 = 200 = Gold exactly.",
-       "  Diamond: damage 30 (150) + 60 + 20 + 20 = 250 = Diamond exactly.",
-       "CAP CHECK: control spend is curse 60 + burden 20 + splash 20 = 100 at",
-       "EVERY tier, sitting exactly on the frozen size-1 control ceiling of 100",
-       "\u2014 which is why the tax numbers never move and the tier budget goes into",
-       "the hit instead. Damage 0 / 50 / 100 / 150 against the size-1 damage",
-       "ceiling of 300.",
-       "WHOLE-PL CHECK: burden weight is a multiple of 4 (burdenPerWeight 5/2),",
-       "the curse pair lands on 60 because amount 12 makes BOTH floors exact,",
-       "splash is a whole 2 PL by construction, and every damage power is even.",
-       "AUTHORING-RULE CHECK: the splash has something to spread at every tier",
-       "(rejectSpreaderWithNothingToSpread), scope is left at the default `one`",
-       "so the AoE+splash refusal never applies, and there is no conditional",
-       "rider so the ordering rule is inert.",
-       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250, no line ever shrinks."
+       "Pure dual-debuff Splash ladder (2026-09-13): no Damage at any rank.",
+       "Curse 2/6/8/12 for 2 turns and Burden 2/4/8/10 accompany the card-tier",
+       "Splash price of 8/10/12/14 PL, filling the tier-aware Control cap exactly.",
+       "Up to three pieces are still made both slower and softer; spread behavior",
+       "and the single-target restriction are unchanged."
       ],
       "archetypes": [
        "debuff"
@@ -9949,12 +10110,12 @@
       "effects": [
        {
         "kind": "curse",
-        "amount": 12,
+        "amount": 2,
         "turns": 2
        },
        {
         "kind": "burden",
-        "weight": 8
+        "weight": 2
        },
        {
         "kind": "splash"
@@ -9964,17 +10125,13 @@
        "silver": {
         "effects": [
          {
-          "kind": "damage",
-          "power": 10
-         },
-         {
           "kind": "curse",
-          "amount": 12,
+          "amount": 6,
           "turns": 2
          },
          {
           "kind": "burden",
-          "weight": 8
+          "weight": 4
          },
          {
           "kind": "splash"
@@ -9984,12 +10141,8 @@
        "gold": {
         "effects": [
          {
-          "kind": "damage",
-          "power": 20
-         },
-         {
           "kind": "curse",
-          "amount": 12,
+          "amount": 8,
           "turns": 2
          },
          {
@@ -10004,17 +10157,13 @@
        "diamond": {
         "effects": [
          {
-          "kind": "damage",
-          "power": 30
-         },
-         {
           "kind": "curse",
           "amount": 12,
           "turns": 2
          },
          {
           "kind": "burden",
-          "weight": 8
+          "weight": 10
          },
          {
           "kind": "splash"
@@ -10311,26 +10460,26 @@
        "THE ONLY COMMON-RARITY CARD IN THIS SET, on purpose. Debuff has 6",
        "commons against 41 rares; a cheap early-shop control card is what the",
        "archetype's low end is missing.",
-       "THE DoT IS THE TIER SINK. `control` (slow) is frozen at 100 deci for",
-       "size 1, but the `dot` family cap is 200 deci at size 1 \u2014 twice control's",
-       "\u2014 so poison is what a rank-up actually buys. The Diamond copy sits",
+       "THE DoT IS THE PRIMARY TIER SINK. `control` (slow) spends 20/30/40/50 deci",
+       "against its tier-aware size-1 cap of 100/150/200/250, while the `dot` family",
+       "cap stays 200 deci at size 1 \u2014 so poison absorbs most rank-up budget. The Diamond copy sits",
        "EXACTLY on the DoT ceiling (200 deci = 20 stacks), which is why the last",
        "rung's extra 10 deci goes into the slow instead.",
        "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0).",
        "DoTs are LINEAR per authored stack (dotPerStack 10), never priced on the",
        "total the decay curve delivers:",
-       "  Bronze:  slow 8 (floor(8*5/2) = 20) + poison 8 (8*10 = 80)",
+       "  Bronze:  slow 4 (floor(4*5/1) = 20) + poison 8 (8*10 = 80)",
        "         = 100 = Bronze exactly.",
-       "  Silver:  slow 12 (30) + poison 12 (120) = 150 = Silver exactly.",
-       "  Gold:    slow 16 (40) + poison 16 (160) = 200 = Gold exactly.",
-       "  Diamond: slow 20 (50) + poison 20 (200) = 250 = Diamond exactly.",
-       "CAP CHECK: control 20 / 30 / 40 / 50 against the size-1 ceiling of 100;",
+       "  Silver:  slow 6 (30) + poison 12 (120) = 150 = Silver exactly.",
+       "  Gold:    slow 8 (40) + poison 16 (160) = 200 = Gold exactly.",
+       "  Diamond: slow 10 (50) + poison 20 (200) = 250 = Diamond exactly.",
+       "CAP CHECK: Control 20 / 30 / 40 / 50 against the tier-aware size-1 ceiling of 100 / 150 / 200 / 250;",
        "dot 80 / 120 / 160 / 200 against the size-1 ceiling of 200 \u2014 Diamond",
        "sits exactly on it. Poison 20 matches the highest stack count already",
        "shipped (poison 20), so this is not an out-of-band magnitude.",
-       "WHOLE-PL CHECK: every slow weight is a multiple of 4 (slowPerWeight",
-       "5/2), and every stack count prices at a whole 10 deci by construction.",
-       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250, slow 8 -> 12 -> 16 -> 20,",
+       "WHOLE-PL CHECK: every slow weight is even (slowPerWeight",
+       "5/1), and every stack count prices at a whole 10 deci by construction.",
+       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250, slow 4 -> 6 -> 8 -> 10,",
        "poison 8 -> 12 -> 16 -> 20 \u2014 nothing shrinks.",
        "NO STAT TOKEN in the text on purpose: the card has no damage, shield or",
        "heal action, so it has no scaling term to advertise."
@@ -10346,7 +10495,7 @@
       "effects": [
        {
         "kind": "slow",
-        "weight": 8
+        "weight": 4
        },
        {
         "kind": "poison",
@@ -10358,7 +10507,7 @@
         "effects": [
          {
           "kind": "slow",
-          "weight": 12
+          "weight": 6
          },
          {
           "kind": "poison",
@@ -10370,7 +10519,7 @@
         "effects": [
          {
           "kind": "slow",
-          "weight": 16
+          "weight": 8
          },
          {
           "kind": "poison",
@@ -10382,7 +10531,7 @@
         "effects": [
          {
           "kind": "slow",
-          "weight": 20
+          "weight": 10
          },
          {
           "kind": "poison",
@@ -10439,21 +10588,21 @@
        "raw; the affinity refund is floor(price / 2) (affinityPayoffNum/Den =",
        "1/2), so the gated line costs floor(20/2) = 10 deci \u2014 AT EVERY TIER,",
        "because the frozen amount never moves:",
-       "  Bronze:  damage 14 (14*5 = 70) + burden 8 (floor(8*5/2) = 20)",
+       "  Bronze:  damage 10 (10*5 = 50) + burden 8 (floor(8*5/1) = 40)",
        "         + disrupt 4 gated (10) = 100 = Bronze exactly.",
-       "  Silver:  damage 24 (120) + burden 8 (20) + disrupt 4 gated (10)",
+       "  Silver:  damage 20 (100) + burden 8 (40) + disrupt 4 gated (10)",
        "         = 150 = Silver exactly.",
-       "  Gold:    damage 32 (160) + burden 12 (30) + disrupt 4 gated (10)",
+       "  Gold:    damage 26 (130) + burden 12 (60) + disrupt 4 gated (10)",
        "         = 200 = Gold exactly.",
-       "  Diamond: damage 42 (210) + burden 12 (30) + disrupt 4 gated (10)",
+       "  Diamond: damage 36 (180) + burden 12 (60) + disrupt 4 gated (10)",
        "         = 250 = Diamond exactly.",
        "CAP CHECK: control (burden + the gated disrupt, priced AFTER the",
-       "refund exactly as capViolations prices it) 30 / 30 / 40 / 40 against",
-       "the frozen size-1 control ceiling of 100. Damage 70 / 120 / 160 / 210",
+       "refund exactly as capViolations prices it) 50 / 50 / 70 / 70 against",
+       "the tier-aware size-1 Control ceiling of 100 / 150 / 200 / 250. The disrupt and burden magnitudes remain frozen by autoScaleTier. Damage 50 / 100 / 130 / 180",
        "against the size-1 damage ceiling of 300. One hit kind only, so no",
        "multi-hit premium.",
-       "WHOLE-PL CHECK: damage powers are even (5 deci/pt -> 70/120/160/210),",
-       "burden weights are multiples of 4 (burdenPerWeight 5/2 -> 20/30), and",
+       "WHOLE-PL CHECK: damage powers are even (5 deci/pt -> 50/100/130/180),",
+       "burden weights are even (burdenPerWeight 5/1 -> 40/60), and",
        "the gated disrupt part is a whole PL (10 deci) by the same choice that",
        "froze it at 4 \u2014 a raw bracket total of 20 halves cleanly.",
        "FREEZE-AUDIT CHECK (tests/engine/affinityTier.test.ts, mirrored by",
@@ -10462,7 +10611,7 @@
        "(2) \u2014 the audit compares ranked.effects[i] against card.effects[i] by",
        "index, which is why every tierUpgrades block restates the list in the",
        "same damage/burden/disrupt order. Ungated lines never shrink (damage",
-       "14 -> 24 -> 32 -> 42, burden 8 -> 8 -> 12 -> 12) and at least one",
+       "10 -> 20 -> 26 -> 36, burden 8 -> 8 -> 12 -> 12) and at least one",
        "grows at every rank, so the family's ladder-climb non-vacuity is fed,",
        "not just not-broken.",
        "NO-DOWNGRADE CHECK: guaranteedPowerLevelDeci (the kit with the gated",
@@ -10483,7 +10632,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 14
+        "power": 10
        },
        {
         "kind": "burden",
@@ -10500,7 +10649,7 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 32
+          "power": 26
          },
          {
           "kind": "burden",
@@ -10517,7 +10666,7 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 42
+          "power": 36
          },
          {
           "kind": "burden",

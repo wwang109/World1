@@ -61,6 +61,7 @@ interface Group {
 }
 
 const GROUPS: Group[] = [
+  { name: 'gems', srcDir: 'art-src/ui/gems', outDir: 'public/game-art/ui/gems', maxHeight: 256, quality: 0.84 },
   { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.68 },
   { name: 'placeholders', srcDir: 'art-src/placeholders', outDir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
 ];

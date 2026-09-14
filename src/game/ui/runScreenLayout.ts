@@ -10,7 +10,8 @@
  * authored rect should absorb that slack:
  *
  *   left-anchored   (kicker, title, content.x)    unchanged
- *   right-anchored  (desktop stats/badge/actions) translate by the width slack
+ *   right-anchored  (desktop progress stats/actions) translate by width slack
+ *   desktop stat band (badge region)              grows through width slack
  *   full-width      (mobile stats/badge/actions)  grow by the width slack
  *   bottom-anchored (mobile footer)               translate by the height slack
  *   the content box                               grows by both
@@ -100,17 +101,21 @@ export function projectRunScreenTemplate(
 
   const desktop = base.platform === 'desktop';
   const b = base.regions;
-  // Desktop's stats/badge/actions are RIGHT-anchored fixed-width blocks, so
-  // they translate. Mobile's are FULL-width bands, so they grow. That is the
-  // only per-platform difference in the whole projection.
+  // Desktop's progress stats/actions are right-anchored fixed-width blocks,
+  // so they translate. Its player-stat/PL band is left-anchored and grows
+  // through the slack until those actions. Mobile's header bands remain
+  // full-width and grow as before.
   const bandProject = (r: Rect): Rect => (desktop ? translated(r, dw, 0) : grown(r, dw, 0));
+  const badgeProject = (r: Rect): Rect => (
+    desktop && r.width > 0 && r.height > 0 ? grown(r, dw, 0) : bandProject(r)
+  );
 
   const content = grown(b.content, dw, dh);
   const regions: Record<RunScreenRegion, Rect> = {
     kicker: { ...b.kicker },
     title: { ...b.title },
     stats: bandProject(b.stats),
-    badge: bandProject(b.badge),
+    badge: badgeProject(b.badge),
     actions: bandProject(b.actions),
     content,
     footer: grown(translated(b.footer, 0, dh), dw, 0),

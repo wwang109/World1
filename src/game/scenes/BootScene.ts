@@ -6,6 +6,7 @@ import { FONT, SCREEN, UI } from '../theme';
 import { applyRenderScale } from '../renderScale';
 import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMark';
 import { RUN_ART_ASSETS } from '../ui/runArt';
+import { GEM_ART_ASSETS } from '../ui/gemArt';
 import { installDevRunFixture } from '../runStore';
 
 /** Where the wordmark block sits, as a fraction of viewport height. Boot
@@ -140,6 +141,7 @@ export class BootScene extends Phaser.Scene {
     for (const asset of RUN_ART_ASSETS) {
       this.load.image(asset.key, asset.path);
     }
+    for (const asset of GEM_ART_ASSETS) this.load.image(asset.key, asset.path);
   }
 
   create(): void {

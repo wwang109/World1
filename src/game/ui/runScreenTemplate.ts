@@ -13,9 +13,10 @@
  *   title   — the screen name (RUN / PREP · FIGHT / EVENT / SHOP / DECK /
  *             BATTLE (stats-only chrome — no badge/actions)).
  *   stats   — the one always-on stat strip (DAY · WAVE · GOLD · LV · LIVES · BOSSES).
- *   badge   — the banked-PL "n PL TO SPEND" slot (own slot — no longer fights
- *             the stats row for the top-right corner).
- *   actions — the fixed button ROW, split into role slots (see below).
+ *   badge   — desktop's player-stat band plus banked-PL control; mobile keeps
+ *             the compact banked-PL slot.
+ *   actions — the fixed button row, beside the desktop player stats and on
+ *             its own compact row on mobile (see below).
  *   content — the ONLY region a scene may lay out freely.
  *   footer  — mobile's bottom primary-action bar (thumb-reachable); zero-height
  *             (unused) on desktop, where all 4 roles sit in one header row.
@@ -399,13 +400,17 @@ function buildDesktopTemplate(chrome: RunTemplateChrome): RunScreenTemplate {
     kicker: { x: gx, y: 16, width: 260, height: 20 },
     title: { x: gx, y: 36, width: 460, height: 34 },
     stats: { x: width - gx - 640, y: 20, width: 640, height: 20 },
-    badge: statsOnly ? unusedRect(width - gx - 200) : { x: width - gx - 200, y: 46, width: 200, height: 22 },
-    actions: statsOnly ? unusedRect(width - gx - 460) : { x: width - gx - 460, y: 74, width: 460, height: 34 },
+    // Full desktop chrome uses one middle row: six player stats and the PL
+    // control on the left, fixed action roles on the right. Keeping these as
+    // adjacent regions preserves the template's no-overlap contract while
+    // reclaiming the old second action row completely.
+    badge: statsOnly ? unusedRect(width - gx - 200) : { x: gx, y: 76, width: 904, height: 34 },
+    actions: statsOnly ? unusedRect(width - gx - 460) : { x: width - gx - 460, y: 76, width: 460, height: 34 },
     // statsOnly (battle): no badge/actions band to clear — content starts
     // right below the title/stats row (contentTop ≈ 84 — see module doc).
     content: statsOnly
       ? { x: gx, y: 84, width: width - gx * 2, height: height - 84 - 24 }
-      : { x: gx, y: 130, width: width - gx * 2, height: height - 130 - 24 },
+      : { x: gx, y: 122, width: width - gx * 2, height: height - 122 - 24 },
     footer: { x: gx, y: height - 24, width: width - gx * 2, height: 0 },
   };
   // statsOnly never renders action-role buttons — zero-area slots rather than

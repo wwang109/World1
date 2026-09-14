@@ -169,14 +169,14 @@ describe('(A) every gem payload resolves to a registry row', () => {
         problems.push(`${gem.id}: a ${category} must open "${opener}", got "${face}"`);
       }
       if (opener === '') {
-        for (const other of ['This card:', 'Hero:']) {
+        for (const other of ['Passive (this card):', 'Passive:']) {
           if (face.startsWith(other)) problems.push(`${gem.id}: a ${category} borrows the "${other}" opener`);
         }
       }
     }
     expect(problems, problems.join('\n')).toEqual([]);
-    expect(GEM_OPENER.Core).toBe('This card:');
-    expect(GEM_OPENER.Charm).toBe('Hero:');
+    expect(GEM_OPENER.Core).toBe('Passive (this card):');
+    expect(GEM_OPENER.Charm).toBe('Passive:');
   });
 
   it('the engine-side gem category agrees with the loader-side one, on every gem', () => {
@@ -259,7 +259,7 @@ describe('(B) one reference: a gem explains a keyword with the CARD\'s sentence'
     expect(STAT_RULE.magicResist.body).toBe('Scales magical healing and Shield. Reduces magical damage taken.');
     expect(STAT_RULE.armor.body).toBe('Reduces incoming physical damage.');
     expect(STAT_RULE.magicResist.body).toBe('Reduces incoming magical damage.');
-    expect(STAT_RULE.speed.body).toBe('Adds readiness each turn. Playing a card costs weight.');
+    expect(STAT_RULE.speed.body).toBe('Adds readiness each turn.');
     expect(statRuleByToken('WEIRD')).toEqual({ title: 'WEIRD', body: 'A combat stat.' });
   });
 
@@ -391,12 +391,12 @@ const GEM_CTX_PROBE: RenderCtx = {
  */
 const GOLDEN: Record<string, string> = {
   // Charm — hero scope, the stat token and nothing else.
-  archmages_core: 'Hero: +8 MATK.',
-  swift_charm: 'Hero: +4 SPD.',
+  archmages_core: 'Passive: +8 MATK.',
+  swift_charm: 'Passive: +4 SPD.',
   // Core — card scope, the aura's own three words for the same three mods.
-  war_banner_echo: 'This card: +4 damage.',
-  restorative_core: 'This card: +8 healing.',
-  lightweight_core: 'This card: -2 weight.',
+  war_banner_echo: 'Passive (this card): +4 damage.',
+  restorative_core: 'Passive (this card): +8 healing.',
+  lightweight_core: 'Passive (this card): -2 weight.',
   // Echo — the one gem with a hit, plus its tempo dial. No "Echo:" opener: the
   // clause already reads "Echo".
   resonant_echo: 'Echo 1/2 · +25% weight.',
@@ -410,7 +410,7 @@ const GOLDEN: Record<string, string> = {
   // A rider that marks up ANOTHER keyword's status.
   festering_sliver: '+8 vs {{Poison}}.',
   // The mechanism-heaviest authored strings in the old catalog, now parameters.
-  ballast_sliver: '{{Burden}} +8wt.',
+  ballast_sliver: '{{Burden}} +4wt.',
   provoker_sliver: '{{Taunt}} +2.',
 };
 
@@ -452,7 +452,7 @@ describe('(E) the three card-scope mods carry their own mechanic', () => {
     // anywhere. Face unchanged (the amount is a parameter); the mechanic is a
     // definition now.
     const gem = gemBook.empowering_core!;
-    expect(renderGemText(gem)).toBe('This card: +6 damage.');
+    expect(renderGemText(gem)).toBe('Passive (this card): +6 damage.');
     const entries = gemRuleEntries(gem);
     expect(entries.map((e) => e.title)).toEqual(['Damage bonus']);
     expect(entries[0]!.body).toBe('Add X damage to each hit from this card.');

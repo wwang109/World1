@@ -12,7 +12,7 @@ import {
   type BandBannerRowStyle,
   type BandBannerViewModel,
 } from './bandBannerViewModel';
-import { addRunArt } from './runArt';
+import { addRunArt, RUN_ART_KEYS } from './runArt';
 import type { RunRouteSnapshot } from './runRouteLayout';
 import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import type { MapIntelLayoutModel } from './mapIntelLayout';
@@ -176,16 +176,19 @@ export function renderRunRouteBoard(
   if (route.columns.length === 0) return;
   const model = expeditionRouteTrackModel(route);
   const inset = opts.mode === 'desktop' ? 12 : 8;
+  const compact = opts.mode === 'mobile';
   const header = scene.add.text(bounds.x + inset, bounds.y + 2,
-    `EXPEDITION ROUTE · CROSSING ${opts.regionName.toUpperCase()}`, {
+    compact
+      ? `EXPEDITION ROUTE · ${opts.regionName.toUpperCase().replace(/^THE\s+/, '')}`
+      : `EXPEDITION ROUTE · CROSSING ${opts.regionName.toUpperCase()}`, {
       ...textRole('kicker'),
-      wordWrap: { width: Math.max(80, bounds.w - inset * 2 - 124) },
+      wordWrap: { width: Math.max(80, bounds.w - inset * 2 - (compact ? 62 : 104)) },
     });
   trackObject(opts.track, header);
   auditTextBlock(header, {
     name: `Run route region header (${opts.mode})`,
-    maxWidth: Math.max(80, bounds.w - inset * 2 - 124),
-    maxHeight: opts.mode === 'desktop' ? 22 : 30,
+    maxWidth: Math.max(80, bounds.w - inset * 2 - (compact ? 62 : 104)),
+    maxHeight: 18,
     minFontSize: 8,
   });
   const currentDay = scene.add.text(bounds.x + bounds.w - inset, bounds.y + 2, model.currentLabel,
@@ -193,31 +196,80 @@ export function renderRunRouteBoard(
   trackObject(opts.track, currentDay);
   auditTextBlock(currentDay, { name: `Run route current day (${opts.mode})`, maxWidth: 116, maxHeight: 18, minFontSize: 8 });
 
-  const trackY = bounds.y + (opts.mode === 'desktop' ? 47 : 43);
-  const trackStart = bounds.x + inset + 6;
-  const trackEnd = bounds.x + bounds.w - inset - 6;
+  const mapTop = bounds.y + 22;
+  const mapHeight = Math.max(46, bounds.h - 22);
+  const mapArt = (scene.textures as Phaser.Textures.TextureManager | undefined)?.exists(RUN_ART_KEYS.runMap)
+    ? addRunArt(scene, RUN_ART_KEYS.runMap, { x: bounds.x, y: mapTop, width: bounds.w, height: mapHeight }, 0.52)
+    : undefined;
+  if (mapArt) trackObject(opts.track, mapArt);
+  const mapShade = scene.add.rectangle(bounds.x, mapTop, bounds.w, mapHeight, UI.panelAlt, 0.57).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 0.5);
+  trackObject(opts.track, mapShade);
+
+  const nodeRadius = compact ? 11 : 13;
+  const trackStart = bounds.x + inset + nodeRadius + 2;
+  const trackEnd = bounds.x + bounds.w - inset - nodeRadius - 2;
   const step = (trackEnd - trackStart) / 4;
-  const baseLine = scene.add.rectangle(trackStart, trackY, trackEnd - trackStart, 2, UI.border, 0.35).setOrigin(0, 0.5);
-  trackObject(opts.track, baseLine);
-  const currentX = trackStart + step * (model.currentDay - 1);
-  if (currentX > trackStart) {
-    const completedLine = scene.add.rectangle(trackStart, trackY, currentX - trackStart, 2, UI.chip, 0.78).setOrigin(0, 0.5);
-    trackObject(opts.track, completedLine);
+  const centerY = mapTop + (compact ? 20 : 22);
+  const rise = compact ? 4 : 6;
+  const nodeYs = [centerY + rise, centerY - 1, centerY + rise, centerY, centerY + rise] as const;
+  const nodePoints = model.days.map((day) => ({
+    x: trackStart + step * (day.day - 1),
+    y: nodeYs[day.day - 1]!,
+  }));
+
+  for (let dayIndex = 0; dayIndex < nodePoints.length - 1; dayIndex++) {
+    const from = nodePoints[dayIndex]!;
+    const to = nodePoints[dayIndex + 1]!;
+    const color = dayIndex < model.currentDay - 1 ? UI.chip : UI.border;
+    const alpha = dayIndex < model.currentDay - 1 ? 0.9 : 0.62;
+    const dashCount = compact ? 5 : 7;
+    for (let dash = 0; dash < dashCount; dash += 2) {
+      const t0 = dash / dashCount;
+      const t1 = Math.min(1, (dash + 1) / dashCount);
+      const x0 = from.x + (to.x - from.x) * t0;
+      const y0 = from.y + (to.y - from.y) * t0;
+      const x1 = from.x + (to.x - from.x) * t1;
+      const y1 = from.y + (to.y - from.y) * t1;
+      const length = Math.hypot(x1 - x0, y1 - y0);
+      const segment = scene.add.rectangle((x0 + x1) / 2, (y0 + y1) / 2, length, compact ? 2 : 3, color, alpha)
+        .setRotation(Math.atan2(y1 - y0, x1 - x0));
+      trackObject(opts.track, segment);
+    }
   }
 
   for (const day of model.days) {
     const x = trackStart + step * (day.day - 1);
+    const y = nodeYs[day.day - 1]!;
+    const fill = day.state === 'completed' ? UI.chipDark : UI.panelMuted;
+    const ringAlpha = day.state === 'upcoming' ? 0.58 : 1;
+    const disc = scene.add.circle(x, y, nodeRadius, fill, 0.97)
+      .setStrokeStyle(day.state === 'current' ? 3 : 2, day.state === 'upcoming' ? UI.border : UI.chip, ringAlpha);
+    trackObject(opts.track, disc);
     if (day.state === 'completed') {
-      trackObject(opts.track, scene.add.circle(x, trackY, 4, UI.chip, 0.72));
+      trackObject(opts.track, scene.add.circle(x, y, nodeRadius - 4, UI.chip, 0.28));
     } else if (day.state === 'current') {
-      trackObject(opts.track, scene.add.circle(x, trackY, 7, 0, 0).setStrokeStyle(2, UI.chip, 1));
-      trackObject(opts.track, scene.add.circle(x, trackY, 3, UI.chip, 1));
-    } else {
-      trackObject(opts.track, scene.add.circle(x, trackY, 4, UI.panelMuted, 1).setStrokeStyle(1, UI.border, 0.55));
+      trackObject(opts.track, scene.add.circle(x, y, nodeRadius + 4, 0, 0).setStrokeStyle(2, UI.chip, 0.95));
     }
-    const label = scene.add.text(x, trackY + 10, day.label,
+
+    if (day.day === EXPEDITION_DAYS && (scene.textures as Phaser.Textures.TextureManager | undefined)?.exists(RUN_ART_KEYS.icon.bossSkull)) {
+      const boss = addRunArt(scene, RUN_ART_KEYS.icon.bossSkull, {
+        x: x - nodeRadius + 4,
+        y: y - nodeRadius + 4,
+        width: (nodeRadius - 4) * 2,
+        height: (nodeRadius - 4) * 2,
+      }, day.state === 'upcoming' ? 0.62 : 0.95);
+      if (boss) trackObject(opts.track, boss);
+    } else {
+      const waypoint = scene.add.rectangle(x, y, compact ? 6 : 7, compact ? 6 : 7,
+        day.state === 'upcoming' ? UI.border : UI.chip, day.state === 'upcoming' ? 0.72 : 0.95)
+        .setRotation(Math.PI / 4);
+      trackObject(opts.track, waypoint);
+    }
+
+    const label = scene.add.text(x, mapTop + mapHeight - 3, day.label,
       textRole('micro', { ink: day.state === 'current' ? 'accent' : day.state === 'completed' ? 'secondary' : 'faint' }))
-      .setOrigin(0.5, 0);
+      .setOrigin(0.5, 1);
     trackObject(opts.track, label);
     auditTextBlock(label, { name: `Run route ${day.label} (${opts.mode})`, maxWidth: Math.max(42, step - 4), maxHeight: 16, minFontSize: 8 });
   }
@@ -240,12 +292,12 @@ export function expeditionRouteTrackModel(route: RunRouteSnapshot): ExpeditionRo
   const currentDay = expeditionDay(current?.wave ?? 1);
   return {
     currentDay,
-    currentLabel: `REGION DAY ${String(currentDay)}/${String(EXPEDITION_DAYS)}`,
+    currentLabel: `DAY ${String(currentDay)}/${String(EXPEDITION_DAYS)}`,
     days: Array.from({ length: 5 }, (_, index) => {
       const day = index + 1;
       return {
         day,
-        label: `REGION DAY ${String(day)}/${String(EXPEDITION_DAYS)}`,
+        label: `DAY ${String(day)}`,
         state: day < currentDay ? 'completed' : day === currentDay ? 'current' : 'upcoming',
       } satisfies ExpeditionRouteTrackModel['days'][number];
     }),

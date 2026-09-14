@@ -8,6 +8,156 @@ export interface DesktopShopBox {
   height: number;
 }
 
+export type DesktopShopInventoryTab = 'bag' | 'gems';
+
+export interface DesktopShopInventoryTabLabel {
+  id: DesktopShopInventoryTab;
+  label: string;
+}
+
+export interface DesktopShopDragVisualPlan {
+  moveSource: boolean;
+  sourceAlpha: number;
+  useUnmaskedProxy: boolean;
+}
+
+/** Embedded shops must use the host's real height. A synthetic minimum makes
+ * the child taller than CHOOSE YOUR NEXT STOP, which summons host scroll
+ * arrows and clips the bottom sell zone on short desktop windows. */
+export function desktopShopEmbeddedViewHeight(embeddedHeight: number | undefined, fullHeight: number): number {
+  return embeddedHeight === undefined ? Math.max(1, fullHeight) : Math.max(1, embeddedHeight);
+}
+
+export interface DesktopShopOfferGridLayout {
+  cardColumns: number;
+  cardRows: number;
+  cardHeight: number;
+  gemColumns: number;
+  gemRows: number;
+  gemHeight: number;
+  rowGap: number;
+  contentHeight: number;
+}
+
+/** Preserve the approved two-column shelf at every desktop height. Embedded
+ * rows scale together to consume the available lane without forcing the host
+ * to scroll or collapsing the catalog into a sparse one-row strip. */
+export function desktopShopOfferGridLayout(
+  shelfWidth: number,
+  availableHeight: number,
+  cardCount: number,
+  gemCount: number,
+  embedded: boolean,
+): DesktopShopOfferGridLayout {
+  const cards = Math.max(0, Math.floor(cardCount));
+  const gems = Math.max(0, Math.floor(gemCount));
+  const cardColumns = Math.max(1, Math.min(cards || 1, 2));
+  const gemColumns = Math.max(1, Math.min(gems || 1, 2));
+  const cardRows = Math.ceil(cards / cardColumns);
+  const gemRows = Math.ceil(gems / gemColumns);
+  const rowGap = embedded ? 10 : 16;
+  const cardCaptionHeight = 24;
+  const sectionLabelHeight = 20;
+  const sectionGap = cards > 0 && gems > 0 ? (embedded ? 14 : 24) : 0;
+  const fixedHeight = (cards > 0 ? sectionLabelHeight + cardRows * cardCaptionHeight : 0)
+    + (gems > 0 ? sectionLabelHeight : 0)
+    + Math.max(0, cardRows - 1) * rowGap
+    + Math.max(0, gemRows - 1) * rowGap
+    + sectionGap;
+  const preferredCardHeight = 130;
+  const preferredGemHeight = 96;
+  const preferredVariableHeight = cardRows * preferredCardHeight + gemRows * preferredGemHeight;
+  const variableBudget = Math.max(1, availableHeight - fixedHeight);
+  const scale = embedded && preferredVariableHeight > 0
+    ? Math.min(1, variableBudget / preferredVariableHeight)
+    : 1;
+  const cardHeight = cards > 0 ? Math.max(54, Math.floor(preferredCardHeight * scale)) : 0;
+  const gemHeight = gems > 0 ? Math.max(44, Math.floor(preferredGemHeight * scale)) : 0;
+  const contentHeight = fixedHeight + cardRows * cardHeight + gemRows * gemHeight;
+  void shelfWidth;
+  return {
+    cardColumns,
+    cardRows,
+    cardHeight,
+    gemColumns,
+    gemRows,
+    gemHeight,
+    rowGap,
+    contentHeight,
+  };
+}
+
+/** Right-aligned merchant-banner control, vertically centred for both states. */
+export function desktopShopBannerControlLayout(
+  banner: DesktopShopBox,
+  controlWidth = 120,
+  controlHeight = 32,
+  rightInset = 8,
+): DesktopShopBox {
+  return {
+    x: banner.x + banner.width - rightInset - controlWidth,
+    y: banner.y + (banner.height - controlHeight) / 2,
+    width: controlWidth,
+    height: controlHeight,
+  };
+}
+
+/** Masked gem tiles stay in their lane; a scene-root proxy follows the drag. */
+export function desktopShopDragVisualPlan(kind: 'owned-card' | 'shelf-card' | 'gem'): DesktopShopDragVisualPlan {
+  return kind === 'gem' || kind === 'shelf-card'
+    ? { moveSource: false, sourceAlpha: 0.35, useUnmaskedProxy: true }
+    : { moveSource: true, sourceAlpha: 0.9, useUnmaskedProxy: false };
+}
+
+/** Player-facing owned-inventory labels. Gems are intentionally uncapped. */
+export function desktopShopInventoryTabs(bagUsed: number): readonly DesktopShopInventoryTabLabel[] {
+  const used = Math.max(0, Math.min(10, Math.floor(Number.isFinite(bagUsed) ? bagUsed : 0)));
+  return [
+    { id: 'bag', label: `BAG · ${used}/10` },
+    { id: 'gems', label: 'GEMS' },
+  ];
+}
+
+export interface DesktopShopWorkspaceLayout {
+  shelfColumns: 2;
+  shelf: DesktopShopBox;
+  board: DesktopShopBox;
+  inventory: DesktopShopBox;
+  footer: DesktopShopBox;
+}
+
+/**
+ * Desktop embedded-shop lanes. The catalog keeps the largest share, while the
+ * permanent board and swappable inventory lanes retain enough width to render
+ * the shared CardToken presentation. One footer spans the complete workspace.
+ */
+export function desktopShopWorkspaceLayout(
+  width: number,
+  height: number,
+  gutter = DESKTOP_LAYOUT.gutter,
+  gap = DESKTOP_PROFILE.gap,
+): DesktopShopWorkspaceLayout {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const right = safeWidth - gutter;
+  const ownedWidth = Math.min(560, Math.max(320, Math.round(safeWidth * 0.4)));
+  const boardWidth = Math.floor(ownedWidth * 0.45);
+  const inventoryWidth = ownedWidth - boardWidth;
+  const inventoryX = right - inventoryWidth;
+  const boardX = inventoryX - gap - boardWidth;
+  const shelfRight = boardX - gap;
+  const footerHeight = 44;
+  const footerY = safeHeight - gutter - footerHeight;
+  const laneHeight = Math.max(1, footerY - gap);
+  return {
+    shelfColumns: 2,
+    shelf: { x: gutter, y: 0, width: shelfRight - gutter, height: laneHeight },
+    board: { x: boardX, y: 0, width: boardWidth, height: laneHeight },
+    inventory: { x: inventoryX, y: 0, width: inventoryWidth, height: laneHeight },
+    footer: { x: gutter, y: footerY, width: right - gutter, height: footerHeight },
+  };
+}
+
 export const DESKTOP_SHOP_PAGE_SIZE = 8;
 
 export interface DesktopShopPage {

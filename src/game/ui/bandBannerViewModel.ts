@@ -36,25 +36,15 @@
  *             drops the line (or draws an empty chip) reintroduces exactly the
  *             bug 3881717 closed, so `lines` is never empty for any kind.
  *
- * `card` is the FULL read — every fact `renderBandForecast` (the terminal
- * serializer, still pinned character-for-character by
- * `tests/run/biomeForecastCounter.test.ts` over 12 seeds x 6 bands) prints,
- * composed HERE from the same `bandForecastRows` list rather than by reading
- * that serializer's own output (refactored 2026-09-06; see
- * `bandForecastCardLines` below and `src/run/bandForecastRows.ts`'s module
- * doc). Both renderers currently choose the identical sentence-case wording,
- * so `card` stays byte-identical to `renderBandForecast(f).split('\n')`
- * (`tests/game/bandForecastRows.test.ts` proves it on every sweep this file's
- * own tests use) — but the Phaser side no longer depends on a string built for
- * a monospaced terminal to get there. The banner is a SUMMARY of that same
- * card, so the two cannot drift about what is true; the test below asserts
- * the summary agrees with the card line by line.
+ * `card` is the player-facing Explore read: region identity, boss and mob
+ * names, shops, and events. Counter facts remain in the forecast and banner
+ * claims for other consumers, but Explore deliberately omits those rows.
  */
 
 import { forecastWave, type BandForecast } from '../../run/biomeForecast';
 import {
   BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
-  type BandForecastClaim, type BandForecastRow,
+  type BandForecastRow,
 } from '../../run/bandForecastRows';
 import type { RunState } from '../../run/runState';
 import { ELEMENT_COLOR, UI, WEAPON_COLOR } from '../theme';
@@ -187,39 +177,9 @@ function bossOf(f: BandForecast): BandBannerBoss {
 }
 
 // ---------------------------------------------------------------------------
-// THE FULL CARD — the Phaser-side twin of `biomeForecast.ts#renderBandForecast`.
-//
-// Both walk the SAME `bandForecastRows(f)` list (`src/run/bandForecastRows.ts`)
-// so the terminal serializer and this one can never disagree about which
-// facts exist — only, deliberately, about how each says a counter claim: this
-// module's `claim()` above upper-cases the BANNER's summary sentence, while
-// `cardClaimLines` below keeps the CARD's sentence case, matching what
-// `renderBandForecast` has always printed. That is why `cardClaimLines` and
-// `cardBossEntryCounterLine` are NOT calls into `biomeForecast.ts` — they are
-// this renderer's OWN composition, so the redesign that gives the card its
-// own typography changes only the functions in THIS file.
+// THE EXPLORE CARD — presentation over the unchanged internal forecast rows.
+// Counter claims and per-boss counter details are omitted only here.
 // ---------------------------------------------------------------------------
-
-/** A `'claim'` row, in the CARD's own words — sentence case, the same 28-wide
- * flip `biomeForecast.ts#counterSentence` uses. Byte-identical to that
- * function's output today (proven by `tests/game/bandForecastRows.test.ts`),
- * on purpose: this task changes ONLY where the lines come from, not what they
- * say. */
-function cardClaimLines(claim: BandForecastClaim): string[] {
-  if (claim.kind === 'unsure') return ['no counter is sure.'];
-  if (claim.types.length === 0) return ['nothing counters', `${claim.subject}.`];
-  const list = claim.types.join(' and ');
-  const head = `${list} ${claim.types.length === 1 ? 'hits' : 'hit'} ${claim.subject.split(' ')[0]!}`;
-  const tail = `${claim.subject.split(' ').slice(1).join(' ')} for +50%.`;
-  if (head.length <= BAND_LINE_WIDTH && tail.length <= BAND_LINE_WIDTH) return [head, tail];
-  return [`+50% on ${claim.subject}:`, `${list}.`];
-}
-
-/** A `'bossEntryCounter'` row, in the CARD's own words — lower case, slash
- * joined, matching `biomeForecast.ts#candidateCounter`'s output. */
-function cardBossEntryCounterLine(types: readonly string[]): string {
-  return types.length === 0 ? 'nothing counters it' : `${types.join('/')} +50%`;
-}
 
 /** ONE row -> its card line(s). Exhaustive over `BandForecastRowStyle`: the
  * `never` check in `default` makes an unhandled new style a COMPILE ERROR,
@@ -243,9 +203,8 @@ export function rowToCardLines(row: BandForecastRow): string[] {
     case 'blank':
       return [''];
     case 'bossEntryCounter':
-      return [`${prefix}${cardBossEntryCounterLine(row.types)}`];
     case 'claim':
-      return cardClaimLines(row.claim);
+      return [];
     default: {
       const exhaustive: never = row;
       return exhaustive;
@@ -253,13 +212,7 @@ export function rowToCardLines(row: BandForecastRow): string[] {
   }
 }
 
-/** The full forecast card, as lines — walks `bandForecastRows` DIRECTLY
- * rather than reading `renderBandForecast`'s own output split back into lines
- * (the pre-refactor shape this replaces: `renderBandForecast(f).split('\n')`).
- * The Phaser overlay (`RunRouteBoard.ts#renderBandReadOverlay`) still joins
- * this array and word-wraps it exactly as it always has — THAT rendering
- * change is the follow-up task; this one only stops the view model depending
- * on a string built for a monospaced terminal to reach the same lines. */
+/** Compose the player-facing Explore read from the shared forecast rows. */
 function bandForecastCardLines(f: BandForecast): readonly string[] {
   const lines: string[] = [];
   for (const row of bandForecastRows(f)) lines.push(...rowToCardLines(row));

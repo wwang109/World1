@@ -1,4 +1,4 @@
-import type { Action, BuffableStat, CombatOutcome, EffectSourceRef, Property, Side } from '../types';
+import type { Action, BuffableStat, CombatOutcome, EffectSourceRef, Element, Property, Side, WeaponType } from '../types';
 import type { AuraSource } from './auras';
 import type { ShieldPools } from './state';
 
@@ -267,6 +267,28 @@ export type CombatEvent =
       guarded?: number;
       /** Extra damage added by an `expose` debuff (present only when it fired). */
       exposed?: number;
+      /**
+       * THE AFFINITY MARKER — this hit came from an action carrying
+       * `affinity: true` (`AffinityGated`, ../types.ts): it fired ONLY because the
+       * caster's board holds this card's own type. The value IS that type, so a log
+       * can name it exactly as the card face already does (`affinityWrap`,
+       * ../keywords/compose.ts: "Affinity Fire — ...") instead of inventing a second
+       * word for the same gate.
+       *
+       * WHY IT IS ON THE EVENT (user ask 2026-09-11: "affinity effect should say
+       * affinity affect on combat logs so its less confusing"). 18 shipped cards are
+       * one plain hit followed by one gated hit; with nothing on the event the gated
+       * payload rendered as an anonymous second hit, indistinguishable from a plain
+       * multi-hit card. The fact already exists at RESOLVE time — `applyAction` has
+       * passed the gate before the strike is even built — so it is CARRIED here
+       * rather than re-derived by each renderer, and the renderers agree by
+       * construction.
+       *
+       * ADDITIVE AND ABSENT BY DEFAULT: omitted entirely for every ungated hit and
+       * for every non-skill source (DoT ticks, thorns, fatigue, attrition), so a card
+       * with no gated line logs byte-identically to before this field existed.
+       */
+      affinity?: Element | WeaponType;
       hpAfter: number;
       /**
        * `attrition` is the global stalemate breaker (see `ATTRITION_START_TURN`):

@@ -31,9 +31,9 @@ import { cfg, tc, NO_ENDGAME } from '../helpers';
  * ANCHOR-vs-BAND choice being the ONLY thing splash changes, the NON-STACKING
  * rules (max, not sum), WHO ends each effect (a burden is spent by the piece
  * that plays; a curse expires on a clock), the pairing/validation rules, and the
- * prices — splash FLAT and STANDALONE (`PRICE.splashFlatDeci`, user-locked
- * 2026-08-21: never a multiplier on its siblings), with THE splash gem
- * (`ripple_sliver`, splash-only) landing exactly on Common.
+ * prices — splash STANDALONE from its payload, tier-priced on cards and fixed
+ * at `PRICE.splashFlatDeci` on the tierless gem, with THE splash gem
+ * (`ripple_sliver`, splash-only) landing exactly on Legendary.
  */
 
 const card = (id: string, over: Partial<SkillDef> = {}): SkillDef => ({
@@ -754,31 +754,34 @@ describe('pricing: the honest split', () => {
     expect(PRICE.burdenPerWeightNum / PRICE.burdenPerWeightDen).toBe(
       PRICE.slowPerWeightNum / PRICE.slowPerWeightDen,
     );
-    // 6 * 5/2 = 15 deci; size 1 so no grant, weight 10 is baseline.
-    expect(powerLevelDeci(card('x', { effects: [{ kind: 'burden', weight: 6 }] }))).toBe(15);
+    // 6 * 5/1 = 30 deci; size 1 so no grant, weight 10 is baseline.
+    expect(powerLevelDeci(card('x', { effects: [{ kind: 'burden', weight: 6 }] }))).toBe(30);
     // ...and the identical number a `slow` of the same weight costs.
-    expect(powerLevelDeci(card('y', { effects: [{ kind: 'slow', weight: 6 }] }))).toBe(15);
+    expect(powerLevelDeci(card('y', { effects: [{ kind: 'slow', weight: 6 }] }))).toBe(30);
   });
 
-  it('splash prices FLAT and STANDALONE — its own 20-deci rate, never a multiplier on its siblings', () => {
-    // User-locked 2026-08-21 ("every gem pl is standalone" / "why did you make
-    // splash different"): the spreader is a normal keyword with a normal flat
-    // price, so a cast pays burden + splash as two independent line items.
-    expect(PRICE.splashFlatDeci).toBe(20);
-    const spread = card('x', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }] });
-    expect(powerLevelDeci(spread)).toBe(15 + 20);
-    // ...and the SAME flat price beside a curse — the spread costs the same
-    // whatever it spreads, which is the point of the flat rate.
+  it('splash prices STANDALONE from its payload, with a card-tier curve and an 80-deci tierless base', () => {
+    // A cast pays burden + splash as two independent line items. The spreader's
+    // card price grows with tier; the base constant remains the gem price.
+    expect(PRICE.splashFlatDeci).toBe(80);
+    const contribution = (tier: SkillDef['tier']): number => {
+      const payload = card(`payload_${tier}`, { tier, effects: [{ kind: 'burden', weight: 6 }] });
+      const spread = card(`spread_${tier}`, { tier, effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }] });
+      return powerLevelDeci(spread) - powerLevelDeci(payload);
+    };
+    expect(['bronze', 'silver', 'gold', 'diamond'].map((tier) => contribution(tier as SkillDef['tier'])))
+      .toEqual([80, 100, 120, 140]);
+    // Payload kind and magnitude never change that tier's standalone price.
     const curse = card('y', { effects: [{ kind: 'curse', amount: 4, turns: 2 }] });
     const cursed = card('z', { effects: [{ kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }] });
     expect(powerLevelDeci(curse)).toBe(20);
-    expect(powerLevelDeci(cursed)).toBe(20 + 20);
+    expect(powerLevelDeci(cursed)).toBe(20 + 80);
     // The payload's magnitude never changes what the spread costs.
     const heavy = card('v', { effects: [{ kind: 'burden', weight: 20 }, { kind: 'splash' }] });
-    expect(powerLevelDeci(heavy) - powerLevelDeci(card('u', { effects: [{ kind: 'burden', weight: 20 }] }))).toBe(20);
-    // Even a bare splash prices its flat rate — unauthorable on a card
-    // (validateSkillContent refuses it) but exactly what THE splash gem is.
-    expect(powerLevelDeci(card('w', { effects: [{ kind: 'splash' }] }))).toBe(20);
+    expect(powerLevelDeci(heavy) - powerLevelDeci(card('u', { effects: [{ kind: 'burden', weight: 20 }] }))).toBe(80);
+    // Even a bare Bronze splash prices its base rate — unauthorable on a card
+    // (validateSkillContent refuses it), but the same rate THE splash gem uses.
+    expect(powerLevelDeci(card('w', { effects: [{ kind: 'splash' }] }))).toBe(80);
   });
 
   it('curse prices its FIRST denial plus its REPEATS, both derived from the flat-damage rate', () => {
@@ -794,24 +797,28 @@ describe('pricing: the honest split', () => {
 
   it('both keywords count against the CONTROL cap, and the SPREADER’s own price counts too', () => {
     expect(EFFECT_CAPS_DECI.control[1]).toBe(100);
-    // 41 * 5/2 = 102 deci > the size-1 control ceiling (100); 40 is legal.
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 41 }] })).join(' ')).toContain('control');
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 40 }] }))).toEqual([]);
-    // With the spreader the cap must also hold splash's own flat 20 deci:
-    // burden 32 (80) + splash (20) = 100 sits exactly on the ceiling; weight 33
-    // (82) tips it over. Reach still cannot be bought past the lockdown cap.
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 33 }, { kind: 'splash' }] })).join(' ')).toContain('control');
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 32 }, { kind: 'splash' }] }))).toEqual([]);
+    // 21 * 5/1 = 105 deci > the size-1 control ceiling (100); 20 is legal.
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 21 }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 20 }] }))).toEqual([]);
+    // At Bronze the cap must also hold Splash's 80 deci:
+    // burden 4 (20) + splash (80) = 100 sits exactly on the ceiling; weight 5
+    // (25) tips it over. Reach still cannot be bought past the lockdown cap.
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 5 }, { kind: 'splash' }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 4 }, { kind: 'splash' }] }))).toEqual([]);
     // Same for curse: 20 x 2 turns = 100 = the whole ceiling alone; with the
-    // spreader the curse may spend at most 80 (16 x 2 turns).
+    // spreader the curse may spend at most 20 (4 x 2 turns).
     expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }] }))).toEqual([]);
     expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }, { kind: 'splash' }] })).join(' ')).toContain('control');
-    expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 16, turns: 2 }, { kind: 'splash' }] }))).toEqual([]);
+    expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }] }))).toEqual([]);
+    // At Diamond the Control cap grows to 250 deci and includes Splash's
+    // 140-deci card price: burden 22 (110) fits exactly; 23 tips it over.
+    expect(capViolations(card('diamond_fit', { tier: 'diamond', effects: [{ kind: 'burden', weight: 22 }, { kind: 'splash' }] }))).toEqual([]);
+    expect(capViolations(card('diamond_over', { tier: 'diamond', effects: [{ kind: 'burden', weight: 23 }, { kind: 'splash' }] })).join(' ')).toContain('control');
   });
 
   it('the breakdown reports splash as its OWN whole-PL part beside its payload', () => {
     const parts = powerLevelBreakdown(skillBook.shockwave_slam!);
-    expect(parts.find((p) => p.label === 'burden')!.deci).toBe(10); // burden 4 x 5/2
+    expect(parts.find((p) => p.label === 'burden')!.deci).toBe(10); // burden 2 x 5/1
     expect(parts.find((p) => p.label === 'splash')!.deci).toBe(PRICE.splashFlatDeci);
     // The combined "burden + splash" part died with the coverage multiplier.
     expect(parts.map((p) => p.label)).not.toContain('burden + splash');
@@ -820,7 +827,7 @@ describe('pricing: the honest split', () => {
   });
 
   it('EVERY SHIPPED CARD OF THE FAMILY still lands EXACTLY on its tier budget', () => {
-    for (const id of ['shockwave_slam', 'arc_cascade', 'line_breaker', 'dulling_hex', 'sapping_arc']) {
+    for (const id of ['shockwave_slam', 'arc_cascade', 'line_breaker', 'sapping_arc', 'writ_of_sanction']) {
       const skill = skillBook[id]!;
       expect(skill.tier, id).toBe('bronze');
       expect(powerLevelDeci(skill), id).toBe(100);
@@ -940,7 +947,7 @@ const bareSplashGem = (id = 'test_bare_splash'): Gem =>
   ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'splash' }] });
 
 describe('splash gems: the catalog', () => {
-  it('ships EXACTLY ONE splash gem — ripple_sliver, whose sole action is the spreader, on Common exactly', () => {
+  it('ships EXACTLY ONE splash gem — ripple_sliver, whose sole action is the spreader, on Legendary exactly', () => {
     // User ruling 2026-08-21: "there should only be 1 gem to give splash why is
     // there 2 splash gem". The old two-rung ladder (tremor_sliver burden 4 +
     // splash, fracture_sliver burden 8 + splash) laddered the BURDEN's
@@ -949,9 +956,9 @@ describe('splash gems: the catalog', () => {
     expect(ripple.kind).toBe('effect');
     if (ripple.kind !== 'effect') return;
     expect(ripple.actions.map((a) => a.kind)).toEqual(['splash']);
-    // Priced at the keyword's own flat standalone rate: 20 deci = Common.
+    // Priced at the keyword's own flat standalone rate: 80 deci = Legendary.
     expect(gemPowerLevelDeci(ripple)).toBe(PRICE.splashFlatDeci);
-    expect(gemPowerLevelDeci(ripple)).toBe(RARITY_PL_DECI.common);
+    expect(gemPowerLevelDeci(ripple)).toBe(RARITY_PL_DECI.legendary);
     expect(isGemOnBudget(ripple)).toBe(true);
     // The retired ladder is really gone.
     expect(gemBook.tremor_sliver).toBeUndefined();
@@ -1073,21 +1080,21 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
     expect(splashSuppressionOn(showcase)).toBe('hostAlreadySplashes');
   });
 
-  it('a WEAKER gem burden changes NO STATE (Math.max) — the band still owes the host\u2019s 6', () => {
-    // The test gem's burden is 2 against the host's authored 4, so the socket
+  it('a WEAKER gem burden changes NO STATE (Math.max) — the band still owes the host\u2019s 2', () => {
+    // The test gem's burden is 1 against the host's authored 2, so the socket
     // cannot raise the tax. It DOES add a second application, and therefore a
-    // second `burdened` event — exactly what a `slow 2` gem on a `slow 4` card
+    // second `burdened` event — exactly what a `slow 1` gem on a `slow 2` card
     // has always done. The log is honest about two applications; the STATE is
     // what must be unchanged, and it is.
     const bare = simulate(shockwaveFight(), 7);
-    const gemmed = simulate(shockwaveFight(spreadGem(2)), 7);
+    const gemmed = simulate(shockwaveFight(spreadGem(1)), 7);
     const weightsOf = (r: typeof bare): number[] => r.events
       .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
       .map((e) => e.weight);
-    expect(weightsOf(bare).every((w) => w === 4)).toBe(true);
+    expect(weightsOf(bare).every((w) => w === 2)).toBe(true);
     // The gem's weaker application is visible in the log...
-    expect(weightsOf(gemmed)).toContain(2);
-    // ...and changes nothing: every taxed piece still owes 4, and the fight ends
+    expect(weightsOf(gemmed)).toContain(1);
+    // ...and changes nothing: every taxed piece still owes 2, and the fight ends
     // the same way, on the same turn, with the same HP.
     expect(gemmed.result).toBe(bare.result);
     expect(gemmed.turns).toBe(bare.turns);
@@ -1114,8 +1121,8 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
     const weights = gemmed.events
       .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
       .map((e) => e.weight);
-    // The host's own 4 lands, then the gem's 8 maxes over it on the same band.
-    expect(weights).toContain(4);
+    // The host's own 2 lands, then the gem's 8 maxes over it on the same band.
+    expect(weights).toContain(2);
     expect(weights).toContain(8);
     // And the victim really pays the higher number: some play costs 8 more than
     // the same play did on the bare card.
@@ -1220,16 +1227,16 @@ describe('instancePowerLevelDeci: a gem spreader SUPPRESSED by the gate prices a
     const aoe = BOOK.aoeJab!;
     const gem = spreadGem(8);
     const base = powerLevelDeci(aoe);
-    // burden 8 alone = 20 deci (what it still delivers there), NOT the 40 the
+    // burden 8 alone = 40 deci (what it still delivers there), NOT the 60 the
     // host-blind gem is worth with its own spreader.
-    expect(instancePowerLevelDeci(aoe, { gem })).toBe(base + 20);
+    expect(instancePowerLevelDeci(aoe, { gem })).toBe(base + 40);
     expect(instancePowerLevelDeci(aoe, { gem })).not.toBe(base + gemPowerLevelDeci(gem, aoe));
   });
 
   it('GATE (b) hostAlreadySplashes — same: the gem is priced for the anchor it still taxes', () => {
     const host = skillBook.shockwave_slam!;
     const gem = spreadGem(16);
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 16 alone; the dropped spreader's flat 20 is not charged
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 80); // burden 16 alone; the dropped spreader's flat 80 is not charged
     expect(instancePowerLevelDeci(host, { gem })).not.toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
   });
 
@@ -1256,6 +1263,6 @@ describe('instancePowerLevelDeci: a gem spreader SUPPRESSED by the gate prices a
     const host = BOOK.splashless!;
     const gem = spreadGem(8);
     expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 20 + splash 20, two standalone line items
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 120); // burden 40 + splash 80, two standalone line items
   });
 });

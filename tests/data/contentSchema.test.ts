@@ -460,7 +460,7 @@ describe('data: content schema contract', () => {
 
     it('negative weight is rejected for slow', () => {
       failsWith(withEffects([{ kind: 'slow', weight: -8 }]), 'weight must be an integer 0..999');
-      expect(actionsPriceDeci([{ kind: 'slow', weight: -8 }], 'physical')).toBe(-20);
+      expect(actionsPriceDeci([{ kind: 'slow', weight: -8 }], 'physical')).toBe(-40);
     });
   });
 });

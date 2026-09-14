@@ -19,6 +19,31 @@
 // `26 ... = 33 HP`. The engine's arithmetic was right in all 2208; only the
 // rendering of it was short a term.
 import type { DamageCalculation } from '../src/engine/combat/events';
+import type { Element, WeaponType } from '../src/engine/types';
+
+/**
+ * THE AFFINITY TAG on a hit's line — the suffix that says a hit fired BECAUSE of
+ * affinity, naming the type that opened it (user ask 2026-09-11: "affinity effect
+ * should say affinity affect on combat logs so its less confusing").
+ *
+ * BRACKETED ON PURPOSE. It is the exact mechanism the DoT source tag already uses
+ * (`[burn]`), and `FIGHT_NARROW=1` is a REFLOW of this renderer's own output that
+ * breaks on brackets — so one bracketed suffix here becomes a bare `affinity fire`
+ * line under the hp line in mobile mode, with no narrow-specific format string
+ * anywhere. Changing the brackets silently un-breaks the mobile layout, which is
+ * why this lives in a tested module instead of inline in `scripts/fight.ts`
+ * (an import-time CLI that no test can reach — see the note below).
+ *
+ * VOCABULARY MATCHES THE CARD FACE. The face composer wraps a gated clause as
+ * "{{Affinity}} Fire — ..." (`affinityWrap`, src/engine/keywords/compose.ts), so
+ * the log says "affinity fire" and not a second invented word for the same gate.
+ *
+ * EMPTY FOR AN UNGATED HIT, so a card with no gated line renders byte-identically
+ * to before the tag existed.
+ */
+export function fmtAffinity(affinity: Element | WeaponType | undefined): string {
+  return affinity === undefined ? '' : ` [affinity ${affinity}]`;
+}
 
 /**
  * One direct hit's arithmetic as a closed ledger: `parts = total`.

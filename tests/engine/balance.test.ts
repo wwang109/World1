@@ -101,7 +101,7 @@ import { AFFINITY_CAPSTONE_IDS, isAllowedAffinityCapstoneRegression } from './fi
 // 2026-08-26 — the four size-1 AoE tier gates buy their reach with this refund's
 // first step (see `PRICE.cooldownRefundStepDeci` and those cards' notes).
 // 2026-08-21: THE SPLASH SPLIT. `splashPerWeightNum/Den` (5/1) REMOVED and
-// replaced by `burdenPerWeightNum/Den` (5/2 — slow's own per-point rate, for
+// replaced by `burdenPerWeightNum/Den` (now 5/1 — slow's own per-point rate, for
 // the weight tax on ONE card) plus a spreader price (below).
 // `cursePerAmountNum/Den` (5/2) and `cursePerAmountTurnNum/Den`
 // (5/(BASELINE_COOLDOWN+1)) ADDED for the second card-targeting keyword: the
@@ -110,17 +110,14 @@ import { AFFINITY_CAPSTONE_IDS, isAllowedAffinityCapstoneRegression } from './fi
 //
 // 2026-08-21 (later the same day): `splashBandFloorNum/Den` (x2, the coverage
 // MULTIPLIER on the spreader's card-targeting siblings) REMOVED and replaced by
-// `splashFlatDeci` (20 — one flat, standalone price per cast). USER RULING,
+// `splashFlatDeci` (80 — the tierless/gem base for the standalone spreader).
 // verbatim: "every gem pl is standalone" / "it doesnt make sense to increase
 // cost because of splash and host" / "why did you make splash different" —
 // splash is a normal keyword with a normal flat rate, never a multiplier on
-// its siblings. 20 is the only candidate rate (of 10/15/20) that lands THE
-// splash gem exactly on a rarity band (Common) while moving the fewest shipped
-// cards (arc_cascade and sapping_arc kept every magnitude; shockwave_slam and
-// line_breaker dropped their burden 6 -> 4 — a burden part must itself be a
-// whole PL once splash is its own part, pinning burden weights to multiples of
-// 4 — keeping their damage lines and tier ladders at the pre-split numbers).
-// See PRICE.splashFlatDeci.
+// its siblings. The 2026-09-13 ruling raises the flat rate to 80 deci and THE
+// splash gem to the matching Legendary band, then re-solves every Splash card
+// around the 8 PL spread cost.
+// Card-tier adjustment is tested through public pricing below.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -138,10 +135,10 @@ describe('PRICE structure lock', () => {
       cooldownPerTurn: 100,
       cooldownRefundStepDeci: [50, 30, 20],
       slowPerWeightNum: 5,
-      slowPerWeightDen: 2,
+      slowPerWeightDen: 1,
       burdenPerWeightNum: 5,
-      burdenPerWeightDen: 2,
-      splashFlatDeci: 20,
+      burdenPerWeightDen: 1,
+      splashFlatDeci: 80,
       cursePerAmountNum: 5,
       cursePerAmountDen: 2,
       cursePerAmountTurnNum: 5,
@@ -183,6 +180,34 @@ describe('PRICE structure lock', () => {
 });
 
 describe('Power Level budgets', () => {
+  it('prices Slow and Burden at 1 PL per +2 Weight and keeps Bronze Line Breaker on budget beside the 8 PL spreader', () => {
+    expect(actionsPriceDeci([{ kind: 'slow', weight: 2 }], 'physical')).toBe(10);
+    expect(actionsPriceDeci([{ kind: 'burden', weight: 2 }], 'physical')).toBe(10);
+
+    const lineBreaker = skillBook.line_breaker!;
+    expect(lineBreaker.effects).toEqual([
+      { kind: 'damage', power: 2 },
+      { kind: 'burden', weight: 2 },
+      { kind: 'splash' },
+    ]);
+    expect(powerLevelDeci(lineBreaker)).toBe(TIER_BUDGET_DECI.bronze);
+  });
+
+  it('keeps Writ of Sanction as the Curse + Burden + Splash card at every rank', () => {
+    const expected = {
+      bronze: [{ kind: 'curse', amount: 2, turns: 2 }, { kind: 'burden', weight: 2 }, { kind: 'splash' }],
+      silver: [{ kind: 'curse', amount: 6, turns: 2 }, { kind: 'burden', weight: 4 }, { kind: 'splash' }],
+      gold: [{ kind: 'curse', amount: 8, turns: 2 }, { kind: 'burden', weight: 8 }, { kind: 'splash' }],
+      diamond: [{ kind: 'curse', amount: 12, turns: 2 }, { kind: 'burden', weight: 10 }, { kind: 'splash' }],
+    } as const;
+    for (const tier of TIER_ORDER) {
+      const writ = applyTier(skillBook.writ_of_sanction!, tier);
+      expect(writ.effects, tier).toEqual(expected[tier]);
+      expect(powerLevelDeci(writ), tier).toBe(TIER_BUDGET_DECI[tier]);
+      expect(capViolations(writ), tier).toEqual([]);
+    }
+  });
+
   it('tier budgets are Bronze 10 / Silver 15 / Gold 20 / Diamond 25', () => {
     expect(TIER_BUDGET_DECI).toEqual({ bronze: 100, silver: 150, gold: 200, diamond: 250 });
   });
@@ -213,17 +238,14 @@ describe('Power Level budgets', () => {
       heal: { 1: 300, 2: 700, 3: 1250 },
     });
     expect(MAX_STUN_PER_CARD).toBe(1);
-    // USER-LOCKED 2026-07-23: one flat Diamond-tier ceiling for every tier (no scaling).
+    // Flat damage keeps one Diamond-tier ceiling for every rank.
     expect(effectCapDeci('damage', 1, 'diamond')).toBe(300);
     expect(effectCapDeci('damage', 1, 'bronze')).toBe(300);
-    expect(effectCapDeci('control', 1, 'diamond')).toBe(100);
-    // USER-LOCKED 2026-08-17: `cleanse` is the one family that DOES tier-scale
-    // (split out of `empower` so negate/ward/etc. stay frozen) — its cap
-    // matches the tier budget ladder exactly: 100/150/200/250.
-    expect(effectCapDeci('cleanse', 1, 'bronze')).toBe(100);
-    expect(effectCapDeci('cleanse', 1, 'silver')).toBe(150);
-    expect(effectCapDeci('cleanse', 1, 'gold')).toBe(200);
-    expect(effectCapDeci('cleanse', 1, 'diamond')).toBe(250);
+    // Control (2026-09-13) and cleanse (2026-08-17) follow the tier budget.
+    for (const tier of TIER_ORDER) {
+      expect(effectCapDeci('control', 1, tier)).toBe(TIER_BUDGET_DECI[tier]);
+      expect(effectCapDeci('cleanse', 1, tier)).toBe(TIER_BUDGET_DECI[tier]);
+    }
     expect(effectCapDeci('empower', 1, 'diamond')).toBe(100); // empower itself stays FROZEN
     const offenders: string[] = [];
     for (const skill of Object.values(skillBook)) {

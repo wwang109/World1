@@ -12,6 +12,7 @@ import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
 import { ruleEntryByKind } from '../engine/keywords/text';
+import type { BattleLogTextRole, BattleLogTextSegment } from './ui/battleLogLine';
 
 /**
  * `buildBattleTimeline` folds a `BattleLog` (see `run/resolveBattle`) into a
@@ -26,7 +27,7 @@ import { ruleEntryByKind } from '../engine/keywords/text';
  * `resolveBattle()` at all (enforced by `scripts/check-boundaries.mjs`).
  */
 
-export interface LogLine { tag: string; text: string; detail?: string; }
+export interface LogLine { tag: string; text: string; detail?: string; segments?: BattleLogTextSegment[]; }
 /** HP snapshot. The singular `enemy`/`enemyMax` fields are ALWAYS enemy unit 0
  * (mobile's 1v1 view); multi-foe renderers read the parallel `enemies` arrays. */
 export interface HpSnap {
@@ -1223,6 +1224,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const unitOf = (e: { unit?: number }): number => e.unit ?? 0;
   const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string =>
     (e.side === 'player' ? heroName : (foes[unitOf(e as { unit?: number })]?.name ?? foeName));
+  const sideRole = (side: 'player' | 'enemy'): BattleLogTextRole => side;
+  const actorSegment = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): BattleLogTextSegment =>
+    ({ text: label(e), role: sideRole(e.side) });
+  const neutral = (text: string): BattleLogTextSegment => ({ text, role: 'neutral' });
+  const colored = (text: string, role: BattleLogTextRole): BattleLogTextSegment => ({ text, role });
   // STARTING roster size for `side` — fixed once at team-build time from
   // `foes`/the single hero unit, and never re-derived from who's still alive
   // mid-fight. This is exactly `scripts/fight.ts`'s convention (commit
@@ -1246,6 +1252,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const name = foes[unit]?.name ?? foeName;
     return sideRosterSize(side) > 1 ? `${name} #${unit + 1}` : name;
   };
+  let playerReadyValues: { readiness: number; speed: number } | undefined;
+  const enemyReadyValues: Array<{ readiness: number; speed: number } | undefined> = foes.map(() => undefined);
   // Turn-start readiness row: the engine emits one `gain` event PER LIVING
   // COMBATANT at the top of every turn, always consecutively (before any
   // play/busy/wait event for that turn — see simulate.ts Phase 1). Buffer the
@@ -1261,13 +1269,25 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     if (pendingGainTurn === null) return;
     const t = pendingGainTurn;
     pendingGainTurn = null;
-    const parts: string[] = [];
-    if (speed.player) parts.push(`${heroName} ${speed.player}`);
+    const parts: BattleLogTextSegment[][] = [];
+    if (speed.player && playerReadyValues) {
+      parts.push([
+        colored(heroName, 'player'),
+        neutral(` ${playerReadyValues.readiness} · SPD `),
+        colored(`+${playerReadyValues.speed}`, 'readiness'),
+      ]);
+    }
     foes.forEach((f, u) => {
       const line = speed.enemyUnits?.[u] ?? (u === 0 ? speed.enemy : '');
-      if (line) parts.push(`${f.name} ${line}`);
+      const values = enemyReadyValues[u];
+      if (line && values) {
+        parts.push([colored(f.name, 'enemy'), neutral(` ${values.readiness} · SPD `), colored(`+${values.speed}`, 'readiness')]);
+      }
     });
-    if (parts.length > 0) push(t, 'READY', parts.join('   ·   '));
+    if (parts.length > 0) {
+      const segments = parts.flatMap((part, index) => index === 0 ? part : [neutral('   ·   '), ...part]);
+      pushSegments(t, 'READY', segments);
+    }
   };
   // Every IMPORTANT line (anything but PLAY) becomes its own playback step,
   // captured here in event order; folded into per-turn-ordered final arrays
@@ -1304,6 +1324,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     }
     return line;
   };
+  const pushSegments = (
+    turn: number, tag: string, segments: BattleLogTextSegment[], detail?: string,
+  ): LogLine => {
+    const line = push(turn, tag, segments.map((segment) => segment.text).join(''), detail);
+    line.segments = segments;
+    return line;
+  };
+  const pushActor = (
+    turn: number,
+    tag: string,
+    e: Extract<CombatEvent, { side: 'player' | 'enemy' }>,
+    tail: string,
+    detail?: string,
+  ): LogLine => pushSegments(turn, tag, [actorSegment(e), neutral(tail)], detail);
   // A cast's `play` line is written before its matching `cost` event arrives
   // (see the `play` comment above — the engine emits `play`, then every
   // effect the cast triggers, and ONLY THEN `cost`), so the post-payment bank
@@ -1330,8 +1364,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // Step 0 — the pre-battle baseline. Without it, playback would open on the
   // first HIT with its damage already applied to the HP snapshot; this line
   // shows both sides at full HP before any event resolves.
-  const foesLabel = foes.map((f, i) => `${f.name} ${curEnemies[i]}/${enemyMaxes[i]}`).join(' + ');
-  push(battle.events[0]?.turn ?? 1, 'START', `${heroName} ${curPlayer}/${playerMax} vs ${foesLabel}`);
+  const startSegments: BattleLogTextSegment[] = [
+    colored(heroName, 'player'), neutral(` ${curPlayer}/${playerMax} vs `),
+  ];
+  foes.forEach((f, i) => {
+    if (i > 0) startSegments.push(neutral(' + '));
+    startSegments.push(colored(f.name, 'enemy'), neutral(` ${curEnemies[i]}/${enemyMaxes[i]}`));
+  });
+  pushSegments(battle.events[0]?.turn ?? 1, 'START', startSegments);
 
   for (const e of battle.events) {
     // Flush the buffered turn-start readiness row BEFORE this event's own
@@ -1358,8 +1398,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // log, not just the header's current-turn-only turnline.
       case 'gain': {
         const line = `${e.readinessAfter} · SPD +${e.speed}`;
-        if (e.side === 'player') speed.player = line;
-        else { speed.enemyUnits![unitOf(e)] = line; if (unitOf(e) === 0) speed.enemy = line; }
+        if (e.side === 'player') {
+          speed.player = line;
+          playerReadyValues = { readiness: e.readinessAfter, speed: e.speed };
+        } else {
+          speed.enemyUnits![unitOf(e)] = line;
+          enemyReadyValues[unitOf(e)] = { readiness: e.readinessAfter, speed: e.speed };
+          if (unitOf(e) === 0) speed.enemy = line;
+        }
         pendingGainTurn = e.turn;
         break;
       }
@@ -1416,10 +1462,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // `#n` suffix) disappear or renumber out from under a still-running
         // transcript — see `sideRosterSize` above.
         const targetSide: 'player' | 'enemy' = e.side === 'player' ? 'enemy' : 'player';
-        const targetNote = !e.aoe && e.targetUnit !== undefined && sideRosterSize(targetSide) > 1
-          ? ` · target ${sideUnitLabel(targetSide, e.targetUnit)}`
-          : '';
-        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote}${targetNote}${curseNote} · WEIGHT ${e.weight}${slowNote}`);
+        const target = !e.aoe && e.targetUnit !== undefined && sideRosterSize(targetSide) > 1
+          ? sideUnitLabel(targetSide, e.targetUnit)
+          : undefined;
+        const playSegments: BattleLogTextSegment[] = [
+          actorSegment(e),
+          neutral(` · ${skillName(e.skillId)}${progress}${aoeNote}`),
+        ];
+        if (target) playSegments.push(neutral(' · target '), colored(target, sideRole(targetSide)));
+        playSegments.push(neutral(`${curseNote} · WEIGHT ${e.weight}${slowNote}`));
+        const playLine = pushSegments(e.turn, 'PLAY', playSegments);
         // The matching `cost` event (readinessAfter = the bank left once this
         // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
         // comment above. Held here; filled in by the `cost` case below.
@@ -1473,6 +1525,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'cost': {
         if (pendingPlayLine && pendingPlayLine.side === e.side && pendingPlayLine.unit === unitOf(e)) {
           pendingPlayLine.line.text += ` · BANKED ${e.readinessAfter}`;
+          pendingPlayLine.line.segments?.push(neutral(' · BANKED '), colored(`${e.readinessAfter}`, 'readiness'));
         }
         pendingPlayLine = undefined;
         break;
@@ -1510,11 +1563,19 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // actually drained (e.g. TRUE draining 2:1 for a typed hit), show the
         // drain magnitude too so the half-effectiveness is visible.
         const poolText = formatBlockedPools(e.property, drain);
-        const dmgText = e.blocked > 0
-          ? (dealt > 0 ? `${dealt} DMG · ${e.blocked} BLOCKED (${poolText})` : `BLOCKED ${e.blocked} (${poolText})`)
-          : `−${dealt}`;
+        const resultRole: BattleLogTextRole =
+          e.source === 'poison' || e.source === 'burn' || e.source === 'bleed' || e.source === 'thorns'
+            ? e.source
+            : 'damage';
+        const damageSegments: BattleLogTextSegment[] = e.blocked > 0
+          ? [
+              ...(dealt > 0 ? [colored(`${dealt} DMG`, resultRole), neutral(' · ')] : []),
+              colored(dealt > 0 ? `${e.blocked} BLOCKED` : `BLOCKED ${e.blocked}`, 'shield'),
+              neutral(' ('), colored(poolText, 'shield'), neutral(')'),
+            ]
+          : [colored(`−${dealt}`, resultRole)];
         if (e.source === 'skill') {
-          push(e.turn, 'HIT', `${label(e)} ${dmgText} · ${hp}`, e.calculation ? formatDmg(e.calculation) : undefined);
+          pushSegments(e.turn, 'HIT', [actorSegment(e), neutral(' '), ...damageSegments, neutral(` · ${hp}`)], e.calculation ? formatDmg(e.calculation) : undefined);
         } else {
           // A DoT/attrition/fatigue tick is a DIFFERENT moment than a HIT (a
           // card striking you) or a DEBUFF (an effect just being APPLIED to
@@ -1523,7 +1584,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // log-clarity pass; user chose a new tag over reusing HIT or DEBUFF
           // specifically so a poison tick can never be misread as a card hit).
           const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1);
-          push(e.turn, 'EFFECT', `${cap} · ${label(e)} ${dmgText} · ${hp}`);
+          pushSegments(e.turn, 'EFFECT', [neutral(`${cap} · `), actorSegment(e), neutral(' '), ...damageSegments, neutral(` · ${hp}`)]);
         }
         const activeCard = activeCardByTurn.get(e.turn);
         if (e.source === 'skill' && activeCard) {
@@ -1609,7 +1670,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // overheal = landed), same affordance as a HIT's `D:` math strip, so
         // the printed number is reconstructable rather than asserted.
         const antiHealTax = e.antiHeal ? ` (anti-heal −${e.antiHeal.pct}%: −${e.antiHeal.reduced})` : '';
-        push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP${antiHealTax} · ${e.hpAfter}/${max}`, formatHeal(e));
+        pushSegments(e.turn, 'BUFF', [
+          actorSegment(e), neutral(' '), colored(`+${e.amount} HP`, 'heal'),
+          neutral(`${antiHealTax} · ${e.hpAfter}/${max}`),
+        ], formatHeal(e));
         pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined, e.antiHeal?.pct);
         break;
       }
@@ -1634,10 +1698,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // carries no `calculation` by contract, so it can never reach the breakdown
         // branch; naming the source is the whole point of the flag, since the same
         // "+N SHLD" row would otherwise look like a shield the card printed.
-        const text = calc && calc.statBonus > 0
-          ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${defStatToken(e.property)})`
-          : `${label(e)} +${e.amount} ${token}${e.overheal ? ' (from overheal)' : ''}`;
-        push(e.turn, 'BUFF', text, formatShield(e));
+        const shieldTail = calc && calc.statBonus > 0
+          ? ` (${calc.power} + ${calc.statBonus} ${defStatToken(e.property)})`
+          : `${e.overheal ? ' (from overheal)' : ''}`;
+        pushSegments(e.turn, 'BUFF', [
+          actorSegment(e), neutral(' '), colored(`+${e.amount} ${token}`, 'shield'), neutral(shieldTail),
+        ], formatShield(e));
         pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
       }
@@ -1653,7 +1719,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // existed the strip was simply left stale, still summing to a wall that
         // had already been shattered.
         breakPoints(e.side, u, e.amount, e.totalAfter);
-        push(e.turn, 'DEBUFF', `${label(e)} · shield −${e.amount}`);
+        pushSegments(e.turn, 'DEBUFF', [actorSegment(e), neutral(' · shield '), colored(`−${e.amount}`, 'shield')]);
         break;
       }
       // Magical Negate fully nullifying a hit: `dealDamage` (interpreter.ts)
@@ -1664,7 +1730,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // bucket `statusApplied` already puts guard/negate/buff in) naming the
       // property it stopped via the same `negateToken` the application row uses.
       case 'negated': {
-        push(e.turn, 'BUFF', `${label(e)} · ${negateToken(e.property)} blocked the hit`);
+        pushActor(e.turn, 'BUFF', e, ` · ${negateToken(e.property)} blocked the hit`);
         // One nullified hit = one charge spent (dealDamage's negate branch) —
         // the ONLY signal negate's count ever gets after application, since
         // the emptied status is dropped without a `statusExpired` (see
@@ -1684,7 +1750,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // see the event's own doc comment) and how many charges remain.
       case 'warded': {
         const denied = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-        push(e.turn, 'BUFF', `${label(e)} · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
+        pushActor(e.turn, 'BUFF', e, ` · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
         // `chargesLeft` is the holder TOTAL after this spend — authoritative,
         // so the WRD chip re-syncs to it rather than decrementing on its own.
         wardChargesByUnit.set(unitKey(e.side, unitOf(e)), e.chargesLeft);
@@ -1696,7 +1762,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // the bonus damage itself arrives folded into the following `damage` row, the
       // same way a `shieldBurst`'s spent plating does.
       case 'wardReleased':
-        push(e.turn, 'EFFECT', `${label(e)} · Released ${e.charges} ward charge${e.charges === 1 ? '' : 's'} into the hit · ${e.chargesLeft} left`);
+        pushActor(e.turn, 'EFFECT', e, ` · Released ${e.charges} ward charge${e.charges === 1 ? '' : 's'} into the hit · ${e.chargesLeft} left`);
         // Same authoritative re-sync as `warded` — the release names the
         // holder's remaining total itself.
         wardChargesByUnit.set(unitKey(e.side, unitOf(e)), e.chargesLeft);
@@ -1706,7 +1772,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // transcript saying the card did nothing — the exact shape the `warded`/
       // `negated` cases above were added to fix, just never done for this one.
       case 'cleansed': {
-        push(e.turn, 'BUFF', `${label(e)} · Cleansed ${e.removed} stack${e.removed === 1 ? '' : 's'}`);
+        pushActor(e.turn, 'BUFF', e, ` · Cleansed ${e.removed} stack${e.removed === 1 ? '' : 's'}`);
         // THE HP-BAR AILMENT BADGE (`dotsPlayer`/`dotsEnemies`, read by both
         // battle scenes' `statusByTurn`) is fed ONLY by `statusApplied` and
         // cleared ONLY by `statusExpired` — but the engine's cleanse path
@@ -1807,7 +1873,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // targeting under the default `aggro` policy; without a row here, a
       // multi-foe fight's target suddenly switching reads as arbitrary.
       case 'aggroChanged': {
-        push(e.turn, 'BUFF', `${label(e)} · Taunt → ${e.aggro} aggro`);
+        pushActor(e.turn, 'BUFF', e, ` · Taunt → ${e.aggro} aggro`);
         break;
       }
       // `slow` rider — a debuff done TO the victim (their NEXT card gets this
@@ -1818,7 +1884,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'slowed': {
         const sk = slowKey(e.side, unitOf(e));
         pendingSlowByUnit.set(sk, Math.max(pendingSlowByUnit.get(sk) ?? 0, e.weight));
-        push(e.turn, 'DEBUFF', `${label(e)} · Slow +${e.weight} weight`);
+        pushActor(e.turn, 'DEBUFF', e, ` · Slow +${e.weight} weight`);
         break;
       }
       // `burden` rider — `slow` one scope down: it taxes a CARD (the one their
@@ -1842,7 +1908,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         }
         const where = e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : `${slot + 1}`)).join(' ');
         const spread = e.slots.length > 1 ? ' (Splash)' : '';
-        push(e.turn, 'DEBUFF', `${label(e)} · Burden +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
+        pushActor(e.turn, 'DEBUFF', e, ` · Burden +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
         break;
       }
       // `curse` rider — burden's twin on the DAMAGE axis, so it reads the same
@@ -1857,7 +1923,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         }
         const where = e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : `${slot + 1}`)).join(' ');
         const spread = e.slots.length > 1 ? ' (Splash)' : '';
-        push(e.turn, 'DEBUFF', `${label(e)} · Curse −${e.amount} damage for ${e.turns} turn${e.turns === 1 ? '' : 's'} on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
+        pushActor(e.turn, 'DEBUFF', e, ` · Curse −${e.amount} damage for ${e.turns} turn${e.turns === 1 ? '' : 's'} on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
         break;
       }
       // A curse WINDOW CLOSED (engine's end-of-turn `expireCurses`). Mirrors the
@@ -1869,7 +1935,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           cursedBySlot.delete(slotKey(e.side, unitOf(e), e.slots[i]!));
         }
         const where = e.slots.map((slot) => String(slot + 1)).join(' ');
-        push(e.turn, 'DEBUFF', `${label(e)} · Curse wears off on slot${e.slots.length === 1 ? '' : 's'} ${where}`);
+        pushActor(e.turn, 'DEBUFF', e, ` · Curse wears off on slot${e.slots.length === 1 ? '' : 's'} ${where}`);
         break;
       }
       // `disrupt` rider — the sibling of `slow`: drains banked readiness right
@@ -1877,7 +1943,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // nothing pending to attach to a later PLAY row — the effect is already
       // fully described the moment it fires.
       case 'disrupted': {
-        push(e.turn, 'DEBUFF', `${label(e)} · Disrupt −${e.amount} readiness → ${e.readinessAfter}`);
+        pushActor(e.turn, 'DEBUFF', e, ` · Disrupt −${e.amount} readiness → ${e.readinessAfter}`);
         break;
       }
       // The `wait` event kind already existed for two reasons that read very
@@ -1892,13 +1958,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const pending = pendingSlowByUnit.get(slowKey(e.side, unitOf(e)));
           const pendingBurden = e.slot === undefined ? undefined : pendingBurdenBySlot.get(slotKey(e.side, unitOf(e), e.slot));
           const slowNote = `${pending ? ` (includes +${pending} SLOWED)` : ''}${pendingBurden ? ` (includes +${pendingBurden} BURDENED)` : ''}`;
-          push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
+          pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
         } else if (e.reason === 'cooling') {
-          push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
+          pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
         } else if (e.reason === 'stunned') {
-          push(e.turn, 'WAIT', `${label(e)} · stunned, skipping this turn`);
+          pushActor(e.turn, 'WAIT', e, ' · stunned, skipping this turn');
         } else {
-          push(e.turn, 'WAIT', `${label(e)} · no card ready to play`);
+          pushActor(e.turn, 'WAIT', e, ' · no card ready to play');
         }
         break;
       }
@@ -1953,7 +2019,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // Defensive/support statuses (guard/buff/debuff/expose/negate) carry a
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
-        push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${stacksText}`, explainStatus(e));
+        pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${cap}${stacksText}`, explainStatus(e));
         // The per-card DOT column (`CardSummaryRow.dots`) is fed from actual
         // TICK/REFLECT damage in the `damage` case below, not from here — see
         // that case's comment. (Used to add a raw STACK count on application,
@@ -2104,7 +2170,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns' || e.status === 'ward') {
           const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
           const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
+          pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${cap} wore off`);
         }
         break;
       }
@@ -2112,7 +2178,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // WAIT line ("Meteor · 2/3") so span turns don't vanish from the log,
       // and the gold board cursor tracks the occupied slot being worked off.
       case 'busy': {
-        push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} · ${e.slotIndex}/${e.slotCount}`);
+        pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} · ${e.slotIndex}/${e.slotCount}`);
         const slots = playSlotByTurn.get(e.turn) ?? {};
         if (e.side === 'player') slots.player = e.slot;
         else {
@@ -2144,7 +2210,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); break;
       case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); break;
       case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); break;
-      case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
+      case 'died': pushActor(e.turn, 'DOWN', e, ' falls'); break;
       // Mirrors the engine's own end-of-turn clear (simulate.ts:
       // `for (const c of units) c.nextWeightPenalty = 0` runs right before
       // this very `end` event is pushed) — exit #2 of the two exits described

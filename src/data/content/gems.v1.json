@@ -166,7 +166,7 @@
             "name": "Glacial Sliver",
             "notes": [
               "Re-themed stun -> slow (a 2-turn stun is 20 PL now, far above every",
-              "gem band). slow 32 (floor(32*5/2) = 80) = Legendary exactly.",
+              "gem band). slow 16 (floor(16*5/1) = 80) = Legendary exactly.",
               "RETEXT/RENAME: \"Shard\" carried no category suffix; this is a rider",
               "(Sliver). Id kept — referenced by src/game/demoState.ts."
             ],
@@ -175,7 +175,7 @@
             "actions": [
               {
                 "kind": "slow",
-                "weight": 32
+                "weight": 16
               }
             ]
           }
@@ -578,7 +578,7 @@
           "def": {
             "name": "Quickening Sliver",
             "notes": [
-              "slow +8 weight: floor(8 * 5/2) = 20 deci = Common exactly. (Was a",
+              "slow +4 weight: floor(4 * 5/1) = 20 deci = Common exactly. (Was a",
               "-1 cooldown gem; cooldownPerTurn is now 100 deci, unaffordable at any",
               "gem rarity, so the tempo theme lives on as an enemy slow instead.)"
             ],
@@ -587,7 +587,7 @@
             "actions": [
               {
                 "kind": "slow",
-                "weight": 8
+                "weight": 4
               }
             ]
           }
@@ -761,7 +761,7 @@
             "notes": [
               "Re-themed from stun -> slow: at the re-priced stunPerTurn (100 deci)",
               "a 1-turn stun is 10 PL, above every gem rarity band, so no stun gem can",
-              "exist. slow 16 (floor(16*5/2) = 40) = Rare exactly keeps a tempo-denial",
+              "exist. slow 8 (floor(8*5/1) = 40) = Rare exactly keeps a tempo-denial",
               "theme. RETEXT/RENAME: \"Shard\" carried no category suffix; this is a",
               "rider (Sliver). Id kept — referenced by src/game/demoState.ts."
             ],
@@ -770,7 +770,7 @@
             "actions": [
               {
                 "kind": "slow",
-                "weight": 16
+                "weight": 8
               }
             ]
           }
@@ -858,9 +858,9 @@
               "fracture_sliver (burden 8 + splash, Rare): that two-rung ladder was a",
               "fossil of the retired splash-as-weight-tax model \u2014 the ladder laddered the",
               "BURDEN's magnitude, and splash itself has no magnitude to ladder.",
-              "PRICE: splash = 20 deci flat (PRICE.splashFlatDeci, the keyword's own",
+              "PRICE: splash = 80 deci flat (PRICE.splashFlatDeci, the keyword's own",
               "standalone rate \u2014 user ruling 2026-08-21: \"every gem pl is standalone\") =",
-              "Common EXACTLY. No other field, so nothing else to price.",
+              "Legendary EXACTLY (user ruling 2026-09-13). No other field, so nothing else to price.",
               "ONLY USEFUL ON A CARD-TARGETING HOST, by design: THE SPLASH GATE in",
               "resolveEffectiveSkill (src/engine/cards.ts) drops the spreader on a host",
               "with no `burden`/`curse` to spread (`nothingToSpread`), on a host that",
@@ -875,7 +875,7 @@
               "consolidation only settles the spreader."
             ],
             "kind": "effect",
-            "rarity": "common",
+            "rarity": "legendary",
             "actions": [
               {
                 "kind": "splash"
@@ -1247,9 +1247,9 @@
               "the bare weight tax deserves its own gem ladder. It does, and it is a ladder on",
               "the MAGNITUDE, which is exactly what splash could never have: burden has a",
               "number, the spreader does not.",
-              "PRICE: burden 8 = 20 deci (PRICE.burdenPerWeightNum/Den, 5/2) = Common EXACTLY.",
-              "MINIMAL for its band: burden 7 prices at floor(7*5/2) = 17, no band.",
-              "NOT A TWIN of quickening_sliver (slow 8, also Common 20): burden and slow share",
+              "PRICE: burden 4 = 20 deci (PRICE.burdenPerWeightNum/Den, 5/1) = Common EXACTLY.",
+              "MINIMAL for its band: burden 3 prices at floor(3*5/1) = 15, no band.",
+              "NOT A TWIN of quickening_sliver (slow 4, also Common 20): burden and slow share",
               "one rate for one currency, so the numbers coincide \u2014 the EFFECTS do not. A slow",
               "taxes the UNIT and is dropped at end of turn whether or not it was ever paid; a",
               "burden taxes a CARD and rides that piece until it is played. Same price, a",
@@ -1264,7 +1264,7 @@
             "actions": [
               {
                 "kind": "burden",
-                "weight": 8
+                "weight": 4
               }
             ]
           }
@@ -1281,11 +1281,11 @@
             "notes": [
               "Upper rung of the burden ladder \u2014 see ballast_sliver for the keyword, the",
               "slow-vs-burden distinction and the spreader-host note.",
-              "PRICE: burden 16 = 40 deci = Rare EXACTLY. Minimal for its band (burden 15",
-              "prices at floor(15*5/2) = 37, no band). Double the Common rung \u2014 the same",
-              "doubling step the slow gems use (8 / 16 / 32).",
-              "Epic and Legendary rungs would land exactly at burden 24 (60) and burden 32",
-              "(80), deliberately NOT shipped: +24 or +32 is most of a turn's banking on the",
+              "PRICE: burden 8 = 40 deci = Rare EXACTLY. Minimal for its band (burden 7",
+              "prices at floor(7*5/1) = 35, no band). Double the Common rung \u2014 the same",
+              "doubling step the slow gems use (4 / 8 / 16).",
+              "Epic and Legendary rungs would land exactly at burden 12 (60) and burden 16",
+              "(80), deliberately NOT shipped: +12 or +16 is most of a turn's banking on the",
               "anchor, and on a spreader host it is that across the whole band. Those rungs",
               "are balance-designer's to open once the lane has play data."
             ],
@@ -1294,7 +1294,7 @@
             "actions": [
               {
                 "kind": "burden",
-                "weight": 16
+                "weight": 8
               }
             ]
           }

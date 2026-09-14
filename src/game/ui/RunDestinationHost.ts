@@ -16,13 +16,13 @@ const hostMasks = new WeakMap<Phaser.Scene, Phaser.GameObjects.Graphics>();
  * Center the measured label at integer coordinates, without a hover lift. */
 export function renderRunHostButton(
   scene: Phaser.Scene, x: number, y: number, label: string, compact: boolean,
-  onPress: () => void, alignRight = false,
+  onPress: () => void, alignRight = false, dense = false,
 ): Rect {
-  const horizontal = compact ? 12 : 16;
-  const vertical = compact ? 10 : 12;
+  const horizontal = dense ? 10 : compact ? 12 : 16;
+  const vertical = dense ? 6 : compact ? 10 : 12;
   const text = scene.add.text(0, 0, label, textRoleFor(compact ? 'mobile' : 'desktop', 'label', { ink: 'onAccent' })).setOrigin(0, 0);
   const width = Math.max(40, Math.ceil(text.width) + horizontal * 2);
-  const height = Math.max(40, Math.ceil(text.height) + vertical * 2);
+  const height = Math.max(dense ? 32 : 40, Math.ceil(text.height) + vertical * 2);
   const rect = { x: Math.round(x - (alignRight ? width : 0)), y: Math.round(y), width, height };
   const box = scene.add.rectangle(rect.x, rect.y, width, height, UI.chip, 1).setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
@@ -143,6 +143,12 @@ export class RunDestinationHost {
   hide(): void {
     if (!this.key || !this.owner.scene.isActive(this.key)) return;
     const child = this.owner.scene.get(this.key);
+    // The embedded scene receives global pointer events even outside its
+    // camera viewport. When the parent resizes the host or opens a HUD modal,
+    // finish any child drag/tap gesture before disabling it. Otherwise the
+    // child can process the same release after the parent rebuild and revive a
+    // shelf drag (or rebuild itself above the parent's level-up panel).
+    child.input.emit('pointerupoutside');
     child.scene.setVisible(false);
     child.input.enabled = false;
   }
@@ -238,13 +244,14 @@ export class RunDestinationHost {
     const key = this.key;
     const compact = key.startsWith('Mobile');
     const horizontal = compact ? 12 : 16;
-    const vertical = compact ? 10 : 12;
+    const denseShopToolbar = key === 'DesktopShop';
+    const vertical = denseShopToolbar ? 6 : compact ? 10 : 12;
     this.owner.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, UI.panel, 1).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.8);
-    const back = renderRunHostButton(this.owner, bounds.x + horizontal, bounds.y + vertical, '‹ BACK', compact, () => this.close());
+    const back = renderRunHostButton(this.owner, bounds.x + horizontal, bounds.y + vertical, '‹ BACK', compact, () => this.close(), false, denseShopToolbar);
     const barH = back.height + vertical * 2;
     const view = { x: bounds.x, y: bounds.y + barH, width: bounds.width, height: Math.max(40, bounds.height - barH) };
-    if (key.endsWith('Shop')) renderRunHostButton(this.owner, back.x + back.width + 8, back.y, 'LEAVE SHOP ›', compact, () => { leaveCurrentShop(); this.close(); });
+    if (key.endsWith('Shop')) renderRunHostButton(this.owner, back.x + back.width + 8, back.y, 'LEAVE SHOP ›', compact, () => { leaveCurrentShop(); this.close(); }, false, denseShopToolbar);
     const scroll = (direction: number): void => {
       if (!this.embedded) return;
       this.embedded.scrollY += direction * this.embedded.bounds.height * 0.7;

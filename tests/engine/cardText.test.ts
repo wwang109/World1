@@ -103,7 +103,7 @@ const GOLDEN: Record<string, string> = {
   // ...and the unequal form, which only exists at Silver.
   'twin_slash@silver': 'Deal 12, then 10 (+ATK) Sword damage.',
   // AoE leads, because `scope` widens every offensive line and not just the hit.
-  'chain_spark@diamond': 'Hits EVERY foe · Deal 34 (+MATK) Lightning damage · Gain 10 (+MDEF) magical {{shield}} · {{Slow}} +8wt. Cooldown 4 (default 3).',
+  'chain_spark@diamond': 'Hits EVERY foe · Deal 30 (+MATK) Lightning damage · Gain 10 (+MDEF) magical {{shield}} · {{Slow}} 8. Cooldown 4 (default 3).',
   // The pile MERGE (spec §2.5): four `thorns` lines, one printed clause. The
   // headline still leads (spec §4.1) — which is the ordering the user named on
   // `bramble_ward` vs `bramble_covenant`, applied without exception.
@@ -133,7 +133,7 @@ describe('generated card text: the golden set', () => {
 describe('generated card text: control keywords keep parameters compact', () => {
   it('prints Curse, Burden, and Splash parameters without duplicating their definitions', () => {
     expect(renderSkillText(skillBook.writ_of_sanction!)).toBe(
-      '{{Curse}} -12 (2t) · {{Burden}} +8wt · {{Splash}}.',
+      '{{Curse}} -2 (2t) · {{Burden}} +2wt · {{Splash}}.',
     );
   });
 });

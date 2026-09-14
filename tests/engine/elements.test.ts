@@ -42,7 +42,12 @@ describe('weapon triangle', () => {
     expect(weaponMatchup('axe', 'beast')).toBe('neutral');
     // But bow beats beast (the hunter's niche).
     expect(weaponMatchup('bow', 'beast')).toBe('advantage');
-    expect(weaponMatchup('beast', 'bow')).toBe('disadvantage');
+    expect(weaponMatchup('beast', 'bow')).toBe('neutral');
+  });
+
+  it.each(['sword', 'axe', 'lance', 'bow', 'beast'] as const)('Beast remains neutral when attacking %s affinity', affinity => {
+    expect(weaponMatchup('beast', affinity)).toBe('neutral');
+    expect(matchupPct(weaponMatchup('beast', affinity))).toBe(100);
   });
 
   it('multipliers are +50% / −25%', () => {
@@ -71,8 +76,22 @@ const FROST_BOARD = ['frost_shackle', 'glacial_spike', 'slow_hex'];
 const AXE_BOARD = ['armor_break', 'cleaving_creed', 'rupturing_strike'];
 const SWORD_BOARD = ['sword_slash', 'follow_through', 'silencing_slash'];
 const BEAST_BOARD = ['savage_bite', 'blooded_fang', 'nettle_lash'];
+const BOW_BOARD = ['hunter_shot', 'hunter_shot', 'hunter_shot'];
 
 describe('matchups in combat', () => {
+  it('a Beast card deals full damage into earned Bow affinity without requiring attacker affinity', () => {
+    const c = cfg(
+      tc('hero', ['venom_fang'], { attack: 10, speed: 20 }),
+      tc('archer', BOW_BOARD, { speed: 10, maxHp: 200 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    const { events, finalState } = simulate(c, 1);
+    expect(finalState.enemy.weaponAffinity).toBe('bow');
+    expect(finalState.player.weaponAffinity).toBeUndefined();
+    const hit = events.find(event => event.kind === 'damage' && event.side === 'enemy');
+    expect(hit).toMatchObject({ amount: 22 });
+    expect((hit as { matchup?: string }).matchup).toBeUndefined();
+  });
   it('frost magic hits a fire-affinity enemy for +50%', () => {
     // slow_hex (frost): 8 flat + MP 10 = 18, no resist -> 18, x1.5 = 27.
     const c = cfg(

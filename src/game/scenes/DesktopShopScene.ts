@@ -1,4 +1,9 @@
 import Phaser from 'phaser';
+import { renderGemDetailsDrawer, type GemDetailsSlot } from '../ui/gemDetailsDrawer';
+import { GemToken } from '../ui/GemToken';
+import { instancePowerLevelDeci } from '../../engine/balance';
+import { CardDetailActivation } from '../ui/cardDetailActivation';
+import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
 import { positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { renderSkillText } from '../../engine/keywords/compose';
 import { playSfx } from '../audio/sfxSynth';
@@ -35,7 +40,18 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { addBrightRunArt, addRunArt, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { auditControlLabel } from '../ui/controlLayoutAudit';
-import { desktopShopPage, desktopShopShelfLayout, desktopShopStorefrontLayout, type DesktopShopBox } from '../ui/desktopShopLayout';
+import {
+  desktopShopBannerControlLayout,
+  desktopShopDragVisualPlan,
+  desktopShopEmbeddedViewHeight,
+  desktopShopInventoryTabs,
+  desktopShopOfferGridLayout,
+  desktopShopPage,
+  desktopShopStorefrontLayout,
+  desktopShopWorkspaceLayout,
+  type DesktopShopBox,
+  type DesktopShopInventoryTab,
+} from '../ui/desktopShopLayout';
 import { classifyShopShelfGesture } from '../ui/shopGestureArbitration';
 import { bindShopShelfMaskSync, setShopShelfScrollPosition } from '../ui/shopShelfScroll';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
@@ -45,7 +61,6 @@ import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderCardDetailOverlay } from '../ui/cardDetailOverlay';
 import { tierUpgradePreview } from '../ui/tierUpgradePreview';
 import { renderGemText } from '../../engine/keywords/gemText';
-import { gemDefinitionsText } from '../ui/gemPresentation';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
  * (run) — the shop scene reads/writes through this either way. */
@@ -76,27 +91,12 @@ const BOARD_BAG_SLOTS = 10;
  * card render (art, name, effects, affinity) instead of a truncated name/tier
  * label, per the user's explicit "more spacing" ask.
  */
-const OWNED_COL_W = 220;
 /** Gap between the [shelf | BOARD | BAG] regions. */
 const OWNED_COL_GAP = DESKTOP_LAYOUT.gap;
 /** Vertical gap between rows inside a BOARD/BAG column. */
 const OWNED_ROW_GAP = 8;
 const SELL_ZONE_H = 40;
-const POUCH_LABEL_H = 14;
-const POUCH_LABEL_GAP = 4;
-const POUCH_CELL_H = 30;
-/**
- * Reserved band UNDER the BOARD/BAG columns for SELL ZONE + GEM POUCH
- * (bottom-anchored at the same `bottom` the shelf viewport and dock use):
- *   gap (column bottom → SELL ZONE)   = 8
- *   SELL ZONE                          = 40
- *   gap                                 = 8
- *   POUCH label + gap + cell           = 14 + 4 + 30 = 48
- *   total                               = 104
- * The shelf viewport does NOT reserve this band — it runs the full column
- * height (it scrolls; the columns are sized to fit without scrolling).
- */
-const OWNED_FOOTER_H = 8 + SELL_ZONE_H + 8 + POUCH_LABEL_H + POUCH_LABEL_GAP + POUCH_CELL_H;
+const SHOP_HEADER_H = 56;
 
 type PendingBuy = { kind: 'card'; index: number; dest?: BuyDestination } | { kind: 'gem'; index: number };
 type PendingSell = { location: 'board' | 'bag' | 'gem'; index: number };
@@ -141,7 +141,8 @@ interface DragEntry {
 interface OwnedColumnLayout {
   boardX: number;
   bagX: number;
-  colW: number;
+  boardW: number;
+  bagW: number;
   colTop: number;
   rowH: number;
   rowGap: number;
@@ -167,7 +168,7 @@ interface OwnedColumnLayout {
  *
  * 2026-08-05: BOARD/BAG went VERTICAL — two `CardToken` columns (the same
  * deck-build idiom, multi-slot cards spanning rows) in place of the old
- * horizontal 92px mini-token strip. See `OWNED_COL_W`/`OWNED_FOOTER_H`.
+ * horizontal 92px mini-token strip.
  *
  * 2026-08-06: BOARD<->BAG REARRANGE (task #32 — this move never existed in
  * the shop before; only BUY-to-slot and SELL did) — dragging an owned card
@@ -183,13 +184,15 @@ interface OwnedColumnLayout {
 export class DesktopShopScene extends Phaser.Scene {
   private embedded: EmbeddedRunDestination | undefined;
   private get viewWidth(): number { return this.embedded?.bounds.width ?? SCREEN.width; }
-  private get viewHeight(): number { return this.embedded ? Math.max(580, this.embedded.bounds.height) : SCREEN.height; }
+  private get viewHeight(): number { return desktopShopEmbeddedViewHeight(this.embedded?.bounds.height, SCREEN.height); }
   private get dockWidth(): number { return this.embedded ? Math.min(360, this.viewWidth * 0.3) : 380; }
   private get contentTop(): number { return this.embedded ? 12 : TEMPLATE.regions.content.y; }
   private selectedShop: string | null = null;
   private storefrontPage = 0;
+  private readonly detailActivation = new CardDetailActivation();
   private detailCardIndex: number | null = null;
   private detailGemIndex: number | null = null;
+  private inspectGemIndex: number | null = null;
   private detailTier: SkillTier = 'bronze';
   /** OWNED board/bag card whose "ⓘ" button opened the dock — mutually
    * exclusive with `detailCardIndex`/`detailGemIndex` (a shelf selection
@@ -221,9 +224,23 @@ export class DesktopShopScene extends Phaser.Scene {
   private shelfFadeBottom: Phaser.GameObjects.Rectangle | null = null;
   private shelfViewport = { x: 0, y: 0, width: 0, height: 0 };
   private shelfMaxScroll = 0;
+  private inventoryTab: DesktopShopInventoryTab = 'bag';
+  private inventoryContainer: Phaser.GameObjects.Container | null = null;
+  private inventoryScrollY = 0;
+  private inventoryThumb: Phaser.GameObjects.Rectangle | null = null;
+  private inventoryViewport = { x: 0, y: 0, width: 0, height: 0 };
+  private inventoryMaxScroll = 0;
 
   private setShelfScrollPosition(y: number): void {
     setShopShelfScrollPosition(this.shelfContainer, y);
+  }
+
+  private setInventoryScrollPosition(y: number): void {
+    this.inventoryContainer?.setY(y);
+    if (!this.inventoryThumb || this.inventoryMaxScroll <= 0) return;
+    const v = this.inventoryViewport;
+    const progress = Phaser.Math.Clamp(-y / this.inventoryMaxScroll, 0, 1);
+    this.inventoryThumb.y = v.y + (v.height - this.inventoryThumb.height) * progress;
   }
 
   private draggables: DragEntry[] = [];
@@ -239,6 +256,7 @@ export class DesktopShopScene extends Phaser.Scene {
     this.storefrontPage = 0;
     this.detailCardIndex = null;
     this.detailGemIndex = null;
+    this.inspectGemIndex = null;
     this.detailTier = 'bronze';
     this.inspectOwned = null;
     this.pendingBuy = null;
@@ -248,6 +266,8 @@ export class DesktopShopScene extends Phaser.Scene {
     this.toastObjects = [];
     this.retireConfirmOpen = false;
     this.shelfScrollY = 0;
+    this.inventoryTab = 'bag';
+    this.inventoryScrollY = 0;
     // rebuildScene() destroys the game objects but NOT the fields pointing at
     // them — a stale Rectangle here would be repositioned by
     // `syncShelfScrollAffordance` after its destruction (scene-rebuild idiom).
@@ -320,20 +340,17 @@ export class DesktopShopScene extends Phaser.Scene {
    * card/gem grid) and `renderOwnedColumns` (which needs `boardX`/`bagX`),
    * so the two can never disagree about where the columns actually sit.
    */
-  private ownedColumnX(): { areaRight: number; boardX: number; bagX: number; colW: number } {
+  private ownedColumnX(): { areaRight: number; boardX: number; bagX: number; boardW: number; bagW: number; shelfRight: number } {
     const gx = this.embedded ? 12 : DESKTOP_LAYOUT.gutter;
-    const colW = this.embedded ? Math.min(180, this.viewWidth * 0.14) : OWNED_COL_W;
-    const layout = desktopShopShelfLayout(this.viewWidth, gx, colW, OWNED_COL_GAP);
-    return { areaRight: layout.right, boardX: layout.boardX, bagX: layout.bagX, colW };
-  }
-
-  /** How many `desiredW`-ish columns fit `availW`, capped at `count` (never
-   * more columns than there are actual offers — an empty trailing column
-   * would just be dead space) and never fewer than 1. */
-  private gridColsFor(count: number, availW: number, desiredW: number): number {
-    const gap = DESKTOP_LAYOUT.gap;
-    const fit = Math.floor((availW + gap) / (desiredW + gap));
-    return Math.max(1, Math.min(count, fit));
+    const layout = desktopShopWorkspaceLayout(this.viewWidth, this.viewHeight, gx, OWNED_COL_GAP);
+    return {
+      areaRight: layout.inventory.x + layout.inventory.width,
+      boardX: layout.board.x,
+      bagX: layout.inventory.x,
+      boardW: layout.board.width,
+      bagW: layout.inventory.width,
+      shelfRight: layout.shelf.x + layout.shelf.width,
+    };
   }
 
   private boardOccupied(): boolean[] {
@@ -356,8 +373,12 @@ export class DesktopShopScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.detailActivation.reset();
     this.draggables = [];
     this.shelfContainer = null;
+    this.inventoryContainer = null;
+    this.inventoryThumb = null;
+    this.inventoryMaxScroll = 0;
     this.ownedColumns = null;
     this.sellZoneRectObj = null;
     this.sellZoneLabelObj = null;
@@ -385,6 +406,7 @@ export class DesktopShopScene extends Phaser.Scene {
     else if (this.inspectOwned) this.renderOwnedCardDetail();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
+    else if (this.inspectGemIndex !== null) this.renderOwnedGemDetail();
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: false,
@@ -520,21 +542,17 @@ export class DesktopShopScene extends Phaser.Scene {
     // with no back button; the Sandbox keeps its own `‹ SHOPS` back nav.
     const top = runShop ? this.contentTop : DESKTOP_LAYOUT.contentTop;
 
-    // The permanent inspect dock (renderDock) claims the screen's right
-    // edge, and the BOARD/BAG columns (renderOwnedColumns) claim a further
-    // slice before that — the shelf grid lays out within whatever's left so
-    // none of the three ever overlap. `areaRight` (the header/reroll row's
-    // own right edge) stays the OLD full pre-dock width — the header spans
-    // over the columns below it, same as before this pass.
-    const { areaRight, boardX } = this.ownedColumnX();
-    const shelfRight = boardX - OWNED_COL_GAP;
+    // The catalog owns the left lane; the permanent board and swappable
+    // inventory lanes own the right. The shared pure layout keeps them apart.
+    const { shelfRight } = this.ownedColumnX();
     const bottom = this.viewHeight - DESKTOP_PROFILE.safe.bottom;
+    const footerTop = bottom - SELL_ZONE_H;
 
     addBrightRunArt(this, RUN_ART_KEYS.shopBanner, {
       x: gx,
       y: top,
-      width: areaRight - gx,
-      height: 40,
+      width: shelfRight - gx,
+      height: SHOP_HEADER_H,
     }, { imageAlpha: 0.35, liftAlpha: 0.12 });
 
     let titleX = gx;
@@ -554,17 +572,24 @@ export class DesktopShopScene extends Phaser.Scene {
     // Deriving the gap from `titleText.height` (same measurement `getBounds()`
     // uses) guarantees the tagline clears the title for every theme, long or
     // short, with no per-theme layout math to keep in sync with content.
-    const titleText = this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent, wordWrap: { width: Math.max(80, areaRight - titleX - 132) }, maxLines: 1 });
-    this.add.text(titleX, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, areaRight - titleX - 132) }, maxLines: 1 });
+    const titleText = this.add.text(titleX + 8, top + 8, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent, wordWrap: { width: Math.max(80, shelfRight - titleX - 152) }, maxLines: 1 });
+    this.add.text(titleX + 8, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, shelfRight - titleX - 152) }, maxLines: 1 });
 
     // A thin shop whose WHOLE pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
     // hide it behind a "FULL STOCK" label rather than inviting a wasted gold.
-    const rerollW = 120;
-    const rerollX = areaRight - rerollW;
+    const rerollControl = desktopShopBannerControlLayout({
+      x: gx,
+      y: top,
+      width: shelfRight - gx,
+      height: SHOP_HEADER_H,
+    });
+    const rerollW = rerollControl.width;
+    const rerollX = rerollControl.x;
+    const rerollY = rerollControl.y;
     if (info.fullStock) {
-      this.add.rectangle(rerollX, top, rerollW, 32, UI.panelMuted, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-      this.add.text(rerollX + rerollW / 2, top + 16, 'FULL STOCK', {
+      this.add.rectangle(rerollX, rerollY, rerollW, rerollControl.height, UI.panelMuted, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, 'FULL STOCK', {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
       }).setOrigin(0.5);
     } else {
@@ -573,9 +598,9 @@ export class DesktopShopScene extends Phaser.Scene {
       // off of and keeps its pre-existing flat 1-gold label/gate.
       const cost = runShop ? currentShopRerollCost() : 1;
       const canReroll = this.activeGold() >= cost;
-      const reroll = this.add.rectangle(rerollX, top, rerollW, 32, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
+      const reroll = this.add.rectangle(rerollX, rerollY, rerollW, rerollControl.height, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(rerollX + rerollW / 2, top + 16, `REROLL · ${cost} G`, {
+      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, `REROLL · ${cost} G`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
       }).setOrigin(0.5);
       if (canReroll) {
@@ -584,14 +609,14 @@ export class DesktopShopScene extends Phaser.Scene {
       }
     }
 
-    const rowTop = top + 40;
+    const rowTop = top + SHOP_HEADER_H + 8;
     // Scrollable viewport for the CARDS+GEMS grid — runs the FULL remaining
     // height (down to `bottom`), unlike before: BOARD/BAG are now vertical
     // columns BESIDE the shelf (not a horizontal strip below it), so nothing
     // here needs to reserve room for them. Masking (not row-height clamping)
     // is what makes the shelf immune to overflow regardless of offer count.
     const viewportTop = rowTop;
-    const viewportH = Math.max(40, bottom - viewportTop);
+    const viewportH = Math.max(40, footerTop - OWNED_COL_GAP - viewportTop);
     this.shelfViewport = { x: gx, y: viewportTop, width: shelfRight - gx, height: viewportH };
 
     const container = this.add.container(0, this.shelfScrollY);
@@ -609,6 +634,7 @@ export class DesktopShopScene extends Phaser.Scene {
     // (e.g. a 1-card element stall) never renders permanent dead "SOLD OUT"
     // gaps — only genuinely transient ones (bought out mid-visit) show up.
     const cardCols = info.cardSlots;
+    const offerGrid = desktopShopOfferGridLayout(shelfRight - gx, viewportH, cardCols, info.gemSlots, Boolean(this.embedded));
     if (cardCols > 0) {
       A(this.add.text(gx, sectionTop, `CARDS · ${shelf.cards.length}/${cardCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
       sectionTop += F.tiny + 8;
@@ -619,20 +645,20 @@ export class DesktopShopScene extends Phaser.Scene {
       // from the shelf's actual width (narrower since BOARD/BAG columns
       // moved in beside it, 2026-08-05) rather than a flat cap of 4, so cards
       // never get squeezed below a legible width.
-      const gridCols = this.gridColsFor(cardCols, shelfRight - gx, 240);
-      const rows = Math.ceil(cardCols / gridCols);
+      const gridCols = offerGrid.cardColumns;
+      const rows = offerGrid.cardRows;
       const cardGap = DESKTOP_LAYOUT.gap;
-      const cardW = Math.min(260, (shelfRight - gx - cardGap * (gridCols - 1)) / gridCols);
+      const cardW = (shelfRight - gx - cardGap * (gridCols - 1)) / gridCols;
       const rowW = gridCols * cardW + (gridCols - 1) * cardGap;
       const rowX = gx + (shelfRight - gx - rowW) / 2;
-      const cardH = DESKTOP_SHELF_CARD_TOKEN_H;
+      const cardH = offerGrid.cardHeight || DESKTOP_SHELF_CARD_TOKEN_H;
       // The price strip is a RESERVED band under the card, never a chip on it
       // — `ui/cardCellLayout.ts`. This shelf has always worked that way (which
       // is why it never showed the `x2 SL 2 G` collision its mobile twin did);
       // routing it through the shared split is what puts BOTH platforms' shop
       // cells under one audit (`tests/game/cardChipClearanceAudit.test.ts`).
       const cellH = captionCellHeight(cardH, SHELF_PRICE_STRIP_H);
-      const rowStride = cellH + 16;
+      const rowStride = cellH + offerGrid.rowGap;
       for (let i = 0; i < cardCols; i++) {
         const col = i % gridCols;
         const row = Math.floor(i / gridCols);
@@ -648,7 +674,9 @@ export class DesktopShopScene extends Phaser.Scene {
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
         const cell: CellBox = { x: cx, y: cy, w: cardW, h: cellH };
         const { token: tokenBox, caption } = captionCell(cell, SHELF_PRICE_STRIP_H);
-        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier });
+        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, {
+          width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier,
+        });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, cardW, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
         // MERGE affordance — same lookup the BUY confirm dialog already uses
@@ -658,7 +686,7 @@ export class DesktopShopScene extends Phaser.Scene {
         // CardToken stays feature-agnostic for its other (battle/prep/deck
         // build/draft) callers.
         const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
-        if (shelfMergeTarget) A(this.renderMergeBadge(cx + 4, cy + 4, shelfMergeTarget, F.tiny, i));
+        if (shelfMergeTarget) A(this.renderMergeBadge(tokenBox.x, tokenBox.y, shelfMergeTarget, F.tiny, tokenBox.w, tokenBox.h));
         const affordable = this.activeGold() >= offer.price;
         const priceAt = boxCenter(caption);
         A(this.add.rectangle(caption.x, caption.y, caption.w, caption.h, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6));
@@ -666,21 +694,22 @@ export class DesktopShopScene extends Phaser.Scene {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
         }).setOrigin(0.5));
       }
-      sectionTop += (rows - 1) * rowStride + cellH + 24;
+      sectionTop += (rows - 1) * rowStride + cellH + (this.embedded ? 14 : 24);
     }
 
     const gemCols = info.gemSlots;
     if (gemCols > 0) {
       A(this.add.text(gx, sectionTop, `GEMS · ${shelf.gems.length}/${gemCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
       sectionTop += F.tiny + 8;
-      // Same wrap treatment as CARDS, sized off the same narrower shelf width.
-      const gridCols = this.gridColsFor(gemCols, shelfRight - gx, 260);
+      // The selected desktop design keeps a two-column gem shelf below the
+      // two-column card shelf; only row height changes on shorter panels.
+      const gridCols = offerGrid.gemColumns;
       const gemGap = DESKTOP_LAYOUT.gap;
-      const gemW = Math.min(320, (shelfRight - gx - gemGap * (gridCols - 1)) / gridCols);
+      const gemW = (shelfRight - gx - gemGap * (gridCols - 1)) / gridCols;
       const gemRowW = gridCols * gemW + (gridCols - 1) * gemGap;
       const gemRowX = gx + (shelfRight - gx - gemRowW) / 2;
-      const gemH = 96;
-      const gemRowStride = gemH + 16;
+      const gemH = offerGrid.gemHeight;
+      const gemRowStride = gemH + offerGrid.rowGap;
       for (let i = 0; i < gemCols; i++) {
         const col = i % gridCols;
         const row = Math.floor(i / gridCols);
@@ -702,19 +731,30 @@ export class DesktopShopScene extends Phaser.Scene {
         // a non-interactive SOLD OUT placeholder) kept its full hit box and
         // could swallow taps aimed at content below it.
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, gemW, gemH), src: { kind: 'shelfGem', index: i }, obj: cell });
-        A(this.add.rectangle(cx + 22, cy + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45));
-        A(this.add.text(cx + 38, cy + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }));
-        const body = A(this.add.text(cx + 16, cy + 40, stripCardTextMarkup(renderGemText(gem)), {
-          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-          wordWrap: { width: gemW - 32 }, lineSpacing: 2,
-        }));
-        if (body.height > 30) { body.setText(`${body.text.slice(0, 60)}…`); }
+        const compactGem = gemH < 80;
+        const gemInset = compactGem ? 10 : 16;
+        const artSize = compactGem ? 32 : 40;
+        A(new GemToken(this, cx + gemInset + artSize / 2, cy + gemH / 2, gem, { width: artSize, height: artSize }));
         const affordable = this.activeGold() >= offer.price;
-        A(this.add.text(cx + gemW - 16, cy + gemH - 18, `${offer.price} GOLD`, {
+        const price = A(this.add.text(cx + gemW - gemInset, cy, `${offer.price} GOLD`, {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
         }).setOrigin(1, 0));
+        price.y = cy + (gemH - price.height) / 2;
+        const textX = cx + gemInset + artSize + 10;
+        const textW = Math.max(36, price.x - price.width - 10 - textX);
+        const name = A(this.add.text(textX, cy, gem.name, {
+          fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${compactGem ? F.tiny : F.small}px`, color: UI.text,
+          wordWrap: { width: textW }, maxLines: 1,
+        }));
+        const bodyText = stripCardTextMarkup(renderGemText(gem));
+        const body = A(this.add.text(textX, cy, bodyText, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+          wordWrap: { width: textW }, lineSpacing: 2, maxLines: compactGem ? 1 : 2,
+        }));
+        name.y = cy + Math.max(4, (gemH - name.height - 4 - body.height) / 2);
+        body.y = name.y + name.height + 4;
       }
-      sectionTop += (Math.ceil(gemCols / gridCols) - 1) * gemRowStride + gemH;
+      sectionTop += (offerGrid.gemRows - 1) * gemRowStride + gemH;
     }
 
     if (cardCols === 0 && gemCols === 0) {
@@ -739,63 +779,25 @@ export class DesktopShopScene extends Phaser.Scene {
     this.renderShelfScrollAffordance();
   }
 
-  /**
-   * MERGE affordance overlay — a small outlined tag pinned to a shelf offer's
-   * top-left corner (`cx+4, cy+4`, clear of the offer's OWN tier-colored
-   * frame and of the top-RIGHT "×N SLOTS" span tag a multi-slot offer might
-   * show) when the player already owns a mergeable copy of that skill.
-   *
-   * DESIGN NOTE (why a corner tag, not a glowing/animated border): the
-   * offer's frame just became the tier-legibility channel (tier color +
-   * slightly thicker stroke, `CardTokenOptions.tier`). Animating or
-   * recoloring THAT same border for "mergeable" would read as "this is a
-   * better tier," not "you can merge this" — the exact collision the design
-   * brief called out. A merge signal needs its OWN channel: a shape
-   * (bordered pill, not a borderless scrim like the weight/slot badges) and
-   * its own color (`UI.good`, the SAME green the BUY-confirm dialog's MERGE
-   * button already uses — see `mergeTargetForPendingBuy`'s caller — so this
-   * doesn't invent a new "merge = X color" convention).
-   *
-   * The label itself hints the DECISION, not just the fact: "MERGE →
-   * <résultant tier>" — merging always targets an OWNED copy of the SAME
-   * skill (see `findMergeTarget` in `src/run/shop.ts`), so there is no
-   * different card name to show; the tier it becomes is the one piece of
-   * information the player doesn't already have on screen. That tier word is
-   * itself colored via `TIER_COLOR[toTier]`, tying back into the border
-   * feature — read the outline as "you can act," read the word's color as
-   * "here's what it becomes."
-   *
-   * MOTION: a single slow (1.6s), low-contrast (1 <-> 0.7 alpha) breathe on
-   * the badge container ONLY — never the card, never its frame — so several
-   * mergeable offers on one shelf stay ambient instead of a wall of flashing
-   * borders. `staggerIndex` offsets each badge's phase (a few hundred ms per
-   * offer, wrapped) so a shelf full of them doesn't breathe in lockstep.
-   * Lifecycle: `this.tweens.add(...)`, same as every other looping tween in
-   * these scenes (see `RunStatPanel.renderBankedPlBadge`) — `rebuildScene()`
-   * calls `scene.tweens.killAll()` before every `create()`, so this tween is
-   * torn down on the NEXT buy/sell/reroll/drag rebuild automatically; nothing
-   * here needs its own cleanup hook.
-   */
-  private renderMergeBadge(x: number, y: number, target: MergeTarget, fontPx: number, staggerIndex: number): Phaser.GameObjects.Container {
+  /** Shop-only eligibility outline and opaque label; never changes CardToken or its mask. */
+  private renderMergeBadge(x: number, y: number, target: MergeTarget, fontPx: number, cardW: number, cardH: number): Phaser.GameObjects.Container {
     const goodHex = `#${UI.good.toString(16).padStart(6, '0')}`;
     const tierHex = `#${TIER_COLOR[target.toTier].toString(16).padStart(6, '0')}`;
-    const padX = 6;
-    const padY = 3;
-    const prefix = this.add.text(padX, padY, '▲ MERGE ', {
+    const padX = 6, padY = 3;
+    const prefix = this.add.text(0, 0, '▲ MERGE ', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: goodHex,
     }).setOrigin(0, 0);
-    const suffix = this.add.text(padX + prefix.width, padY, `→ ${target.toTier.toUpperCase()}`, {
+    const suffix = this.add.text(0, 0, `→ ${target.toTier.toUpperCase()}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: tierHex,
     }).setOrigin(0, 0);
     const w = padX * 2 + prefix.width + suffix.width;
     const h = padY * 2 + Math.max(prefix.height, suffix.height);
-    const plate = this.add.rectangle(0, 0, w, h, 0x0b1420, 0.85).setOrigin(0, 0).setStrokeStyle(1, UI.good, 0.9);
-    const badge = this.add.container(x, y, [plate, prefix, suffix]);
-    this.tweens.add({
-      targets: badge, alpha: 0.7, duration: 1600, delay: (staggerIndex % 4) * 240,
-      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
-    return badge;
+    const left = (cardW - w) / 2, top = cardH - h - 4;
+    prefix.x = left + padX; prefix.y = top + padY;
+    suffix.x = prefix.x + prefix.width; suffix.y = top + padY;
+    const outline = this.add.rectangle(0, 0, cardW, cardH, UI.good, 0).setOrigin(0, 0).setStrokeStyle(3, UI.good, 1);
+    const plate = this.add.rectangle(left, top, w, h, 0x0b1420, 1).setOrigin(0, 0).setStrokeStyle(2, UI.good, 1);
+    return this.add.container(x, y, [outline, plate, prefix, suffix]);
   }
 
   /**
@@ -854,41 +856,56 @@ export class DesktopShopScene extends Phaser.Scene {
     return this.runShopId() ?? this.selectedShop!;
   }
 
-  // ---------- owned columns: BOARD · BAG · SELL ZONE · GEM POUCH ----------
+  // ---------- owned columns: permanent BOARD · swappable BAG/GEMS ----------
 
   /**
-   * YOUR BOARD / BAG — two vertical `BoardColumn`s (the SAME shared 10-slot
-   * column-of-`CardToken`s component battle/prep already render with — "one
-   * component, no per-screen copies") sitting beside the shelf grid, with a
-   * SELL ZONE and GEM POUCH stacked underneath them. Replaces the old
-   * 92×44 horizontal mini-token strip: much more spacious (a full card
-   * render — art, name, effects, affinity — instead of a truncated
-   * name/tier label), per the user's explicit "more spacing" ask.
+   * The board stays visible as a true ten-slot `BoardColumn`. The neighboring
+   * owned lane swaps between the same regular card presentation for BAG and a
+   * gem inventory view. The single SELL ZONE spans all three workspace lanes.
    */
   private renderOwnedColumns(shopId: string): void {
     const runShop = this.runShopId() === shopId;
     const top = runShop ? this.contentTop : DESKTOP_LAYOUT.contentTop;
     const bottom = this.viewHeight - DESKTOP_PROFILE.safe.bottom;
-    const { boardX, bagX, colW } = this.ownedColumnX();
-    // `labelY` matches renderShelf's own `rowTop` (`top + 40`) — the same
-    // safe clearance below the title/REROLL row (which occupies
-    // `[top, top+32]`) that the shelf's own "CARDS ·"/"GEMS ·" headers use,
-    // so YOUR BOARD/BAG sit on that same header line instead of colliding
-    // with REROLL above it (a real bug this fixes: the labels used to be
-    // anchored `colTop - 18`, which landed INSIDE the reroll button's row).
-    const labelY = top + 40;
-    const colTop = labelY + 18;
-    const colBottom = bottom - OWNED_FOOTER_H;
+    const gx = this.embedded ? 12 : DESKTOP_LAYOUT.gutter;
+    const { areaRight, boardX, bagX, boardW, bagW } = this.ownedColumnX();
+    const headerH = 40;
+    const labelY = top;
+    const colTop = labelY + headerH + 8;
+    const footerY = bottom - SELL_ZONE_H;
+    const colBottom = footerY - OWNED_COL_GAP;
     const colH = Math.max(80, colBottom - colTop);
     const rowGap = OWNED_ROW_GAP;
     const rowH = (colH - rowGap * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
 
-    this.add.text(boardX + colW / 2, labelY, `YOUR BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
+    this.add.rectangle(boardX, labelY, boardW, headerH, UI.panelAlt, 0.96).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
+    this.add.text(boardX + 12, labelY + headerH / 2, `YOUR BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5, 0);
-    this.add.text(bagX + colW / 2, labelY, `BAG · ${this.bagOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0, 0.5);
+
+    const tabs = desktopShopInventoryTabs(this.bagOccupied().filter(Boolean).length);
+    const tabGap = 6;
+    const tabW = (bagW - tabGap) / 2;
+    tabs.forEach((tab, index) => {
+      const x = bagX + index * (tabW + tabGap);
+      const active = this.inventoryTab === tab.id;
+      const box = this.add.rectangle(x, labelY, tabW, headerH, active ? UI.chip : UI.panelAlt, 1)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, active ? 1 : 0.8)
+        .setInteractive({ useHandCursor: true });
+      const label = this.add.text(x + tabW / 2, labelY + headerH / 2, tab.label, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textAccent,
+      }).setOrigin(0.5);
+      auditControlLabel(box, label, { name: `Desktop shop ${tab.id} tab`, horizontalPadding: 10, verticalPadding: 6, minFontSize: 9 });
+      box.on('pointerup', () => {
+        if (this.inventoryTab === tab.id) return;
+        playSfx('uiClick');
+        this.inventoryTab = tab.id;
+        // The embedded child also asks its parent host to rebuild. Finish the
+        // physical click first so the new scene objects cannot receive the
+        // same pointer event and navigate away from the shop.
+        this.time.delayedCall(0, () => this.rerender());
+      });
+    });
 
     const boardPieces: ColumnPiece[] = [];
     const boardSkills: SkillDef[] = [];
@@ -902,71 +919,48 @@ export class DesktopShopScene extends Phaser.Scene {
       boardSkills.push(skill);
     }
     const boardCol = new BoardColumn(this, {
-      x: boardX, y: colTop, width: colW, height: colH, side: 'left',
+      x: boardX, y: colTop, width: boardW, height: colH, side: 'left',
       slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: boardPieces, deck: boardSkills,
-      onInspectSlot: (slot) => {
-        const piece = this.pieces.find((p) => p.slot === slot);
-        if (!piece) return;
-        this.detailCardIndex = null;
-        this.detailGemIndex = null;
-        this.inspectOwned = { location: 'board', index: this.pieces.indexOf(piece) };
-        this.rerender();
-      },
     });
-    this.wireColumnDraggables(boardCol, boardX, colTop, colW, rowH, rowGap, (slot) => {
+    this.wireColumnDraggables(boardCol, boardX, colTop, boardW, rowH, rowGap, (slot) => {
       const piece = this.pieces.find((p) => p.slot === slot);
       if (!piece || !skillBook[piece.skillId]) return null;
       return { size: this.sizeOf(piece.skillId), src: { kind: 'board', index: this.pieces.indexOf(piece) } };
     });
 
-    const bagPieces: ColumnPiece[] = [];
-    const bagSkills: SkillDef[] = [];
-    this.bagSlots.forEach((card, index) => {
-      if (!card) return;
-      const base = skillBook[card.skillId];
-      if (!base) return;
-      // Tier fold (display-only, no gem — bag cards can't hold one) so a bag
-      // card's face — including whether it reads AoE — matches its OWN
-      // owned tier, not always the bronze base.
-      const skill = card.tier === base.tier ? base : applyTier(base, card.tier);
-      bagPieces.push({ skill, slot: index, tier: card.tier });
-      bagSkills.push(skill);
-    });
-    const bagCol = new BoardColumn(this, {
-      x: bagX, y: colTop, width: colW, height: colH, side: 'right',
-      slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: bagPieces, deck: bagSkills,
-      onInspectSlot: (slot) => {
-        if (!this.bagSlots[slot]) return;
-        this.detailCardIndex = null;
-        this.detailGemIndex = null;
-        this.inspectOwned = { location: 'bag', index: slot };
-        this.rerender();
-      },
-    });
-    this.wireColumnDraggables(bagCol, bagX, colTop, colW, rowH, rowGap, (slot) => {
-      const card = this.bagSlots[slot];
-      if (!card || !skillBook[card.skillId]) return null;
-      return { size: this.sizeOf(card.skillId), src: { kind: 'bag', index: slot } };
-    });
+    if (this.inventoryTab === 'bag') {
+      const bagPieces: ColumnPiece[] = [];
+      const bagSkills: SkillDef[] = [];
+      this.bagSlots.forEach((card, index) => {
+        if (!card) return;
+        const base = skillBook[card.skillId];
+        if (!base) return;
+        const skill = card.tier === base.tier ? base : applyTier(base, card.tier);
+        bagPieces.push({ skill, slot: index, tier: card.tier });
+        bagSkills.push(skill);
+      });
+      const bagCol = new BoardColumn(this, {
+        x: bagX, y: colTop, width: bagW, height: colH, side: 'right',
+        slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: bagPieces, deck: bagSkills,
+      });
+      this.wireColumnDraggables(bagCol, bagX, colTop, bagW, rowH, rowGap, (slot) => {
+        const card = this.bagSlots[slot];
+        if (!card || !skillBook[card.skillId]) return null;
+        return { size: this.sizeOf(card.skillId), src: { kind: 'bag', index: slot } };
+      });
+    } else {
+      this.renderOwnedGemInventory(bagX, colTop, bagW, colH);
+    }
 
-    // SELL ZONE + GEM POUCH, stacked directly under the two columns.
-    const rowX = boardX;
-    const rowW = bagX + colW - boardX;
-    let y = colBottom + 8;
-    const sellRect = new Phaser.Geom.Rectangle(rowX, y, rowW, SELL_ZONE_H);
-    this.sellZoneRectObj = this.add.rectangle(rowX, y, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
-    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, y + SELL_ZONE_H / 2, 'SELL ZONE — drag a card or gem here (or tap a gem)', {
+    const rowX = gx;
+    const rowW = areaRight - gx;
+    const sellRect = new Phaser.Geom.Rectangle(rowX, footerY, rowW, SELL_ZONE_H);
+    this.sellZoneRectObj = this.add.rectangle(rowX, footerY, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
+    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, footerY + SELL_ZONE_H / 2, 'SELL ZONE — drag a card or gem here', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: BAD_HEX,
     }).setOrigin(0.5);
-    y += SELL_ZONE_H + 8;
 
-    this.add.text(rowX, y, `GEM POUCH · ${this.gemInventory.length}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    });
-    y += POUCH_LABEL_H + POUCH_LABEL_GAP;
-    this.renderPouchRow(rowX, y, rowW);
-
-    this.ownedColumns = { boardX, bagX, colW, colTop, rowH, rowGap, sellRect };
+    this.ownedColumns = { boardX, bagX, boardW, bagW, colTop, rowH, rowGap, sellRect };
 
     // One-shot invalid-drop flash — read + cleared here so it never survives
     // past the single rebuild it was set for.
@@ -974,8 +968,9 @@ export class DesktopShopScene extends Phaser.Scene {
       const flash = this.invalidFlash;
       this.invalidFlash = null;
       const fx = flash.where === 'board' ? boardX : bagX;
+      const fw = flash.where === 'board' ? boardW : bagW;
       const fy = colTop + flash.index * (rowH + rowGap);
-      const overlay = this.add.rectangle(fx, fy, colW, rowH, UI.bad, 0.6).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 1);
+      const overlay = this.add.rectangle(fx, fy, fw, rowH, UI.bad, 0.6).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 1);
       this.tweens.add({ targets: overlay, alpha: 0, duration: 420, onComplete: () => overlay.destroy() });
     }
     void shopId;
@@ -1011,32 +1006,86 @@ export class DesktopShopScene extends Phaser.Scene {
     }
   }
 
-  /** A "+K more" cap keeps the pouch row a single non-scrolling line — the
-   * board/bag are hard-capped at 10 by design, but the gem pouch can grow
-   * past what one row fits; this is a deliberate density trim rather than a
-   * second scroll region fighting the shelf's own. */
-  private renderPouchRow(rowX: number, y: number, rowW: number): void {
-    const cellW = 34;
-    const gap = 4;
-    const maxShown = Math.max(0, Math.floor((rowW + gap) / (cellW + gap)) - 1);
-    const pouch = this.gemInventory;
-    const shown = pouch.slice(0, maxShown);
-    shown.forEach((gemId, i) => {
-      const gem = gemBook[gemId];
-      const cx = rowX + i * (cellW + gap);
-      const box = this.add.container(cx, y);
-      const bg = this.add.rectangle(cellW / 2, POUCH_CELL_H / 2, cellW, POUCH_CELL_H, UI.panel, 0.94).setStrokeStyle(1, gem ? GEM_RARITY_COLOR[gem.rarity] : UI.border, 0.9);
-      const label = this.add.text(cellW / 2, POUCH_CELL_H / 2, gem?.name.slice(0, 2).toUpperCase() ?? '??', {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.text,
-      }).setOrigin(0.5);
-      box.add([bg, label]);
-      this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, cellW, POUCH_CELL_H), src: { kind: 'gem', index: i }, obj: box });
-    });
-    if (pouch.length > maxShown) {
-      this.add.text(rowX + shown.length * (cellW + gap), y + POUCH_CELL_H / 2, `+${pouch.length - maxShown} more`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
-      }).setOrigin(0, 0.5);
+  /** The GEMS tab owns the same full-height lane as BAG and scrolls internally. */
+  private renderOwnedGemInventory(x: number, y: number, width: number, height: number): void {
+    this.inventoryViewport = { x, y, width, height };
+    this.add.rectangle(x, y, width, height, UI.panel, 0.58).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
+    if (this.gemInventory.length === 0) {
+      this.add.text(x + width / 2, y + 32, 'NO GEMS', {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
+      }).setOrigin(0.5, 0);
+      return;
     }
+
+    const inset = 8;
+    const gap = 8;
+    const cellH = 88;
+    const cellW = width - inset * 2 - 4;
+    const created: Phaser.GameObjects.GameObject[] = [];
+    const container = this.add.container(0, this.inventoryScrollY);
+    this.inventoryContainer = container;
+    this.gemInventory.forEach((gemId, index) => {
+      const gem = gemBook[gemId];
+      if (!gem) return;
+      const cx = x + inset;
+      const cy = y + index * (cellH + gap);
+      const tile = this.createOwnedGemTile(gem, cx, cy, cellW, cellH);
+      created.push(tile);
+      this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, cellW, cellH), src: { kind: 'gem', index }, obj: tile });
+    });
+    container.add(created);
+
+    const contentH = this.gemInventory.length * (cellH + gap) - gap;
+    this.inventoryMaxScroll = Math.max(0, contentH - height);
+    this.inventoryScrollY = Phaser.Math.Clamp(this.inventoryScrollY, -this.inventoryMaxScroll, 0);
+    container.setY(this.inventoryScrollY);
+    const maskShape = this.make.graphics({}, false);
+    maskShape.fillStyle(0xffffff).fillRect(x, y, width, height);
+    container.setMask(maskShape.createGeometryMask());
+    if (this.inventoryMaxScroll > 0) {
+      const trackX = x + width - 4;
+      this.add.rectangle(trackX, y, 4, height, UI.border, 0.35).setOrigin(0, 0);
+      const thumbH = Math.max(24, height * height / contentH);
+      this.inventoryThumb = this.add.rectangle(trackX, y, 4, thumbH, UI.chip, 0.9).setOrigin(0, 0);
+      this.setInventoryScrollPosition(this.inventoryScrollY);
+    }
+  }
+
+  private createOwnedGemTile(gem: GemDef, x: number, y: number, width: number, height: number): Phaser.GameObjects.Container {
+    const tile = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, width, height, UI.panelAlt, 0.96).setOrigin(0, 0)
+      .setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
+    const mark = new GemToken(this, 28, 28, gem, { width: 48, height: 48 });
+    const name = this.add.text(58, 12, gem.name, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text,
+      wordWrap: { width: width - 70 }, maxLines: 1,
+    });
+    const effect = this.add.text(12, 54, stripCardTextMarkup(renderGemText(gem)), {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+      wordWrap: { width: width - 24 }, maxLines: 2,
+    });
+    tile.add([bg, mark, name, effect]);
+    return tile;
+  }
+
+  /** Scene-root copy: unlike the source tile, this never inherits the lane mask. */
+  private spawnOwnedGemDragProxy(index: number, bounds: Phaser.Geom.Rectangle): Phaser.GameObjects.Container | null {
+    const gemId = this.gemInventory[index];
+    const gem = gemId ? gemBook[gemId] : undefined;
+    if (!gem) return null;
+    return this.createOwnedGemTile(gem, bounds.x, bounds.y, bounds.width, bounds.height).setDepth(1000).setAlpha(0.9);
+  }
+
+  /** Full CardToken copy at world level so a shelf drag remains visible after
+   * it leaves the masked catalog viewport, matching the Bag drag treatment. */
+  private spawnShelfCardDragProxy(token: CardToken, bounds: Phaser.Geom.Rectangle): CardToken {
+    return new CardToken(this, bounds.centerX, bounds.centerY, token.sourceSkill, {
+      ...token.sourceOpts,
+      width: bounds.width,
+      height: bounds.height,
+      state: 'none',
+      onInspect: undefined,
+    }).setDepth(1000).setAlpha(0.9);
   }
 
   // ---------- inspect dock (permanent right-hand panel, FULL height, unchanged) ----------
@@ -1058,7 +1107,7 @@ export class DesktopShopScene extends Phaser.Scene {
 
     if (this.inspectOwned) { this.renderOwnedCardDock(dockX, top, bottom); return; }
     if (this.detailCardIndex !== null) { this.renderLegacyCardDock(shopId, dockX, top, bottom); return; }
-    if (this.detailGemIndex !== null) { this.renderGemDock(shopId, dockX, top, bottom); return; }
+    if (this.detailGemIndex !== null) { this.renderGemDetail(); return; }
 
     this.add.text(dockX + this.dockWidth / 2, top + 48, 'Tap a card or gem on the shelf to inspect it here.', {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, align: 'center', wordWrap: { width: this.dockWidth - 48 },
@@ -1144,54 +1193,83 @@ export class DesktopShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
   }
 
+  private detailsView() {
+    return { x: 0, y: this.embedded?.scrollY ?? 0, width: this.viewWidth,
+      height: this.embedded?.bounds.height ?? this.viewHeight };
+  }
+
   private renderOwnedCardDetail(): void {
-    const width = this.dockWidth;
-    const x = (this.viewWidth - width) / 2;
-    const top = this.contentTop;
-    const bottom = this.viewHeight - DESKTOP_PROFILE.safe.bottom;
-    const veil = this.add.rectangle(0, 0, this.viewWidth, this.viewHeight, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.inspectOwned = null; this.rerender(); });
-    this.add.rectangle(x, top, width, bottom - top, UI.panel, 0.96).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
-    this.add.text(x + 20, top + 16, 'CARD DETAILS', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent }).setOrigin(0, 0.5);
-    this.renderOwnedCardDock(x, top + 22, bottom);
+    const owned = this.inspectOwned!;
+    const card = owned.location === 'board' ? this.pieces[owned.index] : this.bagSlots[owned.index];
+    if (!card) { this.inspectOwned = null; return; }
+    const base = skillBook[card.skillId];
+    if (!base) { this.inspectOwned = null; return; }
+    const piece = owned.location === 'board' ? card as BoardPieceLike : null;
+    const shown = piece ? resolveDisplaySkill(base, piece) : applyTier(base, card.tier);
+    renderCardDetailsDrawer(this, shown, {
+      compact: false, view: this.detailsView(),
+      gem: piece?.gem ? gemBook[piece.gem.id] : null,
+      powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
+      onClose: () => { this.inspectOwned = null; this.rerender(); },
+    });
   }
 
   private renderGemDetail(): void {
-    const width = this.dockWidth;
-    const x = (this.viewWidth - width) / 2;
-    const top = this.contentTop;
-    const bottom = this.viewHeight - DESKTOP_PROFILE.safe.bottom;
-    const veil = this.add.rectangle(0, 0, this.viewWidth, this.viewHeight, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
-    this.add.rectangle(x, top, width, bottom - top, UI.panel, 0.96).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
-    this.renderGemDock(this.activeShopId(), x, top, bottom);
+    const index = this.detailGemIndex!;
+    const offer = this.shelfFor(this.activeShopId()).gems[index];
+    const gem = offer ? gemBook[offer.gemId] : undefined;
+    if (!offer || !gem) { this.detailGemIndex = null; return; }
+    const affordable = this.activeGold() >= offer.price;
+    renderGemDetailsDrawer(this, gem, {
+      compact: false, view: this.detailsView(),
+      onClose: () => { this.detailGemIndex = null; this.rerender(); },
+      primaryAction: { label: affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, enabled: affordable,
+        onPress: () => { this.pendingBuy = { kind: 'gem', index }; this.rerender(); } },
+    });
   }
 
-  private renderCardDetail(): void {
-    {
-      const shopId = this.activeShopId();
-      const offer = this.shelfFor(shopId).cards[this.detailCardIndex!];
-      if (!offer) { this.detailCardIndex = null; return; }
-      const baseSkill = skillBook[offer.skillId]!;
-      const displaySkill = this.detailTier === baseSkill.tier ? baseSkill : applyTier(baseSkill, this.detailTier);
-      const runMode = this.isRunMode();
-      const affordable = this.activeGold() >= offer.price;
-      const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
-      const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
-      const canBuy = affordable && (hasRoom || mergeTarget != null);
-      const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
-      renderCardDetailOverlay(this, displaySkill, {
-        font: F,
-        title: 'Card Details',
-        onClose: () => { this.detailCardIndex = null; this.rerender(); },
-        primaryAction: {
-          label,
-          enabled: canBuy,
-          onPress: () => { this.pendingBuy = { kind: 'card', index: this.detailCardIndex! }; this.rerender(); },
+  private renderOwnedGemDetail(): void {
+    const slots: GemDetailsSlot[] = [];
+    this.gemInventory.forEach((id, index) => {
+      const gem = gemBook[id];
+      if (!gem) return;
+      slots.push({ key: `pouch:${index}`, label: `POUCH ${index + 1}`, gem, action: {
+        label: 'SELL', enabled: true, onPress: () => {
+          this.inspectGemIndex = null;
+          this.pendingSell = { location: 'gem', index };
+          this.rerender();
         },
-      });
-      return;
-    }
+      } });
+    });
+    const selected = slots.find(slot => slot.key === `pouch:${this.inspectGemIndex}`);
+    if (!selected) { this.inspectGemIndex = null; return; }
+    renderGemDetailsDrawer(this, selected.gem, {
+      compact: false, view: this.detailsView(), slots, selectedKey: selected.key,
+      onClose: () => { this.inspectGemIndex = null; this.rerender(); },
+    });
+  }
+  private renderCardDetail(): void {
+    const index = this.detailCardIndex!;
+    const offer = this.shelfFor(this.activeShopId()).cards[index];
+    if (!offer) { this.detailCardIndex = null; return; }
+    const base = skillBook[offer.skillId]!;
+    const shown = applyTier(base, this.detailTier);
+    const runMode = this.isRunMode();
+    const affordable = this.activeGold() >= offer.price;
+    const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
+    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+    const canBuy = affordable && (hasRoom || mergeTarget != null);
+    const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
+    renderCardDetailsDrawer(this, shown, {
+      compact: false, view: this.detailsView(),
+      onClose: () => { this.detailCardIndex = null; this.rerender(); },
+      primaryAction: { label, enabled: canBuy, onPress: () => {
+        this.pendingBuy = { kind: 'card', index }; this.rerender();
+      } },
+      secondaryAction: mergeTarget ? { label: 'MERGE', enabled: affordable, onPress: () => {
+        this.pendingBuy = { kind: 'card', index }; this.rerender();
+      } } : undefined,
+    });
   }
 
   private renderLegacyCardDock(shopId: string, px: number, py: number, bottom: number): void {
@@ -1248,57 +1326,6 @@ export class DesktopShopScene extends Phaser.Scene {
     }
   }
 
-  private renderGemDock(shopId: string, px: number, py: number, bottom: number): void {
-    const shelf = this.shelfFor(shopId);
-    const offer = shelf.gems[this.detailGemIndex!];
-    if (!offer) { this.detailGemIndex = null; return; }
-    const gem: GemDef = gemBook[offer.gemId]!;
-
-    const pw = this.dockWidth;
-    const centerX = px + pw / 2;
-    let y = py + 24;
-    this.add.rectangle(centerX, y + 10, 26, 26, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45).setStrokeStyle(2, UI.border, 0.8);
-    y += 40;
-    this.add.text(centerX, y, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, align: 'center', wordWrap: { width: pw - 40 } }).setOrigin(0.5, 0);
-    y += F.title + 6;
-    this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT GEM'}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(0.5, 0);
-    y += F.small + 14;
-    const faceText = this.add.text(centerX, y, stripCardTextMarkup(renderGemText(gem)), {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text, align: 'center', wordWrap: { width: pw - 40 }, lineSpacing: 4,
-    }).setOrigin(0.5, 0);
-    y += faceText.height + 14;
-
-    // WHAT ITS KEYWORDS MEAN — the definitions half of the `GEM EFFECT` block,
-    // added 2026-09-07 (review 2). The dock above prints the gem's own
-    // parameters; a player deciding whether to spend gold on `empowering_core`
-    // also needs the fact that its `+6 damage` lands on EVERY hit, and this
-    // panel had no route to it (`renderCardInfoBox`, which carries that block
-    // on the OWNED-card dock a few lines up, needs a host `SkillDef` and a gem
-    // on a shop shelf has none). `gemDefinitionsText` is the host-less half of
-    // the same route — the identical entries, from the same registry.
-    const defs = gemDefinitionsText(gem);
-    if (defs !== '') {
-      this.add.text(px + 20, y, defs, {
-        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
-        wordWrap: { width: pw - 40 }, lineSpacing: 2,
-      }).setOrigin(0, 0);
-    }
-
-    const affordable = this.activeGold() >= offer.price;
-    const btnY = bottom - 56;
-    const btn = this.add.rectangle(centerX, btnY, pw - 40, 40, affordable ? UI.chip : UI.panelMuted, affordable ? 1 : 0.5)
-      .setOrigin(0.5, 0).setStrokeStyle(1, UI.border, affordable ? 1 : 0.4);
-    this.add.text(centerX, btnY + 20, affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: affordable ? UI.textOnChip : UI.textSoft,
-    }).setOrigin(0.5);
-    if (affordable) {
-      btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { playSfx('uiClick'); this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! }; this.rerender(); });
-    }
-  }
-
   // ---------- unified manual drag: shelf→board/bag (BUY) · owned→SELL ZONE (SELL) ----------
 
   /** Shelf-card entries live inside the scrollable `shelfContainer` — their
@@ -1308,8 +1335,13 @@ export class DesktopShopScene extends Phaser.Scene {
     // Both shelf-hosted kinds (`shelfCard`, `shelfGem`) live inside the
     // scrollable container — their captured `bounds` assume an unscrolled
     // container, exactly alike.
-    if ((e.src.kind !== 'shelfCard' && e.src.kind !== 'shelfGem') || !this.shelfContainer) return e.bounds;
-    return new Phaser.Geom.Rectangle(e.bounds.x, e.bounds.y + this.shelfContainer.y, e.bounds.width, e.bounds.height);
+    if ((e.src.kind === 'shelfCard' || e.src.kind === 'shelfGem') && this.shelfContainer) {
+      return new Phaser.Geom.Rectangle(e.bounds.x, e.bounds.y + this.shelfContainer.y, e.bounds.width, e.bounds.height);
+    }
+    if (e.src.kind === 'gem' && this.inventoryContainer) {
+      return new Phaser.Geom.Rectangle(e.bounds.x, e.bounds.y + this.inventoryContainer.y, e.bounds.width, e.bounds.height);
+    }
+    return e.bounds;
   }
 
   private sellRefFor(src: DragSource): PendingSell | null {
@@ -1343,8 +1375,8 @@ export class DesktopShopScene extends Phaser.Scene {
     const colBottom = strip.colTop + BOARD_BAG_SLOTS * strip.rowH + (BOARD_BAG_SLOTS - 1) * strip.rowGap;
     if (worldY < strip.colTop || worldY > colBottom) return null;
     let where: 'board' | 'bag' | null = null;
-    if (worldX >= strip.boardX && worldX <= strip.boardX + strip.colW) where = 'board';
-    else if (worldX >= strip.bagX && worldX <= strip.bagX + strip.colW) where = 'bag';
+    if (worldX >= strip.boardX && worldX <= strip.boardX + strip.boardW) where = 'board';
+    else if (this.inventoryTab === 'bag' && worldX >= strip.bagX && worldX <= strip.bagX + strip.bagW) where = 'bag';
     if (!where) return null;
     const slot = Phaser.Math.Clamp(Math.floor((worldY - strip.colTop) / (strip.rowH + strip.rowGap)), 0, BOARD_BAG_SLOTS - 1);
     return { where, slot };
@@ -1362,25 +1394,54 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private wireDrag(): void {
     this.input.removeAllListeners();
-    let dragging: { src: DragSource; obj: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle } | null = null;
+    let dragging: { src: DragSource; obj: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle; home?: { x: number; y: number } } | null = null;
     let ghost: Phaser.GameObjects.Container | null = null;
+    let dropHint: Phaser.GameObjects.Rectangle | null = null;
+    let dragProxy: Phaser.GameObjects.Container | null = null;
+    let dragSourceObj: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle | null = null;
     let totalMove = 0;
     let start = { x: 0, y: 0 };
-    let scrolling: { startY: number; startScroll: number } | null = null;
+    let scrolling: { kind: 'shelf' | 'inventory'; startY: number; startScroll: number } | null = null;
     let pendingShelf: DragEntry | null = null;
+    let pendingInventoryGem: DragEntry | null = null;
 
     const beginDrag = (entry: DragEntry): void => {
-      dragging = { src: entry.src, obj: entry.obj };
-      if (entry.src.kind === 'shelfCard' && entry.obj instanceof CardToken) {
-        ghost = entry.obj.spawnGhost();
-        if (this.shelfContainer) ghost.setPosition(ghost.x, ghost.y + this.shelfContainer.y);
+      const visualKind = entry.src.kind === 'gem' ? 'gem'
+        : entry.src.kind === 'shelfCard' ? 'shelf-card' : 'owned-card';
+      const plan = desktopShopDragVisualPlan(visualKind);
+      if (plan.useUnmaskedProxy && (entry.src.kind === 'gem' || entry.src.kind === 'shelfCard')) {
+        const bounds = this.worldBounds(entry);
+        const proxy = entry.src.kind === 'gem'
+          ? this.spawnOwnedGemDragProxy(entry.src.index, bounds)
+          : entry.obj instanceof CardToken ? this.spawnShelfCardDragProxy(entry.obj, bounds) : null;
+        if (proxy) {
+          dragProxy = proxy;
+          dragSourceObj = entry.obj;
+          entry.obj.setAlpha(plan.sourceAlpha);
+          dragging = { src: entry.src, obj: proxy };
+          if (entry.src.kind === 'shelfCard') {
+            dropHint = this.add.rectangle(0, 0, 10, 10, UI.chip, 0.12).setOrigin(0, 0)
+              .setStrokeStyle(2, UI.chip, 0.9).setVisible(false).setDepth(900);
+          }
+          return;
+        }
       }
-      entry.obj.setDepth(1000).setAlpha(0.9);
+      dragging = { src: entry.src, obj: entry.obj, home: { x: entry.obj.x, y: entry.obj.y } };
+      if ((entry.src.kind === 'board' || entry.src.kind === 'bag') && entry.obj instanceof CardToken) {
+        ghost = entry.obj.spawnGhost();
+        dropHint = this.add.rectangle(0, 0, 10, 10, UI.chip, 0.12).setOrigin(0, 0)
+          .setStrokeStyle(2, UI.chip, 0.9).setVisible(false).setDepth(900);
+      }
+      if (plan.moveSource) entry.obj.setDepth(1000).setAlpha(plan.sourceAlpha);
     };
 
     const inViewport = (x: number, y: number): boolean => {
       const v = this.shelfViewport;
       return x >= v.x && x <= v.x + v.width && y >= v.y && y <= v.y + v.height;
+    };
+    const inInventoryViewport = (x: number, y: number): boolean => {
+      const v = this.inventoryViewport;
+      return this.inventoryTab === 'gems' && x >= v.x && x <= v.x + v.width && y >= v.y && y <= v.y + v.height;
     };
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -1392,7 +1453,7 @@ export class DesktopShopScene extends Phaser.Scene {
       // including the storefront shop tiles, which have no dialog to guard
       // behind a state flag at all (see `renderStorefront`).
       if (wasPointerConsumedByRebuild(this, p)) return;
-      if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
+      if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen || this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null) return;
       // A shelfCard/shelfGem's registered bounds are its UNCLIPPED position
       // inside the scrollable container — a row scrolled below the masked
       // viewport still has bounds sitting where it would be, invisible but
@@ -1401,16 +1462,21 @@ export class DesktopShopScene extends Phaser.Scene {
       // visible at that pixel (the BOARD/BAG columns, once the shelf is short
       // enough to need scrolling at all — true for mobile's default stock).
       const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY)
-        && ((d.src.kind !== 'shelfCard' && d.src.kind !== 'shelfGem') || inViewport(p.worldX, p.worldY)));
+        && ((d.src.kind !== 'shelfCard' && d.src.kind !== 'shelfGem') || inViewport(p.worldX, p.worldY))
+        && (d.src.kind !== 'gem' || !this.inventoryContainer || inInventoryViewport(p.worldX, p.worldY)));
       if (hit) {
         totalMove = 0;
         start = { x: p.worldX, y: p.worldY };
         if (hit.src.kind === 'shelfCard' || hit.src.kind === 'shelfGem') pendingShelf = hit;
+        else if (hit.src.kind === 'gem') pendingInventoryGem = hit;
         else beginDrag(hit);
         return;
       }
+      this.detailActivation.reset();
       if (this.shelfMaxScroll > 0 && inViewport(p.worldX, p.worldY)) {
-        scrolling = { startY: p.worldY, startScroll: this.shelfScrollY };
+        scrolling = { kind: 'shelf', startY: p.worldY, startScroll: this.shelfScrollY };
+      } else if (this.inventoryMaxScroll > 0 && inInventoryViewport(p.worldX, p.worldY)) {
+        scrolling = { kind: 'inventory', startY: p.worldY, startScroll: this.inventoryScrollY };
       }
     });
 
@@ -1420,8 +1486,9 @@ export class DesktopShopScene extends Phaser.Scene {
         const dy = p.worldY - start.y;
         const intent = classifyShopShelfGesture(dx, dy);
         if (intent === 'pending') return;
+        this.detailActivation.reset();
         if (intent === 'scroll' && this.shelfMaxScroll > 0) {
-          scrolling = { startY: start.y, startScroll: this.shelfScrollY };
+          scrolling = { kind: 'shelf', startY: start.y, startScroll: this.shelfScrollY };
           pendingShelf = null;
           this.shelfScrollY = Phaser.Math.Clamp(scrolling.startScroll + dy, -this.shelfMaxScroll, 0);
           this.setShelfScrollPosition(this.shelfScrollY);
@@ -1432,8 +1499,25 @@ export class DesktopShopScene extends Phaser.Scene {
         pendingShelf = null;
         beginDrag(entry);
       }
+      if (pendingInventoryGem) {
+        const dx = p.worldX - start.x;
+        const dy = p.worldY - start.y;
+        const intent = classifyShopShelfGesture(dx, dy);
+        if (intent === 'pending') return;
+        if (intent === 'scroll' && this.inventoryMaxScroll > 0) {
+          scrolling = { kind: 'inventory', startY: start.y, startScroll: this.inventoryScrollY };
+          pendingInventoryGem = null;
+          this.inventoryScrollY = Phaser.Math.Clamp(scrolling.startScroll + dy, -this.inventoryMaxScroll, 0);
+          this.setInventoryScrollPosition(this.inventoryScrollY);
+          return;
+        }
+        const entry = pendingInventoryGem;
+        pendingInventoryGem = null;
+        beginDrag(entry);
+      }
       if (dragging) {
         totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
+        if (totalMove >= 6) this.detailActivation.reset();
         if (dragging.src.kind === 'shelfGem') {
           // Tap-only shelf offer (no drop target) — no drag visual, mirrors
           // the native-listener behavior this replaced; `totalMove` above is
@@ -1442,6 +1526,16 @@ export class DesktopShopScene extends Phaser.Scene {
           dragging.obj.setPosition(p.worldX, p.worldY - this.shelfContainer.y);
         } else {
           dragging.obj.setPosition(p.worldX, p.worldY);
+        }
+        if (dropHint && dragging.src.kind !== 'gem' && dragging.src.kind !== 'shelfGem') {
+          const hit = this.columnHitTest(p.worldX, p.worldY);
+          const layout = this.ownedColumns;
+          if (hit && layout) {
+            const x = hit.where === 'board' ? layout.boardX : layout.bagX;
+            const width = hit.where === 'board' ? layout.boardW : layout.bagW;
+            dropHint.setVisible(true).setPosition(x, layout.colTop + hit.slot * (layout.rowH + layout.rowGap))
+              .setSize(width, layout.rowH);
+          } else dropHint.setVisible(false);
         }
         if (dragging.src.kind !== 'shelfCard' && dragging.src.kind !== 'shelfGem' && this.sellZoneRectObj && this.sellZoneLabelObj) {
           const sell = this.sellRefFor(dragging.src);
@@ -1452,15 +1546,20 @@ export class DesktopShopScene extends Phaser.Scene {
             if (preview) this.sellZoneLabelObj.setText(`SELL ${preview.name} ${preview.tierLabel} → +${preview.price} GOLD`);
           } else {
             this.sellZoneRectObj.setFillStyle(UI.badSoft, 0.35);
-            this.sellZoneLabelObj.setText('SELL ZONE — drag a card or gem here (or tap a gem)');
+            this.sellZoneLabelObj.setText('SELL ZONE — drag a card or gem here');
           }
         }
         return;
       }
       if (scrolling) {
-        this.shelfScrollY = Phaser.Math.Clamp(scrolling.startScroll + (p.worldY - scrolling.startY), -this.shelfMaxScroll, 0);
-        this.setShelfScrollPosition(this.shelfScrollY);
-        this.syncShelfScrollAffordance();
+        if (scrolling.kind === 'shelf') {
+          this.shelfScrollY = Phaser.Math.Clamp(scrolling.startScroll + (p.worldY - scrolling.startY), -this.shelfMaxScroll, 0);
+          this.setShelfScrollPosition(this.shelfScrollY);
+          this.syncShelfScrollAffordance();
+        } else {
+          this.inventoryScrollY = Phaser.Math.Clamp(scrolling.startScroll + (p.worldY - scrolling.startY), -this.inventoryMaxScroll, 0);
+          this.setInventoryScrollPosition(this.inventoryScrollY);
+        }
       }
     });
 
@@ -1477,16 +1576,30 @@ export class DesktopShopScene extends Phaser.Scene {
         beginDrag(pendingShelf);
         pendingShelf = null;
       }
+      if (pendingInventoryGem) {
+        beginDrag(pendingInventoryGem);
+        pendingInventoryGem = null;
+      }
       if (!dragging) return;
       const src = dragging.src;
       const draggedObj = dragging.obj;
+      const home = dragging.home;
       dragging = null;
       ghost?.destroy(); ghost = null;
+      dropHint?.destroy(); dropHint = null;
+      const releasedProxy = dragProxy;
+      dragProxy = null;
+      releasedProxy?.destroy();
+      dragSourceObj?.setAlpha(1);
+      dragSourceObj = null;
 
       if (src.kind === 'shelfCard') {
         const shopId = this.activeShopId();
         const shelf = this.shelfFor(shopId);
         if (totalMove < 6) {
+          if (home) draggedObj.setPosition(home.x, home.y);
+          draggedObj.setDepth(0).setAlpha(1);
+          if (!this.detailActivation.release(`shelf:${src.index}`, p.upTime)) return;
           playSfx('uiClick');
           this.detailCardIndex = src.index;
           this.detailTier = shelf.cards[src.index]?.tier ?? 'bronze';
@@ -1528,17 +1641,15 @@ export class DesktopShopScene extends Phaser.Scene {
         return;
       }
 
-      // GEM (pouch): unchanged — tap OR drag onto the SELL ZONE both open the
-      // same SELL confirm, so there is no tap/drag ambiguity to resolve here
-      // (there is no gem "rearrange" destination for a drag to conflict with).
+      // Inspect on tap; selling is explicit in details or by dragging to SELL ZONE.
       if (src.kind === 'gem') {
         if (totalMove < 6) {
           playSfx('uiClick');
-          this.pendingSell = this.sellRefFor(src);
+          this.inspectGemIndex = src.index;
           this.rerender();
           return;
         }
-        draggedObj.setDepth(0).setAlpha(1);
+        if (!releasedProxy) draggedObj.setDepth(0).setAlpha(1);
         const strip = this.ownedColumns;
         if (strip && strip.sellRect.contains(p.worldX, p.worldY)) {
           this.pendingSell = this.sellRefFor(src);
@@ -1547,13 +1658,16 @@ export class DesktopShopScene extends Phaser.Scene {
         return;
       }
 
-      // OWNED board/bag card: the whole body is a pure drag surface now
-      // (2026-08-06) — a plain tap does nothing (inspect moved to the
-      // CardToken's own "ⓘ" button; SELL moved to drag-onto-the-SELL-ZONE
-      // only, since a tap-to-sell shortcut would have raced the same drag
-      // gesture this fixes). `this.rerender()` still runs on a tap to clear
-      // the depth/alpha bump `pointerdown` applied to the token.
-      if (totalMove < 6) { this.rerender(); return; }
+      // Completed same-card double activation opens details; a single release only restores its visual.
+      if (totalMove < 6) {
+        if (home) draggedObj.setPosition(home.x, home.y);
+        draggedObj.setDepth(0).setAlpha(1);
+        if (this.detailActivation.release(`${src.kind}:${src.index}`, p.upTime)) {
+          this.inspectOwned = { location: src.kind, index: src.index };
+          this.rerender();
+        }
+        return;
+      }
       draggedObj.setDepth(0).setAlpha(1);
       const strip = this.ownedColumns;
       if (strip && strip.sellRect.contains(p.worldX, p.worldY)) {
@@ -1573,11 +1687,36 @@ export class DesktopShopScene extends Phaser.Scene {
       this.rerender();
     });
 
+    this.input.on('pointerupoutside', () => {
+      this.detailActivation.reset();
+      if (dragging?.home) dragging.obj.setPosition(dragging.home.x, dragging.home.y).setDepth(0).setAlpha(1);
+      ghost?.destroy(); ghost = null;
+      dropHint?.destroy(); dropHint = null;
+      pendingShelf = null;
+      dragging = null;
+      if (!dragProxy) return;
+      dragProxy.destroy();
+      dragProxy = null;
+      dragSourceObj?.setAlpha(1);
+      dragSourceObj = null;
+      dragging = null;
+      pendingInventoryGem = null;
+      scrolling = null;
+    });
+
     this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      if (this.shelfMaxScroll <= 0 || !inViewport(pointer.worldX, pointer.worldY)) return;
-      this.shelfScrollY = Phaser.Math.Clamp(this.shelfScrollY - dy, -this.shelfMaxScroll, 0);
-      this.setShelfScrollPosition(this.shelfScrollY);
-      this.syncShelfScrollAffordance();
+      if (this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null || this.pendingBuy || this.pendingSell) return;
+      this.detailActivation.reset();
+      if (this.inventoryMaxScroll > 0 && inInventoryViewport(pointer.worldX, pointer.worldY)) {
+        this.inventoryScrollY = Phaser.Math.Clamp(this.inventoryScrollY - dy, -this.inventoryMaxScroll, 0);
+        this.setInventoryScrollPosition(this.inventoryScrollY);
+        return;
+      }
+      if (this.shelfMaxScroll > 0 && inViewport(pointer.worldX, pointer.worldY)) {
+        this.shelfScrollY = Phaser.Math.Clamp(this.shelfScrollY - dy, -this.shelfMaxScroll, 0);
+        this.setShelfScrollPosition(this.shelfScrollY);
+        this.syncShelfScrollAffordance();
+      }
     });
   }
 
@@ -1613,9 +1752,35 @@ export class DesktopShopScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, this.viewWidth, this.viewHeight, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
     const bw = 460;
-    const bh = mergeTarget ? 280 : 180;
+    const panel = this.add.rectangle(0, 0, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    let contentY = 90;
+    const mergeContent: Phaser.GameObjects.Text[] = [];
+    if (mergeTarget) {
+      const summary = this.add.text(bw / 2, contentY, `You already own this — MERGE → ${name} ${mergeTarget.toTier.toUpperCase()} (${mergeTarget.fromTier.toUpperCase()} → ${mergeTarget.toTier.toUpperCase()})`, {
+        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold', align: 'center', wordWrap: { width: bw - 40 },
+      }).setOrigin(0.5, 0);
+      mergeContent.push(summary);
+      contentY += summary.height + 12;
+    }
+    if (mergePreview?.conditionalTrade) {
+      const guaranteedDelta = (mergePreview.guaranteedDeltaDeci / 10).toFixed(1).replace(/\.0$/, '');
+      const warning = this.add.text(bw / 2, contentY, `CONDITIONAL UPGRADE · GUARANTEED POWER ${guaranteedDelta}`, {
+        ...textRoleFor('desktop', 'kicker', { ink: 'alarm' }), align: 'center', wordWrap: { width: bw - 40 },
+      }).setOrigin(0.5, 0);
+      mergeContent.push(warning);
+      contentY += warning.height + 12;
+    }
+    if (mergePreview) {
+      const stats = this.add.text(20, contentY, `${mergePreview.toSkill.tier.toUpperCase()} UPGRADE\n${stripCardTextMarkup(renderSkillText(mergePreview.toSkill))}`, {
+        fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, lineSpacing: 4, wordWrap: { width: bw - 40 },
+      }).setOrigin(0, 0);
+      mergeContent.push(stats);
+      contentY += stats.height + 20;
+    }
+    const bh = mergeTarget ? contentY + 64 : 180;
     const bx = this.viewWidth / 2 - bw / 2; const by = this.viewHeight / 2 - bh / 2;
-    this.add.rectangle(bx, by, bw, bh, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    panel.setPosition(bx, by).setSize(bw, bh);
+    mergeContent.forEach(text => text.setPosition(bx + text.x, by + text.y));
     const headline = dest
       ? `BUY → ${dest.where.toUpperCase()} SLOT ${dest.slot + 1} · ${price} GOLD`
       : `Buy ${name} for ${price} gold?`;
@@ -1627,27 +1792,6 @@ export class DesktopShopScene extends Phaser.Scene {
       height: 24,
     });
     this.add.text(this.viewWidth / 2, by + 66, dest ? name : 'This offer leaves the shelf once bought.', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5);
-    if (mergeTarget) {
-      this.add.text(this.viewWidth / 2, by + 90, `You already own this — MERGE → ${name} ${mergeTarget.toTier.toUpperCase()} (${mergeTarget.fromTier.toUpperCase()} → ${mergeTarget.toTier.toUpperCase()})`, {
-        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold', align: 'center', wordWrap: { width: bw - 40 },
-      }).setOrigin(0.5, 0);
-    }
-    if (mergePreview?.conditionalTrade) {
-      const guaranteedDelta = (mergePreview.guaranteedDeltaDeci / 10).toFixed(1).replace(/\.0$/, '');
-      this.add.text(this.viewWidth / 2, by + 118, `CONDITIONAL UPGRADE · GUARANTEED POWER ${guaranteedDelta}`, {
-        ...textRoleFor('desktop', 'kicker', { ink: 'alarm' }), align: 'center',
-      }).setOrigin(0.5, 0);
-    }
-    if (mergePreview) {
-      const viewY = by + 146;
-      const view = this.add.rectangle(bx + 20, viewY, bw - 40, DESKTOP_PROFILE.minTap, UI.panelMuted)
-        .setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.8).setInteractive({ useHandCursor: true });
-      const viewLabel = `VIEW ${mergePreview.toSkill.tier.toUpperCase()}`;
-      this.add.text(this.viewWidth / 2, viewY + DESKTOP_PROFILE.minTap / 2, viewLabel, {
-        ...textRoleFor('desktop', 'kicker'),
-      }).setOrigin(0.5);
-      view.on('pointerdown', () => { playSfx('uiClick'); this.mergePreviewOpen = true; this.rerender(); });
-    }
 
     type ConfirmButton = { label: string; fill: number; color: string; fn: () => void };
     const doBuy = (): void => {

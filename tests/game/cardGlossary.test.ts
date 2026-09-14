@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { applyTier } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
-import { AURA_RULE_ENTRY } from '../../src/engine/keywords/text';
-import { cardHoverEntries } from '../../src/game/ui/cardHoverEntries';
+import { AURA_RULE_ENTRY, MULTI_HIT_RULE_ENTRY } from '../../src/engine/keywords/text';
+import { cardGlossaryEntries, cardHoverEntries } from '../../src/game/ui/cardHoverEntries';
+import { AFFINITY_CAPSTONE_IDS } from '../engine/fixtures/affinityCapstones';
 import {
   archetypeEntry,
   elementEntry,
@@ -16,38 +18,25 @@ import {
 } from '../../src/game/ui/cardGlossary';
 
 describe('card glossary', () => {
-  it('explains the element wheel with matchup percentages', () => {
-    const fire = elementEntry('fire');
-    expect(fire.title).toBe('Fire element');
-    expect(fire.body).toContain('damage against Nature Affinity');
-    expect(fire.body).toContain('+50%');
-    expect(fire.body).toContain('damage against Frost Affinity');
-    expect(fire.body).toContain('-25%');
-
-    const holy = elementEntry('holy');
-    expect(holy.body).toContain('Dark');
+  it.each([
+    ['fire', 'Fire element', 'Deals +50% damage against Nature Affinity.'],
+    ['nature', 'Nature element', 'Deals +50% damage against Lightning Affinity.'],
+    ['lightning', 'Lightning element', 'Deals +50% damage against Frost Affinity.'],
+    ['frost', 'Frost element', 'Deals +50% damage against Fire Affinity.'],
+    ['holy', 'Holy element', 'Deals +50% damage against Dark Affinity.'],
+    ['dark', 'Dark element', 'Deals +50% damage against Holy Affinity.'],
+  ] as const)('shows the approved bonus-only %s element matchup', (element, title, body) => {
+    expect(elementEntry(element)).toEqual({ title, body });
   });
 
-  it('states Holy and Dark mutual advantage without a same-type penalty', () => {
-    expect(elementEntry('holy').body).toBe(
-      'Deals +50% damage against Dark Affinity. Deals normal damage against Holy Affinity.',
-    );
-    expect(elementEntry('dark').body).toBe(
-      'Deals +50% damage against Holy Affinity. Deals normal damage against Dark Affinity.',
-    );
-  });
-
-  it('explains the weapon triangle and the bow/beast exception', () => {
-    expect(weaponEntry('sword').body).toContain('damage against Axe Affinity');
-    expect(weaponEntry('sword').body).toContain('damage against Lance Affinity');
-    expect(weaponEntry('bow').body).toContain('Beast Affinity');
-    expect(weaponEntry('beast').body).toContain('Bow cards');
-  });
-
-  it('states both directions of the Beast and Bow matchup', () => {
-    expect(weaponEntry('beast').body).toBe(
-      'Deals -25% damage against Bow Affinity. Bow cards deal +50% damage against Beast Affinity. Has no other weapon matchup.',
-    );
+  it.each([
+    ['sword', 'Sword weapon', 'Deals +50% damage against Axe Affinity.'],
+    ['axe', 'Axe weapon', 'Deals +50% damage against Lance Affinity.'],
+    ['lance', 'Lance weapon', 'Deals +50% damage against Sword Affinity.'],
+    ['bow', 'Bow weapon', 'Deals +50% damage against Beast Affinity.'],
+    ['beast', 'Beast weapon', 'Deals neutral damage to all types.'],
+  ] as const)('shows the approved bonus-only %s weapon matchup', (weapon, title, body) => {
+    expect(weaponEntry(weapon)).toEqual({ title, body });
   });
 
   it('explains properties, weight, and board footprint', () => {
@@ -264,6 +253,65 @@ describe('card glossary', () => {
         }
       }
       expect(compared, 'the sweep actually compared gated cards').toBeGreaterThan(20);
+      expect(offenders, offenders.join('\n')).toEqual([]);
+    });
+  });
+
+  // REGRESSION (2026-09-11): `skillKeywordEntries` used to count damage LINES,
+  // not damage the card RELIABLY deals — an `affinity`-gated second hit made
+  // 18 one-plain-plus-one-gated cards advertise Multi-Hit even though the
+  // second hit only exists on the right board. `kindred_flame`'s own content
+  // notes state the rule this pins: "the premium prices a hit COUNT the card
+  // RELIABLY has, and a gated hit makes that count board-dependent."
+  describe('Multi-Hit counts only unconditional damage lines', () => {
+    it('does NOT fire for a plain hit plus an affinity-gated hit', () => {
+      const entries = skillKeywordEntries(skillBook.kindred_flame!);
+      expect(entries.some((entry) => entry.title === 'Affinity')).toBe(true);
+      expect(entries.some((entry) => entry.title === 'Multi-Hit')).toBe(false);
+    });
+
+    it('still fires for two unconditional damage hits', () => {
+      const entries = skillKeywordEntries(skillBook.twin_slash!);
+      expect(entries).toContainEqual(MULTI_HIT_RULE_ENTRY);
+    });
+
+    it('holds for every one-plain-plus-one-gated card in the catalog', () => {
+      // Every card whose damage lines are exactly [plain, affinity-gated] must
+      // NOT show Multi-Hit — not just the one sample above.
+      const offenders: string[] = [];
+      let checked = 0;
+      for (const skill of Object.values(skillBook)) {
+        const damageLines = skill.effects.filter((action) => action.kind === 'damage');
+        if (damageLines.length !== 2) continue;
+        const gatedCount = damageLines.filter((action) => action.affinity === true).length;
+        if (gatedCount !== 1) continue;
+        checked += 1;
+        const hasMultiHit = skillKeywordEntries(skill).some((entry) => entry.title === 'Multi-Hit');
+        if (hasMultiHit) offenders.push(skill.id);
+      }
+      expect(checked, 'the sweep actually found one-plain-plus-one-gated cards').toBeGreaterThan(10);
+      expect(offenders, offenders.join('\n')).toEqual([]);
+    });
+
+    it('holds for the five diamond capstones AT DIAMOND, where the gated hit exists', () => {
+      // The sweep above reads `skillBook[id]` — the card's own (bronze) tier.
+      // For these five, the gated hit is authored `minTier: 'diamond'`, so
+      // `tierResolved` strips it below Diamond and the bronze copy the sweep
+      // reads has only ONE damage line. Both the buggy and fixed predicate
+      // agree there (1 damage line can never trip Multi-Hit either way), so
+      // the sweep passes for these five without ever exercising the gate.
+      // The gated hit only comes into existence at Diamond (`applyTier`,
+      // `src/engine/types.ts`'s `minTier` doc), so that is the only tier this
+      // claim can actually be checked against.
+      const offenders: string[] = [];
+      for (const id of AFFINITY_CAPSTONE_IDS) {
+        const diamond = applyTier(skillBook[id]!, 'diamond');
+        const damageLines = diamond.effects.filter((action) => action.kind === 'damage');
+        expect(damageLines.length, `${id}@diamond should carry both the plain and gated hit`).toBe(2);
+        const hasMultiHit = skillKeywordEntries(diamond).some((entry) => entry.title === 'Multi-Hit');
+        if (hasMultiHit) offenders.push(id);
+      }
+      expect(AFFINITY_CAPSTONE_IDS.length, 'the capstone list is not empty').toBeGreaterThan(0);
       expect(offenders, offenders.join('\n')).toEqual([]);
     });
   });

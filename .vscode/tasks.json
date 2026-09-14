@@ -1,8 +1,20 @@
 {
   // World1 dev needs TWO processes (thin-client rule, docs/architecture.md):
   // the Vite client on :5173 and the battle service on :8787.
-  // Terminal -> Run Task -> "World1: dev + api" starts both in split panels.
+  // F5 runs "World1: dev + api (Edge)" in launch.json, which starts both via
+  // the "World1: dev + api" task below and then opens the game.
+  // Terminal -> Run Task -> "World1: dev + api" starts both without a browser.
   // Mirrors .claude/launch.json, which is what Claude Code's Browser pane uses.
+  //
+  // NOTE on the problem matchers: a background task needs a VALID pattern --
+  // VSCode requires file + message groups, or it discards the whole matcher and
+  // can never tell when the server came up, so F5 hangs on the preLaunchTask.
+  // We never want real problems from these servers, so the regexp is a sentinel
+  // that cannot match; only the `background` begins/ends patterns do work.
+  // Keep those patterns ESCAPE-FREE and short: both servers colour their output,
+  // so ANSI escapes sit *inside* strings like "VITE v7" and
+  // "http://localhost:5173/" (between the colon and the port). Match only the
+  // contiguous runs that stay clean -- "VITE", "ready in", "battle api:".
   "version": "2.0.0",
   "tasks": [
     {
@@ -12,11 +24,16 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "world1-api",
-        "pattern": { "regexp": ".*" },
+        "pattern": {
+          "kind": "file",
+          "regexp": "^WORLD1_NEVER_MATCHES (.*): (.*)$",
+          "file": 1,
+          "message": 2
+        },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "battle api: http://localhost:8787/battle"
+          "beginsPattern": "> world1@",
+          "endsPattern": "battle api: http://localhost:"
         }
       },
       "runOptions": { "instanceLimit": 1 },
@@ -29,11 +46,16 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "world1-vite",
-        "pattern": { "regexp": ".*" },
+        "pattern": {
+          "kind": "file",
+          "regexp": "^WORLD1_NEVER_MATCHES (.*): (.*)$",
+          "file": 1,
+          "message": 2
+        },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*",
-          "endsPattern": "http://localhost:5173/"
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
         }
       },
       "runOptions": { "instanceLimit": 1 },
