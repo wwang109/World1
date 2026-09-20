@@ -6,9 +6,9 @@ user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Agent, AskUserQuestion, TaskCreate, TaskUpdate
 ---
 
-**Before anything:** load the `world1-handoff` skill and run its liveness check —
-Codex CLI shares this checkout. Write briefs, reports and reviews into the SDD
-ledger (`.superpowers/sdd/<plan>/`) exactly as `/orchestrate` does.
+**Before anything:** load `world1-handoff` and inspect scoped git diffs.
+Preserve unrelated work. No ownership records, ledger, or independent review
+is required.
 
 **Argument check:** If no feature is provided, output:
 > "Usage: `/team-combat [feature]` — e.g. `a lifesteal rider for magical cards`, `a Poison-stacking rework`, `a new boss with a Holy affinity`."
@@ -34,8 +34,8 @@ Gate: `AskUserQuestion` — proceed / revise / stop.
 ### Phase 2 — Engine
 If the feature needs a new `Action` kind, rule, or event, spawn
 `combat-engine-programmer`: extend the closed union, keep `simulate()` pure and
-integer/deterministic, emit a `CombatEvent`, add engine tests. Verify the summary:
-determinism preserved? tests green with counts?
+integer/deterministic, emit a `CombatEvent`, and produce real fight-log evidence. Verify the summary:
+determinism proved by same-seed runs? Required gates passed?
 
 ### Phase 3 — Content & UI (parallel where independent)
 - `content-designer`: author the card(s)/enemy using the new capability; must pass
@@ -43,8 +43,9 @@ determinism preserved? tests green with counts?
 - `phaser-ui-programmer`: render the new event in battle playback + tooltip/log.
 
 ### Phase 4 — Validate
-Spawn `qa-tester`: unit + invariant tests, `npm run fight` to eyeball it, Playwright
-smoke if UI changed. Require `npm test` green with exact counts.
+Produce `npm run fight` evidence and same-seed determinism checks; use
+Playwright screenshots on both platforms if UI changed. Require `npm test`
+green. No `*.test.ts` files may be created. A separate reviewer is optional.
 
 ### Phase 5 — Sign-off
 Report COMPLETE / NEEDS-WORK / BLOCKED with per-agent verdicts and open items.

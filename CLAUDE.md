@@ -110,7 +110,7 @@ projects) → `check-skill-parity.mjs`. Behaviour is proved by evidence:
 The how lives in the `world1-testing` skill. A brief names the evidence its
 verification must produce, never a test file.
 
-### Comments: code says WHAT, the ledger says WHY (USER-LOCKED 2026-09-16)
+### Comments: code says WHAT, the task summary says WHY (USER-LOCKED 2026-09-16)
 
 Rationale comments go stale and burn tokens on every read. On 2026-09-16 the
 user pointed at `compose.ts`: a ten-line essay about a weight plate sitting on
@@ -121,9 +121,8 @@ staleness and token burn."*
 
 - **Default is no comment.** Names, types and small functions carry the what.
   If a line needs prose to be understood, rename or split it instead.
-- **Rationale lives in the SDD ledger and the commit message**, never in the
-  source. A brief tells the worker this explicitly; a report quotes the
-  rationale there.
+- **Rationale belongs in the task summary or commit message**, never in the
+  source. No separate rationale file or ledger is required.
 - **Allowed, sparingly**: a one-line pointer that saves a wrong edit — a
   USER-LOCKED rule's name, a spec section (`§2.4`), an invariant a reader
   would otherwise break (`// Rng order is part of the event log`). One line,
@@ -228,18 +227,15 @@ Nothing else. It should never be the thing that is busy.
   **do NOT commit**, a concrete verification bar (Playwright route + viewport +
   what the screenshot must prove), the evidence the verification must produce,
   and a warning about any determinism-critical surface it might touch.
-- **Then audit.** When an agent reports done, a SEPARATE agent verifies the
-  claim before it is called done — see below.
+- **Verify the result.** Check the scoped diff and required evidence. A separate
+  reviewer is optional when requested or useful.
 
-### Audit every "done" (USER-LOCKED 2026-08-05)
+### Reviews are optional (USER-LOCKED 2026-09-20)
 
-Never report a task complete on a worker's own say-so. Spin a `code-reviewer`
-agent to verify it adversarially first. This is not ceremony: on 2026-08-05,
-three consecutive audits each found a real defect in work that had already been
-reported complete — a dead import with the bug still live, a fix applied to
-desktop only in violation of the both-platforms rule, and a scrollbar thumb
-that never moved. Brief the auditor to report **what is wrong**, not to
-re-summarize what works.
+Independent review is not a mandatory completion step. Use a reviewer when
+the user requests one or it adds useful confidence. The implementing agent
+still checks the scoped diff and produces the required verification evidence.
+User visual acceptance remains separate from successful verification.
 
 ### Show the combat log FIRST, then explain (USER-LOCKED 2026-08-25)
 
@@ -345,9 +341,9 @@ a special bracket or reference."*
 Every status update uses exactly these sections, in this order:
 
 1. **IN PROGRESS** — dispatched to an agent, not back yet. One line each.
-2. **DONE — AWAITING YOUR CONFIRMATION** — the agent finished AND an audit
-   passed, but the user has not seen it work. This is the sign-off queue: an
-   item sits here until the user says it is good. **Passing an audit is not
+2. **DONE — AWAITING YOUR CONFIRMATION** — the implementation finished AND required
+   verification passed, but the user has not seen it work. This is the sign-off queue: an
+   item sits here until the user says it is good. **Passing verification is not
    the same as being accepted** — three audits on 2026-08-05 each still missed
    things the user caught by looking at the running game.
    Give every item here a **short NAME** (2–4 words, e.g. "shelf scrollbar",
@@ -364,25 +360,22 @@ a "completed" trophy row; re-raising finished items is, in the user's words,
 
 ### Working alongside other AI agents (Codex CLI shares this checkout)
 
-**User ruling (2026-09-20):** `ACTIVE-WORK.md` is retired. Do not open,
-update, or recreate it, and do not treat historical board rows as current
-ownership. Use direct coordination with available agents and the existing
-per-goal task record. Other ownership, heartbeat, review, and verification
-requirements remain unchanged.
+**User ruling (2026-09-20):** No mandatory ownership records, heartbeats,
+ledgers, or independent reviews. `ACTIVE-WORK.md` is retired; do not read or
+recreate it. Preserve unrelated edits and all verification/publication rules.
 
 
 OpenAI Codex CLI and Claude Code both edit this working tree, sometimes at
 the same time. The cross-agent protocol is owned by the **`world1-handoff`**
 skill (`.agents/skills/` for Codex, `.claude/skills/` for Claude —
 identical twins, enforced by `scripts/check-skill-parity.mjs`). Load it
-before the first edit of every task. In one breath: check who else is
-working (`git status`, `.superpowers/sdd/*/progress.md`, running agent
-processes); never touch, stash, or tidy another agent's dirty files; run
-the gate scripts and focused fight logs, not a whole-tree verdict, while the
-tree is live; write briefs,
-reports, and reviews into the shared SDD ledger so the other agent can
-continue; and hand off in `progress.md` before stopping. `AGENTS.md` is the
-Codex entrypoint; it summarises the rules and points here.
+before the first edit of every task. The owner is
+`docs/coordination/session-orchestration.md`: inspect scoped git diffs,
+preserve unrelated work, and coordinate only when actual edits overlap.
+No ownership registration, heartbeat, ledger, or independent review is required.
+Read the charter once per session, then only relevant owner docs/references.
+Optional short handoffs help interrupted work; routine tasks need no extra files.
+`AGENTS.md` is the Codex entrypoint.
 
 Other shared skills, same twin arrangement: `world1-codemap` (where things
 live), `world1-card-text` (card wording rules), `world1-game-review`

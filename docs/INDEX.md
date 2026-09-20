@@ -11,7 +11,7 @@ doc disagrees with code, code wins.** Three classes:
 | Doc | Class | Owns |
 |---|---|---|
 | [`../CLAUDE.md`](../CLAUDE.md) | LIVING | Charter: stack, commands, boundary summary, agent orchestration. Mechanics/pricing live in the docs below, never restated there. |
-| [`coordination/session-orchestration.md`](coordination/session-orchestration.md) | LIVING | Cross-session task ownership, status vocabulary, heartbeat, conflict handling, and handoff contract. Direct agent coordination and per-goal task records replace the retired global board. |
+| [`coordination/session-orchestration.md`](coordination/session-orchestration.md) | LIVING | Shared-tree safety, relevant-doc reading, and optional handoffs/reviews. No mandatory ownership records, heartbeat, ledger, or global board. |
 | [`design-locked.md`](design-locked.md) | LOCKED | The dated register of every user-locked design decision, each pointing at its implementing code/spec. |
 | [`architecture.md`](architecture.md) | LIVING | Layer boundaries (both rules), battle-service topology (server/ + functions/), dev workflow (dev + api), determinism invariants, resolver seam, scene-rebuild idiom, the directory map (incl. non-served `art-src/`). |
 | [`combat-model-spec.md`](combat-model-spec.md) | LIVING | The combat turn loop: readiness, weight, multi-cast, cursor, event log, attrition. |

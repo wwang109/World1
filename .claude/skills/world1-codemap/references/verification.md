@@ -48,7 +48,6 @@ boundaries. The evidence below proves the change.
 
 Run the whole gate chain — it is seconds, and it does not touch anyone's files.
 Then produce the focused evidence for YOUR change from the table above. A red
-gate on a LIVE tree is as likely another agent's half-saved file as your bug:
-before reporting it, confirm the file's ownership directly with available
-agents and say so — never report a whole-tree verdict
-as your own. `world1-handoff` §3 owns this rule.
+gate names an observed failure, not proof of who caused it. Inspect the scoped
+diff and coordinate directly if fixing it would overlap unrelated work.
+Report results honestly; no ownership registry or independent reviewer is required.

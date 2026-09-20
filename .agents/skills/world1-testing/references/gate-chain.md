@@ -96,8 +96,8 @@ Layer boundary violations (pure layers must not import phaser/src/game; src/game
 exit 1
 ```
 
-For a current failure, confirm the file's ownership directly with available
-agents; historical task records are not proof of current ownership. The honest report is "link 1
+For a current failure, inspect the scoped diff and coordinate directly if
+fixing it would overlap unrelated work. No ownership record is required. The honest report is "link 1
 red on `<file>`, not mine; links 2–4 green" — and the evidence for your own
 change is the surface-specific route in `references/evidence-routes.md`, not
 the chain's exit code. A whole-tree "all green" is a claim only a QUIET tree

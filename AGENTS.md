@@ -1,28 +1,25 @@
 # AGENTS.md — entrypoint for every AI agent (Codex CLI, Claude Code, others)
 
-**User ruling (2026-09-20):** `ACTIVE-WORK.md` is retired. Do not open,
-update, or recreate it, and do not treat historical board rows as current
-ownership. Use direct coordination with available agents and the existing
-per-goal task record. Other ownership, heartbeat, review, and verification
-requirements remain unchanged.
+**User ruling (2026-09-20):** No mandatory ownership records, heartbeats,
+ledgers, or independent reviews. `ACTIVE-WORK.md` is retired; do not read or
+recreate it. Preserve unrelated edits and all verification/publication rules.
 
 
 More than one AI agent works in this repository, sometimes at the same time,
 in the same checkout. The charter is the same for all of them:
 
-1. **Read `CLAUDE.md` in full.** It is the charter for EVERY agent, not only
+1. **Read `CLAUDE.md` in full once per session.** It is the charter for EVERY agent, not only
    Claude: stack, commands, layer boundaries, determinism rules, and the
-   user-locked working conventions (combat log first, both platforms, audit
-   every "done", three-bucket reporting, tag every game entity by kind —
-   `[card] Hibernation`, never a bare id — comments say WHAT and the ledger
+   user-locked working conventions (combat log first, both platforms, evidence for
+   completion, three-bucket reporting, tag every game entity by kind —
+   `[card] Hibernation`, never a bare id — comments say WHAT and the task summary
    says WHY (default: no comment), no commit or push without the user's
    word).
 2. **Read `docs/INDEX.md`** — the owner map. If two docs disagree, the owner
    named there wins; if a doc disagrees with code, code wins.
 3. **Load the `world1-handoff` skill before your first edit.** It is the
-   cross-agent protocol: how to see who else is working and on which files,
-   worktree etiquette on a shared live tree, the one SDD ledger under
-   `.superpowers/sdd/`, and how to hand off. It lives in both
+   shared-checkout guidance: scoped diffs, preserving unrelated edits, and
+   optional handoffs. Read only the references relevant to the task. It lives in both
    `.agents/skills/` (Codex) and `.claude/skills/` (Claude Code); the copies
    are identical and `scripts/check-skill-parity.mjs` keeps them so.
 4. **No test files — verification is by evidence.** No `*.test.ts` may exist
@@ -42,7 +39,7 @@ pricing and tuning), `world1-combat-log` (reading and citing fight logs),
 (evidence-based verification and the gate chain). Each lives in both
 `.agents/skills/` and `.claude/skills/`, identical, kept honest by
 `scripts/check-skill-parity.mjs`.
-Claude-only drivers of the same ledger: `/orchestrate`, `/team-combat`, the
+Claude-only orchestration tools: `/orchestrate`, `/team-combat`, the
 `.claude/agents/` roster, and the `code-reviewer` audit agent.
 
 ## History
