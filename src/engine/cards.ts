@@ -416,7 +416,6 @@ export const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
    */
   exploit: 'pre',
   stackBonus: 'pre',
-  taxBonus: 'pre',
   /**
    * Same seam, same reason, one extra wrinkle: `shieldBurst` arms the SCALAR
    * `cast.bonusFlat` (it spends the caster's own wall, so it resolves once on the
@@ -703,7 +702,7 @@ function hasCardTargeting(actions: readonly Action[]): boolean {
  *     the ANCHOR the aftermath trails, not members of either class.
  *   • `GEM_ACTION_PHASE` (above) — `pre` means "this PREPARES the hit"
  *     (`shieldBreak` opens the plating; `comboBonus`/`chainBonus`/`exploit`/
- *     `stackBonus`/`taxBonus`/`desperation`/`shieldBurst`/`wardRelease` arm a
+ *     `stackBonus`/`desperation`/`shieldBurst`/`wardRelease` arm a
  *     bonus only a `damage` arm can read). A `pre` kind is also an ANCHOR, and
  *     for a stronger reason than the others: behind the hit it would not be
  *     delayed, it would be DELETED. That is what keeps `second_bite` honest.

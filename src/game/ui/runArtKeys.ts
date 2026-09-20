@@ -60,6 +60,19 @@ export const RUN_ART_KEYS = {
     swornhold: 'run-art-biome-swornhold',
     thornwild: 'run-art-biome-thornwild',
   } as const,
+  biomeDesktop: {
+    arrowfell: 'run-art-biome-arrowfell-desktop',
+    duskbarrow: 'run-art-biome-duskbarrow-desktop',
+    emberwaste: 'run-art-biome-emberwaste-desktop',
+    frostmarch: 'run-art-biome-frostmarch-desktop',
+    hallowfield: 'run-art-biome-hallowfield-desktop',
+    howlmoor: 'run-art-biome-howlmoor-desktop',
+    ironmoot: 'run-art-biome-ironmoot-desktop',
+    pikewold: 'run-art-biome-pikewold-desktop',
+    stormreach: 'run-art-biome-stormreach-desktop',
+    swornhold: 'run-art-biome-swornhold-desktop',
+    thornwild: 'run-art-biome-thornwild-desktop',
+  } as const,
   event: {
     training: 'run-art-event-training',
     cache: 'run-art-event-cache',
@@ -88,6 +101,12 @@ export function shopArtKey(shopId: string): string {
 export function biomeArtKey(biomeId: string): string {
   const key = RUN_ART_KEYS.biome[biomeId as keyof typeof RUN_ART_KEYS.biome];
   if (key === undefined) throw new Error(`biomeArtKey: unknown biome "${biomeId}"`);
+  return key;
+}
+
+export function desktopBiomeArtKey(biomeId: string): string {
+  const key = RUN_ART_KEYS.biomeDesktop[biomeId as keyof typeof RUN_ART_KEYS.biomeDesktop];
+  if (key === undefined) throw new Error(`desktopBiomeArtKey: unknown biome "${biomeId}"`);
   return key;
 }
 

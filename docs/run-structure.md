@@ -681,8 +681,9 @@ Two layers, both pure/integer; the map's `RUN LEDGER` opens the existing stats U
 | `draft.ts` | `rollStartDraft` — the 4-set start draft |
 | `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap, `bagAsBoardPieces` (bag-as-`BoardPiece[]` view so `canPlace` validates the bag axis too) |
 | `resolveBattle.ts` | `BattleRequest → BattleLog` — the battle service's whole payload (the ONLY combat entry point above the engine) |
-| `analysis.ts` | `damagePerTurn` sustained-damage band (prep preview, served by the API) |
+| `analysis.ts` | `damagePerTurn` sustained-damage band (prep preview, served by the API); `outputPerTurn` — damage/healing/shield spec+range bands (`npm run output`); `outputPerTurnRawTotals` — the same axes' raw (un-rounded, un-averaged-per-seed) cumulative totals through the spec window, for `npm run output`'s DELTA mode |
 | `logAnalysis.ts` | `cardContributions` — per-card damage/heal report from an event log; `battleStatsFromEvents` — the run stats ledger's per-fight delta |
+| `extraCooldown.ts` | `extraCooldownPieces(pieces, book)` — lists board pieces whose resolved (tier + gem `cooldownReduction` folded) cooldown is above `BASELINE_COOLDOWN`; feeds the deck-screen above-default-cooldown warning |
 
 The `src/game` side discriminates run vs sandbox context via
 `battleContext.ts` / `deckBuildContext.ts` source discriminators and

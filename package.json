@@ -9,12 +9,12 @@
     "build": "npm run content:validate && npm run typecheck && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && npx --yes wrangler pages deploy dist --project-name=proof-of-concept-ab-deckbuilder --branch=main",
-    "test": "node scripts/check-boundaries.mjs && npm run typecheck && vitest run",
-    "test:watch": "vitest",
+    "test": "node scripts/check-boundaries.mjs && npm run typecheck && node scripts/check-skill-parity.mjs && npm run audit:pl",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.functions.json --noEmit",
     "api": "tsx server/battleApi.ts",
     "fight": "tsx scripts/fight.ts",
     "sim": "tsx scripts/balance.ts",
+    "output": "tsx scripts/enemyOutput.ts",
     "content:export": "tsx scripts/exportEnemies.ts && tsx scripts/exportModifiers.ts",
     "content:events": "tsx scripts/eventPackCompiler.ts",
     "content:validate": "tsx scripts/validateContent.ts",
@@ -23,6 +23,7 @@
     "shop:smoke": "tsx scripts/shop-smoke.ts",
     "audit:hud": "tsx scripts/run-hud-audit.ts",
     "audit:cardface": "tsx scripts/card-face-truncation-audit.ts",
+    "audit:pl": "tsx scripts/check-balance.ts",
     "art:encode": "tsx scripts/encode-card-art.ts"
   },
   "dependencies": {

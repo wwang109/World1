@@ -399,7 +399,7 @@ export const PRICE = {
   comboPerPointDen: 2,
 
   /**
-   * exploit / stackBonus / shieldBurst / taxBonus: the CONDITIONAL-TRIGGER
+   * exploit / stackBonus / shieldBurst / wardRelease: the CONDITIONAL-TRIGGER
    * DISCOUNT as a DENOMINATOR on
    * the card's own flat-damage rate, rather than a second hand-written per-point
    * number. All four keywords add FLAT bonus damage to the cast's own hit behind a
@@ -421,7 +421,7 @@ export const PRICE = {
    *
    * WHAT THE MAGNITUDE IS, per keyword: `exploit.amount` (the flat bonus) and the
    * REQUIRED `cap` on the other three (the ceiling on `per × stacks`, on the
-   * plating spent, on `per × taxed cards`). Pricing the CAP is the `statStrike`
+   * plating spent, on `per × Burdened cards`). Pricing the CAP is the `statStrike`
    * precedent exactly — the payload is unbounded in a resource the card does not
    * control, so only its hard ceiling is priceable; `cap` is a REQUIRED field on
    * all three, so there is no uncapped form to price at 0.
@@ -645,31 +645,9 @@ export const PRICE = {
   auraHealFlat: 10,
   auraWeightDelta: 20,
 
-  /**
-   * Multi-hit premium: each damage INSTANCE beyond the first on one card pays
-   * this flat surcharge (30 deci = 3 PL). See `HIT_KINDS` for what counts.
-   *
-   * RATIONALE CORRECTED 2026-08-07 — the number is unchanged, the reason it
-   * exists is not. It USED to read "every hit re-delivers the caster's full
-   * stat add unpriced, so a second hit ships roughly ATK − DEF extra damage for
-   * free". That is no longer true: the MULTI-HIT STAT SPLIT (same day) makes a
-   * cast's stat contribution hit-count-invariant, so a second hit ships NO
-   * extra stat at all. What it does ship is a second INSTANCE, and instances
-   * are a resource:
-   *  • `negate` cancels ONE hit per charge — a 2-instance cast burns two
-   *    charges, or burns one and lands the second, where a 1-instance cast of
-   *    the same total damage is simply blanked;
-   *  • per-instance defenses added later (dodge/evade) inherit that exactly;
-   *  • flat `mods.damageFlat` (board auras, card-scope stat gems) applies PER
-   *    HIT, so a multi-hit card is the best host for one — conditional upside,
-   *    not a strict downside.
-   * Against the counterweight — each instance eats mitigation again, so a
-   * split cast loses `(hits − 1) × DEF` versus one big hit — multi-hit is now
-   * CONDITIONAL rather than weak: worse into armor stacks, better into
-   * negate/charge defenses and flat-damage buffs. 30 deci prices that
-   * conditionality. Re-derive with sim data once more multi-hit cards exist.
-   */
+  /** Tierless gem hit-instance premium. */
   extraHitPremium: 30,
+  additionalStatPremium: 30,
 
   /**
    * AoE REACH — `scope: 'all'` fans every OFFENSIVE effect on a card out over
@@ -971,10 +949,8 @@ export function auraModsDeci(mods: { damageFlat?: number; healFlat?: number; wei
  * `resolveTargets` fans out over every living foe under `scope: 'all'`;
  * support kinds (heal/shield/buffStat/cleanse/taunt/lifesteal/comboBonus/
  * thorns/guard/negate/ward) always resolve once, on the caster, and are
- * charged at their ordinary rate regardless of `scope`. The multi-hit premium
- * (`PRICE.extraHitPremium`) is itself an offensive cost — an extra damage
- * INSTANCE delivered to every foe an AoE reaches, not just one — so it pays
- * the same multiplier. The whole offensive share is summed FIRST and floored
+ * charged at their ordinary rate regardless of `scope`. Card Additional Stat
+ * fees are added after the multiplier. The whole offensive share is summed FIRST and floored
  * ONCE (matching the aura `reach` pattern, `powerLevelDeci` below): flooring
  * each action's share independently could total a different number than this
  * single floor, which would break `powerLevelBreakdown`'s "parts sum exactly"
@@ -1012,14 +988,16 @@ export function statusAppliedBy(action: Action): { status: string; on: 'caster' 
  * the rider can ever pay out. `null` for every action that is not a rider.
  *
  * "RESOURCE" is the generalisation of "status" (2026-08-21, second rider pass):
- * the family now reads three different kinds of thing — an affliction pile
+ * the family reads several different kinds of thing — an affliction pile
  * (`exploit`, `stackBonus`), the caster's own PLATING (`shieldBurst`) and the
- * victim's TEMPO BACKLOG (`taxBonus`) — but every one of them is "some quantity
- * that is ALREADY THERE, gating a bounded flat add". Naming the read as a
+ * victim's TEMPO BACKLOG (a `stackBonus` whose status is `burden`, counting the
+ * burdened pieces on that board) — but every one of them is "some quantity that
+ * is ALREADY THERE, gating a bounded flat add". Naming the read as a
  * (resource, side) pair is what lets ONE ordering rule and ONE self-synergy rule
- * cover all four keywords instead of four special cases. The names are the status
- * kinds where a status is what is read, plus two that cannot collide with a
- * status kind: `'shield'` and `'tax'`.
+ * cover the whole family instead of one special case per keyword. The names are
+ * the KEYWORD that supplies the resource wherever one does — the status kinds,
+ * plus `burden` — and two that name no keyword: `'shield'` and `'ward'`.
+ *
  *
  * `magnitude` is the field the keyword is PRICED on — `exploit.amount`, and the
  * required `cap` for the other three — so a caller can compute the full-rate
@@ -1052,7 +1030,6 @@ export function riderReadsResource(
     // The one CASTER-side, RESOURCE-CONSUMING member: it reads (and spends) the
     // caster's own shield pools.
     case 'shieldBurst': return { resource: 'shield', on: 'caster', magnitude: action.cap };
-    case 'taxBonus': return { resource: 'tax', on: 'target', magnitude: action.cap };
     // The SECOND resource-consuming member, on the charge pile that answers
     // afflictions instead of hits. `'ward'` cannot collide with a status kind read
     // by `exploit`/`stackBonus` (ward is neither exploitable nor stackable), and
@@ -1117,7 +1094,6 @@ export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
     case 'chainBonus':
     case 'stackBonus':
     case 'shieldBurst':
-    case 'taxBonus':
     case 'wardRelease':
     case 'desperation':
       return 'damage';
@@ -1135,19 +1111,19 @@ export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
  *    (`applyAction`'s `shield` arm; a heal is not plating), joined by
  *    `overhealShield`, which BANKS plating out of a heal's overflow. A heal alone
  *    still supplies nothing;
- *  • `tax` on the TARGET — BOTH `slow` (unit scope) and `burden` (card scope),
- *    because `taxedCardCount` counts both and a rider cannot tell which keyword
- *    put the weight there. (`splash` supplies nothing: it only widens a
- *    `burden`'s reach, and the burden is what a rider reads.)
+ *  • `burden` on the TARGET — the `burden` keyword, and ONLY it. `slow` is
+ *    deliberately absent: the quantity a rider reads is `burden`-marked BOARD
+ *    PIECES, and a slow marks none. (`splash` supplies nothing either: it only
+ *    widens a `burden`'s reach, and the burden is what a rider reads.)
  *  • `ward` on the CASTER — the `ward` keyword, the one thing that puts charges on
  *    the pile `wardRelease` cashes in.
  *
- * `curse` SUPPLIES NOTHING EITHER, for a different reason than `splash`: it does
- * put a real, readable thing on the anchor (a `-amount` damage debuff), but no
- * rider reads it — `taxedCardCount` counts WEIGHT taxes only, so a curse is not a
- * `'tax'`, and inventing a `'curse'` resource name here would gate nothing while
- * silently charging the self-synergy premium on every burden+curse kit. The day a
- * rider keys off a curse, it gets its row here and not before.
+ * `curse` SUPPLIES NOTHING EITHER, for the same reason `slow` no longer does: it
+ * does put a real, readable thing on the anchor (a `-amount` damage debuff), but
+ * no rider reads it — `stackBonusCount` counts `burden`-marked pieces only — and
+ * inventing a `'curse'` resource name here would gate nothing while silently
+ * charging the self-synergy premium on every burden+curse kit. The day a rider
+ * keys off a curse, it gets its row here and not before.
  *
  * WHAT IS DELIBERATELY ABSENT: nothing supplies `'lowHp'`, `'overheal'` or
  * `'cleansed'`. Those are the three gates no card can manufacture (see
@@ -1164,9 +1140,9 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
     case 'shield':
     case 'overhealShield':
       return { resource: 'shield', on: 'caster' };
-    case 'slow':
+    // `burden` ONLY — see the note above on why `slow` is not here.
     case 'burden':
-      return { resource: 'tax', on: 'target' };
+      return { resource: 'burden', on: 'target' };
     case 'ward': return { resource: 'ward', on: 'caster' };
     default: return null;
   }
@@ -1174,7 +1150,7 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
 
 /**
  * SELF-SYNERGY PREMIUM — the deci-PL a conditional rider (`exploit`,
- * `stackBonus`, `shieldBurst`, `taxBonus`, `wardRelease`, `desperation`,
+ * `stackBonus`, `shieldBurst`, `wardRelease`, `desperation`,
  * `overhealShield`, `cleanseConvert`) owes ON TOP of its table price when the
  * SAME KIT supplies the resource it keys off.
  *
@@ -1198,10 +1174,14 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * deliberately blind to the difference (see CONSERVATIVE below): a `shield` line
  * feeds a `shieldBurst` from the next cast onward as reliably as a poison feeds an
  * exploit (plating persists), a `ward` line feeds a `wardRelease` just as durably,
- * a `burden` feeds a `taxBonus` until the taxed piece is played, but a `slow`
- * expires at END OF TURN — so a slow+reaper card only collects when it gets a
- * SECOND cast inside the same turn. Charging them all the same premium over-prices
- * the slow case and never under-prices any of them.
+ * and a `burden` feeds a `stackBonus` that reads `burden` until the burdened
+ * piece is next played — the longest-lived self-supply in the family, since a
+ * burden neither ticks down nor expires on a clock. Charging them all the same
+ * premium over-prices none of them.
+ *
+ * `slow` SUPPLIES NOTHING AND OWES NOTHING. No rider reads it — `stackBonusCount`
+ * counts `burden`-marked pieces only — so it is off `resourceSuppliedBy` entirely
+ * rather than gating nothing at a price.
  *
  * CONSERVATIVE ON PURPOSE. The honest uptime of a self-synergy rider is
  * `(casts − 1) / casts`, which on the frozen sweep's median 7-turn fight with a
@@ -1228,8 +1208,10 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * `stackBonus` with `of: 'caster'` is only self-supplied by a CASTER-side
  * application (`thorns`), never by the poison it puts on the enemy, and by the
  * same token a `shieldBurst` is fed by the caster's own `shield` line (or by an
- * `overhealShield` banking plating out of a heal) while a `taxBonus` is fed by a
- * `slow`/`burden` aimed at the target.
+ * `overhealShield` banking plating out of a heal) while a `stackBonus` reading
+ * `burden` is fed by a `burden` line aimed at the target — and never by one aimed
+ * anywhere else, which is why `of: 'caster'` + `burden` can never owe the premium
+ * at all (`burden` only lands on targets).
  *
  * Returns 0 for every other action, so the whole rule is inert on the ~110-card
  * catalog that predates it.
@@ -1269,6 +1251,21 @@ export function selfSynergyPremiumDeci(action: Action, kit: readonly Action[], p
   return full - Math.floor(full / PRICE.conditionalBonusDen);
 }
 
+const ADDITIONAL_STAT_KINDS: ReadonlySet<Action['kind']> = new Set([
+  'damage', 'statStrike', 'shield', 'heal', 'attunedShield', 'buffStat', 'debuffStat',
+]);
+
+export function additionalStatCount(actions: readonly Action[]): number {
+  const seen = new Set<Action['kind']>();
+  let count = 0;
+  for (const action of actions) {
+    if (action.affinity === true || !ADDITIONAL_STAT_KINDS.has(action.kind)) continue;
+    if (seen.has(action.kind)) count += 1;
+    else seen.add(action.kind);
+  }
+  return count;
+}
+
 export function actionsPriceDeci(
   actions: readonly Action[],
   property: Property,
@@ -1294,23 +1291,10 @@ export function actionsPriceDeci(
 ): number {
   let selfDeci = 0;
   let foeDeci = 0;
-  // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
-  // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
-  // see the doc comment above.
-  //
-  // AFFINITY-GATED HITS ARE NOT COUNTED. The premium prices a property the card
-  // RELIABLY has — "this card lands N separate instances", with everything that
-  // follows from it (a `negate` charge burned per instance, mitigation re-eaten
-  // per instance, per-hit `mods.damageFlat` collected per instance). A gated hit
-  // makes the count board-dependent: the same card is a single-hit card off-type
-  // and a two-hit card on-type, so charging the full premium prices a shape it
-  // only sometimes has.
-  //
-  // This is keyed off the ACTION FLAG, not a set of kinds, which is the point of
-  // expressing affinity as a modifier: a gated `poison` or `heal` needs no entry
-  // anywhere for this rule to apply to it correctly.
-  const hits = actions.filter((a) => HIT_KINDS.has(a.kind) && a.affinity !== true).length;
-  if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
+  if (tier === undefined) {
+    const hits = actions.filter((action) => HIT_KINDS.has(action.kind) && action.affinity !== true).length;
+    foeDeci += Math.max(0, hits - 1) * PRICE.extraHitPremium;
+  }
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here. That includes the
   // SPREADER: `splash` prices standalone from its payload. The table supplies
@@ -1340,12 +1324,6 @@ export function actionsPriceDeci(
      * own, because the discount is applied to the action's price rather than
      * baked into a bespoke rate.
      *
-     * The MULTI-HIT PREMIUM above is deliberately NOT refunded: it prices the
-     * card's hit COUNT, not any one action, and a gated hit genuinely earns it
-     * when the gate is open (it takes its stat share and its per-hit
-     * `mods.damageFlat` exactly as an ungated hit does — see `AffinityGated` in
-     * types.ts). Charging it in full is what keeps "affinity changes nothing but
-     * whether the action happens" true on the pricing side as well.
      */
     const price = action.affinity === true
       ? Math.floor((base * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen)
@@ -1358,7 +1336,8 @@ export function actionsPriceDeci(
   // (THE SPLASH GATE), so a spreader under this multiplier prices a shape no
   // content can have — loudly, rather than at a silent zero.
   if (scope === 'all') foeDeci = Math.floor((foeDeci * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen);
-  return selfDeci + foeDeci;
+  const additionalStats = tier === undefined ? 0 : additionalStatCount(actions) * PRICE.additionalStatPremium;
+  return selfDeci + foeDeci + additionalStats;
 }
 
 /**
@@ -1470,19 +1449,13 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
     // "burden + splash" part died with the coverage-multiplier model.
     push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects, skill.tier));
   }
-  // Multi-hit premium is count-based, so single-action pricing above misses
-  // it — surface it as its own labeled part (keeps parts summing exactly).
-  // SAME RULE as `actionsPriceDeci`'s premium above — gated hits excluded — or the
-  // parts would not sum to what the budget check charges.
-  const extraHits = skill.effects.filter((a) => HIT_KINDS.has(a.kind) && a.affinity !== true).length - 1;
-  if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
+  push('Additional Stat', additionalStatCount(skill.effects) * PRICE.additionalStatPremium);
 
   // AoE REACH delta (see PRICE.aoeTargetsNum/Den and `actionsPriceDeci`'s doc
   // comment): that function floors the multiplier ONCE across the whole
-  // offensive total, so flooring each action's/multi-hit's share separately
+  // offensive total, so flooring each action's share separately
   // above could sum to a different number — reported here as the exact
-  // DELTA the multiplier adds, the same telescoping trick `multi-hit` above
-  // already uses (raw parts + this delta = the scoped total, exactly).
+  // DELTA the multiplier adds (raw parts + this delta = the scoped total).
   if (skill.scope === 'all') {
     const raw = actionsPriceDeci(skill.effects, skill.property, 'one', skill.effects, skill.tier);
     const scoped = actionsPriceDeci(skill.effects, skill.property, 'all', skill.effects, skill.tier);
@@ -1620,7 +1593,7 @@ const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set
  * COUNT is a resource in its own right, not a damage footnote: each instance is
  * mitigated, shielded and NEGATED on its own, so a 2-instance cast burns two
  * `negate` charges (or burns one and lands the second) where a 1-instance cast
- * is simply blanked. That is what `PRICE.extraHitPremium` charges for; any
+ * is simply blanked. Gems price this through `PRICE.extraHitPremium`; any
  * future per-instance defense (dodge/evade) inherits the same interaction.
  */
 export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].isHit);

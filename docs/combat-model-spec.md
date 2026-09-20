@@ -149,45 +149,61 @@ to **highlight the right board card / combatant when a log row is clicked**.
 
 ### 5.1 Line format (what the player reads)
 
+Generated, whole and unedited, by ONE real run — a log line in this doc is
+the renderer's own output, never hand-written (CLAUDE.md, user-locked
+2026-08-25):
+
 ```
-T1  gain    hero   readiness 0 → 20
-T1  gain    enemy  readiness 0 → 8
-T1  play    hero   Jab (slot 1) · weight 8            → enemy -12  [enemy 88]
-T1  cost    hero   readiness 20 → 12   (paid 8)
-T1  cursor  hero   → Poke (slot 2)
-T1  play    hero   Poke (slot 2) · weight 8           → enemy -12  [enemy 76]
-T1  cost    hero   readiness 12 → 4    (paid 8)
-T1  cursor  hero   → Greatswing (slot 1 of 3)
-T1  wait    hero   readiness 4 < Greatswing weight 20
-T1  wait    enemy  readiness 8 < Slash weight 10
-T1  end     turn over
-
-T2  gain    hero   readiness 4 → 24
-T2  gain    enemy  readiness 8 → 16
-T2  play    hero   Greatswing (slot 1 of 3) · weight 20   → enemy -40  [enemy 36]
-T2  cost    hero   readiness 24 → 4    (paid 20)
-T2  cursor  hero   → Greatswing (slot 2 of 3)
-T2  play    enemy  Slash (slot 1) · weight 10        → hero -15   [hero 85]
-T2  cost    enemy  readiness 16 → 6    (paid 10)
-T2  cursor  enemy  → wrap (slot 1)
-T2  end     turn over
-
-T3  gain    hero   readiness 4 → 24
-T3  gain    enemy  readiness 6 → 14
-T3  busy    hero   Greatswing resolving
-T3  cursor  hero   → Greatswing (slot 3 of 3)
-T3  wait    enemy  Slash cooling — 3 turns left
-T3  end     turn over
-
-T4  gain    hero   readiness 24 → 44
-T4  gain    enemy  readiness 14 → 22
-T4  busy    hero   Greatswing resolving
-T4  cursor  hero   → Jab (slot 1, wrap)
-T4  wait    enemy  Slash cooling — 2 turns left
-T4  end     turn over
+FIGHT_HERO_BOARD=hibernation,fortress_bastion,sword_slash FIGHT_FOE_BOARD=sword_slash \
+FIGHT_FOE_STATS=maxHp:30000,hp:30000,attack:1,armor:0 npm run fight -- bandit_duelist 5
 ```
 
-Tags: `gain` · `play` · `cost` · `cursor` · `busy` · `wait` · `end`.
+The last three turns of that transcript, contiguous, trimmed at the ends only.
+Every tag listed below appears in it:
+
+```
+ 16  gain    Hero             readiness 10 -> 20 (+10)
+ 16  gain    Bandit Duelist   readiness 110 -> 120 (+10)
+ 16  busy    Hero             fortress_bastion resolving (slot 3 of 3)
+ 16  cursor  Hero             -> sword_slash (slot 5)
+ 16  wait    Bandit Duelist   sword_slash · on cooldown, 1 turn remaining
+ 16 │  Hero             takes 15 true -> 80 hp [attrition]
+ 16 │  Bandit Duelist   takes 15 true -> 29938 hp [attrition]
+ 16  end     turn over
+ 17  gain    Hero             readiness 20 -> 30 (+10)
+ 17  gain    Bandit Duelist   readiness 120 -> 130 (+10)
+ 17 ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)
+ 17  play    Bandit Duelist   sword_slash (slot 1) · weight 10 · target Hero (aggro 0) -> -0 [80 hp]
+ 17 │  Hero             takes 26 physical (26 blocked; 74 shield left) -> 80 hp
+ 17 │  calc             21 -DEF1 +RAMP6 -BLOCK26 = 0 HP (attack 1->1, +0 aura/combo)
+ 17  cost    Bandit Duelist   readiness 130 -> 120 (paid 10)
+ 17  cursor  Bandit Duelist   -> empty (slot 2)
+ 17  play    Hero             sword_slash (slot 5) · weight 10 · target Bandit Duelist (aggro 0) -> -23 [29915 hp]
+ 17 │  Bandit Duelist   takes 23 physical -> 29915 hp
+ 17 │  calc             21 +RAMP2 = 23 HP (attack 1->1, +0 aura/combo)
+ 17  cost    Hero             readiness 30 -> 20 (paid 10)
+ 17  cursor  Hero             -> empty (slot 6)
+ 17 │  Hero             takes 30 true -> 50 hp [attrition]
+ 17 │  Bandit Duelist   takes 30 true -> 29885 hp [attrition]
+ 17  end     turn over
+ 18  gain    Hero             readiness 20 -> 30 (+10)
+ 18  gain    Bandit Duelist   readiness 120 -> 130 (+10)
+ 18  skip    Hero             hibernation (slot 1) · on cooldown, 1 turn remaining
+ 18  play    Hero             fortress_bastion (slot 2, 1 of 3) · weight 30
+ 18 │  Hero             +26 physical shield (71 wasted) -> 100 total
+ 18  cost    Hero             readiness 30 -> 0 (paid 30)
+ 18  cursor  Hero             -> fortress_bastion (slot 3, 2 of 3, wrap)
+ 18  wait    Bandit Duelist   sword_slash · on cooldown, 3 turns remaining
+ 18 │  Hero             takes 50 true -> 0 hp [attrition]
+ 18 ☠  Hero             dies
+ 18 ═══ LOSS after 18 turns ═══
+```
+
+Turn 16 is the shape section 5.2 describes: the Hero is BUSY mid-card, so it
+emits no `wait` row at all, while the foe — which is not busy — does. Turn 18
+carries the `skip` row immediately before the Hero's own `play`.
+
+Tags: `gain` · `play` · `cost` · `cursor` · `busy` · `skip` · `wait` · `end`.
 
 ### 5.2 Event fields (what Codex reads to render + highlight)
 
@@ -200,8 +216,29 @@ Every event carries `turn`, `type`, `side`, `unit`.
 | cost   | `readinessBefore`, `readinessAfter`, `paid` |
 | cursor | `slot`, `skillId`, `slotIndex`, `slotCount` (e.g. 2 of 3), `wrapped?` |
 | busy   | `slot`, `skillId` (the card being resolved) |
+| skip   | `castSkipped` — `reason`: `cooling`, plus `slot`, `skillId`, `turnsLeft` |
 | wait   | `reason`: `cantAfford` (+`readiness`, `weight`, `skillId`, `slot`) or `cooling` (+`skillId`, `slot`, `turnsLeft`) |
 | end    | `reason` (`noEligible`) |
+
+`castSkipped` names a cooling card the cast cursor WALKED PAST on a turn its
+owner did cast something else. The rules that bind it:
+
+- Emitted ONLY where a cast actually resolves and pays its weight, immediately
+  before that cast's `play`. `scanCast` also runs speculatively (the performer
+  search and the `wait`/`cantAfford` explanation pass), and a speculative scan
+  must never emit — so the scan collects the passed-over pieces onto
+  `CastChoice.skippedCooling` and `simulate.ts` turns them into events.
+- At most ONCE per unit per slot per global turn, so a multi-casting unit does
+  not repeat itself.
+- Cursor-walk order (the order the cursor passed them), which is ascending slot
+  except on a scan that wraps.
+- A piece skipped because it is in `excludedThisTurn` (already played this turn)
+  is NOT a cooldown skip and is never reported.
+- No turn ever carries BOTH a `castSkipped` and a `wait` / `cooling` row for the
+  same slot. The guarantee is `if (played.has(c)) continue;`
+  (`src/engine/combat/simulate.ts:694`), which suppresses the `wait` / `cooling`
+  row for any unit that already cast this turn — not the stuck/non-stuck split,
+  since a unit can cast early in a turn and be stuck later in the SAME turn.
 
 Direct-skill damage uses the **FLAT model**: `damage = card.power (a flat base) +
 the caster's scaling stat` (Attack / Magic Power / higher for TRUE), then the
@@ -448,7 +485,7 @@ heals.
 
 ### Pricing (every keyword standalone)
 
-`burden` costs `slow`'s OWN per-point rate (one card taxed, one card's worth of
+`burden` costs `slow`'s OWN per-point rate (one card burdened, one card's worth of
 tempo). `splash` prices **flat and standalone** — `PRICE.splashFlatDeci`
 (20 deci per cast), a normal keyword row like any other (user-locked
 2026-08-21: "every gem pl is standalone" / "why did you make splash

@@ -246,16 +246,35 @@ export interface TierLocked {
 export type ExploitableStatus = 'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose';
 
 /**
- * Statuses that carry a STACK COUNT a `stackBonus` can scale off — the three
- * decaying/halving DoTs plus `thorns`. Every other status kind measures itself
- * in turns, charges or a pct, so `stacks` would read 0 forever and the rider
- * would be a silent no-op priced at full rate.
+ * WHAT A `stackBonus` CAN COUNT — a closed list of five, and they are NOT all
+ * the same shape. Read the split before adding a sixth.
  *
- * `thorns` is in (and is the whole point of the caster-side form: it is the one
- * stacking pile a unit accumulates ON ITSELF, so it is the only status
- * `of: 'caster'` can ever find in shipped content).
+ * FOUR ARE PILES ON A UNIT: the three decaying/halving DoTs plus `thorns`, each
+ * carrying a `stacks` count on a `StatusInstance`. Every OTHER status kind
+ * measures itself in turns, charges or a pct, so `stacks` would read 0 forever
+ * and the rider would be a silent no-op priced at full rate — which is why this
+ * list is closed rather than "any status".
+ *
+ * `thorns` is the whole point of the caster-side form: it is the one PILE a unit
+ * accumulates ON ITSELF, so it is the only pile `of: 'caster'` finds in shipped
+ * content.
+ *
+ * THE FIFTH IS NOT A PILE AT ALL. `burden` lives on the holder's BOARD, not in
+ * its status list: it is a per-CARD weight penalty (`PieceState.nextWeightPenalty`,
+ * written by the `burden` arm and spread by `splash`), so what a `stackBonus`
+ * counts for it is HOW MANY OF THE HOLDER'S BOARD PIECES CARRY ONE — cards, not
+ * points. It qualifies on exactly the criterion above and no other: the count is a
+ * real, already-there quantity that reads above 0 whenever somebody has burdened
+ * that board, so the rider is not a priced no-op. `stackBonusCount`
+ * (combat/state.ts) is the ONE place the two shapes meet; the cast loop consumes a
+ * resolved count and never learns which shape produced it.
+ *
+ * A PENDING UNIT-SCOPE `slow` DOES NOT COUNT. A `slow` adds Weight to the
+ * unit's next card wherever that card sits; it marks no piece, so there is
+ * nothing on the board to count. The rider counts exactly what the data names:
+ * Burdened cards.
  */
-export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns';
+export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns' | 'burden';
 
 /**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,
@@ -611,8 +630,22 @@ type ActionKinds =
   | { kind: 'disrupt'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
   | { kind: 'lifesteal'; pct: number }
-  /** Shatter enemy shields before the hit (place before damage). */
-  | { kind: 'shieldBreak'; amount: number }
+  /**
+   * Shatter enemy shields before the hit (place before damage). `amount` points
+   * of plating are removed from the victim's pools, this card's own property
+   * first, then `true`, then the remaining property.
+   *
+   * `shattersAttuned` EXTENDS THE REACH TO ATTUNED PLATING (`attunedShield`),
+   * which a plain Shatter never touches at all. The attuned pools are drained
+   * LAST — after every untyped pool, by index, at FACE value: one point of
+   * Shatter removes one point of attuned plating, the same rate `shieldBurst`
+   * spends it at. The doubling attuned plating offers is an exchange rate paid
+   * when damage arrives, not extra points held, so it moves this flag's PRICE
+   * (`keywords/pricing.ts`) rather than the quantity removed.
+   *
+   * Present-or-absent, never `false`: an ordinary Shatter carries no key.
+   */
+  | { kind: 'shieldBreak'; amount: number; shattersAttuned?: true }
   /** +amount FLAT damage this cast if the previous cast shared an archetype (place first). */
   | { kind: 'comboBonus'; amount: number }
   /**
@@ -725,13 +758,23 @@ type ActionKinds =
    */
   | { kind: 'exploit'; status: ExploitableStatus; amount: number }
   /**
-   * STACK BONUS — flat bonus damage PROPORTIONAL to a stacking status's current
-   * stack count, hard-CAPPED: `bonus = min(per × stacks(status, of), cap)`.
+   * STACK BONUS — flat bonus damage PROPORTIONAL to how much of one named
+   * resource the holder is carrying, hard-CAPPED:
+   * `bonus = min(per × stackBonusCount(status, of), cap)`.
+   *
+   * WHAT IS COUNTED IS DATA, NOT A BRANCH (`StackedStatus`, above). Four of the
+   * five statuses are PILES and the count is their `stacks`; the fifth,
+   * `burden`, is a per-CARD weight penalty and the count is how many of the
+   * holder's BOARD PIECES carry one. `stackBonusCount` (combat/state.ts) is the
+   * single seam that resolves the two shapes into one integer, so this arm — and
+   * every price, face clause and validator rule around it — stays one rule.
+   *
    *
    * `of: 'caster'` reads the CASTER's own pile — the thorn-deck payoff ("spend
    * the wall"): a card that turns the stacks it has been accumulating into
-   * damage. `of: 'target'` reads the VICTIM's pile — a DoT executioner that hits
-   * harder the deeper the poison. Either way it is a rider on the cast's own
+   * damage. `of: 'target'` reads the VICTIM's — a DoT executioner that hits
+   * harder the deeper the poison, or the tempo punisher that bills for the
+   * backlog on the victim's board. Either way it is a rider on the cast's own
    * hit, NOT a separate instance (`isHit: false`): it takes no extra-hit
    * premium, spends no second `negate` charge, and is spent by the first non-gem
    * `damage` action exactly like `comboBonus`/`exploit`.
@@ -746,10 +789,22 @@ type ActionKinds =
    * at any stack depth, so it prices exactly like a conditional flat bonus of
    * that size (`actionsPriceDeci`).
    *
-   * SAME ORDERING RULE AS `exploit`, same reason: it reads the pile as it stands
-   * when the rider resolves, before this card's own thorns/DoT application lands
-   * (`validateSkillContent` enforces it), so the loop is cross-cast — grant now,
-   * spend next time.
+   * SAME ORDERING RULE AS `exploit`, same reason: it reads the resource as it
+   * stands when the rider resolves, before this card's own thorns/DoT/burden
+   * application lands (`validateSkillContent` enforces it), so the loop is
+   * cross-cast — grant now, spend next time. For `burden` that loop is the
+   * longest of the family: a burden rides its piece until that piece is next
+   * played, so every later cast collects, not just the next one.
+   *
+   * `of: 'caster'` + `status: 'burden'` IS LEGAL, and deliberately so. It is the
+   * one combination whose gate NO card of the holder's can ever supply — `burden`
+   * only ever lands on a target — so it reads a quantity the OPPONENT built, the
+   * purest form of the thing the conditional-trigger discount prices, and
+   * `selfSynergyPremiumDeci` is inert for it by construction rather than by
+   * exception. It is not refused because it is not the failure `StackedStatus`
+   * refuses: it does not read 0 forever, it reads 0 until somebody burdens you.
+   * No shipped card uses it; the rule is stated here so the next one does not
+   * have to rediscover it.
    */
   | { kind: 'stackBonus'; status: StackedStatus; of: 'caster' | 'target'; per: number; cap: number }
   /**
@@ -788,46 +843,6 @@ type ActionKinds =
    * a test pins that — a gem one would need the splash gate's treatment.
    */
   | { kind: 'shieldBurst'; cap: number }
-  /**
-   * TAX BONUS — the tempo punisher: flat bonus damage per WEIGHT-TAXED card on
-   * the victim's board, hard-CAPPED. `bonus = min(per × taxedCards(target), cap)`.
-   *
-   * WHAT COUNTS AS ONE TAXED CARD (`taxedCardCount`, combat/state.ts): every
-   * board piece carrying a pending `burden` (`PieceState.nextWeightPenalty`),
-   * PLUS ONE if the unit itself carries a pending `slow`
-   * (`CombatantState.nextWeightPenalty`). Counting the unit-scope slow as one card
-   * is deliberate — the fantasy is "punish the backlog", a slow IS part of the
-   * backlog (it taxes the very next card that unit plays), and the alternative
-   * would make the reaper blind to half the tempo lane it exists to pay off.
-   *
-   * THE TIMING WRINKLE IS THE SYNERGY LOOP, not an accident. A `slow` lives only
-   * until the end of the turn it landed on, while a `burden` rides its piece
-   * until that piece is next played — so the reaper wants to fire AFTER your tempo
-   * cards, in the same turn for slow and any time later for burden. That is the
-   * designed pairing with Line Breaker / Shockwave Slam / the burden gems.
-   *
-   * A BURDEN SPREAD BY `splash` COUNTS ONCE PER PIECE, which is the whole
-   * combo: one `burden + splash` cast can leave 3 taxed cards on the victim's
-   * board for the reaper to collect on, where a bare burden leaves 1.
-   *
-   * THE `cap` IS REQUIRED and the cap is WHAT IS PRICED — the `stackBonus` rule,
-   * for the same reason: `per × count` is bounded only by the VICTIM's board size
-   * (a resource the card's holder does not control), so only the ceiling is
-   * priceable. `per` is unpriced by construction; a huge `per` merely turns the
-   * rider into "+cap if they are taxed at all".
-   *
-   * OFFENSIVE (it reads the victim's board), so it is armed PER VICTIM: under
-   * `scope: 'all'` each foe is judged on its own backlog, and the card pays the
-   * AoE reach multiplier (`OFFENSIVE_KINDS`).
-   *
-   * SAME ORDERING RULE as its siblings: it reads taxes that were ALREADY there,
-   * so `validateSkillContent` requires this card's own `slow`/`burden` lines to
-   * sit AFTER the damage the rider feeds. A slow+reaper card therefore cannot
-   * self-feed within one cast — and, because a slow expires at end of turn, only
-   * a SECOND cast in the SAME turn collects on it, while a burden keeps paying
-   * until the taxed piece is played.
-   */
-  | { kind: 'taxBonus'; per: number; cap: number }
   /**
    * WARD RELEASE — `shieldBurst`'s twin one currency over: spend the charges of
    * the caster's OWN `ward` piles and arm `per` flat bonus damage per charge

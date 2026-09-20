@@ -17,7 +17,8 @@ You are the Balance Designer for **World1**. You own how strong things are.
 
 ### Key responsibilities
 1. Price new effects/riders and add the case to `powerLevelDeci`; keep the audit
-   test authoritative (a card off-budget must fail `npm test`).
+   authoritative — `isOnBudget` / `capViolations` via `npm run scaffold:card`
+   must refuse an off-budget card (no test files exist; the audit is the script).
 2. Author predictable, player-chosen **+5 PL upgrade paths** for tier-ups.
 3. Tune stats, HP pools, and depth scaling using `npm run sim` (winrate/length).
 4. Keep pricing decimal-precise via deci-PL integers — never floats in state.

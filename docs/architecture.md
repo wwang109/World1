@@ -20,8 +20,12 @@ server/       battleApi.ts — the dev battle service (node http, port 8787).
 functions/    Cloudflare Pages Functions — production twins of the service:
               battle.ts (POST /battle), damage-band.ts (POST /damage-band).
 scripts/      fight.ts (ASCII log), balance.ts (sim harness),
-              run-hud-audit.ts (Run HUD template audit), check-boundaries.mjs,
-              encode-card-art.ts (art-src -> public/game-art WebP).
+              enemyOutput.ts (per-enemy/board damage/heal/shield output
+              summary + A/B delta, `npm run output`), boardSpec.ts (the ONE
+              `skill_id[@tier][#gem_id]` board-spec parser, shared by
+              fight.ts and enemyOutput.ts), run-hud-audit.ts (Run HUD
+              template audit), check-boundaries.mjs, encode-card-art.ts
+              (art-src -> public/game-art WebP).
 tests/        vitest suites (engine invariants, audits, run logic, UI specs).
 public/       SERVED VERBATIM by `vite build`. WebP derivatives + the small
               template/badge PNG chrome. Nothing master-sized belongs here.

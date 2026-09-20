@@ -1,6 +1,6 @@
 import { OFFENSIVE_KINDS } from '../../engine/balance';
 import { renderCtxOf } from '../../engine/keywords/compose';
-import { attunedShieldLabel, CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf, HEADLINE_LABEL } from '../../engine/keywords/text';
+import { attunedShieldLabel, CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf, HEADLINE_LABEL, multiHitPowersEqual } from '../../engine/keywords/text';
 import { tierResolved, weightOf, type BuffableStat, type SkillDef } from '../../engine/types';
 import { STAT_TOKEN } from './statLabels';
 
@@ -187,6 +187,60 @@ function effectLine(
 }
 
 /**
+ * The `DMG` line for a MULTI-HIT card (>=2 ungated `damage` actions — the hit
+ * count itself is a separate `MULTI-HIT N` badge, pushed alongside this line
+ * by the caller, never folded into this number).
+ *
+ * PER-HIT, NOT SUMMED (user-ruling 2026-09-14): the number prints one hit's
+ * base, not the total across hits — `rapid_volley` bronze (10 + 10) reads
+ * `DMG 10`, not `DMG 20`. Equal hits (the common case) print that one shared
+ * base; unequal hits (`rapid_volley`/`twin_slash`/`barrage` at the ranks their
+ * even-power pricing forces two apart) print every hit's base, comma-joined
+ * in authored order — REUSING `multiHitPowersEqual`
+ * (`engine/keywords/text.ts`), the exact split `damageClause` uses for its own
+ * "Deal X" / "Deal X, then Y" choice, so the face and the long description
+ * can never disagree about which cards get which form.
+ *
+ * `+ATK`/`+DEF` stays the bare SYMBOLIC suffix `effectLine` already prints for
+ * a single hit — never multiplied by the hit count. The engine SPLITS the
+ * caster's stat contribution across a cast's hits (`statShare`,
+ * `engine/combat/interpreter.ts`, front-loaded remainder) rather than paying
+ * it per hit, so a face form that reads as "this stat, doubled" (the withdrawn
+ * `DMG 10 +ATK ×2`) promised damage the card never delivers. Putting the hit
+ * count on its OWN badge removes that binding entirely, in both modes.
+ */
+function multiHitEffectLine(
+  label: string, powers: readonly number[], property: SkillDef['property'],
+  stats: ScalingStats | undefined, statScales: boolean, mode: SkillFaceMode, role: ScalingRole,
+): ScaledText {
+  if (powers.length <= 1) return effectLine(label, powers[0] ?? 0, property, stats, statScales, mode, role);
+  const equal = multiHitPowersEqual(powers);
+  if (property === 'true') {
+    if (equal) {
+      const scaled = scaledLabel(label, powers[0]!, property, stats, statScales, role);
+      return { text: `${scaled.text} (T)`, calculated: scaled.calculated };
+    }
+    const contribution = stats && statScales ? statContribution(property, stats, role) : 0;
+    const effective = powers.map((p) => p + contribution);
+    return { text: `${label} ${effective.join(', ')} (T)`, calculated: Boolean(contribution) };
+  }
+  if (mode === 'composition' && statScales) {
+    const suffix = ` +${STAT_TOKEN[scalingStatKey(property, role)]}`;
+    return equal
+      ? { text: `${label} ${powers[0]}${suffix}`, calculated: false }
+      : { text: `${label} ${powers.join(', ')}${suffix}`, calculated: false };
+  }
+  const contribution = stats && statScales ? statContribution(property, stats, role) : 0;
+  if (equal) {
+    return contribution
+      ? { text: `${label} ${powers[0]! + contribution}`, calculated: true }
+      : { text: `${label} ${powers[0]}`, calculated: false };
+  }
+  const effective = powers.map((p) => p + contribution);
+  return { text: `${label} ${effective.join(', ')}`, calculated: Boolean(contribution) };
+}
+
+/**
  * Compact effect summary for the card face — the numbers the player actually
  * plays for (damage, heal, shield, DoTs, buffs), not metadata like PL or size.
  *
@@ -356,6 +410,13 @@ export function summarizeEffectSegments(
   let damage = 0;
   let heal = 0;
   let shield = 0;
+  // Every UNGATED `damage` action's own base, in authored order — the same
+  // set `cardGlossary.ts` counts to decide whether to show
+  // `MULTI_HIT_RULE_ENTRY` (`effects.filter(kind === 'damage' && affinity !==
+  // true).length > 1`). `damage` above stays the SUMMED total (still needed
+  // for the affinity roll-back math below); this array is what the face's
+  // per-hit `DMG` line and its sibling `MULTI-HIT N` badge read.
+  const damagePowers: number[] = [];
   const extras: EffectSegment[] = [];
   // The registry needs the card around the action (its type, property,
   // reach) to render a badge — built once, never per action.
@@ -373,6 +434,7 @@ export function summarizeEffectSegments(
     // delta back out is what keeps the printed total honest for every board.
     const beforeExtras = extras.length;
     const beforeDamage = damage;
+    const beforeDamagePowersLen = damagePowers.length;
     const beforeHeal = heal;
     const beforeShield = shield;
     // THE COMPACT BADGE, LOOKED UP RATHER THAN SWITCHED ON.
@@ -393,7 +455,7 @@ export function summarizeEffectSegments(
     // registry rows exist and are used by the card body; this function's
     // headline is the one place that needs the live fold.
     switch (action.kind) {
-      case 'damage': damage += action.power; break;
+      case 'damage': damage += action.power; damagePowers.push(action.power); break;
       case 'heal': heal += action.power; break;
       case 'shield': shield += action.power; break;
       // ATTUNED SHIELD gets the same `effectLine` treatment as the plain
@@ -437,6 +499,7 @@ export function summarizeEffectSegments(
       if (heal !== beforeHeal) parts.push(`${heal - beforeHeal} ${HEADLINE_LABEL.heal}`);
       if (shield !== beforeShield) parts.push(`${shield - beforeShield} ${HEADLINE_LABEL.shieldFull}`);
       damage = beforeDamage;
+      damagePowers.length = beforeDamagePowersLen;
       heal = beforeHeal;
       shield = beforeShield;
       for (let i = beforeExtras; i < extras.length; i += 1) parts.push(extras[i]!.text);
@@ -464,9 +527,15 @@ export function summarizeEffectSegments(
   // token rendered the useless "DEF 96 +DEF". The label names the OUTPUT, the
   // token names the STAT; they must not be the same word.
   const shieldLabel = HEADLINE_LABEL.shield;
-  if (damage) {
-    const line = effectLine(HEADLINE_LABEL.damage, damage, property, stats, true, mode, 'offense');
+  if (damagePowers.length > 0) {
+    const line = multiHitEffectLine(HEADLINE_LABEL.damage, damagePowers, property, stats, true, mode, 'offense');
     segments.push({ text: line.text, calculated: line.calculated });
+    // MULTI-HIT N — its own badge, right beside the DMG line it counts,
+    // never folded into that line's number (see `multiHitEffectLine`'s doc
+    // comment for why: the engine SPLITS the caster's stat across hits
+    // rather than paying it per hit, so a `×N` bound to `+ATK` misreads as
+    // "this stat, doubled").
+    if (damagePowers.length > 1) segments.push({ text: `${HEADLINE_LABEL.multiHit} ${damagePowers.length}` });
   }
   if (heal) {
     const line = effectLine(HEADLINE_LABEL.heal, heal, property, stats, property !== 'true', mode, 'defense');

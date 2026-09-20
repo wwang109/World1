@@ -4,7 +4,7 @@ import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../typ
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, stackBonusCount, stripAttunedShields, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { cardTargetPieces } from './splash';
 import { cardType } from './typeIdentity';
@@ -55,10 +55,6 @@ function isOffensiveAction(action: Action): boolean {
     // engine/balance.ts, mirrors this switch kind-for-kind).
     case 'exploit':
     case 'stackBonus':
-    // TAX BONUS is offensive for the same reason: it reads the VICTIM's board
-    // (how many of its cards carry a weight tax) and arms its bonus PER VICTIM,
-    // so under `scope: 'all'` each foe is judged on its own backlog.
-    case 'taxBonus':
     // DESPERATION reads the CASTER's own HP bar, so nothing about its condition
     // needs the victim — and it is STILL offensive, by kind, exactly as
     // `stackBonus` with `of: 'caster'` is. The reason is the same one stated
@@ -716,7 +712,7 @@ interface CastCtx {
   bonusFlat: number;
   /**
    * FLAT damage armed PER VICTIM by a CONDITIONAL rider this cast (`exploit`,
-   * `stackBonus`, `taxBonus`, `desperation`), indexed by the victim's lineup index. Sparse: only
+   * `stackBonus`, `desperation`), indexed by the victim's lineup index. Sparse: only
    * foes a rider actually armed appear, and a cast with no such rider never writes
    * it, which is what keeps every existing card byte-identical.
    *
@@ -1956,6 +1952,13 @@ function applyAction(
         enemy.shields[pool] -= strip;
         remaining -= strip;
       }
+      // ATTUNED PLATING LAST, and only for a Shatter authored to reach it
+      // (`shattersAttuned`, types.ts). A Shatter without the flag never enters
+      // this branch, so its drain — and the event below — is the untyped pools'
+      // alone, exactly as before the flag existed.
+      if (action.shattersAttuned === true && remaining > 0) {
+        remaining -= stripAttunedShields(enemy, remaining);
+      }
       const broken = action.amount - remaining;
       if (broken > 0) {
         ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, unit: enemy.index, amount: broken, totalAfter: totalShield(enemy) });
@@ -2002,15 +2005,21 @@ function applyAction(
       // (see the action's docs in types.ts). Integer-only: both terms are whole
       // numbers and `Math.min` introduces no rounding.
       //
-      // `of` picks WHOSE pile is read — the caster's own (the thorn-wall
-      // spender) or the victim's (the DoT executioner) — and, like `exploit`
-      // above, it reads the pile AS IT STANDS NOW, before this card's own
-      // thorns/DoT line lands later in the same cast.
+      // `of` picks WHOSE resource is read — the caster's own (the thorn-wall
+      // spender) or the victim's (the DoT executioner, the tempo punisher) —
+      // and, like `exploit` above, it reads it AS IT STANDS NOW, before this
+      // card's own thorns/DoT/burden line lands later in the same cast.
+      //
+      // WHAT "ONE" MEANS IS RESOLVED OUTSIDE THIS LOOP: `stackBonusCount`
+      // (combat/state.ts) returns a pile's `stacks` for the four statuses and
+      // the holder's BURDENED BOARD PIECE COUNT for `burden`. This arm consumes
+      // the integer and never learns which — the resolver seam, so the fifth
+      // resource cost the core loop no branch and the sixth will not either.
       if (!enemy.alive) break;
       const holder = action.of === 'caster' ? caster : enemy;
-      const stacks = statusStackCount(holder, action.status);
-      if (stacks <= 0) break;
-      armTargetBonus(cast, enemy, Math.min(action.per * stacks, action.cap));
+      const count = stackBonusCount(holder, action.status);
+      if (count <= 0) break;
+      armTargetBonus(cast, enemy, Math.min(action.per * count, action.cap));
       break;
     }
     case 'shieldBurst': {
@@ -2040,21 +2049,6 @@ function applyAction(
       // playback can say "spent" rather than "shattered" and can read the
       // side/unit as the CASTER.
       ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: caster.side, unit: caster.index, amount: spent, totalAfter: totalShield(caster), burst: true });
-      break;
-    }
-    case 'taxBonus': {
-      // `per` per WEIGHT-TAXED card on the victim (`taxedCardCount`: every board
-      // piece carrying a `burden`, plus one for a pending unit-scope slow),
-      // CLAMPED at the authored `cap` — the bounded payload is what makes it
-      // priceable, exactly as with `stackBonus`.
-      //
-      // Read AS IT STANDS NOW: taxes this card's own slow/burden lines apply land
-      // later in the cast (`validateSkillContent` enforces that order), so the
-      // backlog it collects on is one somebody else — or an earlier cast — built.
-      if (!enemy.alive) break;
-      const taxed = taxedCardCount(enemy);
-      if (taxed <= 0) break;
-      armTargetBonus(cast, enemy, Math.min(action.per * taxed, action.cap));
       break;
     }
     case 'wardRelease': {

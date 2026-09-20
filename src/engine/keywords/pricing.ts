@@ -7,9 +7,10 @@ import type { Action, Property } from '../types';
  * `actionsPriceDeci` in `balance.ts` walks this table instead of a switch, so
  * adding a keyword is a row here, not a new `case` in the pricer.
  *
- * Six term forms cover every keyword in the game:
+ * Seven term forms cover every keyword in the game:
  *   perUnit           rate per unit of one field           (dot stacks, charges)
  *   perUnitByProperty rate varies with the card's property (the TRUE premium)
+ *   perUnitByFlag     rate varies with a capability flag   (attuned-reaching Shatter)
  *   product           rate per (fieldA x fieldB)           (pct x turns)
  *   bracketed         marginal brackets                    (disrupt)
  *   flat              one field-less price per action      (splash)
@@ -30,6 +31,15 @@ type NumericKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends number ? K :
 export type FieldOf<K extends Action['kind']> = NumericKeys<Extract<Action, { kind: K }>> & string;
 
 /**
+ * The BOOLEAN field names of one Action variant — the present-or-absent
+ * capability flags (`shieldBreak.shattersAttuned`). Same guarantee `FieldOf`
+ * gives for magnitudes: a term can only point at a flag the variant really has,
+ * so a typo is a tsc error rather than a rate that silently never applies.
+ */
+type FlagKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never }[keyof T];
+export type FlagOf<K extends Action['kind']> = FlagKeys<Extract<Action, { kind: K }>> & string;
+
+/**
  * A price term is parameterised by the keyword it belongs to, so `field` is
  * checked against that Action variant's own numeric keys at COMPILE time.
  * Without this a typo (`'trns'` for `'turns'`) compiles clean and silently
@@ -41,6 +51,12 @@ export type PriceTerm<K extends Action['kind'] = Action['kind']> =
   | { form: 'perUnitByProperty'; field: FieldOf<K>; num: Record<Property, number>; den: number }
   | { form: 'product'; fields: readonly [FieldOf<K>, FieldOf<K>]; num: number; den: number }
   | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] }
+  // ONE RATE PER UNIT, CHOSEN BY A CAPABILITY FLAG — for a keyword whose payload
+  // is unchanged in quantity but worth more per unit when the flag is set
+  // (`shieldBreak.shattersAttuned`). ONE term with two numerators over a SHARED
+  // denominator, never a base term plus a surcharge term: two terms would floor
+  // twice and the unflagged price would stop being the plain rate it must stay.
+  | { form: 'perUnitByFlag'; field: FieldOf<K>; flag: FlagOf<K>; num: number; numWhenSet: number; den: number }
   // A FIELD-LESS flat price — for the one keyword with no numeric field at all
   // (`splash`, whose whole payload is "the spread happens"). Kept rare on
   // purpose: a keyword WITH a magnitude must price per unit of it, or a bigger
@@ -244,7 +260,7 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
 
     slow: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
     // BURDEN — `slow`'s CARD-scope sibling, priced at slow's OWN per-point rate:
-    // one card taxed, one card's worth of tempo. Full derivation on
+    // one card burdened, one card's worth of tempo. Full derivation on
     // `PRICE.burdenPerWeightNum` in balance.ts (including why the lifetime
     // divergence — a burden always eventually gets paid, a slow often expires
     // unpaid — is called a wash rather than measured).
@@ -296,7 +312,33 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     },
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
-    shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
+    /**
+     * AN ATTUNED-REACHING SHATTER COSTS 1.5x, the SAME multiplier and the same
+     * derivation `attunedShieldRate` above pays to GRANT that plating — one
+     * exchange rate, priced once, read from both ends. A point of attuned plating
+     * is worth ONE point of absorption always plus a SECOND point when the
+     * incoming damage matches its type, so a Shatter that can remove it denies the
+     * guaranteed point at the full `shieldBreak` rate and the conditional point at
+     * `conditionalBonusDen`'s discount (a gate the card cannot supply — whether
+     * the victim is even holding attuned plating of a matching type is a board
+     * fact): rate x (1 + 1/2).
+     *
+     * Written as two numerators over a PRE-MULTIPLIED shared denominator, like
+     * `attunedShieldRate`, so the division stays exact and — critically — the
+     * UNFLAGGED numerator is the same rational as before (10/8 = 5/4), which is
+     * what keeps every shipped Shatter's price to the deci unchanged.
+     */
+    shieldBreak: {
+      isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false,
+      price: [{
+        form: 'perUnitByFlag',
+        field: 'amount',
+        flag: 'shattersAttuned',
+        num: P.shieldBreakPerPointNum * P.conditionalBonusDen,
+        numWhenSet: P.shieldBreakPerPointNum * (P.conditionalBonusDen + 1),
+        den: P.shieldBreakPerPointDen * P.conditionalBonusDen,
+      }],
+    },
     /**
      * FORWARD-ARMED bonus damage: `amount` flat damage for the caster's NEXT cast
      * of this card's own type. `family: 'empower'` (it changes a future hit's
@@ -370,18 +412,14 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // caster-side `of: 'caster'` form, because the bonus they arm is delivered
     // once per foe under `scope: 'all'`), so they pay the AoE reach multiplier.
     exploit: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    // ONE ROW COVERS ALL FIVE RESOURCES `StackedStatus` names, including
+    // `burden`: the price is `cap` at the card's own damage rate over the
+    // conditional discount. WHAT is read — an affliction pile, or how many of
+    // the holder's board pieces are burdened — does not enter the price; only
+    // the ceiling does, because `per × count` is unbounded in a resource the
+    // card does not control and `per` is unpriced by construction. A huge
+    // `per` merely degenerates the rider into "+cap if the gate is open at all".
     stackBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
-
-    // TAX BONUS — the third reader in the family, and priced identically: its
-    // `cap` at the card's own damage rate over the conditional discount. What it
-    // reads is the victim's TEMPO BACKLOG (burdened pieces + a pending slow,
-    // `taxedCardCount`) rather than an affliction pile, but the shape is the
-    // same — a bounded flat add behind a gate the card cannot supply on its own,
-    // so `per` is unpriced and the ceiling is the priced thing (`stackBonus`'s
-    // rule; a huge `per` merely degenerates the rider into "+cap if taxed at
-    // all"). `offensive: true`, `family: 'empower'`, `isHit: false` for exactly
-    // the reasons spelled out above.
-    taxBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // SHIELD BURST — the family's SPENDER: it converts up to `cap` points of the
     // caster's OWN shield into flat bonus damage on this cast's hit, and the
@@ -510,6 +548,7 @@ export function priceActionDeci(
   table: KeywordPricingTable,
 ): number {
   const fields = action as unknown as Record<string, number | undefined>;
+  const flags = action as unknown as Record<string, boolean | undefined>;
   let deci = 0;
   for (const term of table[action.kind].price) {
     switch (term.form) {
@@ -518,6 +557,9 @@ export function priceActionDeci(
         break;
       case 'perUnitByProperty':
         deci += Math.floor(((fields[term.field] ?? 0) * term.num[property]) / term.den);
+        break;
+      case 'perUnitByFlag':
+        deci += Math.floor(((fields[term.field] ?? 0) * (flags[term.flag] === true ? term.numWhenSet : term.num)) / term.den);
         break;
       case 'product':
         deci += Math.floor((((fields[term.fields[0]] ?? 0) * (fields[term.fields[1]] ?? 0)) * term.num) / term.den);

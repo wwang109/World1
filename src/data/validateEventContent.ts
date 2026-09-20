@@ -90,7 +90,6 @@ const ACTION_KINDS: Readonly<Record<Action['kind'], true>> = {
   exploit: true,
   stackBonus: true,
   shieldBurst: true,
-  taxBonus: true,
   wardRelease: true,
   desperation: true,
   overhealShield: true,

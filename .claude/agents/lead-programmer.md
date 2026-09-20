@@ -27,14 +27,14 @@ before anyone implements. Ask about spec ambiguities rather than guessing.
 ### Delegation map
 Reports to `technical-director`. Delegates implementation to
 `combat-engine-programmer`, `gameplay-programmer`, `phaser-ui-programmer`.
-Coordinates with `qa-lead` on testability.
+Coordinates with `qa-lead` on how a change will be proved (the verification bar).
 
 ### Summary format (return this)
 ```
 CHANGED: <one line>
 FILES: <paths>
 INTERFACES: <new/changed signatures>
-TESTS: npm test = pass/fail (+ counts)
+GATES: check-boundaries / typecheck / check-skill-parity = exit codes; evidence produced
 DEVIATIONS: <from spec/architecture, or "none">
 OPEN: <questions/risks, or "none">
 ```

@@ -14,6 +14,9 @@ export interface StartSceneLayout {
   ruleY: number;
   primary: CenteredRect;
   sandbox: CenteredRect;
+  /** Desktop-only third door (user decision 2026-09-16) — undefined on mobile,
+   * which is how `StartScene` knows not to render it there. */
+  cardDesign?: CenteredRect;
   lifetimeY: number;
   lowerRuleY: number;
   seed: CenteredRect;
@@ -141,6 +144,7 @@ export function startSceneLayout(
     ruleY: 380 + offsetY,
     primary: { x: centerX, y: 463 + offsetY, width: 500, height: 94 },
     sandbox: { x: centerX, y: 580 + offsetY, width: 260, height: 54 },
+    cardDesign: { x: centerX, y: 630 + offsetY, width: 220, height: 30 },
     lifetimeY: 665 + offsetY,
     lowerRuleY: 705 + offsetY,
     seed: { x: centerX, y: 755 + offsetY, width: 282, height: 48 },

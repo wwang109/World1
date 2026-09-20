@@ -752,7 +752,7 @@ export const enemies: Record<string, EnemyDef> = {
 
   // --- Synergy-rider roster expansion (2026-08-21): the 2026-08-19/21 card
   // batch landed 9 "carrier" cards that pay off a status the REST of a board
-  // already applies (exploit/stackBonus/shieldBurst/taxBonus) — no enemy
+  // already applies (exploit/stackBonus/shieldBurst) — no enemy
   // fielded any of them, so a player could draft the mechanic and never see
   // it played back. The four monsters below are that fix, one per rider
   // family the brief called out: exploit (poison), shieldBurst (own shield),

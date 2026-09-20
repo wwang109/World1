@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Archetype, SkillDef } from '../../engine/types';
-import {
+import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
   type BattleTimelineInput,
   type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
@@ -26,7 +26,7 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
-import { renderBattleLogLine } from '../ui/battleLogLine';
+import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
 
 const F = MOBILE_PROFILE.font;
 /**
@@ -108,6 +108,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
+  private cursorSlotByStep: CursorSlotSnap[] = [];
   private turns: number[] = [];
   /** Flat, event-level playback timeline — one entry per IMPORTANT log line
    * (HIT/DEBUFF/BUFF/DOWN/RESULT), plus one fallback entry for any turn that
@@ -346,6 +347,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.speedByTurn = model.speedByTurn;
     this.comboArchetypesByTurn = model.comboArchetypesByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
+    this.cursorSlotByStep = model.cursorSlotByStep;
     this.turns = model.turns;
     this.steps = model.steps;
     this.hpByStep = model.hpByStep;
@@ -453,39 +455,43 @@ export class MobileBattleScene extends Phaser.Scene {
       lines.forEach((line, local) => { if (local <= limit) feed.push({ t, local, line }); });
     }
     // Fixed columns (mockup): turn gutter · 56px tag column · text. A hairline
-    // separates rows. Overflow is clipped with an ellipsis, never crowded.
+    // separates rows.
     const rowH = 21;
     const headerBottomRel = 30; // relative to dockTop — the turnline's own height budget inside the dock box
     const headerBottom = dockTop + headerBottomRel;
     const turnX = 12;   // dim "T3" marker where the turn changes
     const tagX = 36;    // tag column start
     const textX = 98;   // text column start — clear of the widest tag (RESULT)
-    const maxRows = Math.max(1, Math.floor((dockH - headerBottomRel - 6) / rowH));
-    const visible = feed.slice(-maxRows);
+    const bodyStyle = { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body };
+    const availableHeight = (dockBottom - 6) - headerBottom;
+    const rows = layoutVisibleBattleLogRows(
+      this, feed, ({ line }) => line,
+      ({ line }) => this.W - textX - (line.detail ? 26 : 14),
+      bodyStyle, rowH, availableHeight,
+    );
     let ly = headerBottom;
     let prevTurn = -1;
-    for (const { t, local, line } of visible) {
+    for (const { item: { t, local, line }, wrapped } of rows) {
       if (ly > dockBottom - 16) break;
       const key = `${t}:${local}`;
       this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
       prevTurn = t;
       this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
-      const textMaxW = this.W - textX - (line.detail ? 26 : 14);
-      renderBattleLogLine(this, textX, ly, line, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body }, textMaxW);
+      const { height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
       if (line.detail) {
         this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
-        const zone = this.add.rectangle(0, ly - 3, this.W, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const zone = this.add.rectangle(0, ly - 3, this.W, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
         // HIT rows ALSO get a hover (desktop) tip reading the same D: string —
         // a second affordance for the math strip specifically. Status rows
         // (BUFF/DEBUFF — guard/buff/debuff/expose/negate) rely on tap/click-to-
         // expand ONLY, no hover, per the locked both-platforms tap idiom.
         if (line.tag === 'HIT') {
-          attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+          attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
         }
       }
-      ly += rowH;
+      ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < dockBottom - 12) {
         const d = this.boundedText(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }, this.W - textX - 14);
         ly += d.height + 4;
@@ -635,7 +641,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const colW = (this.W - 20 - gutterW) / 2;
     const deckX = 10; const gutterX = 10 + colW; const bagX = 10 + colW + gutterW;
     // Gold cursor on the card each side cast this turn (a size-N piece owns its span).
-    const slots = this.playSlotByTurn.get(turn) ?? {};
+    const slots = this.cursorSlotByStep[this.idx] ?? this.playSlotByTurn.get(turn) ?? {};
     const comboSnap = this.comboArchetypesByTurn.get(turn) ?? { player: [], enemy: [] };
     // `slotMods` lookup is by the piece's ANCHOR slot — exactly what the
     // engine's burdened/cursed events name (see `SlotModsSnap`).

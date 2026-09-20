@@ -80,6 +80,17 @@ export class StartScene extends Phaser.Scene {
       this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep');
     });
 
+    // THIRD DOOR, DESKTOP ONLY (user decision 2026-09-16) — a deliberate
+    // exception to the both-platforms rule: the Card Designer is an
+    // authoring tool, not a Run Mode screen, and has no mobile form. Shown to
+    // EVERYONE (no `isDev` gate) — `layout.cardDesign` is undefined on the
+    // mobile profile, which is what keeps this branch from ever drawing there.
+    if (!mobile && layout.cardDesign) {
+      this.cardDesignButton(layout.cardDesign, () => {
+        this.scene.start('DesktopCardDesign');
+      });
+    }
+
     this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
     this.ornamentalRule(layout.centerX, layout.lowerRuleY, mobile ? 245 : 460);
 
@@ -139,6 +150,20 @@ export class StartScene extends Phaser.Scene {
       .setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
     attachButtonFeel(this, target, {
       fill, hover: 0x1d3950, alpha: 0.18, follow: [label, sub], lift: 1,
+      onPress: () => { playSfx('uiClick'); onPress(); },
+    });
+  }
+
+  /** A quieter link than SANDBOX — a desktop-only authoring tool, not a way
+   * into the run itself. */
+  private cardDesignButton(rect: CenteredRect, onPress: () => void): void {
+    const target = this.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.bg, 0.001)
+      .setInteractive({ useHandCursor: true });
+    const label = this.add.text(rect.x, rect.y, 'CARD DESIGNER  ›', {
+      ...startSceneTextRole('sandboxDetail'), letterSpacing: 1,
+    }).setOrigin(0.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, {
+      fill: UI.bg, hover: 0x1d3950, alpha: 0.001, follow: [label], lift: 1,
       onPress: () => { playSfx('uiClick'); onPress(); },
     });
   }

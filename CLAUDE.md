@@ -18,15 +18,15 @@ right-sized for this project's TypeScript/Phaser stack.
 
 - **Language**: TypeScript (strict; `noUncheckedIndexedAccess`, `isolatedModules`)
 - **Engine**: Phaser 3 (rendering/scenes only)
-- **Build**: Vite 7 · **Tests**: Vitest 3 · **Scripts**: tsx
+- **Build**: Vite 7 · **Scripts**: tsx · **Tests**: none — no `*.test.ts` may exist; verification is by evidence (below)
 - **Version Control**: Git, feature branches, PRs
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `npm test` | Boundary checker + full vitest suite (the gate for every change) |
-| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | The gate for every change: `check-boundaries.mjs` (layer rules + no `*.test.ts` may exist) → `npm run typecheck` → `check-skill-parity.mjs` (skill twins identical) |
+| `npm run typecheck` | `tsc --noEmit` on both projects (`tsconfig.json`, `tsconfig.functions.json`) |
 | `npm run api` | Battle service (`server/battleApi.ts`, :8787) — REQUIRED alongside `npm run dev`: the client cannot simulate |
 | `npm run fight [enemyId] [seed]` | ASCII combat log for eyeballing engine behavior |
 | `npm run sim` | Headless N-fight balance harness |
@@ -53,8 +53,7 @@ src/game/     Phaser scenes + playback rendering ONLY. Cannot simulate.
 server/       battleApi.ts — the dev battle service (npm run api, :8787).
 functions/    Cloudflare Pages Functions — production twins of the battle service.
 scripts/      fight.ts, balance.ts, run-hud-audit.ts, check-boundaries.mjs,
-              encode-card-art.ts (art masters -> served WebP)
-tests/        vitest suites
+              check-skill-parity.mjs, encode-card-art.ts (art masters -> served WebP)
 public/       SERVED VERBATIM by `vite build` — WebP + small badge PNGs only.
 art-src/      NOT served. PNG art masters; `npm run art:encode` reads them.
 ```
@@ -75,7 +74,7 @@ The core loop — `simulate`, `interpreter`, `castSelect`, `aurasOn` — consume
 the resolved form and stays feature-agnostic. Adding a feature = extend the
 resolver + add its data; do NOT change core function signatures or add
 feature-specific branches to the loop. Un-featured input must resolve to
-byte-identical behavior (the determinism + audit tests prove it).
+byte-identical behavior (prove it: two same-seed `npm run fight` runs, diffed).
 
 ### Determinism invariants (do not break)
 
@@ -85,7 +84,57 @@ byte-identical behavior (the determinism + audit tests prove it).
 - No `Date.now()` / `Math.random()` in the engine — all randomness flows through
   `Rng` (seeded mulberry32) in a fixed call order.
 - Iterate arrays by index, never `Map`/`Set` where order can vary.
-- The 100-config determinism test and the balance audit test must stay green.
+- Determinism is proved, not asserted: `simulate(config, seed)` must produce a
+  byte-identical event log for the same input — run `npm run fight <enemy> <seed>`
+  twice on the same seed and diff the output.
+- The balance audit is `isOnBudget` / `capViolations` in `src/engine/balance.ts`,
+  run through `npm run scaffold:card` for the card in question; `npm run sim` is
+  the exploration harness, not a gate.
+
+### Verification is by evidence — no test files (USER-LOCKED 2026-09-15)
+
+**No `*.test.ts` file may exist in this repository.** The user ruled it on
+2026-09-15, superseding the 2026-09-14 one-file-per-subject lock, after the
+vitest suite had accreted to 274 files — one per task, not per subject.
+`scripts/check-boundaries.mjs` fails if one reappears. The gate for every
+change is the `npm test` chain: boundaries → `npm run typecheck` (both tsc
+projects) → `check-skill-parity.mjs`. Behaviour is proved by evidence:
+
+- **Combat**: `npm run fight` on/off pairs (log convention below); determinism
+  = two same-seed runs, diffed byte-identical.
+- **Content**: `npm run content:validate`; a card's PL via
+  `npm run scaffold:card` against `src/engine/balance.ts`.
+- **Screens**: `npm run audit:hud`, `npm run audit:cardface`,
+  `npm run shop:smoke`, plus Playwright screenshots on BOTH platforms.
+
+The how lives in the `world1-testing` skill. A brief names the evidence its
+verification must produce, never a test file.
+
+### Comments: code says WHAT, the ledger says WHY (USER-LOCKED 2026-09-16)
+
+Rationale comments go stale and burn tokens on every read. On 2026-09-16 the
+user pointed at `compose.ts`: a ten-line essay about a weight plate sitting on
+a function that formats one sentence — and three audits that same day each
+flagged 30–60 new comment lines, several already asserting behaviour the code
+no longer had. In the user's words: *"reduce comment use because it causes
+staleness and token burn."*
+
+- **Default is no comment.** Names, types and small functions carry the what.
+  If a line needs prose to be understood, rename or split it instead.
+- **Rationale lives in the SDD ledger and the commit message**, never in the
+  source. A brief tells the worker this explicitly; a report quotes the
+  rationale there.
+- **Allowed, sparingly**: a one-line pointer that saves a wrong edit — a
+  USER-LOCKED rule's name, a spec section (`§2.4`), an invariant a reader
+  would otherwise break (`// Rng order is part of the event log`). One line,
+  no history, no argument.
+- **Never**: a comment that restates the code, records what a fix replaced,
+  argues with a reviewer, or explains a number that a constant's name should.
+  Card `notes` in the content JSON are the one sanctioned place for authored
+  design rationale.
+- **Audits count them.** `git diff | grep -c '^+\s*\(//\|\*\|/\*\)'` on a
+  worker's hunks is part of every review; a load-bearing comment must be
+  checked for truth like any claim.
 
 ## Core mechanics — pointers, not copies
 
@@ -140,7 +189,7 @@ Use `/orchestrate <goal>` to run the delegate → summary → verify loop, or
 
 **Tier 2 — Leads (sonnet)**:
 - `lead-programmer` — code architecture within the boundaries, interface contracts
-- `qa-lead` — test strategy, determinism & balance audit ownership
+- `qa-lead` — owns the verification bar and the definition of done: which evidence proves a change
 
 **Tier 3 — Specialists**:
 - `combat-engine-programmer` (**opus** — determinism-critical core) — `src/engine`
@@ -148,7 +197,7 @@ Use `/orchestrate <goal>` to run the delegate → summary → verify loop, or
 - `phaser-ui-programmer` (sonnet) — `src/game` scenes/playback
 - `content-designer` (sonnet) — `src/data` cards/enemies/heroes
 - `balance-designer` (sonnet) — Power Level pricing, tuning, `scripts/balance.ts`
-- `qa-tester` (sonnet) — vitest suites, `npm run fight`, Playwright smoke
+- `qa-tester` (sonnet) — produces the evidence: fight logs, gate-chain runs, audit scripts, Playwright screenshots on both platforms
 
 ## Collaboration protocol
 
@@ -159,8 +208,8 @@ Use `/orchestrate <goal>` to run the delegate → summary → verify loop, or
 - Show a draft or summary before large multi-file changes.
 - `npm test` must be green before any commit. Never commit or push without the
   user's say-so; branch off, don't commit to a shared main directly.
-- Workers return a **structured summary** (what changed, files, test result,
-  deviations, open questions) so the orchestrator can verify the path.
+- Workers return a **structured summary** (what changed, files, gate result and
+  evidence, deviations, open questions) so the orchestrator can verify the path.
 
 ### Keep the main chat free — delegate by default (USER-LOCKED 2026-08-05)
 
@@ -177,8 +226,8 @@ Nothing else. It should never be the thing that is busy.
   background agents, not one at a time.
 - **Every brief carries**: the both-platforms rule, `npm test` must stay green,
   **do NOT commit**, a concrete verification bar (Playwright route + viewport +
-  what the screenshot must prove), and a warning about any determinism-critical
-  surface it might touch.
+  what the screenshot must prove), the evidence the verification must produce,
+  and a warning about any determinism-critical surface it might touch.
 - **Then audit.** When an agent reports done, a SEPARATE agent verifies the
   claim before it is called done — see below.
 
@@ -195,7 +244,7 @@ re-summarize what works.
 ### Show the combat log FIRST, then explain (USER-LOCKED 2026-08-25)
 
 **Any claim about what a card or keyword does leads with a combat log.** Not
-prose, not a table of derived numbers, not a test name — the actual event stream,
+prose, not a table of derived numbers, not a gate's exit code — the actual event stream,
 showing the effect firing (and, where the point is a condition, NOT firing on the
 control case). The explanation comes after, as a caption to something the reader
 has already seen.
@@ -263,12 +312,33 @@ without re-reading anything above it:
 
 - **What changed** — one line each, no rationale.
 - **What needs your call** — the open decision, stated as a choice.
-- **State** — test count, whether it is pushed.
+- **State** — gate chain result (boundaries / typecheck / parity), whether it is pushed.
 
 Short means short: a handful of lines, mobile width (see the log convention
 above). The detail belongs in commit messages and card `notes`, which is where
 the next person actually looks — not restated in chat. If a reply cannot be
 summarised in a few lines, it is doing too much at once.
+
+### Tag every game entity by kind (USER-LOCKED 2026-09-16)
+
+Ids all look alike (`hibernation`, `bandit_duelist`, `poison`), so the
+reader cannot tell a card from a gem, an enemy, a status or a keyword. The
+orchestrator discussed `hibernation` across several replies before the user
+said: *"I didn't realize that was a card itself — can we add to skills or md:
+when returning information you should be clear if it's a card, or put them in
+a special bracket or reference."*
+
+- **First mention carries the kind tag and the display `name`**:
+  `[card] Hibernation`, `[gem] Ember Sliver`, `[enemy] Bandit Duelist`,
+  `[status] Poison`, `[keyword] Negate`, `[event] Abandoned Cache`,
+  `[hero] …`. Never the bare snake_case id; the id may follow in backticks
+  where a command needs it (`FIGHT_HERO_BOARD=hibernation`).
+- **Chat, agent reports and briefs alike.** Worker summaries follow it too —
+  the orchestrator relays them, so an untagged summary becomes an untagged reply.
+- **Check the kind before tagging**: cards `src/data/content/skills.v1.json`,
+  gems `gems.v1.json`, enemies `enemies.v1.json`, events `events*.json`
+  (display field `title`), statuses and keywords `src/engine/keywords/text.ts`
+  (`ruleTitle`); the hero has no roster (`src/data/heroes.ts`, one base hero).
 
 ### Reporting: three buckets (USER-LOCKED 2026-08-05)
 
@@ -294,14 +364,29 @@ a "completed" trophy row; re-raising finished items is, in the user's words,
 
 ### Working alongside other AI agents (Codex CLI shares this checkout)
 
+**User ruling (2026-09-20):** `ACTIVE-WORK.md` is retired. Do not open,
+update, or recreate it, and do not treat historical board rows as current
+ownership. Use direct coordination with available agents and the existing
+per-goal task record. Other ownership, heartbeat, review, and verification
+requirements remain unchanged.
+
+
 OpenAI Codex CLI and Claude Code both edit this working tree, sometimes at
 the same time. The cross-agent protocol is owned by the **`world1-handoff`**
 skill (`.agents/skills/` for Codex, `.claude/skills/` for Claude —
-identical twins, enforced by `tests/build/skillParity.test.ts`). Load it
+identical twins, enforced by `scripts/check-skill-parity.mjs`). Load it
 before the first edit of every task. In one breath: check who else is
 working (`git status`, `.superpowers/sdd/*/progress.md`, running agent
 processes); never touch, stash, or tidy another agent's dirty files; run
-focused tests, not the full gate, while the tree is live; write briefs,
+the gate scripts and focused fight logs, not a whole-tree verdict, while the
+tree is live; write briefs,
 reports, and reviews into the shared SDD ledger so the other agent can
 continue; and hand off in `progress.md` before stopping. `AGENTS.md` is the
 Codex entrypoint; it summarises the rules and points here.
+
+Other shared skills, same twin arrangement: `world1-codemap` (where things
+live), `world1-card-text` (card wording rules), `world1-game-review`
+(playtest/review pass), `world1-balance` (Power Level pricing and tuning),
+`world1-combat-log` (reading and citing fight logs), `world1-screens` (UI
+screen/layout conventions), `world1-testing` (evidence-based verification and
+the gate chain).

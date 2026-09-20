@@ -8,10 +8,11 @@ explicitly as `[ ]` so "missing" is always distinguishable from "regressed".
 Legend: `[x]` built and verified · `[ ]` known gap (intentional, not a
 regression) · **D** desktop (1440×900) · **M** mobile (412×892).
 
-Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|desktop-shop|desktop-draft|desktop-runmap|desktop-runprep`
+Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|desktop-shop|desktop-draft|desktop-runmap|desktop-runprep|card-design`
 · `?scene=mprep|mdeck|mwiki|mbattle|mobile-shop|mobile-draft|mrunmap|mrunprep` · extras: `seed`,
 `enemy`, `enemies`, `title`, `rank`, `enemyLevel`, `heroLevel`,
-`mods=diamond,swift`, `board=empty`, `gold` (starting wallet, clamped 0..999).
+`mods=diamond,swift`, `board=empty` or `board=<skillId,skillId,...>` (dev-only,
+placed on the board from slot 0), `gold` (starting wallet, clamped 0..999).
 
 ---
 
@@ -24,7 +25,7 @@ Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|des
 | + FOE: add another enemy via roster picker (to 5) | [x] | [x] |
 | ✕ remove a foe (shown with 2+ foes) | [x] | [x] |
 | Enemy stat sheet (HP/SPD/ATK/MAG/DEF/RES · cards) for the active foe | [x] | [x] |
-| Live DMG/turn band (`damagePerTurn`) | [x] | [x] |
+| Live DMG/turn band (`damagePerTurn`) — HEAD-era per-seed avg/min/max band, unchanged by the 2026-09-13 `outputPerTurn` estimator (`src/run/analysis.ts`), which is a separate CLI-only axis (`npm run output`, `scripts/enemyOutput.ts`) with no scene surface and no API route | [x] | [x] |
 | Title chips mob/normal/elite/boss (sets preset rank) — per foe | [x] | [x] |
 | Modifier chips (DIAMOND-POWERED, SWIFT…) — per foe, multi-select | [x] | [x] |
 | Enemy LV stepper — per foe | [x] | [x] |
@@ -53,6 +54,7 @@ Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|des
 | Gem-socketed cards show a ◆ badge (CardToken accessory rail) | [x] | [x] |
 | Gem socket/swap/unsocket panel — CLICK a deck card (drag still drags); pouch list, rarity/PL, displaced gems return to pouch | [x] | [x] *(TAP opens it)* |
 | TEMP HOLDING + trash-confirm survive the post-drop re-render | [x] | [x] |
+| Extra-cooldown warning: `extraCooldownPieces` (`src/run/extraCooldown.ts`) lists every board piece whose cooldown is above the default 3 (one line per card — its name plus the SAME `cooldownClause` sentence the card face/drawer print, e.g. "Hibernation · Cooldown 5 (default 3)."), drawn between the TEMP HOLDING strip and the ACTIVE DECK / BAG columns — the columns' own height/row size never changes, so a card face never shrinks below its normal 3-line form; dismissible (× button), dismissal survives navigating to another screen and re-arms only when a deck edit changes the board; no reserved space when hidden (no extra-cooldown card, or dismissed) | [x] | [x] |
 
 ## WIKI (D: `DesktopWikiScene` · M: `MobileWikiScene`)
 
@@ -86,7 +88,7 @@ Both are dumb playback heads over the shared `battleTimeline.ts` model
 | Per-foe enemy boards, gold cursor on the casting card, cast pulse | [x] | [x] |
 | Hero statline visible in battle (ATK/MAG/DEF/RES/SPD incl. allocation) | [x] | [x] |
 | Foe statline under each foe's bar | [x] | [x] |
-| Combat log: unchanged tag/header colors plus semantic body spans for player/enemy names, direct/ailment damage, healing, shield results, SPD and BANKED readiness; turn markers and turnline with every unit's SPD | [x] | [x] |
+| Combat log: unchanged tag/header colors plus semantic body spans for player/enemy names, direct/ailment damage, healing, shield results, SPD and BANKED readiness; turn markers and turnline with every unit's SPD. Cooldown rows read `on cooldown, N turn(s) remaining` from one shared formatter (`cooldownRemainingClause`, src/engine/keywords/compose.ts) that `scripts/fight.ts` also calls, and a card the cast cursor WALKS PAST while it cools gets its own `skipped` row just before the card that did fire (`castSkipped` event) | [x] | [x] |
 | Tap a HIT row → expand its D: damage math | [x] | [x] |
 | Floating damage/heal/shield numbers (DoT ticks in ailment colors) | [x] | [x] |
 | Event-level scrubber (D: horizontal · M: vertical), turn ticks, drag stops playback | [x] | [x] |
@@ -119,7 +121,35 @@ Both are dumb playback heads over the shared `battleTimeline.ts` model
 | START (enabled only once all 4 sets are picked) replaces the board/bag with the 4 picks and zeroes gold, then goes to Prep | [x] | [x] |
 | Nav tabs PREP / DECK / WIKI / SHOP / DRAFT | [x] | [x] |
 
-## RUN MODE (D: `DesktopRunMapScene`/`DesktopRunPrepScene` · M: `MobileRunMapScene`/`MobileRunPrepScene`)
+## CARD DESIGNER (D: `DesktopCardDesignScene` — no mobile form, see note)
+
+Launch: Start screen's third door (`CARD DESIGNER ›`, below SANDBOX) or
+`?scene=card-design`. Composes ONE draft `SkillDef` (a bronze base + per-tier
+`tierUpgrades`) against the real engine — never a re-implementation: pricing
+is `powerLevelDeci`/`powerLevelBreakdown`/`isOnBudget`/`capViolations`
+(`src/engine/balance.ts`) via `applyTier` (`src/engine/cards.ts`), schema is
+`validateSkillDocument` (`src/data/validateSkillContent.ts`), the editor preview
+shows canonical Card Face / Hover / Card Details text, and every
+per-keyword field (label/min/max/step/default, selectors, flags) and every
+card-level field comes from `src/engine/keywords/editor.ts`
+(`KEYWORD_EDITOR`/`editableFieldsFor`/`CARD_FIELDS`/`TIER_UPGRADE_FIELDS`) —
+none of it is hand-listed in `src/game`.
+
+| Feature | D | M |
+|---|---|---|
+| START FROM CARD: bounded searchable picker over the full catalog; selecting immediately deep-clones the latest raw authored definition (all fields, notes and tier upgrades) into a distinct draft id without changing the catalog; replacing an edited draft asks first | [x] | [ ] *(by user decision — desktop-only authoring tool, not a Run Mode screen)* |
+| SPECIAL EFFECTS palette: registry-generated non-common `Action` kinds toggle on/off with a persistent tier-local highlight; common numeric/stat effects live directly in the form instead of the palette | [x] | [ ] |
+| Tier tabs expose the card's reachable ranks in sequence: Silver starts from Bronze, Gold from Silver and Diamond from Gold. Missing fields remain inherited per field; customized/template overrides stay explicit, while the form, preview, PL, validation and exported document all consume the same materialized configuration. Each tab shows its own live PL/budget and inherited/customized state. | [x] | [ ] |
+| CARD DEFINITION groups name, archetypes, property, property-aware type, size, rarity and scope. Physical offers registry weapons only; Magical offers registry elements only; changing between them repairs the type to a canonical valid default while True preserves the existing valid weapon/element behavior. TIER STATS groups selected-tier speedWeight/cooldownTurns and numeric effects; unset higher-tier fields visibly inherit from the previous tier. Generated fields use `CARD_FIELDS`/`TIER_UPGRADE_FIELDS`; dropdowns dismiss outside or with Escape, and arrow keys/Enter select. | [x] | [ ] |
+| COMMON EFFECTS: Damage/Shield/Heal are always-visible amount steppers (`(off)` while absent, `+` adds); 0 remains a valid active amount and each active row has an explicit × remove control. Stat Buff/Stat Debuff have direct `+ ADD` sections and independently editable/removable rows. Repeated imported amount effects remain separate, and each new Stat Debuff chooses a different available stat. | [x] | [ ] |
+| Per-effect fields — numeric steppers (live min/max/step/default from `editableFieldsFor`, with each field's bounds solved against its current siblings), selector dropdowns and flag toggles generated from `KEYWORD_EDITOR`; common amount labels are explicit and stat selectors display the canonical `STAT_TOKEN` labels | [x] | [ ] |
+| Long templates and multi-effect drafts remain usable in a bounded masked form with wheel scrolling; clipped controls are non-interactive and cannot click through surrounding panels | [x] | [ ] |
+| No raw JSON editor — fields without generated form controls remain preserved when starting from a catalog card and visible in the read-only JSON output, but are not directly editable here | [x] | [ ] |
+| Live meter: spend/budget in whole PL, itemized breakdown, cap violations, green on exact budget / red with the delta otherwise | [x] | [ ] |
+| Large text-only preview for the selected editing tier, split into canonical Card Face / Hover / Card Details sections with no card image; invalid drafts show the validation blocker and exceptionally long drafts surface the preview limit | [x] | [ ] |
+| JSON output defaults collapsed behind SHOW/HIDE JSON and gives its space back to the preview; toggle state survives editor re-renders; COPY JSON + DOWNLOAD .json remain visible and disabled unless every reachable tier is exactly on budget with no cap violation and the materialized schema validates clean | [x] | [ ] |
+
+ (D: `DesktopRunMapScene`/`DesktopRunPrepScene` · M: `MobileRunMapScene`/`MobileRunPrepScene`)
 
 Reuses the Draft/Shop/Battle scenes above IN RUN CONTEXT (discriminated by
 the active run's own state — `isRunDrafting()`, `currentNode()?.kind`,

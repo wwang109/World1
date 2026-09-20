@@ -5,7 +5,7 @@ import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { applyRenderScale } from '../renderScale';
 import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMark';
-import { RUN_ART_ASSETS } from '../ui/runArt';
+import { DESKTOP_RUN_ART_ASSETS, RUN_ART_ASSETS } from '../ui/runArt';
 import { GEM_ART_ASSETS } from '../ui/gemArt';
 import { installDevRunFixture } from '../runStore';
 
@@ -141,6 +141,9 @@ export class BootScene extends Phaser.Scene {
     for (const asset of RUN_ART_ASSETS) {
       this.load.image(asset.key, asset.path);
     }
+    if (ACTIVE_PROFILE.id === 'desktop') {
+      for (const asset of DESKTOP_RUN_ART_ASSETS) this.load.image(asset.key, asset.path);
+    }
     for (const asset of GEM_ART_ASSETS) this.load.image(asset.key, asset.path);
   }
 
@@ -174,6 +177,7 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'mrunprep' ? 'MobileRunPrep'
       : launch.scene === 'desktop-runevent' ? 'DesktopRunEvent'
       : launch.scene === 'mrunevent' ? 'MobileRunEvent'
+      : launch.scene === 'card-design' ? 'DesktopCardDesign'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
       : defaultScene;

@@ -1008,6 +1008,16 @@ export function commitRunDeckEdit(edit: RunDeckEdit): void {
   setActiveRun(next);
 }
 
+let cooldownWarningDismissedFor: string | null = null;
+
+export function currentCooldownWarningDismissedFor(): string | null {
+  return cooldownWarningDismissedFor;
+}
+
+export function setCooldownWarningDismissedFor(signature: string | null): void {
+  cooldownWarningDismissedFor = signature;
+}
+
 /** The run's current gem pouch (ids, may repeat). Empty with no active run. */
 export function currentRunGemInventory(): string[] {
   return activeRun?.gemInventory ?? [];

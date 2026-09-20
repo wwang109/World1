@@ -1,4 +1,4 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, EffectSourceRef, Element, Property, Side, SkillBook, SkillDef, TargetPolicy, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, EffectSourceRef, Element, Property, Side, SkillBook, SkillDef, StackedStatus, TargetPolicy, WeaponType } from '../types';
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 import { powerLevelDeci } from '../balance';
@@ -192,6 +192,7 @@ export interface CombatantState {
   pieces: PieceState[];
   /** Board slot the rotation scan starts from (wraps). */
   castCursor: number;
+  spanEnd: number;
   /** Initiative carried between gameplay turns and spent to play cards. */
   readiness: number;
   /** Number of performances taken (casts + stun-consumed performances). */
@@ -317,6 +318,11 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem) });
   }
   pieces.sort((a, b) => a.slot - b.slot);
+  let spanEnd = -1;
+  for (let i = 0; i < pieces.length; i += 1) {
+    const end = pieces[i]!.slot + pieces[i]!.size - 1;
+    if (end > spanEnd) spanEnd = end;
+  }
   // AFFINITY — derived from the placed cards, and from NOTHING ELSE (user
   // ruling 2026-09-06: "affinity are just passive buffs based on the board … if
   // they meet the requirements they should have the affinity effect … there
@@ -344,6 +350,7 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     boardSize: setup.boardSize,
     pieces,
     castCursor: 0,
+    spanEnd,
     readiness: 0,
     performs: 0,
     sdStacks: 0,
@@ -481,8 +488,8 @@ export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): bool
 }
 
 /**
- * Total CURRENT stacks of one status kind on a unit — the quantity a
- * `stackBonus` rider scales off (`applyAction`, combat/interpreter.ts).
+ * Total CURRENT stacks of one status kind on a unit — the pile half of
+ * `stackBonusCount` below, which is the only way in.
  *
  * SUMMED ACROSS PILES even though every stacking kind (poison/burn/bleed via
  * `applyDot`, thorns via its own arm) keeps exactly ONE pile per holder and
@@ -492,13 +499,57 @@ export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): bool
  *
  * Indexed walk, integer-only, no RNG — safe to call mid-cast.
  */
-export function statusStackCount(c: CombatantState, kind: StatusInstance['kind']): number {
+function statusStackCount(c: CombatantState, kind: StatusInstance['kind']): number {
   let stacks = 0;
   for (let i = 0; i < c.statuses.length; i += 1) {
     const s = c.statuses[i]!;
     if (s.kind === kind) stacks += s.stacks ?? 0;
   }
   return stacks;
+}
+
+/**
+ * HOW MANY BOARD PIECES THIS UNIT IS CARRYING A `burden` ON — the quantity a
+ * `stackBonus` with `status: 'burden'` scales off.
+ *
+ * IT READS THE FIELD, NOT THE KEYWORD. A piece is burdened when its
+ * `PieceState.nextWeightPenalty` is above zero, whatever wrote it — one piece
+ * (a bare `burden`) or three (`burden` + `splash`, which only widens the
+ * burden's reach and carries no payload of its own). That is the whole combo:
+ * a spread burden is three counts for one cast, where a bare one is one.
+ *
+ * A PENDING UNIT-SCOPE `slow` IS NOT COUNTED: it marks no piece, and
+ * `CombatantState.nextWeightPenalty` is a unit field, not a board one. A
+ * `curse` is not counted either — it is a damage penalty, not a weight one.
+ *
+ * `> 0`, not `!== undefined`: the burden arm writes with `Math.max`, so a
+ * zero-weight burden is representable and taxes nothing — a piece that is not
+ * actually burdened must not be counted. Indexed walk over the slot-sorted
+ * `pieces` array; integers only, no RNG.
+ */
+function burdenedPieceCount(c: CombatantState): number {
+  let burdened = 0;
+  for (let i = 0; i < c.pieces.length; i += 1) {
+    if ((c.pieces[i]!.nextWeightPenalty ?? 0) > 0) burdened += 1;
+  }
+  return burdened;
+}
+
+/**
+ * THE ONE SEAM a `stackBonus` reads its count through — `statusStackCount` for
+ * the four PILES, `burdenedPieceCount` for `burden`, which is not a pile at all
+ * (see `StackedStatus` in types.ts for the split and why `burden` belongs in it).
+ *
+ * WHY IT IS A FUNCTION HERE AND NOT A BRANCH IN THE INTERPRETER: the core cast
+ * loop must consume a RESOLVED count and stay feature-agnostic (CLAUDE.md, the
+ * resolver-seam rule). The sixth member of `StackedStatus` — whatever shape it
+ * turns out to have — gets a line here and changes nothing in `applyAction`.
+ *
+ * Integer-only, no RNG, safe to call mid-cast.
+ */
+export function stackBonusCount(c: CombatantState, status: StackedStatus): number {
+  if (status === 'burden') return burdenedPieceCount(c);
+  return statusStackCount(c, status);
 }
 
 /**
@@ -556,33 +607,44 @@ export function spendShieldsForBurst(c: CombatantState, cap: number): number {
 }
 
 /**
- * HOW MANY WEIGHT-TAXED CARDS this unit is carrying — the quantity a `taxBonus`
- * rider scales off (`applyAction`, combat/interpreter.ts).
+ * Strip up to `amount` points of ATTUNED plating off a unit and report what was
+ * actually taken — the second half of a `shieldBreak` that carries
+ * `shattersAttuned` (`applyAction`, combat/interpreter.ts), kept here beside the
+ * pools it mutates and away from the event log, exactly like
+ * `spendShieldsForBurst` above.
  *
- * Every board piece with a pending `burden` counts one
- * (`PieceState.nextWeightPenalty`), and a pending unit-scope `slow`
- * (`CombatantState.nextWeightPenalty`) counts ONE MORE — the slow taxes the very
- * next card this unit plays, so it is part of the same backlog the reaper is sold
- * on punishing (see the action's docs in types.ts).
+ * FACE VALUE, ONE FOR ONE: a point of Shatter removes a point of plating. The
+ * 2:1 rate a matching attuned pool offers is an exchange applied when damage
+ * ARRIVES (`consumeShields`); Shatter is not damage arriving, it removes points,
+ * and `totalShield` counts attuned points at face value too — so the
+ * `shieldBroken` event's `amount` and `totalAfter` stay in one currency. The
+ * extra defence a stripped attuned point denies is paid for in the keyword's
+ * PRICE instead (`keywords/pricing.ts`).
  *
- * IT READS THE FIELD, NOT THE KEYWORD, so it survived the 2026-08-21 splash
- * split untouched: `burden` writes the same `PieceState.nextWeightPenalty` the
- * old `splash weight N` wrote, whether one piece carries it (burden alone) or
- * three do (burden + splash). A `curse` is NOT counted — it is a damage
- * penalty, not a weight tax, and the reaper is sold on tempo backlog.
+ * EVERY POOL IS ELIGIBLE, in INDEX order, with no property or type test — the
+ * same two choices the untyped half already makes (its pool order decides which
+ * pool pays FIRST, never which pool can pay) and the same order
+ * `spendShieldsForBurst` drains attuned plating in. Emptied pools are LEFT IN
+ * PLACE at 0 points, which is what `spendAttuned` and `spendShieldsForBurst`
+ * already leave behind, so no unit's shape changes.
  *
- * `> 0`, not `!== undefined`: the burden arm writes with `Math.max`, so a
- * zero-weight tax is representable and taxes nothing — a card that is not
- * actually slowed must not be counted. Indexed walk over the slot-sorted
- * `pieces` array; integers only, no RNG.
+ * Integer-only, no RNG, no float. `amount <= 0` or no attuned plating strips
+ * nothing and returns 0.
  */
-export function taxedCardCount(c: CombatantState): number {
-  let taxed = 0;
-  for (let i = 0; i < c.pieces.length; i += 1) {
-    if ((c.pieces[i]!.nextWeightPenalty ?? 0) > 0) taxed += 1;
+export function stripAttunedShields(c: CombatantState, amount: number): number {
+  const pools = c.attunedShields;
+  if (pools === undefined) return 0;
+  let remaining = Math.max(0, amount);
+  let stripped = 0;
+  for (let i = 0; i < pools.length && remaining > 0; i += 1) {
+    const pool = pools[i]!;
+    const take = Math.min(pool.points, remaining);
+    if (take <= 0) continue;
+    pool.points -= take;
+    remaining -= take;
+    stripped += take;
   }
-  if (c.nextWeightPenalty > 0) taxed += 1;
-  return taxed;
+  return stripped;
 }
 
 /**

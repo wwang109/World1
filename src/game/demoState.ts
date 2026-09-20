@@ -104,6 +104,7 @@ export interface DemoState {
   /** Per-shop persisted shelf state (bought offers stay gone; REROLL replaces
    * the whole shelf). Empty until a shop is first browsed. */
   shopShelves: Record<string, ShopShelfState>;
+  cooldownWarningDismissedFor: string | null;
 }
 
 /**
@@ -232,6 +233,7 @@ export const DEFAULT_DEMO_STATE: DemoState = {
   enemyModifiers: [],
   gold: 0,
   shopShelves: {},
+  cooldownWarningDismissedFor: null,
 };
 
 /**
@@ -334,6 +336,7 @@ export const demoState: DemoState = {
   enemyModifiers: [...DEFAULT_DEMO_STATE.enemyModifiers],
   gold: DEFAULT_DEMO_STATE.gold,
   shopShelves: cloneShopShelves(DEFAULT_DEMO_STATE.shopShelves),
+  cooldownWarningDismissedFor: DEFAULT_DEMO_STATE.cooldownWarningDismissedFor,
 };
 
 export function resetDemoState(overrides: Partial<DemoState> = {}): void {
@@ -373,6 +376,7 @@ export function resetDemoState(overrides: Partial<DemoState> = {}): void {
   demoState.enemyModifiers = [...activeEnemy.modifiers];
   demoState.gold = Math.max(0, Math.min(MAX_GOLD, overrides.gold ?? DEFAULT_DEMO_STATE.gold));
   demoState.shopShelves = cloneShopShelves(overrides.shopShelves ?? DEFAULT_DEMO_STATE.shopShelves);
+  demoState.cooldownWarningDismissedFor = null;
 }
 
 /**

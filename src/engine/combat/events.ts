@@ -173,6 +173,22 @@ export type CombatEvent =
       skillId: string;
     }
   | { turn: number; kind: 'wait'; side: Side; unit: number; reason: 'noCards' | 'stunned' }
+  | { turn: number; kind: 'wait'; side: Side; unit: number; reason: 'emptySlot'; slot: number }
+  /**
+   * A cooling card the cast cursor passed over on a turn its owner did cast
+   * something else. At most one per unit per slot per turn; the stuck case
+   * keeps its `wait` / `reason: 'cooling'` row instead.
+   */
+  | {
+      turn: number;
+      kind: 'castSkipped';
+      side: Side;
+      unit: number;
+      reason: 'cooling';
+      slot: number;
+      skillId: string;
+      turnsLeft: number;
+    }
   | { turn: number; kind: 'end' }
   | {
       turn: number;

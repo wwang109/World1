@@ -43,7 +43,7 @@ import { isEventDefV3, type EventOutcomeSpecV3, type LoadedEventDefV3 } from '..
 import type { LoadedEventDef } from '../data/eventsContent';
 import { eventRequirementMet } from './eventEligibility';
 import { eventRequirementMetV3 } from './eventEligibilityV3';
-import { eventIsChainStarter } from './eventOpportunityHint';
+import { eventIsChainStarter, eventRarityEligible } from './eventOpportunityHint';
 import { materializeReachedEventV3 } from './eventsV3';
 import { BOSS_EVERY } from './runMap';
 import { previewEventChoicesV3, type EventDeferredOfferV3 } from './eventV3Materialization';
@@ -318,7 +318,11 @@ export const BONUS_DRAFT_SIZE = 5;
 // `pickWeightedGems`/`sampleGemsWeighted` (shop.ts) error on a too-small
 // pool — they just silently hand back FEWER than `count` options).
 export const EVENT_CHOICE_SIZE = 3;
-export const CHAIN_STARTER_OPPORTUNITY_MULTIPLIER = 2;
+// Not exported: this only feeds `sampleEventBag`'s no-repeat-bag shuffle
+// weighting below, and has nothing to do with the rarity lottery
+// (`eventOpportunityHint.ts`'s `RARITY_LOTTERY_*`) its old name
+// (`CHAIN_STARTER_OPPORTUNITY_MULTIPLIER`) suggested.
+const CHAIN_STARTER_BAG_WEIGHT = 2;
 
 /** Tier ladder `upgradeCard` climbs — fixed order, index doubles as "rank". */
 const TIER_LADDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -538,7 +542,7 @@ function sampleEventBag(
   while (remaining.length > 0) {
     const weights = remaining.map((id) => (
       eventIsChainStarter(content.catalog[id]!, content.catalog)
-        ? CHAIN_STARTER_OPPORTUNITY_MULTIPLIER
+        ? CHAIN_STARTER_BAG_WEIGHT
         : 1
     ));
     let ticket = rng.int(weights.reduce((sum, weight) => sum + weight, 0));
@@ -707,23 +711,6 @@ export function eventBiomeEligible(state: RunState, event: EventDef, node: RunNo
   if (event.biomeIds === undefined) return true;
   const biome = biomeFor(state.map.seed, node.wave, node.biomeId);
   return event.biomeIds.includes(biome.id);
-}
-
-/** Isolated appearance roll for conditional events. Common and secret content
- * has no lottery; uncommon/rare use a dedicated hash domain and consume no
- * `Rng`, bag counter, or mutable state. */
-export function eventRarityEligible(
-  event: LoadedEventDef,
-  node: RunNode,
-  graph: Readonly<Record<string, LoadedEventDef>> = eventRuntimeCatalog,
-): boolean {
-  const rarity = event.rarity ?? 'common';
-  if (rarity === 'common' || rarity === 'secret') return true;
-  const divisor = rarity === 'uncommon' ? 2 : 4;
-  const winningTickets = eventIsChainStarter(event, graph)
-    ? CHAIN_STARTER_OPPORTUNITY_MULTIPLIER
-    : 1;
-  return hashSeed('eventRarity', node.eventSeed ?? 0, event.id) % divisor < Math.min(divisor, winningTickets);
 }
 
 /** The `filterFrom` source on a card-granting spec, or `undefined` — only

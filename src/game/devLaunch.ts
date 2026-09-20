@@ -1,18 +1,19 @@
 import { enemies } from '../data/enemies';
+import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { skillBook } from '../data/skills';
-import { cardOfferableAtTier } from '../engine/types';
+import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
 import { defaultTitleFor, ELITE_AFFIX_IDS, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { DRAFT_SET_KEYS } from '../run/draft';
 import { resolveEventChoice, rollEventForNode } from '../run/events';
 import { applyDraftResult, createRun, currentStartDraft, type RunBagSlot, type RunNode, type RunState } from '../run/runState';
 import { recordEventInstance } from '../run/eventInstances';
-import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
+import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type OwnedBoardPiece, type PrepView } from './demoState';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
   | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
   | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
-  | 'desktop-runevent' | 'mrunevent';
+  | 'desktop-runevent' | 'mrunevent' | 'card-design';
 
 export const DEV_EVENT_FIXTURE_IDS = [
   'bell_beneath_ice',
@@ -37,7 +38,7 @@ export type DevEventFixtureId = (typeof DEV_EVENT_FIXTURE_IDS)[number];
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
-  board: 'default' | 'empty';
+  board: 'default' | 'empty' | string[];
   enemyId: string;
   enemyIds: string[];
   enemyTeam: EnemyFightConfig[];
@@ -102,6 +103,7 @@ function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'mrunprep' || value === 'mrunprep') return 'mrunprep';
   if (view === 'desktop-runevent' || value === 'desktop-runevent') return 'desktop-runevent';
   if (view === 'mrunevent' || value === 'mrunevent') return 'mrunevent';
+  if (view === 'card-design' || value === 'card-design') return 'card-design';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
@@ -111,7 +113,32 @@ function parsePrepView(value: string | null): PrepView {
 }
 
 function parseBoard(value: string | null): DevLaunchConfig['board'] {
-  return value === 'empty' ? 'empty' : 'default';
+  if (value === 'empty') return 'empty';
+  if (import.meta.env.DEV && value && value !== 'default') {
+    const requested = value.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+    const unknown = requested.filter((id) => !(id in skillBook));
+    if (unknown.length > 0) console.warn(`?board=: unknown skill id(s) ignored: ${unknown.join(', ')}`);
+    const ids = requested.filter((id, index, all) => id in skillBook && all.indexOf(id) === index);
+    if (ids.length > 0) return ids;
+  }
+  return 'default';
+}
+
+function boardPiecesFromSkillIds(ids: string[]): OwnedBoardPiece[] {
+  const pieces: OwnedBoardPiece[] = [];
+  let slot = 0;
+  for (let index = 0; index < ids.length; index += 1) {
+    const id = ids[index]!;
+    const skill = skillBook[id];
+    if (!skill) continue;
+    if (slot + skill.size > HERO_BOARD_SLOTS) {
+      console.warn(`?board=: ${id} and beyond dropped — board only has ${HERO_BOARD_SLOTS} slots`);
+      break;
+    }
+    pieces.push({ instanceId: `dev-board-${index}`, skillId: id, tier: clampTierToCard(skill, 'bronze') ?? 'bronze', slot });
+    slot += skill.size;
+  }
+  return pieces;
 }
 
 function parseEnemyId(value: string | null): string {
@@ -187,7 +214,9 @@ function parseAffix(value: string | null): string | null {
 
 function stateOverridesFromConfig(config: DevLaunchConfig): Partial<DemoState> {
   return {
-    ...(config.board === 'empty' ? EMPTY_BOARD_OVERRIDES : {}),
+    ...(config.board === 'empty'
+      ? EMPTY_BOARD_OVERRIDES
+      : Array.isArray(config.board) ? { pieces: boardPiecesFromSkillIds(config.board) } : {}),
     enemyId: config.enemyId,
     enemyIds: config.enemyIds,
     enemyTeam: config.enemyTeam,

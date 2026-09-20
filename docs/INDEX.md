@@ -11,7 +11,7 @@ doc disagrees with code, code wins.** Three classes:
 | Doc | Class | Owns |
 |---|---|---|
 | [`../CLAUDE.md`](../CLAUDE.md) | LIVING | Charter: stack, commands, boundary summary, agent orchestration. Mechanics/pricing live in the docs below, never restated there. |
-| [`coordination/session-orchestration.md`](coordination/session-orchestration.md) | LIVING | Cross-session task ownership, status vocabulary, heartbeat, conflict handling, and handoff contract. The machine-local live index is `.superpowers/sdd/ACTIVE-WORK.md`; per-goal ledgers retain detailed evidence. |
+| [`coordination/session-orchestration.md`](coordination/session-orchestration.md) | LIVING | Cross-session task ownership, status vocabulary, heartbeat, conflict handling, and handoff contract. Direct agent coordination and per-goal task records replace the retired global board. |
 | [`design-locked.md`](design-locked.md) | LOCKED | The dated register of every user-locked design decision, each pointing at its implementing code/spec. |
 | [`architecture.md`](architecture.md) | LIVING | Layer boundaries (both rules), battle-service topology (server/ + functions/), dev workflow (dev + api), determinism invariants, resolver seam, scene-rebuild idiom, the directory map (incl. non-served `art-src/`). |
 | [`combat-model-spec.md`](combat-model-spec.md) | LIVING | The combat turn loop: readiness, weight, multi-cast, cursor, event log, attrition. |
@@ -22,6 +22,7 @@ doc disagrees with code, code wins.** Three classes:
 | [`audio-design.md`](audio-design.md) | LIVING | Audio buses, the `SfxKey` event vocabulary, placeholder-synthesis → real-asset swap path, asset wishlist. |
 | [`card-template-spec.md`](card-template-spec.md) | LIVING | Fantasy card template V2 geometry/assets/typography (mirrors the TS spec modules), and §4.1 the art pipeline: `art-src/` masters vs. committed `public/game-art/**` WebP derivatives. |
 | [`card-text-style-guide.md`](card-text-style-guide.md) | HISTORY | The authored-card-text vocabulary, and the drift that retired it. Card faces are GENERATED from `effects` since 2026-09-06 — the live owner is `src/engine/keywords/text.ts`. |
+| [`card-text-surfaces.md`](card-text-surfaces.md) | LIVING | The surface index for every player-facing card/gem/status/enemy string: which renderer draws it, which `KeywordTextDef` field it reads, the authoring rules with their reasons, the add-a-keyword checklist marking compiler-enforced vs silently-failing steps, and the combat-log wording contract. `src/engine/keywords/text.ts` is the source of truth; typography stays with `card-template-spec.md`. |
 | [`enemy-design.md`](enemy-design.md) | LIVING | Bronze-floor enemy authoring rule (scaling belongs to the run layer). |
 | [`board-type-identity.md`](board-type-identity.md) | LIVING | Deck affinity: 3-of-a-type matchup attunement. |
 | [`run-tutorial-design.md`](run-tutorial-design.md) | LIVING (planned feature) | Skippable in-fight tutorial design — not yet built. |

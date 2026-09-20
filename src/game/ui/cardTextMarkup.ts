@@ -206,14 +206,8 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // are "your board unlocked this") while the lighter value reads as the one that
   // has not happened yet.
   charge: '#f0b878',
-  // ATTUNED plating. Deliberately in the SHIELD family's blue rather than the
-  // affinity family's warm range: what a player must read at a glance is "this
-  // is a wall", and the attunement is a modifier on the wall. Slightly deeper
-  // and GREYER than plain shield text so the two are tellable apart — it used
-  // to be deeper and more saturated, but AA (4.52/5.40; was `#6f9fd8` at 3.49)
-  // pins both blues to the same lightness band, so vividness (57% vs shield's
-  // 79%) is the axis that survived.
-  attuned: '#90b5e1',
+  // 5.30 / 6.33. Was `#90b5e1` (4.52/5.40).
+  attuned: '#6fccf1',
   // 4.50 / 5.38. Was `#d88f6a` (3.69). Same hue-20 as burn, still separated
   // from it the way it always was: by saturation (53% vs burn's 91%).
   shatter: '#dba68b',

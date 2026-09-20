@@ -23,6 +23,12 @@ export function cooldownRemaining(piece: PieceState, currentTurn: number): numbe
   return Math.max(0, piece.lastCastTurn + effectiveCooldown(piece.skill) + 1 - currentTurn);
 }
 
+/** One cooling card the cursor passed over, and how long it stays locked. */
+export interface SkippedCooling {
+  piece: PieceState;
+  turnsLeft: number;
+}
+
 export interface CastChoice {
   piece: PieceState;
   skill: SkillDef;
@@ -34,6 +40,8 @@ export interface CastChoice {
   auraSources: AuraSource[];
   /** Effective initiative weight after auras, never below 1. */
   weight: number;
+  /** Cooling cards the cursor passed to reach this one, in cursor order. */
+  skippedCooling: readonly SkippedCooling[];
 }
 
 /** Optional gating for card scans. */
@@ -51,11 +59,12 @@ export type CastScan =
   | { kind: 'cooling'; piece: PieceState; turnsLeft: number }
   | { kind: 'none' };
 
-/** Scan forward once from the cursor, skipping empty and cooling card starts. */
+/** Scan the cast rotation once from the cursor, skipping cooling card starts. */
 export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOpts): CastScan {
   if (c.pieces.length === 0) return { kind: 'none' };
 
-  let firstCooling: { piece: PieceState; turnsLeft: number } | null = null;
+  let firstCooling: SkippedCooling | null = null;
+  const skippedCooling: SkippedCooling[] = [];
   for (let offset = 0; offset < c.boardSize; offset += 1) {
     const slot = (c.castCursor + offset) % c.boardSize;
     const piece = c.pieces.find((candidate) => candidate.slot === slot);
@@ -64,6 +73,7 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
     const turnsLeft = opts.cooldownsEnabled ? cooldownRemaining(piece, opts.currentTurn) : 0;
     if (turnsLeft > 0) {
       firstCooling ??= { piece, turnsLeft };
+      skippedCooling.push({ piece, turnsLeft });
       continue;
     }
     const skill = piece.skill;
@@ -87,7 +97,7 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
     // pass in simulate.ts must run BEFORE that clear: the weight it reports is
     // the taxed weight that actually stopped the unit this turn.
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty + (piece.nextWeightPenalty ?? 0));
-    return { kind: 'choice', choice: { piece, skill, mods, auraSources: sources, weight } };
+    return { kind: 'choice', choice: { piece, skill, mods, auraSources: sources, weight, skippedCooling } };
   }
   return firstCooling ? { kind: 'cooling', ...firstCooling } : { kind: 'none' };
 }

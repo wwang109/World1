@@ -67,7 +67,7 @@ const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'] as re
  * against the engine unions by `tests/engine/conditionalRiders.test.ts`.
  */
 const EXPLOITABLE = ['poison', 'burn', 'bleed', 'stun', 'debuff', 'expose'] as readonly string[];
-const STACKED = ['poison', 'burn', 'bleed', 'thorns'] as readonly string[];
+const STACKED = ['poison', 'burn', 'bleed', 'thorns', 'burden'] as readonly string[];
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY
  * and live on the envelope, so finding either in here is a mistake worth naming. */
@@ -151,7 +151,7 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   ward: ['charges'],
   cleanse: ['charges'],
   lifesteal: ['pct'],
-  shieldBreak: ['amount'],
+  shieldBreak: ['amount', 'shattersAttuned'],
   comboBonus: ['amount'],
   // CHAIN BONUS — the type-axis sibling of comboBonus. `after` names ONE card
   // type (a weapon OR an element: `cardType` reads `element ?? weapon`), so one
@@ -164,7 +164,6 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   // `min(per × stacks, cap)` and only the ceiling is priceable. Same for the
   // other two capped riders below.
   stackBonus: ['status', 'of', 'per', 'cap'],
-  taxBonus: ['per', 'cap'],
   shieldBurst: ['cap'],
   wardRelease: ['per', 'cap'],
   // `desperation` is `exploit`'s shape without a status: the gate is the caster's
@@ -408,7 +407,10 @@ export function validateAction(
     // `stacks` (catching a stray extra digit) and the same 0 floor as the rest.
     case 'cleanse': charges(999); break;
     case 'lifesteal': lifestealPct(); break;
-    case 'shieldBreak': num('amount'); break;
+    case 'shieldBreak':
+      num('amount');
+      opt(raw, 'shattersAttuned', (v) => v === true, 'literally true (the flag is present-or-absent, never false)', at, problems);
+      break;
     case 'comboBonus': num('amount'); break;
     case 'chainBonus':
       // ONE NAME, EITHER NAMESPACE: the weapon and element vocabularies are
@@ -431,22 +433,25 @@ export function validateAction(
       req(raw, 'status', (v) => EXPLOITABLE.includes(v as string), EXPLOITABLE.join('|'), at, problems);
       req(raw, 'amount', inRange(0, 999), 'an integer 0..999 (a negative bonus REFUNDS budget for a rider the engine drops outright)', at, problems);
       break;
+    /**
+     * `status` NAMES WHAT IS COUNTED, and `STACKED` is the closed list of five
+     * (`StackedStatus`, engine/types.ts). Four are piles counted in points; the
+     * fifth, `burden`, is counted in the holder's BURDENED BOARD PIECES. Both
+     * `of` values are legal for all five — including `of: 'caster'` + `burden`,
+     * which reads the burdens an OPPONENT put on your board and is therefore the
+     * one member of the family whose gate its own side can never supply.
+     */
     case 'stackBonus':
       req(raw, 'status', (v) => STACKED.includes(v as string), STACKED.join('|'), at, problems);
       req(raw, 'of', (v) => v === 'caster' || v === 'target', 'caster or target', at, problems);
       req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
-      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks is unbounded', at, problems);
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x count is unbounded', at, problems);
       break;
     /**
-     * TAX BONUS / SHIELD BURST — the other two conditional riders, same floors and
-     * the same REQUIRED cap for the same reason: the payload is
-     * `min(per x taxed cards, cap)` / `min(your shield, cap)`, unbounded in a
-     * resource the card does not own, so only the ceiling is priceable.
+     * SHIELD BURST — the same REQUIRED cap for the same reason: the payload is
+     * `min(your shield, cap)`, unbounded in a resource the card does not own, so
+     * only the ceiling is priceable.
      */
-    case 'taxBonus':
-      req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
-      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x taxed cards is unbounded', at, problems);
-      break;
     case 'shieldBurst':
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, and it is also how much of your own shield is spent', at, problems);
       break;
@@ -494,9 +499,9 @@ export function validateAction(
  * THE RIDER ORDERING RULE (user-locked 2026-08-21, verbatim: "it should always
  * activate this effect first before activating any poison debuff").
  *
- * ALL EIGHT conditional riders — `exploit`, `stackBonus`, `taxBonus`,
- * `shieldBurst`, `wardRelease`, `desperation`, `overhealShield`,
- * `cleanseConvert` — arm a bonus by READING A RESOURCE THAT IS ALREADY THERE
+ * ALL SEVEN conditional riders — `exploit`, `stackBonus`, `shieldBurst`,
+ * `wardRelease`, `desperation`, `overhealShield`, `cleanseConvert` — arm a
+ * bonus by READING A RESOURCE THAT IS ALREADY THERE
  * (`cast.bonusByTarget` / `cast.bonusFlat` / `cast.healBonusFlat` /
  * `cast.overhealShieldCap`, combat/interpreter.ts), and only a non-gem action of
  * the FED KIND ever spends it — `damage` for the six bonus-damage members, `heal`
@@ -520,18 +525,15 @@ export function validateAction(
  *     self-synergy price honest (`selfSynergyPremiumDeci`, engine/balance.ts):
  *     that premium is derived from "guaranteed from the second cast onward".
  *
- *     THE SAME ANSWER FOR EVERY SELF-SUPPLIABLE RESOURCE, deliberately — the alternative was
- *     considered and rejected (2026-08-21, second rider pass). A `slow`+`taxBonus`
- *     card is the tempting exception: a slow expires at end of turn, so letting it
- *     feed the reaper in the SAME cast would be the only way that pairing ever
- *     reliably pays. But the ruling is about SELF-TRIGGERING, not about how long
- *     the resource lives — a rider reads what is already there, full stop — and
- *     carving out one keyword would make the rule un-teachable ("your poison
- *     doesn't count but your slow does") and the self-synergy premium
- *     unjustifiable. So slow/burden are ordered exactly like poison/thorns/shield:
- *     after the hit. A slow+reaper card still self-feeds a SECOND cast in the same
- *     turn, and a burden+reaper card feeds every later cast until the taxed piece
- *     is played.
+ *     THE SAME ANSWER FOR EVERY SELF-SUPPLIABLE RESOURCE, deliberately. The
+ *     ruling is about SELF-TRIGGERING, not about how long the resource lives — a
+ *     rider reads what is already there, full stop — and carving out one keyword
+ *     would make the rule un-teachable ("your poison doesn't count but your burden
+ *     does") and the self-synergy premium unjustifiable. So `burden` is ordered
+ *     exactly like poison/thorns/shield: after the hit. A burden+reaper card still
+ *     feeds every LATER cast, until the burdened piece is played — the
+ *     longest-lived self-supply in the family, which is exactly why it must not
+ *     also collect on the cast that created it.
  *
  * SIDE-AWARE (rule 2): only an application that lands where the rider READS
  * counts. A `stackBonus` with `of: 'caster'` is self-fed by a CASTER-side
@@ -539,9 +541,14 @@ export function validateAction(
  * poison-before-damage line on a thorns-spender is not a violation. Likewise a
  * `shieldBurst` reads CASTER-side plating (fed by `shield`, and by an
  * `overhealShield` that banks plating out of a heal), a `wardRelease` reads
- * CASTER-side ward charges (fed by `ward`), a `taxBonus` reads TARGET-side weight
- * taxes (fed by `slow`/`burden` — never by `splash`, which spreads a burden's
- * reach but supplies no tax of its own).
+ * CASTER-side ward charges (fed by `ward`), and a `stackBonus` with
+ * `status: 'burden'` reads BURDENED BOARD PIECES on whichever side `of` names
+ * (fed by a `burden` line — never by `splash`, which spreads a burden's reach
+ * but supplies none of its own, and never by `slow`, which marks no piece).
+ *
+ * THAT SIDE-AWARENESS IS WHY `of: 'caster'` + `burden` IS INERT FOR RULE 2 rather
+ * than special-cased: `burden` supplies TARGET-side only, so a caster-side burden
+ * read can never be self-fed and the check simply never fires.
  *
  * RULE 2 IS INERT FOR THREE OF THE EIGHT. Nothing supplies `'lowHp'`,
  * `'overheal'` or `'cleansed'` (`resourceSuppliedBy`, engine/balance.ts), so

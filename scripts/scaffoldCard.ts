@@ -211,7 +211,7 @@ function solve(card: SkillDef): SkillDef | null {
 // `typeWord()` / `damageToken()` / `defToken()` — a second, private copy of
 // the card-text grammar whose `default` arm returned the empty string. It had
 // NO CASE AT ALL for 12 of the 36 Action kinds (`attunedShield`, `taunt`,
-// `chainBonus`, `empowerNext`, `exploit`, `stackBonus`, `taxBonus`,
+// `chainBonus`, `empowerNext`, `exploit`, `stackBonus`,
 // `shieldBurst`, `wardRelease`, `desperation`, `overhealShield`,
 // `cleanseConvert`), so an author scaffolding any rider shipped since
 // 2026-08-21 got a card with a silently incomplete face and had to hand-write

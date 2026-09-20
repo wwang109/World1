@@ -509,3 +509,33 @@ gems/cards that APPLY it, and only poison had a socketable reader.
 All three are band/budget exact and minimal for their band. Distinct payloads
 from `festering_sliver` by the `status` field, so the R8.1 twin rule is
 satisfied on the field that actually decides behaviour.
+
+## 2026-09-14 changelog: `taxBonus` deleted, folded into `stackBonus` — NO PL MOVEMENT
+
+**Recorded here because the 2026-08-21 section above names a keyword that no
+longer exists.** `taxBonus` was `stackBonus` with its resource hardcoded in the
+interpreter: its JSON carried only `{ per, cap }`, so nothing in the data said
+WHAT it counted and the card face had to invent the phrase "taxed card". It is
+now ordinary data — `{ kind: 'stackBonus', status: 'burden', of: 'target',
+per, cap }` — over a new `burden` member of `StackedStatus`.
+
+**No price changed, at any tier, on any card.** Both forms priced `cap` at
+`strikeRate / PRICE.conditionalBonusDen` and nothing else, so the whole
+732-row card x tier PL sweep is byte-identical across the migration.
+`deadweight_toll`, the only card that carried the keyword, is still
+100/150/200/250 deci (10/15/20/25 PL) with the same `per`/`cap` ladder.
+
+**One BEHAVIOUR term was dropped, user-ruled:** the old count was burdened
+board pieces PLUS ONE for a pending unit-scope `slow`. It is now burdened
+board pieces only. `burden` names PIECES; a `slow` marks none, so it was a
+term the data could not name and the face could not print.
+
+**Two pricing-table consequences**, both in `src/engine/balance.ts`:
+- the `'tax'` resource name is gone; a burden reader reads the resource
+  `'burden'`, which is the supplying keyword's own name;
+- `slow` no longer appears in `resourceSuppliedBy` at all. It fed only the
+  deleted keyword, and a resource name that gates nothing would charge the
+  self-synergy premium for free — the same reason `curse` has never had a row.
+  A `slow` + burden-reader kit therefore KEEPS the conditional-trigger
+  discount where it used to forfeit it. No shipped card is affected
+  (`deadweight_toll` supplies neither).

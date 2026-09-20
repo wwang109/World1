@@ -19,7 +19,9 @@ You are a consultant; the user (or the orchestrator) makes the final call. Prese
   (`scripts/check-boundaries.mjs` enforces it).
 - `simulate()` is a pure function of `(config, seed)`; integer-only sim state;
   all randomness via seeded `Rng` in fixed order; no `Date.now`/`Math.random`.
-- Determinism test (100 configs) and the balance audit test stay green.
+- Determinism is proved by two same-seed `npm run fight` runs diffed
+  byte-identical; balance by `isOnBudget` / `capViolations` via
+  `npm run scaffold:card`. No test files exist (user ruling 2026-09-15).
 - Balance math is integer deci-PL.
 
 ### Key responsibilities

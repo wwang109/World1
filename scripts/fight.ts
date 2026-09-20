@@ -14,7 +14,9 @@
 import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtAffinity, fmtDamage } from './logFormat';
-import type { BoardPiece, CombatantSetup, Gem, Side } from '../src/engine/types';
+import { cooldownRemainingClause, emptySlotClause } from '../src/engine/keywords/compose';
+import { parsePieceList, withStatOverrides } from './boardSpec';
+import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook as shippedSkillBook } from '../src/data/skills';
 import { skillDefOfDocument, validateSkillDocument } from '../src/data/validateSkillContent';
@@ -217,53 +219,11 @@ const DEFAULT_HERO_PIECES = [
 ];
 
 /**
- * One board-spec entry: `skill_id`, `skill_id@tier` to rank the card up before
- * the fight (`bronze`|`silver`|`gold`|`diamond`), and/or `skill_id#gem_id` to
- * socket a gem into it. Both suffixes may be combined, tier first:
- * `judgment_light@diamond#judgment_light_echo`.
- *
- * THE SUFFIXES EXIST so a tier-scaled or GEMMED card can be shown the same way
- * every other claim in this project is shown — by a real `npm run fight` log
- * rather than a second, hand-written renderer. `BoardPiece.tier` / `BoardPiece.gem`
- * are the engine's own per-piece overrides (`resolveEffectiveSkill` runs
- * `applyTier` and the gem splice on them), so this parses the spec and hands the
- * engine fields it already has; no formatting or resolution logic is duplicated
- * here. No suffix = bronze, un-gemmed = byte-identical to the pre-suffix behavior.
- *
- * The GEM suffix was added on 2026-08-31 for the cast-order ruling: a gem's
- * actions splice in at the resolver (`GEM_ACTION_PHASE` / `orderCastRiders`,
- * src/engine/cards.ts), so "a gem-applied debuff also trails the hit" is a claim
- * about a SOCKETED piece and could not be shown from a log at all before this.
+ * The board-spec syntax (`skill_id`, `skill_id@tier`, `skill_id#gem_id`) and
+ * its parser now live in `./boardSpec` (`parsePiece` / `parsePieceList`),
+ * shared with `scripts/enemyOutput.ts` — see that module's header for why a
+ * board-spec parser must not be forked a second time.
  */
-function parsePiece(raw: string, envName: string, slot: number): BoardPiece | null {
-  const entry = raw.trim();
-  if (entry === '') return null;
-  const hash = entry.indexOf('#');
-  const gemId = hash < 0 ? '' : entry.slice(hash + 1).trim();
-  const head = hash < 0 ? entry : entry.slice(0, hash);
-  const at = head.indexOf('@');
-  const skillId = at < 0 ? head.trim() : head.slice(0, at).trim();
-  const tierText = at < 0 ? '' : head.slice(at + 1).trim();
-  if (!skillBook[skillId]) {
-    console.error(`${envName}: unknown skill '${skillId}'.`);
-    process.exit(1);
-  }
-  let gem: Gem | undefined;
-  if (gemId !== '') {
-    const def = gemBook[gemId];
-    if (!def) {
-      console.error(`${envName}: unknown gem '${gemId}' on '${skillId}'.`);
-      process.exit(1);
-    }
-    gem = def;
-  }
-  if (tierText === '') return { skillId, slot, ...(gem ? { gem } : {}) };
-  if (tierText !== 'bronze' && tierText !== 'silver' && tierText !== 'gold' && tierText !== 'diamond') {
-    console.error(`${envName}: unknown tier '${tierText}' on '${skillId}' — use bronze|silver|gold|diamond.`);
-    process.exit(1);
-  }
-  return { skillId, slot, tier: tierText, ...(gem ? { gem } : {}) };
-}
 
 /**
  * ...OVERRIDABLE, for eyeballing ONE card instead of the starter deck:
@@ -286,20 +246,13 @@ function parsePiece(raw: string, envName: string, slot: number): BoardPiece | nu
 function heroPieces(): BoardPiece[] {
   const spec = process.env['FIGHT_HERO_BOARD'];
   if (spec === undefined || spec.trim() === '') return DEFAULT_HERO_PIECES;
-  const pieces: BoardPiece[] = [];
-  let slot = 0;
-  for (const raw of spec.split(',')) {
-    const piece = parsePiece(raw, 'FIGHT_HERO_BOARD', slot);
-    if (!piece) continue;
-    pieces.push(piece);
-    slot += skillBook[piece.skillId]!.size;
-  }
+  const { pieces, slotsUsed } = parsePieceList(spec, 'FIGHT_HERO_BOARD', skillBook, gemBook);
   if (pieces.length === 0) {
     console.error('FIGHT_HERO_BOARD is empty.');
     process.exit(1);
   }
-  if (slot > HERO_BOARD_SLOTS) {
-    console.error(`FIGHT_HERO_BOARD needs ${slot} slots, board is ${HERO_BOARD_SLOTS}.`);
+  if (slotsUsed > HERO_BOARD_SLOTS) {
+    console.error(`FIGHT_HERO_BOARD needs ${slotsUsed} slots, board is ${HERO_BOARD_SLOTS}.`);
     process.exit(1);
   }
   return pieces;
@@ -344,20 +297,13 @@ function foeBoardSize(catalogSize: number): number {
 function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPiece[] {
   const spec = process.env['FIGHT_FOE_BOARD'];
   if (spec === undefined || spec.trim() === '') return [...fallback];
-  const pieces: BoardPiece[] = [];
-  let slot = 0;
-  for (const raw of spec.split(',')) {
-    const piece = parsePiece(raw, 'FIGHT_FOE_BOARD', slot);
-    if (!piece) continue;
-    pieces.push(piece);
-    slot += skillBook[piece.skillId]!.size;
-  }
+  const { pieces, slotsUsed } = parsePieceList(spec, 'FIGHT_FOE_BOARD', skillBook, gemBook);
   if (pieces.length === 0) {
     console.error('FIGHT_FOE_BOARD is empty.');
     process.exit(1);
   }
-  if (slot > boardSize) {
-    console.error(`FIGHT_FOE_BOARD needs ${slot} slots, board is ${boardSize} (raise it with FIGHT_FOE_SLOTS).`);
+  if (slotsUsed > boardSize) {
+    console.error(`FIGHT_FOE_BOARD needs ${slotsUsed} slots, board is ${boardSize} (raise it with FIGHT_FOE_SLOTS).`);
     process.exit(1);
   }
   return pieces;
@@ -372,28 +318,13 @@ function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPie
  * log shows one card's behaviour and nothing else. Every field is an integer stat
  * name from `CombatantStats`; anything unrecognised is refused rather than
  * silently ignored, since a typo'd stat is a fight you did not ask for.
+ *
+ * `withStatOverrides` itself now lives in `./boardSpec` (2026-09-14 audit fix
+ * — extracted verbatim, not reimplemented, so `scripts/enemyOutput.ts`'s
+ * `--stats` flag reads the identical syntax through the identical parser; see
+ * that module's header). This script's own behavior is unchanged: same env
+ * var names, same error text, same passthrough on an absent/blank value.
  */
-function withStatOverrides<T extends Record<string, number>>(stats: T, envVar: string): T {
-  const spec = process.env[envVar];
-  if (spec === undefined || spec.trim() === '') return stats;
-  const out: Record<string, number> = { ...stats };
-  for (const raw of spec.split(',')) {
-    const pair = raw.trim();
-    if (pair === '') continue;
-    const [key, value] = pair.split(':');
-    if (key === undefined || value === undefined || !/^-?[0-9]+$/.test(value)) {
-      console.error(`${envVar}: expected name:integer pairs, got '${pair}'.`);
-      process.exit(1);
-    }
-    if (!(key in out)) {
-      console.error(`${envVar}: unknown stat '${key}' (known: ${Object.keys(out).join(', ')}).`);
-      process.exit(1);
-    }
-    out[key] = Number(value);
-  }
-  return out as T;
-}
-
 function heroStats(): typeof BASE_HERO_STATS {
   const stats = { ...BASE_HERO_STATS };
   const hp = process.env['FIGHT_HERO_HP'];
@@ -569,6 +500,11 @@ for (const e of events) {
         `${t}  cursor  ${tag(e.side, e.unit)} -> ${e.skillId ?? 'empty'} (slot ${e.slot + 1}${e.slotCount && e.slotCount > 1 ? `, ${e.slotIndex} of ${e.slotCount}` : ''}${e.wrapped ? ', wrap' : ''})`,
       );
       break;
+    case 'castSkipped':
+      console.log(
+        `${t}  skip    ${tag(e.side, e.unit)} ${e.skillId} (slot ${e.slot + 1}) · ${cooldownRemainingClause(e.turnsLeft)}`,
+      );
+      break;
     case 'busy':
       console.log(`${t}  busy    ${tag(e.side, e.unit)} ${e.skillId} resolving (slot ${e.slotIndex} of ${e.slotCount})`);
       break;
@@ -576,7 +512,9 @@ for (const e of events) {
       if (e.reason === 'cantAfford') {
         console.log(`${t}  wait    ${tag(e.side, e.unit)} readiness ${e.readiness} < ${e.skillId} weight ${e.weight}`);
       } else if (e.reason === 'cooling') {
-        console.log(`${t}  wait    ${tag(e.side, e.unit)} ${e.skillId} cooling · ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
+        console.log(`${t}  wait    ${tag(e.side, e.unit)} ${e.skillId} · ${cooldownRemainingClause(e.turnsLeft)}`);
+      } else if (e.reason === 'emptySlot') {
+        console.log(`${t}  wait    ${tag(e.side, e.unit)} ${emptySlotClause(e.slot)}`);
       } else {
         console.log(`${t}  wait    ${tag(e.side, e.unit)} ${e.reason === 'stunned' ? 'stunned' : 'no cards'}`);
       }

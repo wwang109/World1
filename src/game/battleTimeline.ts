@@ -12,6 +12,7 @@ import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
 import { ruleEntryByKind } from '../engine/keywords/text';
+import { cooldownRemainingClause, emptySlotClause } from '../engine/keywords/compose';
 import type { BattleLogTextRole, BattleLogTextSegment } from './ui/battleLogLine';
 
 /**
@@ -91,10 +92,11 @@ export interface TurnFx {
 /** A single playback position: one IMPORTANT log line (or a turn's fallback
  * anchor line when it has no important lines) — `lineIndex` into that turn's
  * `linesByTurn` array. A scene's playback index indexes `steps`, not turns. */
+export interface CursorSlotSnap { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }
 export interface PlaybackStep { turn: number; lineIndex: number; }
 /** A step record captured mid-build, before turns/fallback-steps are known —
  * folded into the final per-step arrays in turn order once the event loop ends. */
-interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: ShieldSnap; fx: TurnFx[]; focus?: number; summary: CombatSummary; }
+interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: ShieldSnap; fx: TurnFx[]; focus?: number; summary: CombatSummary; cursor: CursorSlotSnap; }
 export interface CardSummaryRow {
   side: 'player' | 'enemy';
   name: string;
@@ -362,6 +364,7 @@ export interface BattleTimeline {
   speedByTurn: Map<number, SpeedSnap>;
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   playSlotByTurn: Map<number, { player?: number; enemy?: number }>;
+  cursorSlotByStep: CursorSlotSnap[];
   turns: number[];
   /** Flat, event-level playback timeline — one entry per IMPORTANT log line
    * (HIT/EFFECT/DEBUFF/BUFF/DOWN/RESULT), plus one fallback entry for any turn
@@ -516,7 +519,7 @@ export function formatGuardBadge(entries: GuardBadgeEntry[]): string | undefined
 }
 
 /**
- * Compact 3-letter chip glyph per status kind (the `<GLYPH> <total>` grammar
+ * Chip glyph per status kind (the `<GLYPH> <total>` grammar
  * of the HP-block chip row). Buff/debuff chips lead with their STAT_TOKEN
  * instead (the stat IS the identity there); stun renders the bare glyph with
  * NO count — `MAX_STUN_PER_CARD` caps every stun at one performance, so any
@@ -524,7 +527,7 @@ export function formatGuardBadge(entries: GuardBadgeEntry[]): string | undefined
  * log row a bare "Stunned").
  */
 const CHIP_GLYPH: Record<string, string> = {
-  poison: 'PSN', burn: 'BRN', bleed: 'BLD', stun: 'STN', expose: 'EXP',
+  poison: 'POISON', burn: 'BURN', bleed: 'BLEED', stun: 'STN', expose: 'EXP',
   guard: 'GRD', negate: 'NGT', ward: 'WRD', thorns: 'THR',
 };
 
@@ -809,6 +812,19 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const guardPctByTurn = new Map<number, GuardSnap>();
   const speedByTurn = new Map<number, SpeedSnap>();
   const playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
+  const cursorSlots: CursorSlotSnap = {};
+  const markCursorSlot = (side: 'player' | 'enemy', unit: number, slot: number): void => {
+    if (side === 'player') cursorSlots.player = slot;
+    else {
+      cursorSlots.enemyUnits = cursorSlots.enemyUnits ?? foes.map(() => undefined);
+      cursorSlots.enemyUnits[unit] = slot;
+      if (unit === 0) cursorSlots.enemy = slot;
+    }
+  };
+  const snapCursorSlots = (): CursorSlotSnap => ({
+    ...cursorSlots,
+    ...(cursorSlots.enemyUnits === undefined ? {} : { enemyUnits: cursorSlots.enemyUnits.slice() }),
+  });
   const comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
 
   // Per-unit live state — enemy-side values are ARRAYS indexed by event `unit`.
@@ -1320,7 +1336,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // backfilled once the full event has finished processing, below.
       const fx = pendingCastFx;
       pendingCastFx = [];
-      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx, focus: curFocus, summary: lastSummarySnapshot });
+      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx, focus: curFocus, summary: lastSummarySnapshot, cursor: snapCursorSlots() });
     }
     return line;
   };
@@ -1484,6 +1500,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           if (unitOf(e) === 0) slots.enemy = e.slot;
         }
         playSlotByTurn.set(e.turn, slots);
+        markCursorSlot(e.side, unitOf(e), e.slot);
         const key = `${e.side}:${e.side === 'enemy' ? unitOf(e) : 0}:${e.skillId}`;
         const card = cardSummaries.get(key) ?? {
           side: e.side,
@@ -1953,6 +1970,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // combatant sitting out a turn produced no row at all, which is exactly
       // what left "shouldn't the higher-readiness unit go first?" unanswerable
       // from the log alone.
+      case 'cursor': {
+        markCursorSlot(e.side, unitOf(e), e.slot);
+        break;
+      }
+      case 'castSkipped': {
+        pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} skipped · ${cooldownRemainingClause(e.turnsLeft)}`);
+        break;
+      }
       case 'wait': {
         if (e.reason === 'cantAfford') {
           const pending = pendingSlowByUnit.get(slowKey(e.side, unitOf(e)));
@@ -1960,7 +1985,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const slowNote = `${pending ? ` (includes +${pending} SLOWED)` : ''}${pendingBurden ? ` (includes +${pendingBurden} BURDENED)` : ''}`;
           pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
         } else if (e.reason === 'cooling') {
-          pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
+          pushActor(e.turn, 'WAIT', e, ` · ${skillName(e.skillId)} ${cooldownRemainingClause(e.turnsLeft)}`);
+        } else if (e.reason === 'emptySlot') {
+          pushActor(e.turn, 'WAIT', e, ` · ${emptySlotClause(e.slot)}`);
         } else if (e.reason === 'stunned') {
           pushActor(e.turn, 'WAIT', e, ' · stunned, skipping this turn');
         } else {
@@ -2187,6 +2214,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           if (unitOf(e) === 0) slots.enemy = e.slot;
         }
         playSlotByTurn.set(e.turn, slots);
+        markCursorSlot(e.side, unitOf(e), e.slot);
         break;
       }
       // The stalemate breakers (sudden death / fatigue / attrition) were
@@ -2316,6 +2344,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   let shieldByStep: ShieldSnap[] = [];
   let fxByStep: TurnFx[][] = [];
   let focusFoeByStep: Array<number | undefined> = [];
+  let cursorSlotByStep: CursorSlotSnap[] = [];
   let summaryByStep: CombatSummary[] = [];
   const recordsByTurn = new Map<number, StepRecord[]>();
   for (const r of stepRecords) {
@@ -2337,6 +2366,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         fxByStep.push(r.fx);
         focusFoeByStep.push(r.focus);
         summaryByStep.push(r.summary);
+        cursorSlotByStep.push(r.cursor);
       }
       lastFallbackSummary = recs[recs.length - 1]!.summary;
     } else {
@@ -2346,6 +2376,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       shieldByStep.push(shieldByTurn.get(t) ?? snapShield());
       fxByStep.push([]);
       focusFoeByStep.push(undefined);
+      cursorSlotByStep.push(snapCursorSlots());
       lastFallbackSummary = summaryByTurn.get(t) ?? lastFallbackSummary;
       summaryByStep.push(lastFallbackSummary);
     }
@@ -2356,6 +2387,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     shieldByStep = [snapShield()];
     fxByStep = [[]];
     focusFoeByStep = [undefined];
+    cursorSlotByStep = [snapCursorSlots()];
     summaryByStep = [{ playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] }];
   }
   // A lethal damage event is the meaningful end of playback. Do not force
@@ -2414,6 +2446,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     speedByTurn,
     comboArchetypesByTurn,
     playSlotByTurn,
+    cursorSlotByStep,
     turns,
     steps,
     hpByStep,

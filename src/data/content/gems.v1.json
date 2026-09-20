@@ -1345,8 +1345,8 @@
           "def": {
             "name": "Festering Sliver",
             "notes": [
-              "THE CONDITIONAL-RIDER FAMILY'S FIRST GEM. Eight rider keywords (exploit,",
-              "stackBonus, taxBonus, shieldBurst, wardRelease, desperation, overhealShield,",
+              "THE CONDITIONAL-RIDER FAMILY'S FIRST GEM. The rider keywords (exploit,",
+              "stackBonus, shieldBurst, wardRelease, desperation, overhealShield,",
               "cleanseConvert) had ZERO gem representation; this opens the family with its",
               "plainest member, `exploit` \u2014 flat bonus damage on the host's own hit when the",
               "target already carries a named affliction.",

@@ -322,8 +322,47 @@ for (const file of walk(GAME_DIR)) {
   }
 }
 
+// ---- No test files. User ruling of 2026-09-15: this repository does not
+// carry `*.test.ts` files. Verification is by `npm run fight` logs, `tsc`,
+// this script, `content:validate`, and the audit scripts.
+const TEST_FILE = /\.test\.ts$/;
+// `.superpowers` (SDD ledgers) and `tmp` (scratch) are gitignored and
+// machine-local — not carried by the repo, so not the gate's business.
+const TEST_FILE_SKIP = new Set(['node_modules', '.git', 'dist', '.superpowers', 'tmp']);
+
+function walkTestFiles(dir, out = []) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (TEST_FILE_SKIP.has(entry.name)) continue;
+    const path = dir === '.' ? entry.name : posix.join(dir, entry.name);
+    let isDir = entry.isDirectory();
+    if (entry.isSymbolicLink()) {
+      try {
+        isDir = statSync(path).isDirectory();
+      } catch {
+        continue;
+      }
+    }
+    if (isDir) walkTestFiles(path, out);
+    else if (TEST_FILE.test(entry.name)) out.push(path);
+  }
+  return out;
+}
+
+for (const file of walkTestFiles('.')) {
+  violations.push(
+    `${file}: test file present — this repo does not carry *.test.ts files by user ruling of 2026-09-15; ` +
+    `verification is by \`npm run fight\` logs, tsc, this script, content:validate, and the audit scripts`
+  );
+}
+
 if (violations.length > 0) {
-  console.error('Layer boundary violations (pure layers must not import phaser/src/game; src/game must not run combat):');
+  console.error('Layer boundary violations (pure layers must not import phaser/src/game; src/game must not run combat; no *.test.ts files):');
   for (const v of violations) console.error('  ' + v);
   process.exit(1);
 }

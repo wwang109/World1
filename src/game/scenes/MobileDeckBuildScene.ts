@@ -9,8 +9,10 @@ import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill }
 import { boardAffinityPipAxes } from '../ui/affinityDisplay';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
+import { castableGap, extraCooldownPieces } from '../../run/extraCooldown';
 import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
 import { nextSkillTier } from '../../run/shop';
+import { castableGapWarningLines, extraCooldownWarningEntries, type ExtraCooldownWarningEntry } from '../../engine/keywords/compose';
 import { gemBook } from '../../data/gems';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { MOBILE_PROFILE } from '../layoutProfile';
@@ -26,8 +28,8 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
   currentHeroAllocation, currentHeroLevel,
   commitRunDeckEdit,
-  currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
-  setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
+  currentCooldownWarningDismissedFor, currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
+  setCooldownWarningDismissedFor, setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
@@ -85,6 +87,16 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   /** RUN CONTEXT ONLY — see `DesktopDeckBuildScene`'s identical field. */
   private runContext = false;
   private retireConfirmOpen = false;
+  private cooldownWarning: { entries: ExtraCooldownWarningEntry[]; moreCount: number } | null = null;
+  private cooldownGapLines: string[] = [];
+  private cooldownWarningSignature = '';
+
+  private get cooldownWarningDismissedFor(): string | null {
+    return this.runContext ? currentCooldownWarningDismissedFor() : demoState.cooldownWarningDismissedFor;
+  }
+  private set cooldownWarningDismissedFor(next: string | null) {
+    if (this.runContext) setCooldownWarningDismissedFor(next); else demoState.cooldownWarningDismissedFor = next;
+  }
   /** Uniform downward shift applied to every below-header y so run context's
    * taller HUD (kicker/title/stats/badge/actions) never collides with the
    * Sandbox's shorter tab-row header — same relative layout either way. */
@@ -123,6 +135,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
     this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
+    const extraCooldown = extraCooldownPieces(this.pieces, skillBook);
+    this.cooldownWarning = extraCooldown.length > 0 ? extraCooldownWarningEntries(extraCooldown.map((p) => p.skill)) : null;
+    const gap = castableGap(this.pieces, skillBook);
+    this.cooldownGapLines = castableGapWarningLines(gap ? gap.needed : null);
+    this.cooldownWarningSignature = this.pieces.slice().sort((a, b) => a.slot - b.slot)
+      .map((p) => `${p.slot}:${p.skillId}:${p.tier}:${p.gem?.id ?? ''}`).join('|');
     this.cameras.main.setBackgroundColor(UI.bg);
     if (this.runContext) this.renderHud(); else this.renderTabs();
     this.renderHeader();
@@ -476,7 +494,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   }
 
   private renderColumns(): void {
-    const top = 122 + this.headerOffset;
+    const CLOSE_SIZE = 40;
+    const showWarning = (this.cooldownWarning !== null || this.cooldownGapLines.length > 0)
+      && this.cooldownWarningDismissedFor !== this.cooldownWarningSignature;
+    const warningLineCount = showWarning
+      ? this.cooldownGapLines.length + (this.cooldownWarning ? this.cooldownWarning.entries.length * 2 + (this.cooldownWarning.moreCount > 0 ? 1 : 0) : 0)
+      : 0;
+    const bandH = showWarning ? Math.max(CLOSE_SIZE + 16, warningLineCount * 12 + 16) : 0;
+    const top = 122 + this.headerOffset + bandH;
     const colH = this.H - top - 78;
     const colW = (this.W - 20 - 8) / 2;
     const gap = 5;
@@ -488,6 +513,40 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const bagUsed = this.bagOccupied().filter(Boolean).length;
     this.add.text(deckX + colW / 2, top - 6, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: `${F.small}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
     this.add.text(bagX + colW / 2, top - 6, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: `${F.small}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+
+    if (showWarning) {
+      const wy = this.holdingTop + this.holdingH + 8;
+      let li = 0;
+      for (const line of this.cooldownGapLines) {
+        this.add.text(10, wy + li * 12, line, { fontSize: `${F.tiny}px`, color: UI.textAlarm, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0);
+        li += 1;
+      }
+      if (this.cooldownWarning) {
+        const { entries, moreCount } = this.cooldownWarning;
+        for (const entry of entries) {
+          this.add.text(10, wy + li * 12, entry.name, { fontSize: `${F.tiny}px`, color: UI.textAlarm, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0);
+          li += 1;
+          this.add.text(10, wy + li * 12, entry.clause, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0);
+          li += 1;
+        }
+        if (moreCount > 0) {
+          this.add.text(10, wy + li * 12, `+${moreCount} more`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0);
+          li += 1;
+        }
+      }
+      const closeX = this.W - 10 - CLOSE_SIZE / 2;
+      const closeY = this.holdingTop + this.holdingH + bandH / 2;
+      const closeBtn = this.add.rectangle(closeX, closeY, CLOSE_SIZE, CLOSE_SIZE, 0x1b2940, 1)
+        .setStrokeStyle(1, 0x3a4a62, 0.9).setInteractive({ useHandCursor: true });
+      this.add.text(closeX, closeY, '×', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.xlarge}px`, color: UI.textBright }).setOrigin(0.5);
+      const dismissedFor = this.cooldownWarningSignature;
+      closeBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        playSfx('uiBack');
+        this.cooldownWarningDismissedFor = dismissedFor;
+        this.rerender();
+      });
+    }
 
     const deckSkills = this.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
     const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));

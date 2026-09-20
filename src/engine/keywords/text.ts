@@ -4,7 +4,7 @@ import type { Action, BuffableStat, Element, Property, SkillSize, WeaponType } f
  * KEYWORD TEXT — the TEXT facet of the keyword document, as DATA.
  *
  * The twin of `pricing.ts`, deliberately built to the same shape: a mapped
- * type over `Action['kind']`, so a 37th keyword fails `tsc` until it has a
+ * type over `Action['kind']`, so a 36th keyword fails `tsc` until it has a
  * row rather than silently rendering nothing (the exact failure that left
  * `attunedShield` printing an empty clause on every card face until
  * 2026-08-30, and that left 12 of 36 kinds with no `scaffoldCard` phrase at
@@ -295,12 +295,27 @@ function tidy(s: string): string {
  * `ctx.gated` drops the type word: inside an `{{Affinity}} Axe —` wrap the
  * type has already been named by the wrap itself.
  */
+/**
+ * THE ONE equal/unequal split for a multi-hit action list — every authored
+ * hit at the same power (`×N`) versus a card whose hits differ rank to rank
+ * (`rapid_volley`/`barrage`/`twin_slash` at Silver+, priced two-apart so an
+ * even-power constraint can stay whole — see their notes). `damageClause`
+ * below and the card-FACE `MULTI-HIT` summary
+ * (`src/game/ui/skillPresentation.ts`) both call this so a hit count can
+ * never read "even" in the description and "uneven" on the face, or the
+ * reverse.
+ */
+export function multiHitPowersEqual(powers: readonly number[]): boolean {
+  const first = powers[0] ?? 0;
+  return powers.every((p) => p === first);
+}
+
 export function damageClause(powers: readonly number[], ctx: RenderCtx): string {
   const suffix = offenseSuffix(ctx);
   const type = ctx.gated ? '' : damageTypeWord(ctx);
   const noun = ctx.gated ? '' : 'damage';
   const first = powers[0] ?? 0;
-  const allEqual = powers.every((p) => p === first);
+  const allEqual = multiHitPowersEqual(powers);
   // THE REPEAT FORM — the authored corpus's own words ("hit again for 28",
   // sworn_edge/lance_thrust/arcane_bolt and 17 more). It replaces the verb and
   // nothing else: the number and the stat suffix are parameters and stay.
@@ -385,22 +400,36 @@ export const AURA_RULE_ENTRY = {
 } as const;
 
 /**
- * Compact face names for the statuses a conditional rider (`exploit` /
- * `stackBonus`) keys off — the SAME abbreviations those statuses use as their
- * own badges, so one status reads as one word wherever it appears.
+ * THE one face name per status, spelled out. Read by each status's OWN badge
+ * (`poison`/`burn`/`bleed`/`thorns`/`stun`/`expose`) AND by the conditional
+ * riders that key off them (`exploit` / `stackBonus`), so one status reads as
+ * one word wherever it appears.
+ *
+ * It did not, before 2026-09-14: the riders read an abbreviated copy
+ * (PSN/BRN/BLD/THORN) while every status row hard-coded its own badge string
+ * again — two spellings that met on ONE card face (thorn_reckoning printed
+ * `BONUS +3 PER THORNS` beside `THORN 8`). The rows now read this table, so a
+ * rename lands everywhere at once. Do not hard-code a status name in a
+ * `faceToken` — that is how the mirror grew back the last time.
  */
-const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
-  poison: 'PSN',
-  burn: 'BRN',
-  bleed: 'BLD',
+const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns' | 'burden', string> = {
+  poison: 'POISON',
+  burn: 'BURN',
+  bleed: 'BLEED',
   stun: 'STUN',
   debuff: 'DEBUFF',
   expose: 'EXPOSE',
-  thorns: 'THORN',
+  thorns: 'THORNS',
+  // Same word as the `burden` row's own badge, from this one table, so
+  // `BONUS +4 PER BURDEN` sits beside `BURDEN +6 WT` in the same spelling.
+  burden: 'BURDEN',
 };
 
-/** Title-cased status names for a rider's FACE CLAUSE markup token. */
-const STATUS_MARKUP: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
+/**
+ * Title-cased status names for a rider's FACE CLAUSE markup token — the body
+ * that goes inside `{{...}}`, not necessarily a bare name (see `burden`).
+ */
+const STATUS_MARKUP: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns' | 'burden', string> = {
   poison: 'Poison',
   burn: 'Burn',
   bleed: 'Bleed',
@@ -411,6 +440,12 @@ const STATUS_MARKUP: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'e
   debuff: 'debuff',
   expose: 'Expose',
   thorns: 'Thorns',
+  // THE EXPLICIT-ID PIPE FORM (`cardTextMarkup.ts`), and the only row that needs
+  // it: what a `stackBonus` counts here is a Burdened CARD, but `{{Burdened}}`
+  // alone would look up the id `burdened`, which has no colour. `Burdened|burden`
+  // prints the adjective and keeps the keyword's own id — one word, one colour,
+  // no second table.
+  burden: 'Burdened|burden',
 };
 
 /**
@@ -449,6 +484,17 @@ export const HEADLINE_LABEL = {
   lightweight: 'LIGHTWEIGHT',
   /** This card's Weight exceeds its size (`weightOf(skill) > size * 10`). */
   heavy: 'HEAVY',
+  /**
+   * MORE THAN ONE ungated `damage` action on the same card (the same gate
+   * `cardGlossary.ts` uses to decide whether to show `MULTI_HIT_RULE_ENTRY`:
+   * `effects.filter(a => a.kind === 'damage' && a.affinity !== true).length > 1`).
+   * Its own badge, alongside `HEAVY`/`LIGHTWEIGHT` — added 2026-09-14 after a
+   * face form bound a `×N` hit-count suffix to the `+ATK` stat suffix, which
+   * misread as "this many times the stat" when the engine actually SPLITS the
+   * caster's stat across the hits (`statShare`,
+   * `src/engine/combat/interpreter.ts`) rather than paying it per hit.
+   */
+  multiHit: 'MULTI-HIT',
 } as const;
 
 /**
@@ -493,7 +539,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     // face word rather than the reverse: `shatter` is the `KEYWORD_TEXT_COLOR`
     // id, so the colour, the face, the badge and the heading are now one word.
     ruleTitle: 'Shatter',
-    ruleSentence: 'Remove X Shield before this card deals damage. Does not remove Attuned Shield.',
+    ruleSentence: 'Deal X damage to any shield.',
     faceToken: (a) => ({ text: `SHATTER ${a.amount}`, keyword: 'shatter' }),
   },
 
@@ -648,7 +694,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Poison}} ${a.stacks}`,
     ruleTitle: 'Poison',
     ruleSentence: 'Deal X damage at the end of each turn, then lose 1 Poison.',
-    faceToken: (a) => ({ text: `PSN ${a.stacks}`, keyword: 'poison' }),
+    faceToken: (a) => ({ text: `${STATUS_TOKEN.poison} ${a.stacks}`, keyword: 'poison' }),
   },
   burn: {
     composeGroup: 'payload',
@@ -656,7 +702,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Burn}} ${a.stacks}`,
     ruleTitle: 'Burn',
     ruleSentence: 'Deal 2X damage at the start of each turn, then halve Burn.',
-    faceToken: (a) => ({ text: `BRN ${a.stacks}`, keyword: 'burn' }),
+    faceToken: (a) => ({ text: `${STATUS_TOKEN.burn} ${a.stacks}`, keyword: 'burn' }),
   },
   bleed: {
     composeGroup: 'payload',
@@ -664,7 +710,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Bleed}} ${a.stacks}`,
     ruleTitle: 'Bleed',
     ruleSentence: 'After the first card played each turn, deal X damage and lose 1 Bleed.',
-    faceToken: (a) => ({ text: `BLD ${a.stacks}`, keyword: 'bleed' }),
+    faceToken: (a) => ({ text: `${STATUS_TOKEN.bleed} ${a.stacks}`, keyword: 'bleed' }),
   },
   stun: {
     composeGroup: 'payload',
@@ -672,7 +718,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => (a.turns > 1 ? `{{Stun}} ×${a.turns}` : '{{Stun}}'),
     ruleTitle: 'Stun',
     ruleSentence: 'Prevents the next card from activating and sets readiness to 0.',
-    faceToken: () => ({ text: 'STUN', keyword: 'stun' }),
+    faceToken: () => ({ text: STATUS_TOKEN.stun, keyword: 'stun' }),
   },
   debuffStat: {
     composeGroup: 'payload',
@@ -692,7 +738,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Expose}} +${a.pct}% (${a.turns}t)`,
     ruleTitle: 'Expose',
     ruleSentence: 'Deal X% more damage on next attacks for X turns.',
-    faceToken: (a) => ({ text: `EXPOSE ${a.pct}% ${a.turns}t`, keyword: 'expose' }),
+    faceToken: (a) => ({ text: `${STATUS_TOKEN.expose} ${a.pct}% ${a.turns}t`, keyword: 'expose' }),
   },
   slow: {
     composeGroup: 'payload',
@@ -750,7 +796,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Thorns}} ${a.stacks}`,
     ruleTitle: 'Thorns',
     ruleSentence: 'Deal X physical damage when hit by an attack, then lose 1 Thorns.',
-    faceToken: (a) => ({ text: `THORN ${a.stacks}`, keyword: 'thorns' }),
+    faceToken: (a) => ({ text: `${STATUS_TOKEN.thorns} ${a.stacks}`, keyword: 'thorns' }),
   },
   guard: {
     composeGroup: 'selfGrant',
@@ -770,7 +816,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleTitle: 'Negate',
     ruleSentence: 'Prevent the next X attacks matching this card’s property.',
     faceToken: (a) => ({
-      text: `${a.property === 'physical' ? 'P' : a.property === 'magical' ? 'M' : 'T'}.NEGATE ×${a.charges}`,
+      text: `${a.property === 'physical' ? 'P' : a.property === 'magical' ? 'M' : 'T'}.NEGATE ${a.charges}`,
       keyword: 'negate',
     }),
   },
@@ -780,7 +826,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Ward}} ${a.charges}`,
     ruleTitle: 'Ward',
     ruleSentence: 'Prevent the next X Poison, Burn, Bleed, stat debuff, or Expose applications.',
-    faceToken: (a) => ({ text: `WARD ×${a.charges}`, keyword: 'ward' }),
+    faceToken: (a) => ({ text: `WARD ${a.charges}`, keyword: 'ward' }),
   },
   buffStat: {
     composeGroup: 'selfGrant',
@@ -850,50 +896,49 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   stackBonus: {
     composeGroup: 'conditional',
     displayToken: (a) => a.status,
-    faceClause: (a) => `+${a.per} damage per {{${STATUS_MARKUP[a.status]}}}${a.of === 'caster' ? ' you have' : ' debuff'} (max ${a.cap})`,
+    // WHAT IS COUNTED DECIDES THE NOUN. The four piles are counted in POINTS on
+    // a unit, so the target-side form reads "per Poison debuff"; `burden` is a
+    // weight penalty on a CARD, so it reads "per Burdened card". Same clause,
+    // one noun from the data.
+    faceClause: (a) => {
+      const noun = a.status === 'burden' ? ' card' : (a.of === 'caster' ? '' : ' debuff');
+      const whose = a.of === 'caster' ? ' you have' : '';
+      return `+${a.per} damage per {{${STATUS_MARKUP[a.status]}}}${noun}${whose} (max ${a.cap})`;
+    },
+    // The row carries the PILE form; `burden` reads cards, not stacks, and takes
+    // the `BURDEN_STACK_BONUS` variant below through `ruleEntryOf`.
     ruleTitle: 'Status Bonus',
-    ruleSentence: 'Each point of the listed status adds X damage, up to X.',
+    ruleSentence: 'Each stack of the listed status adds X damage, up to X.',
     faceToken: (a) => ({
-      text: `+${a.per} DMG PER ${STATUS_TOKEN[a.status]}${a.of === 'caster' ? '' : ' DEBUFF'} (MAX ${a.cap})`,
+      text: `BONUS +${a.per} PER ${STATUS_TOKEN[a.status]}`,
       keyword: a.status,
     }),
-  },
-  taxBonus: {
-    composeGroup: 'conditional',
-    // EXEMPT: its face clause names no keyword. What it reads is a STATE (the
-    // victim's tempo backlog) assembled from two different keywords, so there
-    // is no single word here that could honestly be coloured as one of them.
-    displayToken: undefined,
-    faceClause: (a) => `+${a.per}/tax (cap ${a.cap})`,
-    ruleTitle: 'Taxed cards',
-    ruleSentence: 'Deal X more damage per Burdened card, plus one if the target has Slow, up to X.',
-    faceToken: (a) => ({ text: `+${a.per}/TAXED CARD (cap ${a.cap})`, keyword: 'slow' }),
   },
   shieldBurst: {
     composeGroup: 'conditional',
     displayToken: 'shield',
-    faceClause: (a) => `{{Shield}} spend (cap ${a.cap})`,
-    ruleTitle: 'Shield Spend',
-    ruleSentence: 'Spends Shield to add the same amount to this card’s damage, up to the maximum shown.',
-    faceToken: (a) => ({ text: `SPEND SHLD ${a.cap}`, keyword: 'shield' }),
+    faceClause: (a) => `{{Shield}} burst (cap ${a.cap})`,
+    ruleTitle: 'Shield Burst',
+    ruleSentence: 'Bursts your Shield to add that much damage, up to the maximum shown.',
+    faceToken: (a) => ({ text: `${HEADLINE_LABEL.shield} BURST ${a.cap}`, keyword: 'shield' }),
   },
   wardRelease: {
     composeGroup: 'conditional',
     displayToken: 'ward',
-    faceClause: (a) => `{{Ward}} spend +${a.per} (cap ${a.cap})`,
-    ruleTitle: 'Ward Spend',
-    ruleSentence: 'Spends Ward to add the shown damage per charge, up to the maximum shown.',
-    faceToken: (a) => ({ text: `SPEND WARD +${a.per}/CHG (cap ${a.cap})`, keyword: 'ward' }),
+    faceClause: (a) => `{{Ward}} burst +${a.per} (cap ${a.cap})`,
+    ruleTitle: 'Ward Burst',
+    ruleSentence: 'Bursts your Ward charges to add the shown damage per charge, up to the maximum shown.',
+    faceToken: (a) => ({ text: `WARD BURST +${a.per}/CHG (cap ${a.cap})`, keyword: 'ward' }),
   },
   desperation: {
     composeGroup: 'conditional',
     // EXEMPT: the gate is a fact about the CASTER'S OWN HP BAR, not a keyword
     // — there is no named mechanic here to colour or tap.
     displayToken: undefined,
-    faceClause: (a) => `+${a.amount} below half HP`,
+    faceClause: (a) => `Desperation ${a.amount}`,
     ruleTitle: 'Desperation',
     ruleSentence: 'Deal X more damage while at or below half HP.',
-    faceToken: (a) => ({ text: `+${a.amount} BELOW HALF HP`, keyword: 'bleed' }),
+    faceToken: (a) => ({ text: `DESPERATION ${a.amount}`, keyword: 'bleed' }),
   },
   overhealShield: {
     composeGroup: 'conditional',
@@ -940,10 +985,35 @@ export function faceTokenOf(action: Action, ctx: RenderCtx): { text: string; key
   return row.faceToken(action as never, ctx);
 }
 
+/**
+ * `stackBonus` over `burden` counts BOARD PIECES, not points in a status pile
+ * — one Burdened card is one count whatever its added Weight — so it cannot
+ * share the pile form's sentence or its `Status Bonus` heading. Parameter-free
+ * and two X slots like the row it replaces, so every consumer binds
+ * `[per, cap]` unchanged.
+ */
+const BURDEN_STACK_BONUS = {
+  title: 'Burden Bonus',
+  body: 'Each Burdened card adds X damage, up to X.',
+} as const;
+
 /** The `{title, body}` a tap/hover glossary shows for this action, or `undefined`
  * for the two kinds with no rule of their own (`damage`, `heal`). */
 export function ruleEntryOf(action: Action): { title: string; body: string } | undefined {
+  if (action.kind === 'stackBonus' && action.status === 'burden') {
+    return { title: BURDEN_STACK_BONUS.title, body: BURDEN_STACK_BONUS.body };
+  }
   return ruleEntryByKind(action.kind);
+}
+
+/** This action's glossary heading, `''` when the kind carries no rule. */
+export function ruleTitleOf(action: Action): string {
+  return ruleEntryOf(action)?.title ?? (KEYWORD_TEXT[action.kind] as KeywordTextDef).ruleTitle;
+}
+
+/** This action's rule body in its X form, `''` when the kind carries no rule. */
+export function ruleSentenceOf(action: Action): string {
+  return ruleEntryOf(action)?.body ?? (KEYWORD_TEXT[action.kind] as KeywordTextDef).ruleSentence;
 }
 
 /** Canonical rule lookup for consumers that know the mechanic kind but do not

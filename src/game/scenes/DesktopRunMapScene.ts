@@ -8,12 +8,13 @@ import { bossArrivalViewModel } from '../ui/RunBossArrivalPanel';
 import { buildRunTravelChoiceViewModel, type RunTravelChoiceViewModel } from '../ui/runTravelChoiceViewModel';
 import { runBossCountdownModel } from '../ui/statRunModel';
 import { runCalendar } from '../../run/runCalendar';
+import { biomeFor } from '../../run/biome';
 import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { mapIntelLayoutModel, renderDesktopMapIntelRail, renderEmbeddedBandRead, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { addBrightRunArt, addRunArt, RUN_ART_KEYS } from '../ui/runArt';
+import { addBrightRunArt, addRunArt, desktopBiomeArtKey, RUN_ART_KEYS } from '../ui/runArt';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
@@ -198,7 +199,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const columns = desktopRunMapPanelColumns(
       { x: content.x, width: content.width }, slot.x, this.regionPaneCollapsed,
     );
-    const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
+    const band = this.desktopBand(bandBannerForWave(run, snapshotRunProgress(run).wave));
     this.band = band;
 
     const bottom = content.y + content.height;
@@ -366,7 +367,14 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
   private choiceViewModel(node: RunNode): RunTravelChoiceViewModel {
     const run = getActiveRun()!;
-    return buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
+    const model = buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
+    if (!model.dossier) return model;
+    const biome = biomeFor(run.map.seed, node.wave, node.biomeId);
+    return { ...model, artKey: desktopBiomeArtKey(biome.id) };
+  }
+
+  private desktopBand(band: BandBannerViewModel): BandBannerViewModel {
+    return { ...band, artKey: desktopBiomeArtKey(band.biomeId) };
   }
 
   // ---------- defeat / retired end-summary banner ----------

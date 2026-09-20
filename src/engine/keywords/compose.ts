@@ -160,12 +160,42 @@ function auraClause(aura: AuraDef): string {
  * other cards in front of them, not a rule.
  */
 
+export function cooldownRemainingClause(turnsLeft: number): string {
+  return `on cooldown, ${turnsLeft} turn${turnsLeft === 1 ? '' : 's'} remaining`;
+}
+
+export function emptySlotClause(slot: number): string {
+  return `empty slot ${slot + 1}`;
+}
+
 /** THE COOLDOWN CLAUSE (spec §2.4). 9 cards deviate from `BASELINE_COOLDOWN`,
  * and unlike weight there is no plate, badge or glossary entry for it
  * anywhere on the face — so this is the only place it can be read. */
-function cooldownClause(skill: SkillDef): string | undefined {
+export function cooldownClause(skill: SkillDef): string | undefined {
   if (skill.cooldownTurns === undefined || skill.cooldownTurns === BASELINE_COOLDOWN) return undefined;
   return `Cooldown ${skill.cooldownTurns} (default ${BASELINE_COOLDOWN}).`;
+}
+
+export const EXTRA_COOLDOWN_LIST_CAP = 3;
+
+export interface ExtraCooldownWarningEntry {
+  name: string;
+  clause: string;
+}
+
+export function extraCooldownWarningEntries(skills: readonly SkillDef[]): { entries: ExtraCooldownWarningEntry[]; moreCount: number } {
+  const capped = skills.slice(0, EXTRA_COOLDOWN_LIST_CAP);
+  const entries = capped.map((skill) => ({ name: skill.name, clause: cooldownClause(skill) ?? '' }));
+  return { entries, moreCount: Math.max(0, skills.length - EXTRA_COOLDOWN_LIST_CAP) };
+}
+
+export function castableGapWarningLines(needed: number | null): string[] {
+  if (needed === null) return [];
+  return [
+    'This board will hit card',
+    `cooldown — need at least ${needed}`,
+    'cards to avoid it.',
+  ];
 }
 
 /**

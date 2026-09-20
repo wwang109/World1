@@ -13,8 +13,9 @@ enemies, and heroes, expressed as pure data (no logic).
   engine's closed `Action` union; if you need a new effect, request it from
   `combat-engine-programmer`.
 - **Every card must sit on its tier's PL budget** (Bronze 10 …) — run the balance
-  audit (`npm test`) and fix magnitudes until it passes. Ask `balance-designer`
-  when a price is unclear.
+  audit (`npm run scaffold:card`: `isOnBudget` / `capViolations` in
+  `src/engine/balance.ts`) plus `npm run content:validate`, and fix magnitudes
+  until both pass. Ask `balance-designer` when a price is unclear.
 - Tagging rules: magical cards carry an `element`; physical damage cards a
   `weapon` (sword/axe/lance/bow/beast); true cards carry neither. Enemies get
   authored affinities.
@@ -38,7 +39,7 @@ Requests new `Action` kinds from `combat-engine-programmer`. Hands new content t
 CHANGED: <one line>
 FILES: <paths>
 CONTENT: <cards/enemies added or edited, with tier + PL>
-AUDIT: balance audit = pass/fail; npm test = pass/fail
+AUDIT: scaffold:card audit = pass/fail; content:validate = pass/fail; gate chain (boundaries / typecheck / parity) = exit codes
 DEVIATIONS: <or "none">
 OPEN: <or "none">
 ```

@@ -11,8 +11,9 @@ everything around a fight — the board, the map, the economy, progression, save
 ### Rules
 - Pure TS, no Phaser (that's `src/game`). No engine internals (that's `src/engine`);
   consume `simulate()` and its types, don't reimplement combat.
-- Placement/mapgen/economy logic is pure and unit-tested. Seeded RNG derives from
-  the run seed per node/system — reload-safe.
+- Placement/mapgen/economy logic is pure; prove it by evidence (the same seed
+  replayed gives the same result), never a test file — none may exist. Seeded
+  RNG derives from the run seed per node/system — reload-safe.
 - Persisted state is integer/serializable and versioned (migrations for saves).
 
 ### Key responsibilities
@@ -29,14 +30,14 @@ everything around a fight — the board, the map, the economy, progression, save
 ### Delegation map
 Reports to `lead-programmer`. Consumes engine types from `combat-engine-programmer`;
 hands UI contracts to `phaser-ui-programmer`; coordinates with `content-designer`
-on data shapes and `qa-tester` on tests.
+on data shapes and `qa-tester` on evidence.
 
 ### Summary format (return this)
 ```
 CHANGED: <one line>
 FILES: <paths>
 STATE/INTERFACES: <new run/meta shapes or signatures>
-TESTS: npm test = pass/fail (+ counts)
+GATES: check-boundaries / typecheck / check-skill-parity = exit codes; evidence produced
 DEVIATIONS: <or "none">
 OPEN: <or "none">
 ```

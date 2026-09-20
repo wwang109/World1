@@ -49,14 +49,13 @@ immediately):
 | `comboBonus` | `amount * comboPerPointNum/Den` | `PRICE.comboPerPointNum/Den` — CONDITIONAL-TRIGGER DISCOUNT (user-locked 2026-07-23): gated riders price at a fraction of their always-on equivalent |
 | `chainBonus` (flat bonus if the caster's PREVIOUS cast was of a named card type) | `amount * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — `comboBonus` on the TYPE axis instead of the archetype axis, and it needed NO NEW RATE: the discount is written as a denominator precisely so a new rider can divide the same `strikeRate`. "Type" is the game's one notion of it — `cardType` = `element ?? weapon` — so one keyword gates both `after: 'sword'` on an axe card and `after: 'fire'` on a frost card. A gate naming ONE type of eleven opens less often than an archetype match, so this rate can only OVER-price it (the safe direction). A card naming its OWN type is refused at authoring, not priced |
 | `exploit` (flat bonus if the target already carries a named status) | `amount * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — see the conditional-rider family section below |
-| `stackBonus` (flat bonus scaling with a stacking pile, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — prices the required `cap` ceiling only; see below |
+| `stackBonus` (flat bonus scaling with a named resource — a stacking pile, or the holder's Burdened cards — hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — prices the required `cap` ceiling only, so WHAT is counted never enters the price; see below |
 | `shieldBurst` (spend the caster's OWN shield as bonus damage) | `cap * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — same discount despite also destroying the resource it reads; see below |
-| `taxBonus` (flat bonus per weight-taxed card on the victim's board, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — reads the victim's tempo backlog rather than an affliction pile; see below |
-| self-synergy premium (on any of the four rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME AUTHORED KIT also supplies the resource the rider reads (a card judged against its own effects; a gem against its own actions). A card+gem PAIRING is never charged: instance PL is the plain sum of the two standalone prices (user-locked 2026-08-21); see below |
+| self-synergy premium (on any of the three rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME AUTHORED KIT also supplies the resource the rider reads (a card judged against its own effects; a gem against its own actions). A card+gem PAIRING is never charged: instance PL is the plain sum of the two standalone prices (user-locked 2026-08-21); see below |
 | `guard` (%DR) | `pct * turns * guardPerPctTurnNum/Den` | `PRICE.guardPerPctTurnNum/Den` — parity with `statPctTurn`; see rationale below |
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` — flat per-charge; see rationale below |
 | `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
-| multi-hit premium | `(damageActions − 1) * extraHitPremium` | `PRICE.extraHitPremium` — every hit beyond the first re-delivers the caster's full (unpriced) stat add, so each extra hit pays a flat surcharge; each extra hit also eats mitigation again, the built-in counterweight vs armor stacks. First-pass rate, re-derive with sim data |
+| Additional Stat (cards) | `sum(max(0, kindCount − 1)) * additionalStatPremium` | `PRICE.additionalStatPremium` — repeated `damage`, `statStrike`, `shield`, `heal`, `attunedShield`, `buffStat`, and `debuffStat` entries each cost budget in addition to their magnitude. Count each exact effect kind separately: mixed Damage + Heal has no fee. Affinity-gated and tier-locked-out entries do not count. The fee is flat, added after AoE scaling. Gem pricing keeps `PRICE.extraHitPremium` unchanged. |
 | AoE reach (`scope: 'all'`) | `offensiveShare * aoeTargetsNum/Den`, floored once over the whole offensive share | `PRICE.aoeTargetsNum/Den` — flat multiplier on the OFFENSIVE portion of a kit (damage/DoT/control; see `OFFENSIVE_KINDS`), derived from the game's own pack-frequency constants, not `MAX_FOES`; see rationale below |
 | aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reachMultiplier` (2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit). **`AuraDef.reach` is NOT an input** — the multiplier reads `affects` only, so coverage past 2 pieces is free PL; see the aura-coverage section below |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
@@ -75,7 +74,7 @@ run `npm test` — the audit names any cap it breaks.**
 - Families: `control` (stun, slow, burden, curse, splash's spread, disrupt,
   stat-down, expose, shieldBreak) ·
   `dot` (poison + burn + bleed combined) · `empower` (stat-up, guard, negate,
-  ward, lifesteal, combo, thorns, exploit, stackBonus, shieldBurst, taxBonus)
+  ward, lifesteal, combo, thorns, exploit, stackBonus, shieldBurst)
   · `cleanse` (its own family, see below) ·
   `damage` · `shield` · `heal`. Membership sets:
   `CONTROL_KINDS` / `DOT_KINDS` / `EMPOWER_KINDS` / `CLEANSE_KINDS`.
@@ -142,14 +141,24 @@ Bronze card's output, so it's priced as a **flat deci-PL per charge**
 (`negatePerCharge`, user-locked 2026-07-19: one charge = one Bronze budget
 exactly; apply-time clamp caps total charges of a property at 3).
 
-## Conditional-rider family pricing rationale (`exploit` / `stackBonus` / `shieldBurst` / `taxBonus`)
+## Conditional-rider family pricing rationale (`exploit` / `stackBonus` / `shieldBurst`)
 
-Four keywords add FLAT bonus damage to the cast's own hit behind a gate — the
-target already carries a named affliction (`exploit`), a stacking pile exists
-on caster or target (`stackBonus`), the caster is holding shield to spend
-(`shieldBurst`), or the target's board is carrying a weight-tax backlog
-(`taxBonus`). All four share one pricing shape, in `keywords/pricing.ts` and
+Three keywords add FLAT bonus damage to the cast's own hit behind a gate — the
+target already carries a named affliction (`exploit`), a named resource is
+sitting on caster or target (`stackBonus`: a stacking pile, or — with
+`status: 'burden'` — how many of that side's board pieces carry a weight tax),
+or the caster is holding shield to spend (`shieldBurst`). All three share one
+pricing shape, in `keywords/pricing.ts` and
 `selfSynergyPremiumDeci`/`riderReadsResource` (`src/engine/balance.ts`):
+
+> **2026-09-14 — `taxBonus` was deleted, not repriced.** It was a fourth row
+> here, reading "the victim's tempo backlog" through a resource its own JSON
+> never named (`{ per, cap }` only). It is now `stackBonus` with
+> `status: 'burden'`. Because both forms priced `cap` at
+> `strikeRate / conditionalBonusDen` and nothing else, **every card's PL is
+> unchanged at every tier** — `deadweight_toll` is still 10/15/20/25 PL. One
+> BEHAVIOUR term was dropped by the same ruling: a pending unit-scope `slow` no
+> longer counts. `burden` names PIECES; a slow marks none.
 
 - **The discount denominator.** Each prices at the card's own property-aware
   flat-damage rate (`strikeRate` — `flatPowerPerPoint`, doubled for TRUE via
@@ -162,10 +171,10 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   This is the CONDITIONAL-TRIGGER DISCOUNT principle `comboBonus` established
   (user-locked 2026-07-23): a rider that only fires under a gate prices at a
   fraction of its always-on equivalent, not the full rate.
-- **The cap is the priced thing.** `stackBonus`, `shieldBurst`, and `taxBonus`
-  each require a `cap` field and price only it — never `per` (or `shieldBurst`'s
-  implicit multiplier). The payload each scales (`per × stacks`, the plating
-  spent, `per × taxed cards`) is unbounded in a resource the card does not
+- **The cap is the priced thing.** `stackBonus` and `shieldBurst` each require
+  a `cap` field and price only it — never `per` (or `shieldBurst`'s
+  implicit multiplier). The payload each scales (`per × count`, the plating
+  spent) is unbounded in a resource the card does not
   control, so only the hard ceiling is honestly priceable — the same
   precedent an uncapped `statStrike` sets by pricing at 0 (so it fails every
   budget loudly), here made unrepresentable by `cap` being a required field
@@ -176,7 +185,8 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   `amount` is priced directly.
 - **The self-synergy forfeit.** A card that itself SUPPLIES the resource its
   own rider reads (a poison line feeding its own `exploit`, a `shield` line
-  feeding its own `shieldBurst`, a `slow`/`burden` feeding its own `taxBonus`)
+  feeding its own `shieldBurst`, a `burden` feeding its own burden-reading
+  `stackBonus`)
   guarantees its own gate from the second cast onward, which the discount no
   longer honestly describes. `selfSynergyPremiumDeci` detects this STATICALLY
   from the authored kit — matching the rider's resource name AND side
@@ -216,7 +226,7 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   outright by `validateSkillContent` rather than priced: one wall spent once
   must not be delivered to five foes at a single-target price (the same
   refuse-rather-than-price call `splash` makes for a payload-less spread).
-  Priced identically to `stackBonus`/`taxBonus` regardless, the rate is
+  Priced identically to `stackBonus` regardless, the rate is
   deliberately OVER- rather than under-priced on two counts spelled out in
   code: the gate ("you are holding plating") is a resource another card has
   to supply, exactly like an `exploit`'s poison; and unlike every other
@@ -403,14 +413,16 @@ book again).
 ### `actionsPriceDeci`: the pricing switch, decoupled from `SkillDef`
 
 `powerLevelDeci` sums a card's kit by calling `actionsPriceDeci(skill.effects,
-skill.property, skill.scope)` and then layering on card-level things
+skill.property, skill.scope, skill.effects, skill.tier)` and then layering on card-level things
 `actionsPriceDeci` deliberately does NOT know about: aura mods, weight, size
 grant, and cooldown deviation. `scope` (third, optional — default `'one'`)
 applies the AoE reach multiplier to the OFFENSIVE share of the total when
 `'all'` (see the rationale section above); `gemPowerLevelDeci` reuses the same
 function at the default `'one'` for effect gems (host-blind on purpose — see
 that section's known-gap note), so a single per-unit rate table prices both
-authored card effects and gem effects — no duplicated switch.
+authored card effects and gem effects — no duplicated switch. The card tier
+selects the card-only Additional Stat fee after AoE scaling; omitting it
+preserves the existing tierless gem pricing.
 
 ### Effect gems
 

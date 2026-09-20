@@ -20,6 +20,7 @@ import { DesktopRunPrepScene } from './game/scenes/DesktopRunPrepScene';
 import { MobileRunPrepScene } from './game/scenes/MobileRunPrepScene';
 import { DesktopRunEventScene } from './game/scenes/DesktopRunEventScene';
 import { MobileRunEventScene } from './game/scenes/MobileRunEventScene';
+import { DesktopCardDesignScene } from './game/scenes/DesktopCardDesignScene';
 import { shouldPreserveDrawingBufferForLayoutAudit } from './game/devLaunch';
 import { devicePixels, installFillHost, installRenderScale, manageTextResolution, textResolution } from './game/renderScale';
 
@@ -91,6 +92,7 @@ const game = new Phaser.Game({
     BootScene, StartScene, UiKitScene,
     MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, MobileShopScene, MobileDraftScene, MobileRunMapScene, MobileRunPrepScene, MobileRunEventScene,
     DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene, DesktopShopScene, DesktopDraftScene, DesktopRunMapScene, DesktopRunPrepScene, DesktopRunEventScene,
+    DesktopCardDesignScene,
   ],
 });
 

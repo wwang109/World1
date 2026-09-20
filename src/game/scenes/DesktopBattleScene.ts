@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Archetype, SkillDef } from '../../engine/types';
-import {
+import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
   type BattleTimelineInput,
   type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
@@ -26,7 +26,7 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
-import { renderBattleLogLine } from '../ui/battleLogLine';
+import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -115,6 +115,7 @@ export class DesktopBattleScene extends Phaser.Scene {
   private speedByTurn = new Map<number, SpeedSnap>();
   private comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
+  private cursorSlotByStep: CursorSlotSnap[] = [];
   private turns: number[] = [];
   private steps: PlaybackStep[] = [];
   private hpByStep: HpSnap[] = [];
@@ -188,6 +189,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.speedByTurn = new Map();
     this.comboArchetypesByTurn = new Map();
     this.playSlotByTurn = new Map();
+    this.cursorSlotByStep = [];
     this.turns = [];
     this.steps = [];
     this.hpByStep = [];
@@ -332,6 +334,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.speedByTurn = model.speedByTurn;
     this.comboArchetypesByTurn = model.comboArchetypesByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
+    this.cursorSlotByStep = model.cursorSlotByStep;
     this.turns = model.turns;
     this.steps = model.steps;
     this.hpByStep = model.hpByStep;
@@ -415,7 +418,7 @@ export class DesktopBattleScene extends Phaser.Scene {
 
     // ---- HP blocks + boards. LEFT: the hero. RIGHT: one section per foe,
     // stacked vertically (a 1v1 fight is just the single full-height case).
-    const slots = this.playSlotByTurn.get(turn) ?? {};
+    const slots = this.cursorSlotByStep[this.idx] ?? this.playSlotByTurn.get(turn) ?? {};
     const comboSnap = this.comboArchetypesByTurn.get(turn) ?? { player: [], enemy: [] };
     // `slotMods` lookup is by the piece's ANCHOR slot — exactly what the
     // engine's burdened/cursed events name (see `SlotModsSnap`).
@@ -610,32 +613,36 @@ export class DesktopBattleScene extends Phaser.Scene {
     const turnX = x + 16;
     const tagX = x + 58;
     const textX = x + 136;
-    const maxRows = Math.max(1, Math.floor((h - 66 - 12) / rowH));
-    const visible = feed.slice(-maxRows);
+    const bodyStyle = { fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.text };
+    const availableHeight = (y + h - 12) - headerBottom;
+    const rows = layoutVisibleBattleLogRows(
+      this, feed, ({ line }) => line,
+      ({ line }) => w - (textX - x) - (line.detail ? 30 : 16),
+      bodyStyle, rowH, availableHeight,
+    );
     let ly = headerBottom;
     let prevTurn = -1;
-    for (const { t, local, line } of visible) {
+    for (const { item: { t, local, line }, wrapped } of rows) {
       if (ly > y + h - 20) break;
       const key = `${t}:${local}`;
       this.add.rectangle(x + 16, ly - 3, w - 32, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.boundedText(turnX, ly + 3, `T${t}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }, tagX - turnX - 8);
       prevTurn = t;
       this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
-      const textMaxW = w - (textX - x) - (line.detail ? 30 : 16);
-      renderBattleLogLine(this, textX, ly, line, { fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.text }, textMaxW);
+      const { height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
       if (line.detail) {
         this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
-        const zone = this.add.rectangle(x, ly - 3, w, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const zone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
         // HIT rows ALSO get a hover tip reading the same D: string — a second
         // affordance for the math strip specifically. Status rows (BUFF/DEBUFF
         // — guard/buff/debuff/expose/negate) rely on click-to-expand ONLY, no
         // hover, per the locked both-platforms tap idiom (desktop click = tap).
         if (line.tag === 'HIT') {
-          attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+          attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
         }
       }
-      ly += rowH;
+      ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < y + h - 16) {
         const d = this.boundedText(textX, ly, line.detail, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim }, w - (textX - x) - 16);
         ly += d.height + 6;

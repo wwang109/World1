@@ -14,11 +14,8 @@ export * from './runArtKeys';
  * Boot-time run art. The paths are `.webp` DERIVATIVES of the `.png` masters
  * in `art-src/placeholders/` (non-served — `vite build` copies `public/`
  * verbatim), produced by `scripts/encode-card-art.ts` (`npm run art:encode`)
- * at the masters' own dimensions — these are already authored at their draw
- * size, so only the container changed: the current 53-master group is 19.6 MB
- * of PNG and 3.0 MB of WebP (84.9% smaller) with no resolution lost. Unlike
- * card art this set stays EAGER: it is small
- * now, and the run map / shop fronts are full-bleed backdrops where a
+ * at the masters' own dimensions. Unlike card art this set stays EAGER: the
+ * run map / shop fronts / biome panes are full-bleed backdrops where a
  * placeholder would be conspicuous.
  */
 export const RUN_ART_ASSETS = [
@@ -75,6 +72,20 @@ export const RUN_ART_ASSETS = [
   { key: RUN_ART_KEYS.eventStory.bell_beneath_ice, path: '/game-art/placeholders/event-bell-beneath-ice.webp' },
   { key: RUN_ART_KEYS.eventStory.second_toll, path: '/game-art/placeholders/event-second-toll.webp' },
   { key: RUN_ART_KEYS.eventStory.bell_unbound, path: '/game-art/placeholders/event-bell-unbound.webp' },
+] as const;
+
+export const DESKTOP_RUN_ART_ASSETS = [
+  { key: RUN_ART_KEYS.biomeDesktop.arrowfell, path: '/game-art/placeholders/biome-arrowfell-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.duskbarrow, path: '/game-art/placeholders/biome-duskbarrow-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.emberwaste, path: '/game-art/placeholders/biome-emberwaste-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.frostmarch, path: '/game-art/placeholders/biome-frostmarch-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.hallowfield, path: '/game-art/placeholders/biome-hallowfield-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.howlmoor, path: '/game-art/placeholders/biome-howlmoor-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.ironmoot, path: '/game-art/placeholders/biome-ironmoot-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.pikewold, path: '/game-art/placeholders/biome-pikewold-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.stormreach, path: '/game-art/placeholders/biome-stormreach-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.swornhold, path: '/game-art/placeholders/biome-swornhold-desktop-vertical-v2.webp' },
+  { key: RUN_ART_KEYS.biomeDesktop.thornwild, path: '/game-art/placeholders/biome-thornwild-desktop-vertical-v2.webp' },
 ] as const;
 
 export interface RunArtCropGeometry {

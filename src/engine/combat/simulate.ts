@@ -365,15 +365,8 @@ function emitCursor(ctx: Ctx, c: CombatantState, before: number): void {
   });
 }
 
-function moveCursorToNextCard(c: CombatantState): void {
-  if (cursorPiece(c)) return;
-  for (let offset = 0; offset < c.boardSize; offset += 1) {
-    const slot = (c.castCursor + offset) % c.boardSize;
-    if (c.pieces.some((piece) => piece.slot === slot)) {
-      c.castCursor = slot;
-      return;
-    }
-  }
+function advanceCursor(c: CombatantState): number {
+  return c.castCursor >= c.spanEnd ? 0 : c.castCursor + 1;
 }
 
 /** Higher initiative score performs (see `compareInitiative`; ties keep the incumbent). */
@@ -484,7 +477,16 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     for (const c of units) {
       if (!c.alive) continue;
       const at = cursorPiece(c);
-      if (!at || at.slotIndex === 1) continue;
+      if (at === null) {
+        if (c.pieces.length === 0) continue;
+        const before = c.castCursor;
+        events.push({ turn: state.turn, kind: 'wait', side: c.side, unit: c.index, reason: 'emptySlot', slot: before });
+        c.castCursor = advanceCursor(c);
+        emitCursor(ctx, c, before);
+        blocked.add(c);
+        continue;
+      }
+      if (at.slotIndex === 1) continue;
       events.push({
         turn: state.turn,
         kind: 'busy',
@@ -496,8 +498,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         slotCount: at.piece.size,
       });
       const before = c.castCursor;
-      c.castCursor = (c.castCursor + 1) % c.boardSize;
-      moveCursorToNextCard(c);
+      c.castCursor = advanceCursor(c);
       emitCursor(ctx, c, before);
       blocked.add(c);
     }
@@ -506,6 +507,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     const played = new Set<CombatantState>();
     const playedPieces = new Map<CombatantState, Set<CombatantState['pieces'][number]>>();
     const stunned = new Set<CombatantState>();
+    const coolingSkipReported: { unit: CombatantState; slot: number }[] = [];
     while (true) {
       let performerEntry: { unit: CombatantState; choice: CastChoice } | null = null;
       for (const c of units) {
@@ -555,7 +557,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         stunned.add(c);
       } else {
         const cursorBefore = c.castCursor;
-        const cursorAfter = (choice.piece.slot + 1) % c.boardSize;
+        const cursorAfter = choice.piece.slot >= c.spanEnd ? 0 : choice.piece.slot + 1;
         const playEvent: Extract<CombatEvent, { kind: 'play' }> = {
           turn: state.turn,
           kind: 'play',
@@ -570,6 +572,22 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           ...targetInfoForCast(ctx, c, choice.skill),
           ...(choice.auraSources.length > 0 ? { auras: choice.auraSources } : {}),
         };
+        for (let i = 0; i < choice.skippedCooling.length; i += 1) {
+          const skipped = choice.skippedCooling[i]!;
+          const slot = skipped.piece.slot;
+          if (coolingSkipReported.some((seen) => seen.unit === c && seen.slot === slot)) continue;
+          coolingSkipReported.push({ unit: c, slot });
+          events.push({
+            turn: state.turn,
+            kind: 'castSkipped',
+            side: c.side,
+            unit: c.index,
+            reason: 'cooling',
+            slot,
+            skillId: skipped.piece.skillId,
+            turnsLeft: skipped.turnsLeft,
+          });
+        }
         events.push(playEvent);
         const readinessBefore = c.readiness;
         c.readiness -= choice.weight;
@@ -644,7 +662,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         const pieces = playedPieces.get(c) ?? new Set<CombatantState['pieces'][number]>();
         pieces.add(choice.piece);
         playedPieces.set(c, pieces);
-        if (choice.piece.size > 1) blocked.add(c);
+        if (choice.piece.size > 1 || cursorPiece(c) === null) blocked.add(c);
       }
       outcome = checkEnd();
       if (outcome !== null) return finish(outcome);

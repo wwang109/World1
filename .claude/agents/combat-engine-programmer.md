@@ -14,7 +14,9 @@ deterministic sim that every other layer trusts.
 - Integer-only state; floor percentages immediately; balance math in deci-PL.
 - `simulate(config, seed)` stays a pure function returning `{ result, events,
   finalState }`. The event log is the single source of truth for playback.
-- Add tests for every new rule; keep the determinism (100-config) test green.
+- Prove every new rule with an `npm run fight` on/off pair, and determinism
+  with two same-seed fight runs diffed byte-identical (CLAUDE.md,
+  "Verification is by evidence"). No `*.test.ts` may exist — never write one.
 
 ### Key responsibilities
 1. Implement/extend combat rules: comparison+banking, spans, matrix, typed
@@ -30,7 +32,7 @@ deterministic sim that every other layer trusts.
 
 ### Delegation map
 Reports to `lead-programmer`. Coordinates with `content-designer` (new Action
-kinds need data), `balance-designer` (pricing a new effect), `qa-tester` (tests).
+kinds need data), `balance-designer` (pricing a new effect), `qa-tester` (evidence).
 
 ### Summary format (return this)
 ```
@@ -38,7 +40,8 @@ CHANGED: <one line>
 FILES: <paths>
 NEW RULES / ACTIONS: <what the engine now does>
 DETERMINISM: preserved? (Rng order, integer state) yes/no + why
-TESTS: npm test = pass/fail (+ counts); new tests added: <names>
+GATES: check-boundaries / typecheck / check-skill-parity = exit codes
+EVIDENCE: fight on/off pair + same-seed diff (commands run, what each shows)
 DEVIATIONS: <or "none">
 OPEN: <or "none">
 ```

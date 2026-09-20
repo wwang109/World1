@@ -1,8 +1,16 @@
 import { boardAffinities } from '../engine/combat/typeIdentity';
-import { hashSeed } from '../engine/rng';
 import type { EventDefV2, EventRequirementV2 } from '../data/eventContentV2';
 import { skillBook } from '../data/skills';
 import { biomeFor } from './biome';
+// `eventEligible` below is a test-only mirror of the LIVE selection gate in
+// `rollEventForNode`/`firstEligibleConditionalEvent` (events.ts). It has no
+// production caller, but a duplicate lottery is exactly the drift bug class
+// this repo has been bitten by before (see `featheredCairn.test.ts`), so it
+// delegates to the one real rarity gate instead of re-deriving its own.
+// Imported from `eventOpportunityHint` (not `events`) so this stays a leaf:
+// `events.ts` itself imports `eventRequirementMet` FROM this module, and an
+// import of the events module here would close that into a two-file cycle.
+import { eventRarityEligible } from './eventOpportunityHint';
 import type { RunCard, RunNode, RunState } from './runState';
 
 export interface EventEligibilityContext {
@@ -78,9 +86,7 @@ export function eventEligible(context: EventEligibilityContext): boolean {
   const biome = biomeFor(state.map.seed, node.wave, node.biomeId);
   if (event.biomeIds !== undefined && !event.biomeIds.includes(biome.id)) return false;
 
-  const rarity = event.rarity ?? 'common';
-  if (rarity === 'uncommon' && hashSeed('eventRarity', node.eventSeed ?? 0, event.id) % 2 !== 0) return false;
-  if (rarity === 'rare' && hashSeed('eventRarity', node.eventSeed ?? 0, event.id) % 4 !== 0) return false;
+  if (!eventRarityEligible(event, node)) return false;
 
   const lastDrawnDepth = mostRecentDrawDepth(state, event.id);
   if (event.once === 'run' && lastDrawnDepth !== undefined) return false;

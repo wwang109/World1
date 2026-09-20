@@ -9,8 +9,10 @@ import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill }
 import { boardAffinityPipAxes } from '../ui/affinityDisplay';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
+import { castableGap, extraCooldownPieces } from '../../run/extraCooldown';
 import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
 import { nextSkillTier } from '../../run/shop';
+import { castableGapWarningLines, extraCooldownWarningEntries, type ExtraCooldownWarningEntry } from '../../engine/keywords/compose';
 import { gemBook } from '../../data/gems';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
@@ -31,8 +33,8 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
   currentHeroAllocation, currentHeroLevel,
   commitRunDeckEdit,
-  currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
-  setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
+  currentCooldownWarningDismissedFor, currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
+  setCooldownWarningDismissedFor, setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
 } from '../runStore';
 
 const SLOTS = 10;
@@ -93,6 +95,16 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private runContext = false;
   private retireConfirmOpen = false;
   private statPanelOpen = false;
+  private cooldownWarning: { entries: ExtraCooldownWarningEntry[]; moreCount: number } | null = null;
+  private cooldownGapLines: string[] = [];
+  private cooldownWarningSignature = '';
+
+  private get cooldownWarningDismissedFor(): string | null {
+    return this.runContext ? currentCooldownWarningDismissedFor() : demoState.cooldownWarningDismissedFor;
+  }
+  private set cooldownWarningDismissedFor(next: string | null) {
+    if (this.runContext) setCooldownWarningDismissedFor(next); else demoState.cooldownWarningDismissedFor = next;
+  }
 
   constructor() { super('DesktopDeck'); }
 
@@ -142,6 +154,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // this, every card face's live-stat term understated the gem's bonus.
     const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
     this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
+    const extraCooldown = extraCooldownPieces(this.pieces, skillBook);
+    this.cooldownWarning = extraCooldown.length > 0 ? extraCooldownWarningEntries(extraCooldown.map((p) => p.skill)) : null;
+    const gap = castableGap(this.pieces, skillBook);
+    this.cooldownGapLines = castableGapWarningLines(gap ? gap.needed : null);
+    this.cooldownWarningSignature = this.pieces.slice().sort((a, b) => a.slot - b.slot)
+      .map((p) => `${p.slot}:${p.skillId}:${p.tier}:${p.gem?.id ?? ''}`).join('|');
     renderDesktopBackground(this);
     if (this.runContext) this.renderHud(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
     this.renderMeta(heroStats);
@@ -475,9 +493,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   private renderColumns(): void {
     const gx = DESKTOP_LAYOUT.gutter;
-    // 44px band between the holding strip and the columns gives the
-    // ACTIVE DECK / BAG header labels clear air on both sides.
-    const top = this.holdingTop + this.holdingH + 44;
+    const CLOSE_SIZE = 28;
+    const showWarning = (this.cooldownWarning !== null || this.cooldownGapLines.length > 0)
+      && this.cooldownWarningDismissedFor !== this.cooldownWarningSignature;
+    const warningLineCount = showWarning
+      ? this.cooldownGapLines.length + (this.cooldownWarning ? this.cooldownWarning.entries.length + (this.cooldownWarning.moreCount > 0 ? 1 : 0) : 0)
+      : 0;
+    const bandH = showWarning ? Math.max(CLOSE_SIZE + 16, warningLineCount * 16 + 16) : 0;
+    const top = this.holdingTop + this.holdingH + Math.max(44, bandH);
     const colH = 500;
     const colW = 620;
     const gap = 8;
@@ -489,6 +512,42 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const bagUsed = this.bagOccupied().filter(Boolean).length;
     this.add.text(deckX + colW / 2, top - 18, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
     this.add.text(bagX + colW / 2, top - 18, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+
+    if (showWarning) {
+      const by = this.holdingTop + this.holdingH + 8;
+      let li = 0;
+      for (const line of this.cooldownGapLines) {
+        this.add.text(gx, by + li * 16, line, {
+          fontSize: `${F.small}px`, color: UI.textAlarm, fontFamily: FONT.body, fontStyle: 'bold',
+        }).setOrigin(0, 0);
+        li += 1;
+      }
+      if (this.cooldownWarning) {
+        const { entries, moreCount } = this.cooldownWarning;
+        for (const entry of entries) {
+          this.add.text(gx, by + li * 16, `${entry.name} · ${entry.clause}`, {
+            fontSize: `${F.small}px`, color: UI.textAlarm, fontFamily: FONT.body, fontStyle: 'bold',
+          }).setOrigin(0, 0);
+          li += 1;
+        }
+        if (moreCount > 0) {
+          this.add.text(gx, by + li * 16, `+${moreCount} more`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0);
+          li += 1;
+        }
+      }
+      const closeX = SCREEN.width - gx - CLOSE_SIZE / 2;
+      const closeY = this.holdingTop + this.holdingH + bandH / 2;
+      const closeBtn = this.add.rectangle(closeX, closeY, CLOSE_SIZE, CLOSE_SIZE, 0x24344a, 1)
+        .setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
+      this.add.text(closeX, closeY, '×', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.xlarge}px`, color: UI.textBright }).setOrigin(0.5);
+      const dismissedFor = this.cooldownWarningSignature;
+      closeBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        playSfx('uiBack');
+        this.cooldownWarningDismissedFor = dismissedFor;
+        this.rerender();
+      });
+    }
 
     const deckSkills = this.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
     const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));

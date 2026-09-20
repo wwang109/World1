@@ -1,9 +1,9 @@
-import { BASELINE_COOLDOWN, TIER_ORDER, tierResolved, weightOf, type Action, type SkillDef, type SkillTier } from '../../engine/types';
+import { TIER_ORDER, tierResolved, weightOf, type Action, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { applyTier, gemCardMods, resolveDisplaySkill } from '../../engine/cards';
-import { renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
-import { faceClauseOf, KEYWORD_TEXT } from '../../engine/keywords/text';
+import { cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
+import { faceClauseOf, ruleSentenceOf, ruleTitleOf } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
 import { typeBadgeEntries } from './cardGlossary';
 import { stripCardTextMarkup } from './cardTextMarkup';
@@ -26,7 +26,7 @@ export function resolveCardDetailsPreview(skill: SkillDef, tier: SkillTier, gem?
 /** Bind each registry parameter to its typed meaning. Positional bindings are
  * deliberately per action kind: percentages, duration and caps are not one X. */
 function specificRule(action: Action): string {
-  const rule = KEYWORD_TEXT[action.kind].ruleSentence;
+  const rule = ruleSentenceOf(action);
   let parameters: Array<string | number>;
   switch (action.kind) {
     case 'shieldBreak': parameters = [action.amount]; break;
@@ -47,7 +47,7 @@ function specificRule(action: Action): string {
     case 'disrupt': case 'taunt': case 'comboBonus': case 'empowerNext': case 'desperation': parameters = [action.amount]; break;
     case 'negate': case 'ward': case 'cleanse': parameters = [action.charges]; break;
     case 'chainBonus': parameters = [action.amount, titleCase(action.after)]; break;
-    case 'stackBonus': case 'taxBonus': case 'cleanseConvert': parameters = [action.per, action.cap]; break;
+    case 'stackBonus': case 'cleanseConvert': parameters = [action.per, action.cap]; break;
     case 'overhealShield': parameters = [action.cap]; break;
     default: return /\bX\b|2X/.test(rule) ? '' : rule;
   }
@@ -84,14 +84,15 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
       return { title: `Exploit — ${status}`, body: `${action.affinity ? `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board. ` : ''}Deal ${action.amount} additional damage against ${target}.` };
     }
     const markup = clause.match(/\{\{([^}:|]+)/)?.[1];
-    const title = action ? KEYWORD_TEXT[action.kind].ruleTitle : undefined;
+    const title = action ? ruleTitleOf(action) : undefined;
     const rule = action ? specificRule(action) : '';
     const body = stripCardTextMarkup(clause);
     return { title: title || (clause.startsWith('Deal ') ? 'Damage' : clause.startsWith('Restore ') ? 'Healing' : markup ?? (clause.startsWith('Passive:') ? 'Passive' : 'Ability')),
       body: action?.kind === 'slow' && rule ? rule : rule && !/\bX\b|2X/.test(rule) ? `${body}. ${rule}` : body };
   });
   if (skill.effects.some(action => action.affinity)) entries.push({ title: 'Affinity', body: `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board to activate the Affinity effects.` });
-  if (skill.cooldownTurns !== undefined && skill.cooldownTurns !== BASELINE_COOLDOWN) entries.push({ title: 'Cooldown', body: `Cooldown ${skill.cooldownTurns} (default ${BASELINE_COOLDOWN}).` });
+  const cooldown = cooldownClause(skill);
+  if (cooldown) entries.push({ title: 'Cooldown', body: cooldown });
   const hits = skill.effects.filter(action => action.kind === 'damage' && !action.affinity).length;
   if (hits > 1) entries.push({ title: 'Multi-Hit', body: `This card hits ${hits} times. Each hit resolves separately.` });
   // TRUE sink quantities already appear in their exact generated clauses;

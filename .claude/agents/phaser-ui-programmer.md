@@ -37,7 +37,8 @@ QA to `qa-tester` (Playwright smoke).
 CHANGED: <one line>
 FILES: <paths>
 SCENES/UI: <what the player now sees/does>
-BUILD: npm run build = pass/fail; npm test = pass/fail
+BUILD: npm run build = pass/fail; gate chain (boundaries / typecheck / parity) = exit codes
+EVIDENCE: audit:hud / audit:cardface / shop:smoke output; screenshot per platform (route + viewport + what it proves)
 DEVIATIONS: <or "none">
 OPEN: <or "none">
 ```

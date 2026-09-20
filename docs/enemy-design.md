@@ -219,7 +219,7 @@ content answer — a deeper pile, an armor-shred line (`debuffStat` armor /
 
 The 2026-08-19/21 card batch landed 9 "carrier" cards that pay off a status
 the REST of a board already applies (`exploit`, `stackBonus`,
-`shieldBurst`, `taxBonus`) — `blight_feast`, `second_bite`,
+`shieldBurst`) — `blight_feast`, `second_bite`,
 `thorn_reckoning`, `bleed_executioner`, `burn_detonator`,
 `control_opportunist`, `debuff_crusher`, `aegis_charge`, `deadweight_toll` —
 with no enemy fielding any of them, so a player could draft the exploit/
