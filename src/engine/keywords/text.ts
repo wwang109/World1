@@ -869,7 +869,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Chain}} +${a.amount}/${typeName(a.after)}`,
     ruleTitle: 'Chain',
     ruleSentence: 'Deal X more damage if the previous card had X type.',
-    faceToken: (a) => ({ text: `CHAIN +${a.amount} AFTER ${a.after.toUpperCase()}`, keyword: 'chain' }),
+    faceToken: (a) => ({ text: `CHAIN: ${a.after.toUpperCase()} ${a.amount}`, keyword: 'chain' }),
   },
   empowerNext: {
     composeGroup: 'conditional',
@@ -910,7 +910,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleTitle: 'Status Bonus',
     ruleSentence: 'Each stack of the listed status adds X damage, up to X.',
     faceToken: (a) => ({
-      text: `BONUS +${a.per} PER ${STATUS_TOKEN[a.status]}`,
+      text: `BONUS: ${STATUS_TOKEN[a.status]} ${a.per}`,
       keyword: a.status,
     }),
   },

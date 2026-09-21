@@ -164,6 +164,27 @@ the pre-rebuild loop — the engine now runs the readiness model.)
 - **Run structure (endless ladder, lives, gold, shops, events, leveling)**:
   [`docs/run-structure.md`](docs/run-structure.md).
 
+### What a card shows — read the model, never screenshot it
+
+A full answer about a card has FOUR parts. First, the authored **config** —
+`def` in `src/data/content/skills.v1.json` (id, name, archetypes, property,
+weapon/element, size, rarity, tier, `effects`, `tierUpgrades`) — the editable
+truth every string below is derived from; report it by default, `notes`
+excluded (that field is the sanctioned rationale home and runs long — say it
+exists, quote on request). Then three pure, Phaser-free renders of it:
+answer "what does [card] X show/say" by running them under `npx tsx`, not by
+taking a screenshot. Face body: `renderSkillText(skill)`
+(`src/engine/keywords/compose.ts`; there is no authored `text` field). Full
+card face: `buildFantasyCardTemplateModel` (`src/game/ui/fantasyCardTemplateModel.ts`).
+Board token: `summarizeEffectSegments` (`src/game/ui/skillPresentation.ts`).
+Details drawer: `buildCardDetailsContent` (`src/game/ui/cardDetailsContent.ts`).
+Keyword wording: `ruleTitleOf`/`ruleSentenceOf`/`faceClauseOf`/`faceTokenOf`
+(`src/engine/keywords/text.ts`). Desktop and mobile render the same strings
+through the same `FantasyCardTemplateV2`/`CardToken` at different
+width/height — a screenshot proves layout (overlap, truncation, theming),
+never text. Full routing table and a runnable recipe: `world1-card-text`
+skill.
+
 ---
 
 ## Orchestration model

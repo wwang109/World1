@@ -43,6 +43,77 @@ which looks the same for every kind. Where each kind's registry lives: cards
 `enemies.v1.json`, events `events*.json` (display field `title`), statuses
 and keywords the `ruleTitle` rows in `src/engine/keywords/text.ts`.
 
+## Routing — which function renders each card-text surface
+
+**A full answer about a card has FOUR parts: the authored config, plus three
+renders of it.** "What does [card] X show?" is answered by running code,
+never by a screenshot and never by hand-writing the sentence. Every render
+surface below is a pure, Phaser-free function of a `SkillDef` — printable
+under `npx tsx` in seconds (`CLAUDE.md`, "What a card shows — read the model,
+never screenshot it"). A screenshot proves layout (overlap, truncation,
+spacing, art loading, theming); it does not prove text.
+
+| Surface | Function | File |
+|---|---|---|
+| **Authored config** — the editable truth every row below is derived from: `id`, `name`, `archetypes`, `property`, `weapon`/`element`, `size`, `rarity`, `tier`, `effects`, `tierUpgrades` | direct field access, no render function — this IS `def` | `src/data/content/skills.v1.json`, loaded via `skillBook` (`src/data/skills.ts`) |
+| Face body (one line, the generated description) | `renderSkillText(skill)` | `src/engine/keywords/compose.ts` — no authored `text` field exists; it is generated from `effects` |
+| Face clauses (the same, unjoined) | `renderSkillClauses(skill)` | same file |
+| Full card face (shop, wiki, reward, detail preview): `title`, `body`, type badge, `archetypes`, `weight`, `slotLabel`, `slotBoxCount`, `tier`, `skin`, `titleRule`, `bodyRule` | `buildFantasyCardTemplateModel(skill, {width, height, tier})` | `src/game/ui/fantasyCardTemplateModel.ts` — region geometry `fantasyCardTemplateSpec.ts` (`FANTASY_CARD_TEMPLATE_SPEC.regions`, base 420×690); rendered by `FantasyCardTemplateV2.ts` |
+| Board token face (deck-build, draft, board column — name / effect segments / affinity `TYPE n/3`) | `summarizeEffectSegments(skill, stats, mode, affinityOpen)` | `src/game/ui/skillPresentation.ts` — layout `cardTokenSpec.ts`, rendered by `CardToken.ts` |
+| Details drawer (the ⓘ panel with keyword rule sentences) | `buildCardDetailsContent(skill, {gem})` | `src/game/ui/cardDetailsContent.ts` — layout `cardDetailsLayout.ts`, host `cardDetailsDrawer.ts` / `cardDetailOverlay.ts` |
+| Keyword rule title + sentence (what a keyword MEANS) | `ruleTitleOf` / `ruleSentenceOf` / `faceClauseOf` / `faceTokenOf` | `src/engine/keywords/text.ts` |
+
+**Desktop and mobile show the same strings.** Both platforms instantiate the
+same `FantasyCardTemplateV2` and the same `CardToken`; only `width`/`height`
+differ. The one content-visible consequence of the narrower mobile width is
+`CardToken`'s `segmentedLine` ellipsising or dropping a trailing effects
+segment — the invariant `npm run audit:cardface` guards. So "what does it
+show on mobile" is answered from the model plus that one width
+consideration, not a screenshot.
+
+**`notes` is excluded from the config by default.** It is the one sanctioned
+home for authored design rationale (`CLAUDE.md`, "Comments: code says WHAT,
+the task summary says WHY") and routinely runs 20–40 lines — say it exists,
+quote it only on request. Report the MECHANICAL config (the field list
+above) by default.
+
+**`tierUpgrades` is part of the config, not an extra.** Report the full tier
+ladder (per/cap/power per tier) as a compact table — a card's Bronze numbers
+alone mislead about what it becomes at Silver/Gold/Diamond.
+
+Throwaway recipe (`tmp/` or the scratchpad only — delete after; never
+`scripts/` or `src/`), all four parts for one card id in one run. A heredoc
+into a `tmp/` file, not a multi-line `npx tsx -e` string — the latter gets
+mangled crossing the Windows `npx.cmd` shim:
+
+```bash
+cat > tmp/report-card.ts <<'EOF'
+import { skillBook } from "../src/data/skills";
+import { buildFantasyCardTemplateModel } from "../src/game/ui/fantasyCardTemplateModel";
+import { summarizeEffectSegments } from "../src/game/ui/skillPresentation";
+import { buildCardDetailsContent } from "../src/game/ui/cardDetailsContent";
+const def = skillBook["deadweight_toll"];
+const { notes, ...config } = def as any;
+console.log("1 CONFIG", JSON.stringify(config, null, 2));
+console.log("2 FACE body", buildFantasyCardTemplateModel(def, { width: 420, height: 690, tier: "bronze" }).body);
+console.log("3 TOKEN", JSON.stringify(summarizeEffectSegments(def, undefined, "board", false)));
+console.log("4 DRAWER", JSON.stringify(buildCardDetailsContent(def, {}), null, 2));
+EOF
+npx tsx tmp/report-card.ts
+rm tmp/report-card.ts
+```
+
+[card] Deadweight Toll's tier ladder, read straight off `effects` (Bronze)
+and `tierUpgrades` (Silver/Gold/Diamond) — verified against
+`src/data/content/skills.v1.json`:
+
+| Tier | per | cap | damage |
+|---|---|---|---|
+| Bronze | 4 | 16 | 12 |
+| Silver | 5 | 20 | 20 |
+| Gold | 6 | 24 | 28 |
+| Diamond | 7 | 28 | 36 |
+
 ## What the compiler catches, and what nothing catches
 
 There are no test files in this repo (`CLAUDE.md`, "Verification is by
