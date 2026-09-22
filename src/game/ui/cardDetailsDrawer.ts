@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { roundRect } from './roundedRect';
 import { TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import { FONT, SCREEN, UI, textRoleFor, type TextRole } from '../theme';
@@ -6,6 +7,7 @@ import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
 import { cardDetailsLayout, type CardDetailsPresentation, type DetailsRect } from './cardDetailsLayout';
 import { buildCardDetailsContent, cardDetailsPreviewTiers, resolveCardDetailsPreview, type CardDetailsEntry } from './cardDetailsContent';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
+import { renderDetailText } from './detailText';
 
 export interface CardDetailsAction { label: string; enabled: boolean; onPress(): void }
 
@@ -36,11 +38,14 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
   veil.on('pointerdown', opts.onClose);
   const panel = scene.add.rectangle(pane.x, pane.y, pane.width, pane.height, UI.panel, 1).setOrigin(0).setDepth(depth + 1)
     .setStrokeStyle(2, UI.chip, 1).setInteractive();
-  scene.add.rectangle(pane.x + 5, pane.y + 5, pane.width - 10, pane.height - 10).setOrigin(0).setFillStyle(UI.panel, 0).setStrokeStyle(1, UI.border, 0.65).setDepth(depth + 1);
+  if (opts.compact) roundRect(panel, 12);
+  const innerFrame = scene.add.rectangle(pane.x + 5, pane.y + 5, pane.width - 10, pane.height - 10).setOrigin(0).setFillStyle(UI.panel, 0).setStrokeStyle(1, UI.border, 0.65).setDepth(depth + 1);
+  if (opts.compact) roundRect(innerFrame, 8);
   text(pane.x + 24, pane.y + 16, 'CARD DETAILS', 'title', UI.textAccent, true);
   const button = (r: DetailsRect, label: string, onPress: () => void, enabled = true, filled = false) => {
     const box = scene.add.rectangle(r.x, r.y, r.width, r.height, filled ? UI.chip : UI.panelMuted, enabled ? 1 : 0.55)
       .setOrigin(0).setDepth(depth + 3).setStrokeStyle(1, UI.chip, enabled ? 1 : 0.3);
+    if (opts.compact) roundRect(box, label === '×' ? 6 : 10);
     text(r.x + r.width / 2, r.y + r.height / 2, label, label === '×' ? (opts.compact ? 'display' : 'title') : 'body', filled ? UI.textOnChip : UI.textAccent, true)
       .setOrigin(0.5).setDepth(depth + 4);
     if (enabled) box.setInteractive({ useHandCursor: true }).on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); onPress(); });
@@ -62,6 +67,14 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
     let cy = 0;
     const width = viewport.width - 14;
     const add = (value: string, role: TextRole, color = UI.textBright, display = false) => {
+      if (role === 'body' && !display) {
+        const line = renderDetailText(scene, { x: 0, y: cy, width, text: value, style: {
+          ...textRoleFor(opts.compact ? 'mobile' : 'desktop', role),
+          fontFamily: FONT.body, color, lineSpacing: 3,
+        } });
+        list.add(line.container); cy += line.height + 8;
+        return;
+      }
       const line = text(0, cy, value, role, color, display, width);
       list.add(line); cy += line.height + (role === 'title' ? 6 : 8);
     };
@@ -144,8 +157,9 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
     }
   };
   if (presentation === 'mobile-shop') { renderActions(); return; }
-  scene.add.rectangle(preview.x, preview.y, preview.width, preview.height, UI.panelMuted, 1)
+  const previewPanel = scene.add.rectangle(preview.x, preview.y, preview.width, preview.height, UI.panelMuted, 1)
     .setOrigin(0).setDepth(depth + 2).setStrokeStyle(1, UI.chip, 1);
+  if (opts.compact) roundRect(previewPanel, 12);
   const status = text(preview.x + 8, preview.y + 5, '', 'label', UI.textSoft);
   const available = cardDetailsPreviewTiers(skill);
   const tabs: Phaser.GameObjects.Rectangle[] = [];

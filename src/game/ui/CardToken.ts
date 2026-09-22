@@ -3,6 +3,7 @@ import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, TIER_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
+import { roundRect } from './roundedRect';
 import { buildCardArtPlaceholder } from './cardArtPlaceholder';
 import { whenCardArtReady } from './cardArtLoader';
 import { effectSegmentJoiner, summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
@@ -203,12 +204,14 @@ export class CardToken extends Phaser.GameObjects.Container {
   private artMask?: Phaser.GameObjects.Graphics;
   private maskW = 0;
   private maskH = 0;
+  private cornerRadius = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, skill: SkillDef, opts: CardTokenOptions) {
     super(scene, x, y);
     this.sourceSkill = skill;
     this.sourceOpts = opts;
     const { width: w, height: h } = opts;
+    this.cornerRadius = ACTIVE_PROFILE.id === 'mobile' ? Math.min(12, h / 4) : 0;
     const side = opts.side ?? 'left';
     const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0, Boolean(opts.onInspect));
 
@@ -219,6 +222,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     // up yet. `cursor`/`drag` state below still overrides this outright.
     const frameColor = opts.tier ? TIER_COLOR[opts.tier] : (UI.battleOutline ?? 0x24344a);
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(2, frameColor, opts.tier ? 0.95 : 0.9);
+    if (this.cornerRadius) roundRect(bg, this.cornerRadius);
     this.add(bg);
 
     // Card art, cover-fit and masked to the token rect. Children are LOCAL
@@ -234,7 +238,8 @@ export class CardToken extends Phaser.GameObjects.Container {
     // append it over the whole token.
     const maskShape = scene.make.graphics({}, false);
     maskShape.fillStyle(0xffffff);
-    maskShape.fillRect(x - w / 2, y - h / 2, w, h);
+    if (this.cornerRadius) maskShape.fillRoundedRect(x - w / 2, y - h / 2, w, h, this.cornerRadius);
+    else maskShape.fillRect(x - w / 2, y - h / 2, w, h);
     const artMask = maskShape.createGeometryMask();
     this.artMask = maskShape;
     this.maskW = w;
@@ -243,12 +248,9 @@ export class CardToken extends Phaser.GameObjects.Container {
 
     const artHost = scene.add.container(0, 0);
     this.add(artHost);
-    // The placeholder is drawn AT the token rect, so it needs no clip — only
-    // the cover-fit art below overflows. Leaving it unmasked keeps the number
-    // of stencil-masked objects exactly where it was before the placeholder
-    // existed (one per token that actually has art), which matters on the
-    // wiki's 166-card grid.
-    artHost.add(buildCardArtPlaceholder(scene, skill, -w / 2, -h / 2, w, h));
+    const placeholder = buildCardArtPlaceholder(scene, skill, -w / 2, -h / 2, w, h);
+    if (this.cornerRadius) placeholder.setMask(artMask);
+    artHost.add(placeholder);
     whenCardArtReady(scene, skill.id, (artKey) => {
       // The token may have been destroyed while its art was in flight.
       if (!this.scene || !artHost.scene) return;
@@ -262,6 +264,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     // legibility gradient (dark on the text side, fading toward the art) —
     // OUTSIDE `artHost`, so it stays above anything that lands inside it.
     const grad = scene.add.image(0, 0, this.ensureGradient(scene)).setDisplaySize(w, h);
+    if (this.cornerRadius) grad.setMask(artMask);
     if (side === 'right') grad.setFlipX(true);
     this.add(grad);
 
@@ -272,7 +275,9 @@ export class CardToken extends Phaser.GameObjects.Container {
       : skill.weapon
         ? (WEAPON_COLOR[skill.weapon] ?? PROPERTY_COLOR[skill.property])
         : PROPERTY_COLOR[skill.property];
-    this.add(scene.add.rectangle(spec.accent.x, 0, spec.accent.width, h, accentColor).setOrigin(0.5));
+    const accent = scene.add.rectangle(spec.accent.x, 0, spec.accent.width, h, accentColor).setOrigin(0.5);
+    if (this.cornerRadius) accent.setMask(artMask);
+    this.add(accent);
 
     // text block: NAME · effects summary · affinity(n/3) — all from data,
     // positioned/clamped by the spec's line entries.
@@ -545,6 +550,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       const box = spec.accessorySlot(index);
       const r = scene.add.rectangle(box.x, box.y, box.width, box.height, acc.color ?? UI.panelMuted, 0.92)
         .setOrigin(0.5).setStrokeStyle(1, UI.border, 0.9);
+      if (this.cornerRadius) roundRect(r, 4);
       const t = scene.add.text(box.x, box.y, acc.label, {
         fontSize: '10px', color: acc.textColor ?? UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(0.5);
@@ -571,6 +577,7 @@ export class CardToken extends Phaser.GameObjects.Container {
   private renderInspectButton(scene: Phaser.Scene, box: TokenBox, onInspect: () => void): void {
     const btn = scene.add.rectangle(box.x, box.y, box.width, box.height, 0x0b1420, 0.85)
       .setOrigin(0.5).setStrokeStyle(1, 0xe8b446, 0.9);
+    if (this.cornerRadius) roundRect(btn, 4);
     const label = scene.add.text(box.x, box.y, 'i', {
       fontSize: '10px', color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -636,7 +643,7 @@ export class CardToken extends Phaser.GameObjects.Container {
   /** Re-align after a parent container moves without calling this token's setPosition. */
   syncWorldArtMask(): void {
     if (this.artMask) {
-      syncCardArtMask(this.artMask, this.getWorldTransformMatrix(), this.maskW, this.maskH);
+      syncCardArtMask(this.artMask, this.getWorldTransformMatrix(), this.maskW, this.maskH, this.cornerRadius);
     }
   }
 

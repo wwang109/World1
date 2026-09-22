@@ -1,4 +1,5 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
+import { roundRect } from './roundedRect';
 import { playSfx } from '../audio/sfxSynth';
 import { gemHeroStats, resolveDisplayHeroStats } from '../../engine/cards';
 import { bankedPL } from '../../run/leveling';
@@ -8,7 +9,6 @@ import { type RunState } from '../runStore';
 import { FONT, INK, SCREEN, UI, textRole } from '../theme';
 import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
-import { renderBankedPlBadge } from './RunStatPanel';
 import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
 import { attachButtonFeel, hoverFillFor } from './motion';
@@ -57,7 +57,7 @@ export interface RunProgressSnapshot {
   /** PL earned but unspent (`run/leveling.ts#bankedPL`) — OPTIONAL so the two
    * hand-built pre-run snapshots (the run maps' `EMPTY_HUD_SNAPSHOT`) stay
    * valid; `snapshotRunProgress` always fills it. Drives the LV segment's
-   * `+N` delta (see `statRunModel.ts#runProgressStatRun`). */
+   * `ready` glow (see `statRunModel.ts#runProgressStatRun`). */
   bankedPL?: number;
   /** Current display totals from the same allocation + hero-gem fold as prep. */
   heroStats?: import('../../engine/types').CombatantStats;
@@ -111,21 +111,23 @@ export interface RunHudActions {
 }
 
 export interface RunHudOptions {
+  showDivider?: boolean;
   /** The screen name shown in the title slot: RUN / PREP · FIGHT / EVENT / SHOP / DECK / BATTLE. */
   screen: string;
   snapshot: RunProgressSnapshot;
   /** Mobile (`true`) vs desktop (`false`) — same discriminator every other
    * shared UI module in this codebase uses. */
   compact: boolean;
-  /** Press handler for level allocation. Desktop binds it to the LV capability
-   * cell when PL is banked; compact keeps the existing separate PL badge. */
+  /** Press handler for level allocation. Both platforms bind it to the LV
+   * cell's glow when PL is banked (desktop's capability-band cell, mobile's
+   * stats-strip segment). */
   onOpenStatPanel?: () => void;
   /**
-   * Mobile-only opener for `RunStatsPanel.ts#renderRunStatsOverlay` — when
+   * Mobile-only shortcut to the embedded Run Ledger — when
    * given AND `compact` is true, the WHOLE stats-strip rect becomes a tap
    * target (plus a tiny "⌄" hint drawn right after the stats line) so the
    * player never has to hunt for a separate floating STATS tag. Desktop
-   * ignores this (its ledger is a permanent flank panel, no opener needed);
+   * ignores this shortcut and uses its explicit RUN LEDGER action;
    * omit on any screen that has nothing to open (prep/shop/event/deck today —
    * only the Run Map scenes wire this).
    */
@@ -145,6 +147,7 @@ function drawSlotButton(
   role: RunActionRole,
   fontSize: number,
   list: Phaser.GameObjects.GameObject[] | undefined,
+  compact = false,
 ): void {
   if (!spec) return; // Fixed, empty slot — never reflowed into (locked design).
   const disabled = spec.disabled ?? false;
@@ -158,6 +161,7 @@ function drawSlotButton(
   const textColor = disabled ? UI.textSoft : spec.danger ? INK.alarm : role === 'primary' ? UI.textOnChip : UI.textAccent;
   const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, fill, disabled ? 0.5 : 1)
     .setOrigin(0, 0).setStrokeStyle(1, strokeColor, disabled ? 0.35 : 0.9);
+  if (compact) roundRect(btn, 12);
   const label = scene.add.text(rect.x + rect.width / 2, rect.y + rect.height / 2, spec.label, {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontSize}px`, color: textColor,
   }).setOrigin(0.5);
@@ -225,7 +229,7 @@ function drawKickerTitleStats(
   snapshot: RunProgressSnapshot,
   compact: boolean,
   track_: Phaser.GameObjects.GameObject[] | undefined,
-): { statsEndX: number } {
+): { statsEndX: number; readyRect?: { x: number; y: number; width: number; height: number } } {
   // ---- kicker + title ----
   // Both roles resolve to the exact px this header already used (kicker 9/12,
   // title 16/26 mobile/desktop) — a zero-GEOMETRY move. The one thing that
@@ -252,7 +256,7 @@ function drawKickerTitleStats(
     density: compact ? 'tight' : 'roomy',
     track: track_,
   });
-  return { statsEndX: compact ? drawn.endX : statsRight };
+  return { statsEndX: compact ? drawn.endX : statsRight, readyRect: drawn.readyRect };
 }
 
 /**
@@ -275,7 +279,7 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     .setOrigin(0, 0);
   track(opts.track, hudBackdrop);
 
-  const { statsEndX } = drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
+  const { statsEndX, readyRect } = drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
 
   // Desktop keeps the title/progress row intact, then gives the hero's live
   // capabilities the left side of one shared middle row. LV itself carries
@@ -302,7 +306,7 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     let cellOffset = 0;
     statRun.segments.forEach((segment, index) => {
       const cellWidth = statAreaWidth * cellWeights[index]! / totalCellWeight;
-      const levelUpAvailable = segment.label === 'LV' && banked > 0 && Boolean(opts.onOpenStatPanel);
+      const levelUpAvailable = segment.label === 'LV' && Boolean(segment.ready) && Boolean(opts.onOpenStatPanel);
       if (levelUpAvailable) {
         const hit = scene.add.rectangle(
           statAreaX + cellOffset, band.y, cellWidth, band.height, UI.chip, 0.16,
@@ -355,20 +359,26 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     track(opts.track, hint);
   }
 
-  // ---- compact keeps its established separate banked-PL badge ----
-  if (opts.compact && opts.onOpenStatPanel) {
-    const badgeRect = t.regions.badge;
-    const badgeX = badgeRect.x + badgeRect.width;
-    const badge = renderBankedPlBadge(scene, badgeX, badgeRect.y, F.stats, opts.onOpenStatPanel);
-    void badge;
+  // ---- mobile LV glow tap target — after the STATS opener zone above, so an
+  // overlapping tap hits this one first; stopPropagation keeps it from also
+  // opening the stats overlay underneath.
+  if (opts.compact && opts.onOpenStatPanel && readyRect) {
+    const hit = scene.add.rectangle(readyRect.x, readyRect.y, readyRect.width, readyRect.height, 0x000000, 0)
+      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    track(opts.track, hit);
+    hit.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      playSfx('uiClick');
+      opts.onOpenStatPanel!();
+    });
   }
 
   // ---- fixed actions (same row as desktop player stats; own row on mobile) ----
   const a = opts.actions ?? {};
-  drawSlotButton(scene, t.actionSlots.back, a.back, 'back', F.action, opts.track);
-  drawSlotButton(scene, t.actionSlots.secondary, a.secondary, 'secondary', F.action, opts.track);
-  drawSlotButton(scene, t.actionSlots.tertiary, a.tertiary, 'tertiary', F.action, opts.track);
-  drawSlotButton(scene, t.actionSlots.primary, a.primary, 'primary', opts.compact ? 13 : F.action + 2, opts.track);
+  drawSlotButton(scene, t.actionSlots.back, a.back, 'back', F.action, opts.track, opts.compact);
+  drawSlotButton(scene, t.actionSlots.secondary, a.secondary, 'secondary', F.action, opts.track, opts.compact);
+  drawSlotButton(scene, t.actionSlots.tertiary, a.tertiary, 'tertiary', F.action, opts.track, opts.compact);
+  drawSlotButton(scene, t.actionSlots.primary, a.primary, 'primary', opts.compact ? 13 : F.action + 2, opts.track, opts.compact);
 
   // Divider under the header, at the content region's top edge.
   //
@@ -392,7 +402,9 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     t.regions.badge.y + t.regions.badge.height,
   );
   const dividerY = Math.max(content.y - 14, headerBottom + 2);
-  scene.add.rectangle(content.x, dividerY, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
+  if (opts.showDivider !== false) {
+    scene.add.rectangle(content.x, dividerY, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
+  }
 }
 
 export interface RunStatsStripOptions {

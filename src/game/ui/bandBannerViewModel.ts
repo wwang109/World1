@@ -111,6 +111,8 @@ export interface BandBannerViewModel {
   /** The whole forecast card, as lines — see `bandForecastCardLines` below. It
    * is the card, not the banner, that NAMES THE MOBS: see `bandBannerBlocks`. */
   card: readonly string[];
+  guideSections: readonly { title: string; body: string }[];
+  guideNote: string;
 }
 
 /**
@@ -232,6 +234,15 @@ export function bandBannerViewModel(f: BandForecast): BandBannerViewModel {
     bossClaim: bossClaimOf(f),
     mobsClaim: mobsClaimOf(f),
     card: bandForecastCardLines(f),
+    guideSections: [
+      { title: f.boss ? 'REGION BOSS' : 'POSSIBLE BOSSES', body: f.boss
+        ? `${f.boss.name} · LV ${f.boss.level}`
+        : f.bossCandidates.map((boss) => boss.name).join(' · ') || 'Not revealed' },
+      { title: 'REGIONAL ENEMIES', body: f.mobs.map((mob) => mob.name).join(' · ') },
+      { title: 'PREFERRED SHOPS', body: f.shops.map((shop) => shop.name).join(' · ') },
+      { title: 'COMMON EVENT THEMES', body: f.eventThemes.map((theme) => theme.charAt(0).toUpperCase() + theme.slice(1)).join(' · ') },
+    ],
+    guideNote: 'Listed shops and themes are not exclusive or guaranteed. Other stops can appear. Individual events may have region requirements.',
   };
 }
 

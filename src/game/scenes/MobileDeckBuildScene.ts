@@ -25,6 +25,7 @@ import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
+import { roundRect } from '../ui/roundedRect';
 import {
   currentHeroAllocation, currentHeroLevel,
   commitRunDeckEdit,
@@ -216,7 +217,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       start = { x: p.worldX, y: p.worldY };
       ghost = hit.token.spawnGhost(); // dimmed copy + dashed outline stays in the source slot
       hit.token.setDepth(1000).setAlpha(0.9);
-      dropHint = this.add.rectangle(0, 0, 10, 10, 0xe8b446, 0.12).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446, 0.9).setVisible(false).setDepth(900);
+      dropHint = roundRect(this.add.rectangle(0, 0, 10, 10, 0xe8b446, 0.12), 8).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446, 0.9).setVisible(false).setDepth(900);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
@@ -229,7 +230,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         if (p.worldY >= top && p.worldY <= top + colH) {
           const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((p.worldY - top) / (rowH + gap))));
           const x = p.worldX >= bagX ? bagX : deckX;
-          dropHint.setVisible(true).setPosition(x, top + row * (rowH + gap)).setSize(colW, rowH);
+          roundRect(dropHint.setVisible(true).setPosition(x, top + row * (rowH + gap)).setSize(colW, rowH), 8);
         } else dropHint.setVisible(false);
       }
     });
@@ -405,7 +406,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const w = (this.W - 20 - gap * (tabs.length - 1)) / tabs.length;
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
-      const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      const r = roundRect(this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32), 8).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
       this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
@@ -447,25 +448,6 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     }, true), { x: 12, y: 48 + this.headerOffset, maxWidth: this.W - 24 });
   }
 
-  /** Dashed 1px border (the mockup's transfer/trash strip style). */
-  private dashedRect(x: number, y: number, w: number, h: number, color: number, alpha = 0.9): void {
-    const g = this.add.graphics();
-    g.lineStyle(1, color, alpha);
-    const dash = 5; const gapLen = 4;
-    const seg = (x1: number, y1: number, x2: number, y2: number): void => {
-      const len = Math.hypot(x2 - x1, y2 - y1);
-      const ux = (x2 - x1) / len; const uy = (y2 - y1) / len;
-      for (let s0 = 0; s0 < len; s0 += dash + gapLen) {
-        const e = Math.min(s0 + dash, len);
-        g.moveTo(x1 + ux * s0, y1 + uy * s0);
-        g.lineTo(x1 + ux * e, y1 + uy * e);
-      }
-    };
-    seg(x, y, x + w, y); seg(x + w, y, x + w, y + h); seg(x + w, y + h, x, y + h); seg(x, y + h, x, y);
-    g.strokePath();
-  }
-
-  /** Slim TEMP HOLDING strip (mockup): dashed gold border · mini slot · label + grey sub. */
   private renderHolding(): void {
     const y = 66 + this.headerOffset; const h = 34; const w = this.W - 20;
     // The DROP BAND is whatever this render just drew — `resolveDrop` used to
@@ -474,9 +456,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // player could actually drop on was an invisible one up in the HUD and
     // the visible strip did nothing. Same idiom as the desktop scene.
     this.holdingTop = y; this.holdingH = h;
-    this.add.rectangle(10, y, w, h, 0x122033, 0.4).setOrigin(0, 0);
-    this.dashedRect(10, y, w, h, 0xb78a46, this.hold ? 1 : 0.7);
-    this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
+    roundRect(this.add.rectangle(10, y, w, h, 0x122033, 0.4)).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, this.hold ? 1 : 0.7);
+    roundRect(this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a), 6).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
     if (this.hold) {
       const base = skillBook[this.hold.skillId];
       if (base) {
@@ -536,7 +517,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       }
       const closeX = this.W - 10 - CLOSE_SIZE / 2;
       const closeY = this.holdingTop + this.holdingH + bandH / 2;
-      const closeBtn = this.add.rectangle(closeX, closeY, CLOSE_SIZE, CLOSE_SIZE, 0x1b2940, 1)
+      const closeBtn = roundRect(this.add.rectangle(closeX, closeY, CLOSE_SIZE, CLOSE_SIZE, 0x1b2940, 1))
         .setStrokeStyle(1, 0x3a4a62, 0.9).setInteractive({ useHandCursor: true });
       this.add.text(closeX, closeY, '×', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.xlarge}px`, color: UI.textBright }).setOrigin(0.5);
       const dismissedFor = this.cooldownWarningSignature;
@@ -552,7 +533,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
     const rowTop = (row: number): number => top + row * (rowH + gap);
     const empty = (colX: number, row: number, side: 'left' | 'right'): void => {
-      this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, 0x121e30, 0.45).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
+      roundRect(this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, 0x121e30, 0.45), 8).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
       const nx = side === 'left' ? colX + colW - 6 : colX + 6;
       this.add.text(nx, rowTop(row) + 4, `${row + 1}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
     };
@@ -644,26 +625,18 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       axisRows.forEach((row, rowIdx) => drawAffinityRow(py + rowIdx * rowStep, row.label, row.count, row.earned));
     }
 
-    // POUCH row — the affinity readout's mirror, under the BAG column: the
-    // one surface the gem pouch has on the screen that spends it (a66eca4:
-    // three event-granted pouch gems were invisible here and the socket panel
-    // undiscoverable). Count via the shared `pouchStatRun` (capacity ink,
-    // matching the header's GEMS); the teach line hangs off `endX` in the
-    // TEMP HOLDING strip's own "— verb phrase" idiom, bottom-aligned to the
-    // run's baseline the same way `renderStatRun` aligns its own pieces.
-    // `textRole('micro')` — no new px/hex literal, the ratchet stays put.
     const pouchY = py - 8;
     const pouchRun = renderStatRun(this, pouchStatRun(pouchCount), { x: bagX, y: pouchY, maxWidth: colW - 4 });
-    this.add.text(pouchRun.endX + 6, pouchY + pouchRun.height, '— double-tap for details / gem socket', textRole('micro')).setOrigin(0, 1);
+    this.add.text(bagX, pouchY + pouchRun.height + 2, 'Double-tap: details / gems', {
+      ...textRole('micro'), wordWrap: { width: colW - 4 },
+    }).setOrigin(0, 0);
   }
 
-  /** Slim TRASH strip (mockup): dashed red border · label + grey sub. No emoji (canvas tofu). */
   private renderTrash(): void {
     const y = this.H - 44; const h = 34; const w = this.W - 20;
-    this.add.rectangle(10, y, w, h, 0x2a1412, 0.4).setOrigin(0, 0);
-    this.dashedRect(10, y, w, h, 0xb0483c, 0.9);
+    roundRect(this.add.rectangle(10, y, w, h, 0x2a1412, 0.4)).setOrigin(0, 0).setStrokeStyle(1, 0xb0483c, 0.9);
     const label = this.add.text(52, y + h / 2, 'TRASH', { fontSize: `${F.label}px`, color: '#d05c4e', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-    this.add.rectangle(18, y + 4, 24, h - 8, 0x1c0f0d).setOrigin(0, 0).setStrokeStyle(1, 0x7a4a42, 0.9);
+    roundRect(this.add.rectangle(18, y + 4, 24, h - 8, 0x1c0f0d), 6).setOrigin(0, 0).setStrokeStyle(1, 0x7a4a42, 0.9);
     this.add.text(label.x + label.width + 6, y + h / 2, '— drop to destroy (asks to confirm)', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
   }
 
@@ -793,11 +766,11 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const skill = skillBook[src.card.skillId];
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
-    this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xd05c4e);
+    roundRect(this.add.rectangle(bx, by, bw, 140, 0x141d2c)).setOrigin(0, 0).setStrokeStyle(2, 0xd05c4e);
     this.add.text(this.W / 2, by + 24, `Delete ${skill?.name ?? 'card'}?`, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(this.W / 2, by + 50, 'This removes it from your collection.', { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
-      const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      const r = roundRect(this.add.rectangle(dx, by + 88, w, 36, fill)).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
@@ -816,13 +789,13 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const toTier = nextSkillTier(fromTier);
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
-    this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46);
+    roundRect(this.add.rectangle(bx, by, bw, 140, 0x141d2c)).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46);
     this.add.text(this.W / 2, by + 16, 'MERGE?', { fontSize: `${F.heading}px`, color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(this.W / 2, by + 42, `2× ${skill?.name ?? 'card'} ${fromTier.toUpperCase()} → ${(toTier ?? fromTier).toUpperCase()}`, {
       fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body, align: 'center', wordWrap: { width: bw - 24 },
     }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
-      const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      const r = roundRect(this.add.rectangle(dx, by + 88, w, 36, fill)).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };

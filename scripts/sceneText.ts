@@ -38,9 +38,21 @@ export interface TextBound {
   unresolvedMask: boolean;
 }
 
+/** A scene's camera as the affine map from its world coordinates (what
+ * `getBounds()` reports) to real canvas pixels. Identity (`x:0,y:0,scrollX:0,
+ * scrollY:0,zoom:1`) for every top-level scene — the run map, prep, battle,
+ * etc. all use the default full-canvas camera untouched. An EMBEDDED
+ * destination (`RunDestinationHost.render()` -> `positionRunDestination`,
+ * `src/game/ui/RunDestinationHost.ts`) gives its launched child scene
+ * (`DesktopRunEvent`, `DesktopShop`, ...) a clipped, zoomed, scrolled camera
+ * instead, so that scene's own world bounds land somewhere else on screen
+ * entirely — reading them raw silently computed the wrong click point. */
+export interface SceneCamera { x: number; y: number; scrollX: number; scrollY: number; zoom: number }
+
 /** Raw scene-graph reading, before any mask is applied. */
 export interface RawTextBound {
   text: string; x: number; y: number; width: number; height: number; scene: string;
+  camera: SceneCamera;
   /** One entry per mask on the object or an ancestor container, outermost
    * first. `null` = a mask that is not a geometry mask (a bitmap mask), which
    * this collector cannot model and therefore refuses to treat as clipping. */
@@ -61,14 +73,16 @@ export async function collectRawSceneTexts(page: Page): Promise<RawTextBound[]> 
     const game = (window as any).__game;
     const out: any[] = [];
     // `masks` is the chain inherited from ancestor containers, outermost first.
-    const stack: Array<{ obj: any; scene: string; masks: any[] }> = [];
+    const stack: Array<{ obj: any; scene: string; camera: any; masks: any[] }> = [];
     for (const scene of game.scene.scenes) {
       if (!scene.sys.isActive()) continue;
       const key = scene.sys.settings.key as string;
-      for (const obj of scene.children.list) stack.push({ obj, scene: key, masks: [] });
+      const cam = scene.cameras.main;
+      const camera = { x: cam.x, y: cam.y, scrollX: cam.scrollX, scrollY: cam.scrollY, zoom: cam.zoom };
+      for (const obj of scene.children.list) stack.push({ obj, scene: key, camera, masks: [] });
     }
     while (stack.length > 0) {
-      const { obj, scene, masks } = stack.pop()!;
+      const { obj, scene, camera, masks } = stack.pop()!;
       if (!obj || obj.visible === false || (obj.alpha ?? 1) === 0) continue;
       let chain = masks;
       if (obj.mask) {
@@ -83,12 +97,23 @@ export async function collectRawSceneTexts(page: Page): Promise<RawTextBound[]> 
       }
       if (obj.type === 'Text' && typeof obj.text === 'string' && obj.text.length > 0) {
         const b = obj.getBounds();
-        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene, maskChain: chain });
+        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene, camera, maskChain: chain });
       }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene, masks: chain });
+      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene, camera, masks: chain });
     }
     return out;
   });
+}
+
+/** World rect -> real canvas pixels, through a scene's camera. Identity for
+ * every default (non-embedded) camera. */
+function toScreenRect(rect: Rect, camera: SceneCamera): Rect {
+  return {
+    x: camera.x + (rect.x - camera.scrollX) * camera.zoom,
+    y: camera.y + (rect.y - camera.scrollY) * camera.zoom,
+    width: rect.width * camera.zoom,
+    height: rect.height * camera.zoom,
+  };
 }
 
 /** Resolves raw readings to what the browser ACTUALLY PAINTS. Pure — exported
@@ -102,9 +127,10 @@ export function resolveDrawnTexts(raw: readonly RawTextBound[]): TextBound[] {
     ));
     const v = visibleBounds(box, masks);
     if (!v.drawn) continue;
+    const screen = toScreenRect(v.rect, t.camera);
     out.push({
       text: t.text, scene: t.scene,
-      x: v.rect.x, y: v.rect.y, width: v.rect.width, height: v.rect.height,
+      x: screen.x, y: screen.y, width: screen.width, height: screen.height,
       clipped: v.clipped, unresolvedMask: v.unresolved,
     });
   }

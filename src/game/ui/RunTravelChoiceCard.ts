@@ -4,10 +4,12 @@ import { textRoleFor, TEXT_ROLE_SPEC, UI, type InkRole, type TextRole } from '..
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
 import { addRunArt } from './runArt';
+import { runTravelChoiceCardCopy } from './runTravelChoiceCardCopy';
 import type { RunTravelChoiceViewModel } from './runTravelChoiceViewModel';
 import type { Rect } from './runScreenTemplate';
+import { roundRect } from './roundedRect';
 
-interface TravelCardOptions { compact: boolean; pending?: boolean; expanded?: boolean; clip?: Rect }
+interface TravelCardOptions { compact: boolean; pending?: boolean; expanded?: boolean; clip?: Rect; fitHeight?: boolean }
 
 export interface RunTravelChoiceCardLayout {
   bounds: Rect;
@@ -20,37 +22,6 @@ export interface RunTravelChoiceCardLayout {
   requirements?: { heading: Rect; lines: Rect[] };
   action: Rect;
   dossier?: { summary: Rect; toggle?: Rect };
-}
-
-/** Presentation only: kinds and event identity are owned by the supplied model. */
-export function runTravelChoiceCardCopy(model: RunTravelChoiceViewModel, pending = false) {
-  const chain = model.kind === 'event' && model.event?.chainUnlocked === true;
-  const kind = model.kind.toUpperCase();
-  const identity = model.title.replace(/^(?:EVENT|SHOP) · /, '');
-  const encounterName = model.detail.replace(/^(?:EASY|MEDIUM|HARD) · /, '').split(' · ')[0];
-  const title = model.kind === 'fight' || model.kind === 'boss' ? encounterName || kind : identity;
-  const detail = model.kind === 'fight' || model.kind === 'boss'
-    ? model.detail.replace(/^(?:EASY|MEDIUM|HARD) · /, '').split(' · ').slice(1).join(' · ') || model.detail
-    : model.detail;
-  const eyebrow = model.dossier && model.title === 'MINIBOSS ENCOUNTER'
-    ? `${model.title}${model.dossier.difficulty ? ` · ${model.dossier.difficulty}` : ''}`
-    : chain ? 'CHAIN EVENT · UNLOCKED'
-    : model.kind === 'fight' ? model.title.replace(/^FIGHT/, 'COMBAT')
-      : model.kind === 'boss' ? model.title : kind;
-  const action = !model.enabled ? 'LOCKED'
-    : model.kind === 'fight' ? 'FIGHT ›'
-      : pending ? `RETURN TO ${kind} ›`
-      : model.kind === 'event' ? chain ? 'TRAVEL HERE ›' : 'CHOOSE EVENT ›'
-        : model.kind === 'shop' ? 'VISIT SHOP ›'
-          : 'CONTINUE ›';
-  return {
-    eyebrow,
-    title: pending ? `RETURN TO ${kind} · ${title}` : title,
-    detail,
-    action,
-    requirementHeading: chain ? 'MET REQUIREMENTS' : '',
-    requirementLines: chain ? model.event!.requirementLines.map((line) => `✓ ${line}`) : [],
-  };
 }
 
 /** Existing semantic tones carry destination and risk, never a new palette. */
@@ -152,11 +123,31 @@ export function runTravelChoiceCardLayout(
  * aspect cap. A tall browser therefore does not turn them into 800px strips. */
 function encounterDossierLayout(bounds: Rect, model: RunTravelChoiceViewModel, opts: TravelCardOptions): RunTravelChoiceCardLayout {
   const compact = opts.compact;
+  if (compact && opts.fitHeight && !opts.expanded) {
+    const x = bounds.x + 10;
+    const width = bounds.width - 20;
+    const actionWidth = (width - 8) / 2;
+    const actionY = bounds.y + bounds.height - 48;
+    return {
+      bounds,
+      eyebrow: { x, y: bounds.y + 8, width, height: 16 },
+      title: { x, y: bounds.y + 27, width, height: 36 },
+      detail: { x, y: bounds.y + 64, width, height: 1 },
+      footer: { x, y: actionY - 22, width, height: 18 },
+      action: { x: x + actionWidth + 8, y: actionY, width: actionWidth, height: 40 },
+      dossier: {
+        summary: { x, y: bounds.y + 65, width, height: 16 },
+        toggle: { x, y: actionY, width: actionWidth, height: 40 },
+      },
+    };
+  }
   const pad = compact ? 12 : 14;
   const width = Math.max(1, bounds.width - pad * 2);
   const cap = Math.min(compact ? 720 : 640, bounds.width * (compact ? 1.85 : 2.4));
   const natural = compact ? 330 + model.dossier!.roster.length * (opts.expanded ? 62 : 48) + (opts.expanded ? 100 : 0) : 470;
-  const height = Math.max(1, Math.min(cap, Math.max(natural, bounds.height)));
+  const height = compact && opts.fitHeight
+    ? Math.min(bounds.height, 257 + model.dossier!.roster.length * 48)
+    : Math.max(1, Math.min(cap, Math.max(natural, bounds.height)));
   const x = bounds.x + pad;
   const eyebrow = { x, y: bounds.y + pad, width, height: compact ? 20 : 22 };
   const title = { x, y: eyebrow.y + eyebrow.height + 5, width, height: compact ? 30 : 44 };
@@ -165,7 +156,7 @@ function encounterDossierLayout(bounds: Rect, model: RunTravelChoiceViewModel, o
   const action = { x, y: bounds.y + height - pad - 40, width, height: 40 };
   const footer = { x, y: action.y - 28, width, height: 20 };
   const summary = { x, y: footer.y - 24, width, height: 18 };
-  const toggle = compact ? { x, y: summary.y - 36, width, height: 30 } : undefined;
+  const toggle = compact && !opts.fitHeight ? { x, y: summary.y - 36, width, height: 30 } : undefined;
   const detailY = art.y + art.height + 12;
   const detail = { x, y: detailY, width, height: Math.max(1, (toggle?.y ?? summary.y) - detailY - 8) };
   return { bounds: { ...bounds, height }, eyebrow, title, art, detail, footer, action, dossier: { summary, toggle } };
@@ -216,10 +207,11 @@ export function renderRunTravelChoiceCard(
   const colors = travelCardColors(model);
   const fill = model.enabled ? UI.panelAlt : UI.panelMuted;
   const alpha = model.enabled ? 0.98 : 0.6;
-  const plate = scene.add.rectangle(bounds.x, bounds.y, bounds.width, layout.bounds.height, fill, alpha).setOrigin(0, 0)
+  const plate = roundRect(scene.add.rectangle(bounds.x, bounds.y, bounds.width, layout.bounds.height, fill, alpha), opts.compact ? 12 : 0).setOrigin(0, 0)
     .setStrokeStyle(chain ? 3 : 1, colors.edge, model.enabled ? 0.95 : 0.4);
   const parts: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Image> = [plate];
-  const edge = scene.add.rectangle(bounds.x, bounds.y, bounds.width, 3, colors.edge, alpha).setOrigin(0, 0);
+  const edgeInset = opts.compact ? 12 : 0;
+  const edge = scene.add.rectangle(bounds.x + edgeInset, bounds.y, bounds.width - edgeInset * 2, 3, colors.edge, alpha).setOrigin(0, 0);
   parts.push(edge);
   if (layout.art && model.artKey) {
     const art = addRunArt(scene, model.artKey, layout.art, model.enabled ? 1 : 0.48);
@@ -227,8 +219,8 @@ export function renderRunTravelChoiceCard(
   }
   // A bounded header groups kind and name, separate from body facts and CTA.
   const headerBounds = layout.header!;
-  const header = scene.add.rectangle(headerBounds.x, headerBounds.y, headerBounds.width,
-    headerBounds.height, UI.panelMuted, alpha).setOrigin(0, 0);
+  const header = roundRect(scene.add.rectangle(headerBounds.x, headerBounds.y, headerBounds.width,
+    headerBounds.height, UI.panelMuted, alpha), opts.compact ? 10 : 0).setOrigin(0, 0);
   parts.push(header);
   const addText = (rect: Rect, value: string, role: TextRole, ink: InkRole): Phaser.GameObjects.Text => {
     const text = scene.add.text(rect.x, rect.y, value, {
@@ -248,7 +240,7 @@ export function renderRunTravelChoiceCard(
     layout.requirements.lines.forEach((rect, index) => addText(rect, copy.requirementLines[index]!, 'micro', 'secondary'));
   }
   const actionFill = chain && model.enabled ? UI.chip : UI.panelMuted;
-  const action = scene.add.rectangle(layout.action.x, layout.action.y, layout.action.width, layout.action.height, actionFill, alpha)
+  const action = roundRect(scene.add.rectangle(layout.action.x, layout.action.y, layout.action.width, layout.action.height, actionFill, alpha), opts.compact ? 12 : 0)
     .setOrigin(0, 0).setStrokeStyle(1, colors.edge, model.enabled ? 0.9 : 0.4);
   const label = scene.add.text(layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, copy.action,
     textRoleFor(profile, 'label', { ink: !model.enabled ? 'disabled' : chain ? 'onAccent' : colors.ink })).setOrigin(0.5);
@@ -277,9 +269,10 @@ function renderEncounterDossier(
   const copy = runTravelChoiceCardCopy(model, opts.pending);
   const colors = travelCardColors(model);
   const profile = opts.compact ? 'mobile' : 'desktop';
-  scene.add.rectangle(bounds.x, bounds.y, bounds.width, layout.bounds.height, UI.panelAlt, 0.98)
+  roundRect(scene.add.rectangle(bounds.x, bounds.y, bounds.width, layout.bounds.height, UI.panelAlt, 0.98), opts.compact ? 12 : 0)
     .setOrigin(0, 0).setStrokeStyle(1, colors.edge, model.enabled ? 0.95 : 0.4);
-  scene.add.rectangle(bounds.x, bounds.y, bounds.width, 3, colors.edge, 1).setOrigin(0, 0);
+  const edgeInset = opts.compact ? 12 : 0;
+  scene.add.rectangle(bounds.x + edgeInset, bounds.y, bounds.width - edgeInset * 2, 3, colors.edge, 1).setOrigin(0, 0);
   const text = (rect: Rect, value: string, role: TextRole, ink: InkRole): void => {
     const label = scene.add.text(rect.x, rect.y, value, {
       ...textRoleFor(profile, role, { ink: model.enabled ? ink : 'disabled' }), wordWrap: { width: rect.width },
@@ -288,10 +281,10 @@ function renderEncounterDossier(
   };
   text(layout.eyebrow, copy.eyebrow, 'kicker', colors.ink);
   text(layout.title, copy.title, opts.compact ? 'statValue' : 'section', 'primary');
-  if (model.artKey) addRunArt(scene, model.artKey, layout.art!, model.enabled ? 1 : 0.5);
+  if (model.artKey && layout.art) addRunArt(scene, model.artKey, layout.art, model.enabled ? 1 : 0.5);
   const detailed = !opts.compact || opts.expanded;
   const rowH = Math.max(1, layout.detail.height / dossier.roster.length);
-  dossier.roster.forEach((member, index) => {
+  if (!opts.fitHeight || opts.expanded) dossier.roster.forEach((member, index) => {
     const row = { x: layout.detail.x, y: layout.detail.y + index * rowH, width: layout.detail.width, height: rowH };
     if (index > 0) scene.add.rectangle(row.x, row.y - 3, row.width, 1, UI.border, 0.5).setOrigin(0, 0);
     text({ ...row, height: Math.max(1, rowH * 0.52 - 2) }, `${member.name} · LV ${member.level}`, 'label', 'primary');
@@ -301,7 +294,7 @@ function renderEncounterDossier(
   text(layout.dossier!.summary, `THREAT · ${dossier.danger}`, 'micro', colors.ink);
   text(layout.footer!, dossier.reward, 'label', 'gain');
   const button = (rect: Rect, value: string, onPress: () => void): void => {
-    const box = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.panelMuted, 1)
+    const box = roundRect(scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.panelMuted, 1), opts.compact ? 12 : 0)
       .setOrigin(0, 0).setStrokeStyle(1, colors.edge, 0.9);
     const label = scene.add.text(rect.x + rect.width / 2, rect.y + rect.height / 2, value,
       textRoleFor(profile, 'label', { ink: model.enabled ? colors.ink : 'disabled' })).setOrigin(0.5);
@@ -321,6 +314,6 @@ function renderEncounterDossier(
     attachButtonFeel(scene, box, { fill: UI.panelMuted, hover: UI.chipDark, follow: [label], lift: 0,
       onPress: () => { playSfx('uiClick'); onPress(); } });
   };
-  if (layout.dossier!.toggle) button(layout.dossier!.toggle!, opts.expanded ? 'HIDE DETAILS −' : 'ENCOUNTER DETAILS +', () => opts.onToggle?.());
+  if (layout.dossier!.toggle) button(layout.dossier!.toggle!, opts.fitHeight ? 'DETAILS ›' : opts.expanded ? 'HIDE DETAILS −' : 'ENCOUNTER DETAILS +', () => opts.onToggle?.());
   button(layout.action, copy.action, opts.onSelect);
 }

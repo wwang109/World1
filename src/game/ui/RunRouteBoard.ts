@@ -19,6 +19,7 @@ import type { MapIntelLayoutModel } from './mapIntelLayout';
 import type { MapIntelRecord } from '../../run/runState';
 import { EXPEDITION_DAYS, expeditionDay } from './travelDay';
 import { renderRunHostButton } from './RunDestinationHost';
+import { roundRect } from './roundedRect';
 
 export { snapshotRunRoute } from './runRouteLayout';
 export type { RunRouteColumnSnapshot, RunRouteSnapshot } from './runRouteLayout';
@@ -317,32 +318,50 @@ export function renderEmbeddedBandRead(
   const topPad = compact ? 10 : 12;
   const panel = scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, UI.panelAlt, 0.82).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.55);
+  if (compact) roundRect(panel, 12);
   const back = renderRunHostButton(scene, bounds.x + bounds.w - pad, bounds.y + topPad, 'BACK', compact, opts.onBack, true);
   const buttonW = back.width;
   const buttonH = back.height;
-  const title = scene.add.text(bounds.x + pad, bounds.y + topPad, `REGION INTEL · ${vm.name}`, {
+  const title = scene.add.text(bounds.x + pad, bounds.y + topPad, vm.name, {
     ...textRole('section'),
     wordWrap: { width: Math.max(80, bounds.w - pad * 3 - buttonW) },
   });
   const bodyY = bounds.y + topPad + buttonH + (compact ? 10 : 12);
-  const body = scene.add.text(bounds.x + pad, bodyY, vm.card.join('\n'), {
-    ...textRole('body'),
-    lineSpacing: compact ? 3 : 5,
-    wordWrap: { width: bounds.w - pad * 2 },
-  });
   auditTextBlock(title, {
     name: `Embedded region title (${opts.mode})`,
     maxWidth: Math.max(80, bounds.w - pad * 3 - buttonW),
     maxHeight: buttonH,
     minFontSize: 9,
   });
-  auditTextBlock(body, {
-    name: `Embedded region forecast (${opts.mode})`,
-    maxWidth: bounds.w - pad * 2,
-    maxHeight: Math.max(40, bounds.y + bounds.h - bodyY - pad),
-    minFontSize: 9,
+  const innerW = bounds.w - pad * 2;
+  const gap = compact ? 6 : 12;
+  const cols = compact ? 1 : 2;
+  const cellW = (innerW - gap * (cols - 1)) / cols;
+  const rows = Math.ceil(vm.guideSections.length / cols);
+  const noteH = compact ? 60 : 46;
+  const cellH = Math.min(compact ? 80 : 150,
+    (bounds.y + bounds.h - pad - noteH - gap - bodyY - gap * (rows - 1)) / rows);
+  vm.guideSections.forEach((section, index) => {
+    const x = bounds.x + pad + (index % cols) * (cellW + gap);
+    const y = bodyY + Math.floor(index / cols) * (cellH + gap);
+    const plate = scene.add.rectangle(x, y, cellW, cellH, UI.panelMuted, 0.92).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.45);
+    if (compact) roundRect(plate, 8);
+    const heading = scene.add.text(x + 10, y + 8, section.title, textRole('label', { ink: 'accent' }));
+    auditTextBlock(heading, { name: `Region guide ${section.title}`, maxWidth: cellW - 20, maxHeight: 20, minFontSize: 10 });
+    const textY = y + 10 + heading.height;
+    const body = scene.add.text(x + 10, textY, section.body, {
+      ...textRole('body'), lineSpacing: 2, wordWrap: { width: cellW - 20 },
+    });
+    auditTextBlock(body, { name: `Region guide ${section.title} content`, maxWidth: cellW - 20,
+      maxHeight: Math.max(16, y + cellH - textY - 7), minFontSize: 10 });
   });
-  void panel;
+  const noteY = bodyY + rows * (cellH + gap);
+  const note = scene.add.text(bounds.x + pad, noteY, vm.guideNote, {
+    ...textRole('micro', { ink: 'secondary' }), lineSpacing: 2, wordWrap: { width: innerW },
+  });
+  auditTextBlock(note, { name: 'Region guide availability', maxWidth: innerW,
+    maxHeight: Math.max(16, bounds.y + bounds.h - pad - noteY), minFontSize: 10 });
 }
 
 // ---------------------------------------------------------------------------

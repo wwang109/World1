@@ -37,20 +37,17 @@ export function closeMobileShopCardDetails(state: MobileShopBrowseState): Mobile
   return { ...state, detailCardIndex: null };
 }
 
-/** Fixed composition for the Run Shop browse state. The merchandise list is
- * the only flexible/scrolling band; identity, owned summary and actions stay
- * visible in the short embedded host as well as the full phone scene. */
 export function mobileRunShopBrowseLayout(width: number, height: number, top = 6) {
   const edge = 6;
   const gap = 6;
-  const header: MobileShopBox = { x: edge, y: top, width: width - edge * 2, height: 54 };
+  const header: MobileShopBox = { x: edge, y: top, width: width - edge * 2, height: 48 };
   const tabY = header.y + header.height + gap;
   const tabWidth = (header.width - gap) / 2;
   const tabs = {
     cards: { x: edge, y: tabY, width: tabWidth, height: 40 },
     gems: { x: edge + tabWidth + gap, y: tabY, width: tabWidth, height: 40 },
   };
-  const footerHeight = 50;
+  const footerHeight = 44;
   const footerY = height - edge - footerHeight;
   const actionWidth = (header.width - gap) / 2;
   const footer = {
@@ -61,12 +58,26 @@ export function mobileRunShopBrowseLayout(width: number, height: number, top = 6
     leave: { x: edge, y: footerY, width: actionWidth, height: footerHeight },
     buy: { x: edge + actionWidth + gap, y: footerY, width: actionWidth, height: footerHeight },
   };
-  const sell: MobileShopBox = { x: edge, y: footer.y - gap - 30, width: header.width, height: 30 };
-  const pouch: MobileShopBox = { x: edge, y: sell.y - gap - 30, width: header.width, height: 30 };
-  const owned: MobileShopBox = { x: edge, y: pouch.y - gap - 36, width: header.width, height: 36 };
+  const owned: MobileShopBox = { x: edge, y: footer.y - gap - 40, width: header.width, height: 40 };
   const shelfY = tabs.cards.y + tabs.cards.height + gap;
   const shelf: MobileShopBox = { x: edge, y: shelfY, width: header.width, height: Math.max(120, owned.y - gap - shelfY) };
-  return { header, tabs, shelf, owned, pouch, sell, footer };
+  return { header, tabs, shelf, owned, footer };
+}
+
+export function mobileShopRowsLayout(box: MobileShopBox, count: number, requestedPage: number) {
+  const gap = 6;
+  const minimumRowHeight = 58;
+  const fits = Math.min(6, Math.max(1, Math.floor((box.height + gap) / (minimumRowHeight + gap))));
+  const needsPager = count > fits;
+  const rowsHeight = box.height - (needsPager ? 46 : 0);
+  const pageSize = Math.min(6, Math.max(1, Math.floor((rowsHeight + gap) / (minimumRowHeight + gap))));
+  const pageCount = Math.max(1, Math.ceil(count / pageSize));
+  const page = Math.max(0, Math.min(pageCount - 1, requestedPage));
+  const start = page * pageSize;
+  const visibleCount = Math.min(pageSize, Math.max(0, count - start));
+  const rowHeight = Math.min(112, Math.max(40, (rowsHeight - gap * Math.max(0, visibleCount - 1)) / Math.max(1, visibleCount)));
+  return { page, pageCount, start, end: start + visibleCount, rowHeight, gap,
+    pager: needsPager ? { x: box.x, y: box.y + box.height - 40, width: box.width, height: 40 } : null };
 }
 
 /** Catalog order is authored order. Paging is only a view over that immutable

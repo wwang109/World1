@@ -14,7 +14,7 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addBrightRunArt, addRunArt, RUN_ART_KEYS } from '../ui/runArt';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
+import { renderEmbeddedRunLedger, renderRunStatsGrid, runStatsGridHeight, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -48,12 +48,12 @@ export class MobileRunMapScene extends Phaser.Scene {
   private H = SCREEN.height;
   private statPanelOpen = false;
   private retireConfirmOpen = false;
-  private statsOverlayOpen = false;
-  /** EXPLORE REGION replaces the planner's cards with the current-band read. */
+  private ledgerOpen = false;
   private bandReadOpen = false;
   /** A separate, masked read sheet: never squeeze desktop's rail into the
    * phone's route lane. */
   private mapIntelOpen = false;
+  private shopMenuOpen = false;
   /** The band model this render drew, kept so the embedded panel shows the
    * SAME read as the region guide (one forecast per render, never a second roll). */
   private band: BandBannerViewModel | null = null;
@@ -64,13 +64,22 @@ export class MobileRunMapScene extends Phaser.Scene {
     this.destination.reset();
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
-    this.statsOverlayOpen = false;
+    this.ledgerOpen = false;
     this.bandReadOpen = false;
     this.mapIntelOpen = false;
+    this.shopMenuOpen = false;
     this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
+
+  private openLedger(): void {
+    this.ledgerOpen = true;
+    this.bandReadOpen = false;
+    this.shopMenuOpen = false;
+    this.mapIntelOpen = false;
+    this.rerender();
+  }
 
   create(): void {
     this.destination.hide();
@@ -96,12 +105,14 @@ export class MobileRunMapScene extends Phaser.Scene {
       return;
     }
     if (run.status === 'defeat' || run.status === 'retired') {
-      this.renderBanner(run.status);
+      // Overlay panel over the map, not a full-page takeover (2026-09-21).
+      this.renderHud(run, false);
+      this.renderEndOverlay(run.status);
       return;
     }
 
     this.renderHud(run);
-    // Every overlay below (stat panel / retire confirm / stats overlay) is a
+    // Every overlay below (stat panel / retire confirm) is a
     // centered, opaque-panel modal over a full-screen scrim — its dialog rect
     // sits ON TOP OF (and, for retire confirm, fully inside) the trail's
     // "STOP IN PROGRESS"/choice block region. Drawing the trail underneath it
@@ -112,9 +123,12 @@ export class MobileRunMapScene extends Phaser.Scene {
     // object being drawn UNDER another. Skipping the trail while a modal owns
     // the screen is the default for page-replacing modals. The stat sheet is
     // the deliberate exception: its interactive scrim keeps the route inert.
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen || this.mapIntelOpen;
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.mapIntelOpen || this.shopMenuOpen;
     if (!modalOpen) this.renderTrail(run);
-    else if (this.statPanelOpen) this.renderTrail(run);
+    else if (this.statPanelOpen && !this.destination.isOpen('MobileShop')) this.renderTrail(run);
+    if (this.shopMenuOpen && !this.statPanelOpen && !this.retireConfirmOpen) {
+      this.shopHeaderButton(10, 132, this.W - 20, 'BACK TO SHOP', () => { this.shopMenuOpen = false; this.rerender(); });
+    }
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -136,12 +150,6 @@ export class MobileRunMapScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.rerender(); },
       });
     }
-    if (this.statsOverlayOpen) {
-      renderRunStatsOverlay(this, {
-        compact: true,
-        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
-      });
-    }
     if (this.mapIntelOpen) {
       renderMobileMapIntelOverlay(
         this,
@@ -155,25 +163,45 @@ export class MobileRunMapScene extends Phaser.Scene {
    * `onOpenStatsOverlay` puts the STATS opener ON the stat strip itself
    * (tap DAY·WAVE·GOLD·LV·LIVES·BOSSES) — replaces the old floating "STATS"
    * corner tag, which read as misplaced floating over the route board. */
-  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined): void {
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined, actionsEnabled = true): void {
+    if (run && this.destination.isOpen('MobileShop') && !this.shopMenuOpen && !this.ledgerOpen && !this.bandReadOpen) {
+      this.add.rectangle(0, 0, this.W, 62, UI.bg, 0.96).setOrigin(0, 0);
+      this.shopHeaderButton(10, 10, 64, '‹ MAP', () => this.destination.close());
+      const progress = snapshotRunProgress(run);
+      this.add.text(84, 12, 'SHOP', textRole('section', { ink: 'accent' }));
+      this.add.text(84, 36, `DAY ${progress.wave} · ${progress.gold} G`, textRole('micro', { ink: 'secondary' }));
+      this.shopHeaderButton(this.W - 80, 10, 70, 'MENU', () => { this.shopMenuOpen = true; this.rerender(); });
+      return;
+    }
     renderRunHud(this, {
       screen: 'RUN',
       compact: true,
       snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
-      onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
-      onOpenStatsOverlay: run ? () => { this.statsOverlayOpen = true; this.rerender(); } : undefined,
-      actions: run ? {
+      onOpenStatPanel: run && actionsEnabled ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
+      onOpenStatsOverlay: run && actionsEnabled ? () => this.openLedger() : undefined,
+      actions: run && actionsEnabled ? {
         back: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
-        secondary: { label: 'RUN LEDGER', onPress: () => { this.statsOverlayOpen = true; this.rerender(); } },
+        secondary: { label: 'RUN LEDGER', onPress: () => this.openLedger() },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
     });
   }
 
+  private shopHeaderButton(x: number, y: number, width: number, label: string, onPress: () => void): void {
+    const plate = this.add.rectangle(x, y, width, 40, UI.panelAlt, 1).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
+    const caption = this.add.text(x + width / 2, y + 20, label, textRole('label')).setOrigin(0.5);
+    attachButtonFeel(this, plate, { fill: UI.panelAlt, hover: UI.chipDark, follow: [caption], onPress });
+  }
+
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const content = TEMPLATE.regions.content;
+    if (this.destination.isOpen('MobileShop') && !this.ledgerOpen && !this.bandReadOpen) {
+      this.destination.render({ x: 6, y: 62, width: this.W - 12, height: this.H - 72 });
+      return;
+    }
+    const content = { ...TEMPLATE.regions.content, height: this.H - TEMPLATE.regions.content.y - 10 };
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
     // Compact region identity opens the same complete forecast as desktop.
@@ -190,13 +218,13 @@ export class MobileRunMapScene extends Phaser.Scene {
     const opener = this.add.rectangle(textX, content.y + 44, textW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.8);
     const openerLabel = this.add.text(textX + textW / 2, content.y + 64,
-      this.bandReadOpen ? 'REGION OPEN' : 'EXPLORE REGION ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+      this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
     auditControlLabel(opener, openerLabel, { name: 'Mobile explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
     if (!this.bandReadOpen) {
       opener.setInteractive({ useHandCursor: true });
       attachButtonFeel(this, opener, {
         fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
-        onPress: () => { this.destination.close(false); this.bandReadOpen = true; this.rerender(); },
+        onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
       });
     }
 
@@ -250,13 +278,20 @@ export class MobileRunMapScene extends Phaser.Scene {
     const options = this.destination.choices(pending ? [pending] : choices());
     const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
     const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
-    const planner = this.add.text(x + 8, top, 'CHOOSE YOUR NEXT STOP', textRole('label'));
+    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE' : 'CHOOSE YOUR NEXT STOP';
+    const planner = this.add.text(x + 8, top, plannerTitle, textRole('label'));
     auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w - 132, maxHeight: 18, minFontSize: 9 });
-    const status = this.bandReadOpen ? 'REGION VIEW' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+    const status = this.ledgerOpen || this.bandReadOpen ? '' : arrival ? '' : pending ? 'STOP IN PROGRESS'
       : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
         : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
     const statusText = this.add.text(x + w - 8, top + 2, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
     auditTextBlock(statusText, { name: 'Mobile route choice count', maxWidth: 116, maxHeight: 16, minFontSize: 9 });
+    if (this.ledgerOpen) {
+      renderEmbeddedRunLedger(this, { x, y: top + 20, width: w, height: availableH - 20 }, getActiveRun()!, {
+        compact: true, onBack: () => { this.ledgerOpen = false; this.rerender(); },
+      });
+      return;
+    }
     if (this.bandReadOpen && this.band) {
       renderEmbeddedBandRead(this, { x, y: top + 20, w, h: availableH - 20 }, this.band, {
         mode: 'mobile', onBack: () => { this.bandReadOpen = false; this.rerender(); },
@@ -310,31 +345,47 @@ export class MobileRunMapScene extends Phaser.Scene {
     return buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
   }
 
-  // ---------- defeat / retired end-summary banner ----------
+  // ---------- defeat / retired end overlay ----------
 
-  /** `'victory'` is legacy (the engine never sets it any more) and is
-   * deliberately not handled here — only `'defeat'` (0 lives) and
-   * `'retired'` (voluntary RETIRE) ever reach this. */
-  private renderBanner(status: 'defeat' | 'retired'): void {
+  /** Panel over the map (2026-09-21), not a full-page takeover — `create()`
+   * draws the HUD first, this scrim+panel on top. `'victory'` is legacy (the
+   * engine never sets it any more) and is deliberately not handled here. */
+  private renderEndOverlay(status: 'defeat' | 'retired'): void {
     const retired = status === 'retired';
-    this.add.rectangle(0, 0, this.W, this.H, retired ? 0x1c2430 : 0x352019, 1).setOrigin(0, 0);
-    const cx = this.W / 2;
-    // THE ONE FIRST THING on this screen — `display` is spent here and nowhere
-    // else in the scene, which is what gives the banner a reading order at all.
-    this.add.text(cx, 64, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, 106, `DAY REACHED ${runCalendar(run).absoluteDay}`, {
+    this.add.rectangle(0, 0, this.W, this.H, UI.shadow, 0.82).setOrigin(0, 0).setInteractive().setDepth(6000);
+
+    const panelW = Math.min(this.W - 24, 360);
+    const px = (this.W - panelW) / 2;
+    const py = TEMPLATE.regions.content.y + 12;
+    const cx = px + panelW / 2;
+    const pad = 20;
+    const gridW = panelW - pad * 2;
+    const pairs = runStatsPairs(run);
+    const gridH = runStatsGridHeight(pairs.length, true);
+    const titleY = py + pad;
+    const dayY = titleY + 42;
+    const factsY = dayY + 24;
+    const gridTop = factsY + 28;
+    const btnY = gridTop + gridH + 24;
+    const btnH = 44;
+    const panelH = btnY + btnH + pad - py;
+
+    this.add.rectangle(px, py, panelW, panelH, retired ? 0x1c2430 : 0x352019, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(2, retired ? UI.border : UI.bad, 0.9).setInteractive().setDepth(6001);
+    // THE ONE FIRST THING on this panel — `display` is spent here and nowhere
+    // else in the scene, which is what gives the panel a reading order at all.
+    this.add.text(cx, titleY, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0).setDepth(6002);
+    this.add.text(cx, dayY, `DAY REACHED ${runCalendar(run).absoluteDay}`, {
       ...textRole('statValue', { ink: 'accent' }), align: 'center',
-    }).setOrigin(0.5, 0);
-    this.add.text(cx, 130, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
-      ...textRole('micro'), align: 'center', wordWrap: { width: this.W - 60 },
-    }).setOrigin(0.5, 0);
-    const gridW = this.W - 60;
-    const gridTop = 158;
-    const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: true });
-    const btnY = gridTop + gridH + 30;
-    const btn = this.add.rectangle(cx, btnY, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    const btnLabel = this.add.text(cx, btnY + 22, 'MAIN MENU ›', textRole('label', { ink: 'onAccent' })).setOrigin(0.5);
+    }).setOrigin(0.5, 0).setDepth(6002);
+    this.add.text(cx, factsY, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
+      ...textRole('micro'), align: 'center', wordWrap: { width: gridW },
+    }).setOrigin(0.5, 0).setDepth(6002);
+    renderRunStatsGrid(this, px + pad, gridTop, gridW, pairs, { compact: true, depth: 6002 });
+    const btn = this.add.rectangle(cx, btnY, 180, btnH, 0xb78a46, 1).setOrigin(0.5, 0)
+      .setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+    const btnLabel = this.add.text(cx, btnY + btnH / 2, 'MAIN MENU ›', textRole('label', { ink: 'onAccent' })).setOrigin(0.5).setDepth(6003);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.
     // Shared feel (ui/motion) — this button had neither hover nor press

@@ -126,7 +126,7 @@ travel reference; the exact receipt and preview identity matter as much as layou
   Existing event outcome screens and shop behavior remain their own surfaces.
 - Verify homogeneous EASY/MEDIUM/HARD choices and the mandatory day-5 boss:
   arrival, true persisted reload/re-entry, then `FACE THE BOSS` to existing Run Prep.
-- Open/close `RUN LEDGER`, `EXPLORE REGION` (current forecast), and separate
+- Open/close `RUN LEDGER` and `REGION GUIDE` inside the destination panel; confirm Back restores the active stop. Also check separate
   earned future `MAP INTEL`; exercise intel scroll and existing HUD overlays.
 - Check hover/press during card entrance, dense receipt bounds, actual art crops,
   console/layout failures, and inactive controls beneath overlays. Preserve the

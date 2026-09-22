@@ -58,6 +58,10 @@ import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { runScreenTemplate } from '../src/game/ui/runScreenTemplate';
 import { escapesCanvas, overlapArea } from '../src/game/ui/maskedTextBounds';
+import { startScenePrimaryPresentation } from '../src/game/ui/startSceneLayout';
+import { runTravelChoiceCardCopy } from '../src/game/ui/runTravelChoiceCardCopy';
+import type { RunTravelChoiceViewModel } from '../src/game/ui/runTravelChoiceViewModel';
+import { mobileDraftActions, mobileDraftSetHeaderLabel, MOBILE_DRAFT_SELECTED_LABEL } from '../src/game/ui/mobileDraftLayout';
 import {
   collectRawSceneTexts as collectRawTexts,
   collectSceneTexts as collectTexts,
@@ -66,6 +70,33 @@ import {
 
 const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
+
+// Front-door label, sourced from `startSceneLayout.ts` rather than retyped —
+// see that file's `startScenePrimaryPresentation`.
+const BEGIN_LABEL = startScenePrimaryPresentation(false, 'desktop').label;
+const RESUME_LABEL = startScenePrimaryPresentation(true, 'desktop').label;
+
+/** Minimal stand-in for the fields `runTravelChoiceCardCopy` actually reads. */
+function travelModelStub(kind: RunTravelChoiceViewModel['kind'], event?: RunTravelChoiceViewModel['event']): RunTravelChoiceViewModel {
+  return { nodeId: 'probe', kind, title: '', detail: '', accent: 0, enabled: true, event };
+}
+
+// Every travel-card action label the walkthrough's node click may land on,
+// sourced from `runTravelChoiceCardCopy.ts` rather
+// than retyped — plus `FACE THE BOSS ›`, a separate component
+// (`RunBossArrivalPanel.ts`) that copy function does not cover.
+const NODE_ACTIONS = [
+  runTravelChoiceCardCopy(travelModelStub('fight')).action,
+  runTravelChoiceCardCopy(travelModelStub('event')).action,
+  runTravelChoiceCardCopy(travelModelStub('event', { eventId: 'probe', chainUnlocked: true, requirementLines: [] })).action,
+  runTravelChoiceCardCopy(travelModelStub('shop')).action,
+  runTravelChoiceCardCopy(travelModelStub('boss')).action,
+  'FACE THE BOSS ›',
+];
+
+// The draft's final-row START button, mobile spelling — sourced from
+// `mobileDraftLayout.ts`'s `mobileDraftActions` rather than retyped.
+const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true, true).find((a) => a.id === 'start')!.label;
 
 type Platform = 'desktop' | 'mobile';
 const VIEWPORTS: Record<Platform, { width: number; height: number }> = {
@@ -278,7 +309,11 @@ interface CalibrationProbe { text: string; rawOverlapPx: number }
 
 async function calibrateCollector(page: Page, platform: Platform): Promise<void> {
   const step = `${platform} collector calibration`;
-  const anchorLabel = 'DECK/BAG';
+  // This runs on the bare run map, before any node is picked — desktop's map
+  // HUD spells its deck-access slot 'BAG' there (`DesktopRunMapScene`; every
+  // OTHER desktop run screen spells it 'DECK / BAG', see the click label a
+  // few steps down). Mobile's map HUD already reads 'DECK/BAG'.
+  const anchorLabel = platform === 'desktop' ? 'BAG' : 'DECK/BAG';
   const before = await collectTexts(page);
   const anchor = before.find((t) => t.text === anchorLabel);
   if (!anchor) {
@@ -430,7 +465,7 @@ async function readPendingSeed(page: Page): Promise<number | null> {
 /**
  * Clicks the ONE Text object whose rendered string equals `label` exactly.
  * `step` is a short, human-readable name for what this click is SUPPOSED to
- * accomplish ("map-start -> START RUN", "retire-confirm -> RETIRE (confirm)",
+ * accomplish ("map-start -> BEGIN THE JOURNEY", "retire-confirm -> RETIRE (confirm)",
  * ...) — every failure is reported against that name, never silently, so a
  * stale selector fails the step it broke instead of quietly no-opping and
  * letting the walkthrough re-audit the previous screen under the next
@@ -480,8 +515,13 @@ async function clickExactText(page: Page, label: string, platform: Platform, ste
       const obj = stack.shift();
       if (!obj || obj.visible === false) continue;
       if (obj.type === 'Text' && obj.text === label) {
+        // An embedded destination (RunDestinationHost -> positionRunDestination,
+        // src/game/ui/RunDestinationHost.ts) gives its launched child scene a
+        // clipped/zoomed/scrolled camera; raw world bounds land on the wrong
+        // screen pixels there. Identity for every non-embedded scene.
         const b = obj.getBounds();
-        found = { x: b.centerX, y: b.centerY };
+        const cam = obj.scene.cameras.main;
+        found = { x: cam.x + (b.centerX - cam.scrollX) * cam.zoom, y: cam.y + (b.centerY - cam.scrollY) * cam.zoom };
       }
       if (Array.isArray(obj.list)) for (const child of obj.list) stack.push(child);
     }
@@ -506,7 +546,7 @@ async function clickExactText(page: Page, label: string, platform: Platform, ste
 /**
  * Clicks the first visible Text object whose string satisfies `predicate` —
  * the resilient matcher: node titles / front-door copy carry variable
- * suffixes ("FIGHT · EASY", "START RUN ›") that an exact-text match would go
+ * suffixes ("FIGHT · EASY", "BEGIN THE JOURNEY ›") that an exact-text match would go
  * stale against on every wording tweak. The predicate runs in NODE (against
  * texts fetched via `collectTexts`), not serialized into the page, so it can
  * be as precise as the caller needs — a naive `startsWith('BOSS')`, for
@@ -633,7 +673,7 @@ async function waitUntil(page: Page, predicate: () => Promise<boolean>, timeoutM
  * which assumed the BootScene loader always finishes near-instantly — on
  * this machine it's documented to take 20s+, so a 900ms sleep raced it and
  * intermittently screenshotted/audited the STILL-LOADING screen while the
- * walkthrough's very first click ("START RUN") found nothing yet and the
+ * walkthrough's very first click ("BEGIN THE JOURNEY") found nothing yet and the
  * failure looked like a stale selector rather than a slow loader.
  */
 async function waitForText(
@@ -665,6 +705,28 @@ async function waitForSceneChange(page: Page, platform: Platform, step: string, 
     hardFailures.push(`[${platform}] step "${step}": scene is still "${landed}" ${timeoutMs}ms later — the click had no effect (target disabled? postcondition not met?)`);
   }
   return landed;
+}
+
+/** EVENT (desktop only) and SHOP (both platforms) resolve INLINE — the map
+ * launches them as a camera-clipped EMBEDDED child scene
+ * (`RunDestinationHost.render()`, `src/game/ui/RunDestinationHost.ts`)
+ * rather than a `scene.start()` transition, so the parent map scene stays
+ * `sys.isActive()` and `activeSceneKey()`'s "first active scene" reading
+ * never changes. `game.scene.isActive(key)` is the one signal that actually
+ * reflects it. Mobile's EVENT is the one case that IS a real transition
+ * (`MobileRunMapScene`: `this.scene.start('MobileRunEvent')`), so it is not
+ * in this list. */
+const EMBEDDED_DESTINATION_KEYS: Record<Platform, string[]> = {
+  desktop: ['DesktopRunEvent', 'DesktopShop'],
+  mobile: ['MobileShop'],
+};
+
+async function activeEmbeddedDestination(page: Page, platform: Platform): Promise<string | null> {
+  for (const key of EMBEDDED_DESTINATION_KEYS[platform]) {
+    const isActive = await page.evaluate((k: string) => (window as any).__game.scene.isActive(k), key);
+    if (isActive) return key;
+  }
+  return null;
 }
 
 /** md5 of every screenshot ever taken, by platform — the direct guard against
@@ -715,12 +777,12 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // NO fixed sleep here: `BootScene`'s asset loader is documented to take
   // 20s+ on this machine, and a short `waitForTimeout` used to race it —
   // intermittently screenshotting/auditing the still-loading screen and then
-  // failing the FIRST click ("START RUN") in a way that looked exactly like
+  // failing the FIRST click ("BEGIN THE JOURNEY") in a way that looked exactly like
   // a stale selector. Wait for the condition that actually matters instead:
   // the front-door button text is on screen.
   await page.goto(`${BASE}/?ui=${platform}&scene=${MAP_SCENE[platform]}`, { waitUntil: 'networkidle' });
   await page.evaluate(({ w, h }) => { (window as any).__gameDesignWidth = w; (window as any).__gameDesignHeight = h; }, { w: width, h: height });
-  await waitForText(page, platform, 'map-start -> loader finished', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), 'START RUN/RESUME RUN', 30_000);
+  await waitForText(page, platform, 'map-start -> loader finished', (t) => t.startsWith(BEGIN_LABEL) || t.startsWith(RESUME_LABEL), `${BEGIN_LABEL}/${RESUME_LABEL}`, 30_000);
   await shot(page, `${platform}-01-map-start`, platform);
   await auditScreen(page, 'map-start', platform);
 
@@ -735,14 +797,14 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   }
 
   // ---- 2. Start a run -> Draft ----
-  // The front door reads "START RUN ›" (or "RESUME RUN ›" if a run is already
+  // The front door reads `BEGIN_LABEL` (or `RESUME_LABEL` if a run is already
   // active) — `runStore.ts`'s in-memory state is always fresh here since each
-  // platform gets its own full page navigation above, so "START RUN" is the
+  // platform gets its own full page navigation above, so `BEGIN_LABEL` is the
   // only branch this walkthrough should ever hit, but both are matched so a
   // rerun against a page that didn't fully reset fails loudly instead of
   // silently clicking nothing.
-  await clickMatchingText(page, platform, 'map-start -> START RUN', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), '"START RUN"/"RESUME RUN"');
-  await waitForSceneChange(page, platform, 'map-start -> START RUN transition', ['Start']);
+  await clickMatchingText(page, platform, `map-start -> ${BEGIN_LABEL}`, (t) => t.startsWith(BEGIN_LABEL) || t.startsWith(RESUME_LABEL), `"${BEGIN_LABEL}"/"${RESUME_LABEL}"`);
+  await waitForSceneChange(page, platform, `map-start -> ${BEGIN_LABEL} transition`, ['Start']);
   await shot(page, `${platform}-02-draft`, platform);
   await auditScreen(page, 'draft', platform);
 
@@ -752,11 +814,12 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // once; mobile shows one set at a time (NEXT between sets).
   const draft = rollStartDraft(seed ?? 1);
   // Each pick is verified against the scene's OWN pick counter — desktop draws
-  // "PICK ONE PER ROW · n/4" (`DesktopDraftScene.ts:75`), mobile "n/4 PICKED"
-  // (`MobileDraftScene.ts:108`) — rather than a fixed 150ms sleep. A sleep
-  // cannot tell "the click missed" from "the click is still queued", and both
-  // surface identically three steps later as an inscrutable "START did
-  // nothing".
+  // "PICK ONE PER ROW · n/4" (`DesktopDraftScene.ts:128`), mobile shows the
+  // picked card's own `MOBILE_DRAFT_SELECTED_LABEL` badge
+  // (`mobileDraftLayout.ts`, consumed by `MobileDraftScene.ts`) — rather than
+  // a fixed 150ms sleep. A sleep cannot tell "the click missed" from "the
+  // click is still queued", and both surface identically three steps later as
+  // an inscrutable "START did nothing".
   const occurrenceUsed = new Map<string, number>();
   for (let i = 0; i < DRAFT_SET_KEYS.length; i++) {
     const key = DRAFT_SET_KEYS[i]!;
@@ -769,8 +832,9 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
       await clickUntil(
         page, platform, step,
         (attempt) => clickNthText(page, name, occurrence, platform, `${step} (attempt ${attempt})`),
-        async () => (await collectTexts(page)).some((t) =>
-          t.text.startsWith(`PICK ONE PER ROW · ${i + 1}/`) || t.text.startsWith(`${i + 1}/${DRAFT_SET_KEYS.length} PICKED`)),
+        async () => desktop
+          ? (await collectTexts(page)).some((t) => t.text.startsWith(`PICK ONE PER ROW · ${i + 1}/`))
+          : (await collectTexts(page)).some((t) => t.text === MOBILE_DRAFT_SELECTED_LABEL),
         `the pick counter never reached ${i + 1}/${DRAFT_SET_KEYS.length}`,
       );
     }
@@ -783,20 +847,22 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
       await clickUntil(
         page, platform, step,
         (attempt) => clickExactText(page, 'NEXT', platform, `${step} (attempt ${attempt})`),
-        async () => (await collectTexts(page)).some((t) => t.text.startsWith(`DRAFT · SET ${nextSet}/`)),
+        async () => (await collectTexts(page)).some((t) => t.text === mobileDraftSetHeaderLabel(nextSet - 1, DRAFT_SET_KEYS.length)),
         `SET ${nextSet}/${DRAFT_SET_KEYS.length} never appeared`,
       );
     }
   }
   // The draft's START button is only INTERACTIVE once all 4 rows have a pick
   // (`DesktopDraftScene`/`MobileDraftScene`: `ready = picks.length === 4`) —
-  // its Text label reads "START" either way, so a click that lands on a
-  // disabled button finds its target text (no missing-selector failure) and
-  // does nothing (no scene change, no thrown error). Checking the actual
+  // its Text label reads `START_LABEL` either way (desktop "START", mobile
+  // `mobileDraftActions`'s "START RUN"), so a click that lands on a disabled
+  // button finds its target text (no missing-selector failure) and does
+  // nothing (no scene change, no thrown error). Checking the actual
   // postcondition — the scene left Draft — is the only way to catch that.
+  const START_LABEL = desktop ? 'START' : MOBILE_START_LABEL;
   await clickUntil(
     page, platform, 'draft -> START',
-    (attempt) => clickExactText(page, 'START', platform, `draft -> START (attempt ${attempt})`),
+    (attempt) => clickExactText(page, START_LABEL, platform, `draft -> START (attempt ${attempt})`),
     async () => (await activeSceneKey(page)) !== DRAFT_SCENE,
     'the Draft scene never closed (all 4 rows picked?)',
   );
@@ -815,7 +881,6 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // centres lie inside the renderer's interactive bottom rectangles.
   // Boss CONTINUE first opens arrival in the same map scene; the retry then
   // clicks FACE THE BOSS › before the unchanged scene-change postcondition holds.
-  const NODE_ACTIONS = ['CHOOSE EVENT ›', 'TRAVEL HERE ›', 'VISIT SHOP ›', 'INSPECT ENCOUNTER ›', 'CONTINUE ›', 'FACE THE BOSS ›'];
   let picked: string | null = null;
   await clickUntil(
     page, platform, 'map-active -> pick a node',
@@ -826,16 +891,40 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
         'an interactive travel-card action or FACE THE BOSS ›',
       );
     },
-    async () => (await activeSceneKey(page)) !== MAP_SCENE_KEY,
+    async () => (await activeSceneKey(page)) !== MAP_SCENE_KEY || (await activeEmbeddedDestination(page, platform)) !== null,
     'the run map never handed off to a node scene',
   );
-  const landedOn = await activeSceneKey(page);
+  const transitioned = await activeSceneKey(page);
+  const landedOn = transitioned !== MAP_SCENE_KEY ? transitioned : (await activeEmbeddedDestination(page, platform)) ?? transitioned;
   await shot(page, `${platform}-04-node-${landedOn}`, platform);
   await auditScreen(page, `node-${landedOn}`, platform, REQUIRED_STATS.filter(Boolean));
   console.log(`[${platform}] picked "${picked}" -> landed on scene "${landedOn}"`);
 
+  // An embedded destination (desktop EVENT/SHOP, mobile SHOP) keeps its
+  // parent map scene active underneath it, skips its OWN HUD entirely
+  // (`if (!this.embedded) this.renderHud(run)` — `DesktopRunEventScene.ts`
+  // and its shop/prep siblings), and captures pointer input even outside its
+  // own camera viewport (`RunDestinationHost.hide()`'s own doc comment) — so
+  // neither a DECK/BAG button nor a working click for one exists while it's
+  // open. Close it first, the same way a player would ('‹ BACK' everywhere
+  // except MobileShop, which draws its own 'LEAVE SHOP' in the shop scene).
+  const closedEmbeddedDestination = EMBEDDED_DESTINATION_KEYS[platform].includes(landedOn);
+  if (closedEmbeddedDestination) {
+    const closeLabel = landedOn === 'MobileShop' ? 'LEAVE SHOP' : '‹ BACK';
+    await clickUntil(
+      page, platform, `node-${landedOn} -> close destination`,
+      (attempt) => clickExactText(page, closeLabel, platform, `node-${landedOn} -> close destination (attempt ${attempt})`),
+      async () => (await activeEmbeddedDestination(page, platform)) === null,
+      'the embedded destination never closed',
+    );
+  }
+
   // ---- 5. DECK / BAG (secondary HUD slot) ----
-  const deckLabel = desktop ? 'DECK / BAG' : 'DECK/BAG';
+  // Desktop's bare run map spells its own HUD slot 'BAG' (`DesktopRunMapScene`
+  // — closing an embedded destination lands back here); every other desktop
+  // run screen (`DesktopRunPrep`/standalone `DesktopRunEvent`/`DesktopShop`)
+  // spells it 'DECK / BAG'. Mobile is 'DECK/BAG' everywhere, map included.
+  const deckLabel = desktop ? (closedEmbeddedDestination ? 'BAG' : 'DECK / BAG') : 'DECK/BAG';
   const wentToDeck = await clickUntil(
     page, platform, `node-${landedOn} -> DECK/BAG`,
     (attempt) => clickExactText(page, deckLabel, platform, `node-${landedOn} -> DECK/BAG (attempt ${attempt})`),

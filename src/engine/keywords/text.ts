@@ -420,8 +420,6 @@ const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'ex
   debuff: 'DEBUFF',
   expose: 'EXPOSE',
   thorns: 'THORNS',
-  // Same word as the `burden` row's own badge, from this one table, so
-  // `BONUS +4 PER BURDEN` sits beside `BURDEN +6 WT` in the same spelling.
   burden: 'BURDEN',
 };
 
@@ -801,7 +799,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   guard: {
     composeGroup: 'selfGrant',
     displayToken: 'guard',
-    faceClause: (a) => `{{Guard}} -${a.pct}% ${propertyWord(a.property)} (${a.turns}t)`,
+    faceClause: (a, ctx) => `{{${a.property === 'magical' ? 'Magic' : a.property === 'physical' ? 'Physical' : 'True'} Guard|guard}} ${a.pct}% (${ctx.host === 'gem' ? `${a.turns} ${a.turns === 1 ? 'turn' : 'turns'}` : `${a.turns}t`})`,
     ruleTitle: 'Guard',
     ruleSentence: 'Reduce matching damage by X% for X turns.',
     faceToken: (a) => ({

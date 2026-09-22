@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
+import { roundRect } from './roundedRect';
 import { playSfx } from '../audio/sfxSynth';
 import type { SfxKey } from '../audio/sfxRecipes';
-import type { LayoutProfile } from '../layoutProfile';
+import { ACTIVE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
 import { FONT, INK, UI, type InkRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
@@ -200,10 +201,13 @@ export function renderRunChoicePanel(
   const actionCopy = model.enabled ? 'SELECT' : 'LOCKED';
   const fill = model.enabled ? UI.panelAlt : UI.panelMuted;
   const alpha = model.enabled ? 0.95 : 0.56;
+  const compact = ACTIVE_PROFILE.id === 'mobile';
   const panel = scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, fill, alpha)
     .setOrigin(0, 0)
     .setStrokeStyle(2, model.accent, model.enabled ? 0.9 : 0.38);
-  const rail = scene.add.rectangle(bounds.x, bounds.y, railW, bounds.h, model.accent, model.enabled ? 1 : 0.48).setOrigin(0, 0);
+  if (compact) roundRect(panel, 12);
+  const rail = scene.add.rectangle(bounds.x, bounds.y + (compact ? 12 : 0), railW, bounds.h - (compact ? 24 : 0), model.accent, model.enabled ? 1 : 0.48).setOrigin(0, 0);
+  if (compact) roundRect(rail, 3);
   const image = model.image
     ? addRunArt(scene, model.image.textureKey, {
       x: bounds.x + railW + inset,

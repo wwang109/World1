@@ -107,6 +107,10 @@ export interface StatSegment {
    * value — that is the whole reason the builders live here.
    */
   alarm?: boolean;
+  /** A pending reward: the renderer draws a solid/glowing cell instead of
+   * plain text. Same builder-only rule as `alarm` — and never its ink, since
+   * a reward is not an emergency. */
+  ready?: boolean;
   /** A trailing delta drawn after the value in `INK.gain` — a gem's '+4'. */
   delta?: string;
 }
@@ -125,6 +129,7 @@ export interface StatRun {
 
 /** The ink a segment's VALUE half gets. `alarm` wins over everything. */
 export function statValueInk(seg: StatSegment): InkRole {
+  if (seg.ready) return 'onAccent';
   if (seg.alarm) return 'alarm';
   switch (seg.kind) {
     case 'resource': return 'resource';
@@ -146,6 +151,7 @@ export function statValueInk(seg: StatSegment): InkRole {
  * point, and a `quiet` segment's label is the first thing that should drop out
  * of the reading order. */
 export function statLabelInk(seg: StatSegment): InkRole {
+  if (seg.ready) return 'onAccent';
   switch (seg.tone ?? 'normal') {
     case 'lead': return 'label';
     case 'normal': return 'label';
@@ -190,14 +196,9 @@ export interface RunProgressFacts {
   heroLevel: number;
   lives: number;
   bossesCleared: number;
-  /**
-   * PL earned but not yet spent (`run/leveling.ts#bankedPL`). OPTIONAL —
-   * absent/0 renders nothing — because the two hand-built snapshots (the run
-   * maps' pre-run `EMPTY_HUD_SNAPSHOT`) have no run to read it from. When > 0
-   * the LV segment gains a `+N` delta (gain ink): the 2026-08-31 playtest
-   * showed a player walking into fights with 3 PL banked, so the one place
-   * the LEVEL is shown now carries what that level is still owed.
-   */
+  /** PL earned but not yet spent (`run/leveling.ts#bankedPL`). OPTIONAL —
+   * absent/0 is fine, since the two hand-built pre-run snapshots (the run
+   * maps' `EMPTY_HUD_SNAPSHOT`) have no run to read it from. */
   bankedPL?: number;
 }
 
@@ -251,15 +252,9 @@ export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): S
       { label: 'DAY', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
       { label: 'REGION DAY', value: `${expeditionDay(facts.wave)}/${EXPEDITION_DAYS}`, kind: 'identity', tone: 'quiet' },
       { label: compact ? 'G' : 'GOLD', value: `${facts.gold}`, kind: 'resource', tone: 'lead' },
-      // BANKED PL rides the LV segment as a `+N` delta (drawn in `INK.gain`,
-      // same mechanism as a gem's `◆+N`) — the level affordance itself says
-      // what is waiting, instead of relying on the separate badge alone.
-      // Absent at 0: a zero here is genuinely neutral (nothing is owed), and
-      // the mobile strip's ~28-char budget is bought back the moment the
-      // player spends.
       ...(compact ? [{
         label: 'LV', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet',
-        ...((facts.bankedPL ?? 0) > 0 ? { delta: `+${facts.bankedPL}` } : {}),
+        ready: (facts.bankedPL ?? 0) > 0,
       } satisfies StatSegment] : []),
       { label: compact ? '♥' : 'LIVES', value: `${facts.lives}`, kind: 'vital', tone: 'lead', alarm: critical },
       { label: compact ? 'B' : 'BOSSES', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'quiet' },
@@ -323,7 +318,7 @@ export function playerHudStatRun(
     segments: [
       ...(heroLevel === undefined ? [] : [{
         label: 'LV', value: `${heroLevel}`, kind: 'identity', tone: 'quiet',
-        ...(bankedPL > 0 ? { delta: `+${bankedPL}` } : {}),
+        ready: bankedPL > 0,
       } satisfies StatSegment]),
       ...run.segments.map((segment, index) => (
         index === 0 ? { ...segment, value: `${stats.hp}/${stats.maxHp}` } : segment

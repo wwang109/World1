@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { gemHeroStats } from '../../engine/cards';
 import { BASE_HERO_STATS } from '../../data/heroes';
 import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '../../run/leveling';
-import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, currentRunPieces, heroAllocationScratchCost } from '../runStore';
+import { commitHeroAllocation, currentHeroAllocation, currentHeroLevel, currentRunPieces, heroAllocationScratchCost } from '../runStore';
 import { FONT, SCREEN, textRole, textRoleSize, UI } from '../theme';
 import { addHoverTipZone } from './hoverTip';
 import { statHoverEntry, STAT_TOKEN } from './statLabels';
@@ -11,8 +11,8 @@ import { statHoverEntry, STAT_TOKEN } from './statLabels';
 /**
  * Run Mode's stat/level allocation overlay — the one place a player spends
  * banked PL (see docs/release-game-plan.md "Hero leveling & stat allocation",
- * a HARD user requirement). Desktop opens it from the shared HUD's LV cell;
- * compact screens retain the "n PL TO SPEND" badge below.
+ * a HARD user requirement). Both platforms open it from the shared HUD's
+ * glowing LV cell (`RunProgressStrip.ts#renderRunHud`).
  *
  * CONFIRMABLE SCRATCH EDIT (2026-07-29 rework): +/- steppers operate on a
  * local, uncommitted `Allocation` (`scratch`, module-level so it survives the
@@ -253,34 +253,4 @@ export function renderRunStatPanel(
     discardStatPanelScratch();
     onConfirm();
   });
-}
-
-/**
- * Compact-header badge: "n PL TO SPEND" whenever the run has unspent PL — the nudge
- * the locked design requires so a player never walks into a fight unaware of
- * banked points. Renders nothing when `bankedPL <= 0`. Returns the badge's
- * width so callers can lay out the rest of the header around it.
- */
-export function renderBankedPlBadge(
-  scene: Phaser.Scene,
-  x: number, y: number, fontSize: number,
-  onPress: () => void,
-): number {
-  const banked = currentBankedPL();
-  if (banked <= 0) return 0;
-  const label = `${banked} PL TO SPEND`;
-  const padX = 10;
-  const h = fontSize + 12;
-  const text = scene.add.text(0, 0, label, {
-    ...textRole('label', { ink: 'onAccent' }), fontSize: `${fontSize}px`,
-  }).setVisible(false);
-  const w = text.width + padX * 2;
-  text.destroy();
-  const badge = scene.add.rectangle(x, y, w, h, UI.chip, 1).setOrigin(1, 0).setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
-  scene.add.text(x - w / 2, y + h / 2, label, {
-    ...textRole('label', { ink: 'onAccent' }), fontSize: `${fontSize}px`,
-  }).setOrigin(0.5);
-  badge.on('pointerdown', () => { playSfx('uiClick'); onPress(); });
-  scene.tweens.add({ targets: badge, alpha: 0.75, duration: 650, yoyo: true, repeat: -1 });
-  return w;
 }

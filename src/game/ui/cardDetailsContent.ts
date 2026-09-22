@@ -3,7 +3,7 @@ import type { GemDef } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { applyTier, gemCardMods, resolveDisplaySkill } from '../../engine/cards';
 import { cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
-import { faceClauseOf, ruleSentenceOf, ruleTitleOf } from '../../engine/keywords/text';
+import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
 import { typeBadgeEntries } from './cardGlossary';
 import { stripCardTextMarkup } from './cardTextMarkup';
@@ -82,6 +82,11 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
       const status = titleCase(action.status);
       const target = action.status === 'stun' ? 'stunned targets' : `targets with ${action.status === 'debuff' ? 'a debuff' : status}`;
       return { title: `Exploit — ${status}`, body: `${action.affinity ? `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board. ` : ''}Deal ${action.amount} additional damage against ${target}.` };
+    }
+    if (action?.kind === 'debuffStat' || action?.kind === 'buffStat') {
+      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(' — ')))} — ` : '';
+      const verb = action.kind === 'debuffStat' ? 'Reduce enemy' : 'Increase';
+      return { title: ruleTitleOf(action), body: `${prefix}${verb} ${STAT_TOKEN[action.stat]} by ${action.pct}% for ${action.turns} ${action.turns === 1 ? 'turn' : 'turns'}.` };
     }
     const markup = clause.match(/\{\{([^}:|]+)/)?.[1];
     const title = action ? ruleTitleOf(action) : undefined;

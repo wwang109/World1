@@ -1,31 +1,13 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { getActiveRun, type RunState } from '../runStore';
+import type { RunState } from '../runStore';
 import { FONT, textRole, textRoleSize, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
 import type { Rect } from './runScreenTemplate';
-import { runScreenLayout } from './runScreenLayout';
+import { renderRunHostButton } from './RunDestinationHost';
+import { roundRect } from './roundedRect';
 import { ledgerStatRows, runBossCountdownModel, type StatSegment } from './statRunModel';
 import { renderStatCell } from './statRunStrip';
-
-/**
- * Run stats — a read-only ledger view over `RunState.stats`/`wins`/`losses`/
- * `bossesCleared` (see `src/run/runState.ts#RunStats`), shown across several
- * surfaces:
- *   - the Run Map's end-summary banner (defeat/retired), which renders the
- *     grid straight into its own full-screen layout;
- *   - DESKTOP's Run Map: a PERMANENT flank panel (`renderRunStatsFlankPanel`,
- *     2026-08-04 density pass) beside the fixed choices column — no tap
- *     needed, it's always on screen, so desktop no longer opens the overlay
- *     below at all;
- *   - MOBILE's Run Map: a toggleable overlay (`renderRunStatsOverlay`),
- *     reached by tapping `RunProgressStrip.ts`'s stat strip itself
- *     (`renderRunHud`'s `onOpenStatsOverlay` — the old floating "STATS"
- *     corner tag this module used to draw is gone on both platforms).
- *
- * Pure presentation: every value already lives on `RunState`, floored/
- * accumulated by `src/run`. This module only formats and lays it out.
- */
 
 /**
  * A ledger row is now a `StatSegment` (`statRunModel.ts`) — the SAME token the
@@ -102,7 +84,8 @@ export function renderRunStatsGrid(
   const cellPad = 10;
 
   const drawCell = (row: RunStatsRow, cx: number, cy: number, name: string): void => {
-    const plate = scene.add.rectangle(cx, cy, colW, rowH, UI.panelMuted, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.35);
+    const plate = roundRect(scene.add.rectangle(cx, cy, colW, rowH, UI.panelMuted, 0.6), opts.compact ? 8 : 0)
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.35);
     if (opts.depth !== undefined) plate.setDepth(opts.depth);
     const { label, value } = renderStatCell(scene, row, {
       x: cx, y: cy, width: colW, height: rowH, pad: cellPad, density, depth: opts.depth, name,
@@ -226,60 +209,25 @@ export function renderRunBossCountdownPanel(
   auditTextBlock(clearedLine, { name: 'Desktop run map bosses-cleared line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
 }
 
-/**
- * The in-run STATS overlay — scrim + modal panel showing the live ledger,
- * same idiom as `RunStatPanel.ts#renderRunStatPanel`/`RunProgressStrip.ts#
- * renderRetireConfirm`: closed by tapping the scrim OR the CLOSE button, the
- * caller owns the open/close boolean (reset in `init()`, re-rendered from
- * `create()` — the scene-rebuild idiom). Read-only: nothing here mutates the
- * run, so unlike the PL allocation panel there is no scratch/CONFIRM state.
- * No-ops (closes immediately) if there is somehow no active run.
- */
-export function renderRunStatsOverlay(
+export function renderEmbeddedRunLedger(
   scene: Phaser.Scene,
-  opts: { compact: boolean; onClose: () => void },
+  bounds: Rect,
+  run: RunStatsSource,
+  opts: { compact: boolean; onBack: () => void },
 ): void {
-  const run = getActiveRun();
-  if (!run) { opts.onClose(); return; }
-
-  const platform = opts.compact ? 'mobile' : 'desktop';
-  const t = runScreenLayout(platform);
-  const { width: W, height: H } = t.canvas;
-
-  scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(5500)
-    .on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
-
   const pairs = runStatsPairs(run);
   const gridH = runStatsGridHeight(pairs.length, opts.compact);
-  const nameSize = textRoleSize('section');
-  const smallSize = textRoleSize('micro');
-  const btnH = opts.compact ? 34 : 38;
-
-  const pw = Math.min(W - 40, opts.compact ? W - 32 : 460);
-  const headerH = nameSize + 6 + smallSize + 10 + 14;
-  const ph = 18 + headerH + gridH + 14 + btnH + 14;
-  const px = (W - pw) / 2;
-  const py = Math.max(opts.compact ? 16 : 30, (H - ph) / 2);
-
-  scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 1).setInteractive().setDepth(5501);
-
-  const innerX = px + 20;
-  const innerW = pw - 40;
-  let cursor = py + 18;
-
-  scene.add.text(innerX, cursor, 'RUN STATS', textRole('section')).setDepth(5502);
-  cursor += nameSize + 6;
-
-  scene.add.text(innerX, cursor, "This run's ledger so far.", textRole('micro')).setDepth(5502);
-  cursor += smallSize + 10;
-  scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0).setDepth(5502);
-  cursor += 14;
-
-  renderRunStatsGrid(scene, innerX, cursor, innerW, pairs, { compact: opts.compact, depth: 5502 });
-  cursor += gridH + 14;
-
-  const closeBtn = scene.add.rectangle(innerX, cursor, innerW, btnH, UI.panelMuted, 1).setOrigin(0, 0)
-    .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(5502);
-  scene.add.text(innerX + innerW / 2, cursor + btnH / 2, 'CLOSE', textRole('label')).setOrigin(0.5).setDepth(5502);
-  closeBtn.on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
+  const pad = opts.compact ? 12 : 20;
+  const headerH = opts.compact ? 52 : 60;
+  const height = Math.min(bounds.height, pad * 2 + headerH + gridH);
+  roundRect(scene.add.rectangle(bounds.x, bounds.y, bounds.width, height, UI.panelAlt, 0.98), opts.compact ? 12 : 0)
+    .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
+  const back = renderRunHostButton(scene, bounds.x + bounds.width - pad, bounds.y + pad, 'BACK', opts.compact,
+    () => { playSfx('uiBack'); opts.onBack(); }, true);
+  const title = scene.add.text(bounds.x + pad, bounds.y + pad + 10, 'THIS RUN', textRole('section', { ink: 'accent' }));
+  auditTextBlock(title, {
+    name: `Embedded run ledger (${opts.compact ? 'mobile' : 'desktop'})`,
+    maxWidth: back.x - bounds.x - pad - 12, maxHeight: back.height, minFontSize: 9,
+  });
+  renderRunStatsGrid(scene, bounds.x + pad, bounds.y + pad + headerH, bounds.width - pad * 2, pairs, { compact: opts.compact });
 }

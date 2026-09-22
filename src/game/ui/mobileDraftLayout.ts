@@ -100,6 +100,15 @@ export function mobileDraftActionRects(footer: DraftRect, actions: readonly Mobi
   });
 }
 
+/** The picked-card badge text — one string, every set, every context. */
+export const MOBILE_DRAFT_SELECTED_LABEL = 'SELECTED';
+
+/** The header's set-progress text ("SET n OF total") — identical whether the
+ * run banner or the sandbox tab strip sits above it. */
+export function mobileDraftSetHeaderLabel(setIndex: number, totalSets: number): string {
+  return `SET ${setIndex + 1} OF ${totalSets}`;
+}
+
 interface BrowserViewportLike {
   innerWidth: number;
   innerHeight: number;

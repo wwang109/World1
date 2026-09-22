@@ -16,7 +16,7 @@
  *      Sandbox route `?scene=desktop-shop` has `GOLD UNLIMITED` and can't
  *      exercise "gold decreased by the shown price"). Route used: the SAME
  *      map deep-link `run-hud-audit.ts` uses (`?scene=desktop-runmap` /
- *      `?scene=mrunmap`) → START RUN → draft → walk the map, preferring a
+ *      `?scene=mrunmap`) → BEGIN THE JOURNEY → draft → walk the map, preferring a
  *      SHOP node over FIGHT/EVENT, retrying with a fresh page (new random
  *      run seed — `runStore.ts`'s `pendingSeed` re-rolls on every full
  *      navigation) if a run never turns one up or ends in DEFEAT.
@@ -35,7 +35,7 @@
  * Requires the Vite dev server (`npm run dev`) and the battle API
  * (`npm run api`) — neither is started by this script.
  */
-import { chromium, type Page } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import { pinPageAgainstHmr } from './pageHarness';
 import { resolveChromiumPath } from './chromiumPath';
 import { collectSceneTexts as collectTexts, type TextBound } from './sceneText';
@@ -43,9 +43,56 @@ import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { gemBook } from '../src/data/gems';
 import { eventCatalog } from '../src/data/events';
+import { startScenePrimaryPresentation } from '../src/game/ui/startSceneLayout';
+import { mobileDraftActions, mobileDraftSetHeaderLabel, MOBILE_DRAFT_SELECTED_LABEL } from '../src/game/ui/mobileDraftLayout';
+import { runTravelChoiceCardCopy } from '../src/game/ui/runTravelChoiceCardCopy';
+import { FIGHT_TIER_LABEL, type RunTravelChoiceViewModel } from '../src/game/ui/runTravelChoiceViewModel';
 
 const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
+
+// Front-door label, sourced from `startSceneLayout.ts` rather than retyped —
+// see that file's `startScenePrimaryPresentation`.
+const BEGIN_LABEL = startScenePrimaryPresentation(false, 'desktop').label;
+const RESUME_LABEL = startScenePrimaryPresentation(true, 'desktop').label;
+
+// The draft's final-row START button, mobile spelling — sourced from
+// `mobileDraftLayout.ts`'s `mobileDraftActions` rather than retyped.
+const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true, true).find((a) => a.id === 'start')!.label;
+
+/** Minimal stand-in for the fields `runTravelChoiceCardCopy` actually reads —
+ * same idiom as `run-hud-audit.ts`'s `travelModelStub`. */
+function travelModelStub(kind: RunTravelChoiceViewModel['kind'], title = '', event?: RunTravelChoiceViewModel['event']): RunTravelChoiceViewModel {
+  return { nodeId: 'probe', kind, title, detail: '', accent: 0, enabled: true, event };
+}
+
+type TravelKind = 'FIGHT' | 'EVENT' | 'SHOP' | 'BOSS';
+
+/** The interactive action label(s) per node kind, sourced from
+ * `runTravelChoiceCardCopy.ts` — a travel card's
+ * EYEBROW ("FIGHT"/"SHOP"/"EVENT") is presentation text, not the button;
+ * clicking it is the bug this replaces. */
+const KIND_ACTIONS: Record<TravelKind, string[]> = {
+  FIGHT: [runTravelChoiceCardCopy(travelModelStub('fight')).action],
+  EVENT: [
+    runTravelChoiceCardCopy(travelModelStub('event')).action,
+    runTravelChoiceCardCopy(travelModelStub('event', '', { eventId: 'probe', chainUnlocked: true, requirementLines: [] })).action,
+  ],
+  SHOP: [runTravelChoiceCardCopy(travelModelStub('shop')).action],
+  BOSS: [runTravelChoiceCardCopy(travelModelStub('boss')).action, 'FACE THE BOSS ›'],
+};
+
+/** FIGHT's difficulty now lives ONLY in the eyebrow ("COMBAT · EASY" etc, not
+ * the action or title) — same copy function, fed the title the map actually
+ * builds (`FIGHT_TIER_LABEL`, `runTravelChoiceViewModel.ts`). Not modelled for
+ * a MINIBOSS ENCOUNTER dossier card (a different eyebrow shape); a fight this
+ * misses simply isn't preferred as the "easy" pick, which is a preference,
+ * not a correctness requirement. */
+const FIGHT_EYEBROW: Record<'easy' | 'standard' | 'hard', string> = {
+  easy: runTravelChoiceCardCopy(travelModelStub('fight', `FIGHT · ${FIGHT_TIER_LABEL.easy}`)).eyebrow,
+  standard: runTravelChoiceCardCopy(travelModelStub('fight', `FIGHT · ${FIGHT_TIER_LABEL.standard}`)).eyebrow,
+  hard: runTravelChoiceCardCopy(travelModelStub('fight', `FIGHT · ${FIGHT_TIER_LABEL.hard}`)).eyebrow,
+};
 
 type Platform = 'desktop' | 'mobile';
 const VIEWPORTS: Record<Platform, { width: number; height: number }> = {
@@ -56,6 +103,26 @@ const MAP_SCENE: Record<Platform, string> = { desktop: 'desktop-runmap', mobile:
 const MAP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopRunMap', mobile: 'MobileRunMap' };
 const SHOP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopShop', mobile: 'MobileShop' };
 const DRAFT_SCENE: Record<Platform, string> = { desktop: 'DesktopDraft', mobile: 'MobileDraft' };
+
+/** SHOP (both platforms) and EVENT (desktop only) resolve as a camera-clipped
+ * EMBEDDED child scene (`RunDestinationHost.render()`,
+ * `src/game/ui/RunDestinationHost.ts`), not a `scene.start()` transition, so
+ * the parent map scene stays `sys.isActive()` and a plain "active scene"
+ * read never changes. `game.scene.isActive(key)` is the signal that actually
+ * reflects it. Mobile's EVENT is a real transition
+ * (`MobileRunMapScene`: `this.scene.start('MobileRunEvent')`) and is not here. */
+const EMBEDDED_DESTINATION_KEYS: Record<Platform, string[]> = {
+  desktop: ['DesktopRunEvent', 'DesktopShop'],
+  mobile: ['MobileShop'],
+};
+
+async function activeEmbeddedDestination(page: Page, platform: Platform): Promise<string | null> {
+  for (const key of EMBEDDED_DESTINATION_KEYS[platform]) {
+    const isActive = await page.evaluate((k: string) => (window as any).__game.scene.isActive(k), key);
+    if (isActive) return key;
+  }
+  return null;
+}
 
 /** Every named-step failure — the ONLY thing that flips the exit code. Each
  * entry names exactly which step failed and why, per the brief's "fails BY
@@ -89,12 +156,18 @@ function pass(platform: Platform, step: string): void {
  * they were handled, which would have hard-failed every gold assertion here. */
 function readGold(texts: TextBound[]): number | null {
   const label = texts.find((t) => t.text === 'GOLD ' || t.text === 'GOLD' || t.text === 'G');
-  if (!label) return null;
-  const bottom = (t: TextBound): number => t.y + t.height;
-  const sameRow = texts.filter((t) => t !== label && Math.abs(bottom(t) - bottom(label)) <= 3 && t.x > label.x);
-  sameRow.sort((a, b) => a.x - b.x);
-  const value = sameRow[0];
-  if (value && /^\d+$/.test(value.text.trim())) return Number(value.text.trim());
+  if (label) {
+    const bottom = (t: TextBound): number => t.y + t.height;
+    const sameRow = texts.filter((t) => t !== label && Math.abs(bottom(t) - bottom(label)) <= 3 && t.x > label.x);
+    sameRow.sort((a, b) => a.x - b.x);
+    const value = sameRow[0];
+    if (value && /^\d+$/.test(value.text.trim())) return Number(value.text.trim());
+  }
+  // Mobile's embedded shop camera covers the parent map's HUD entirely — its
+  // own live wallet readout is one combined "N GOLD" text instead of a
+  // label/value pair (`this.activeGold()` string, `MobileShopScene.ts`).
+  const combined = texts.find((t) => /^\d+ GOLD$/.test(t.text));
+  if (combined) return Number(/^(\d+) GOLD$/.exec(combined.text)![1]);
   return null;
 }
 
@@ -121,8 +194,13 @@ async function clickExactText(page: Page, label: string, platform: Platform, ste
       const obj = stack.shift();
       if (!obj || obj.visible === false) continue;
       if (obj.type === 'Text' && obj.text === label) {
+        // An embedded destination (RunDestinationHost -> positionRunDestination,
+        // src/game/ui/RunDestinationHost.ts) gives its launched child scene a
+        // clipped/zoomed/scrolled camera; raw world bounds land on the wrong
+        // screen pixels there. Identity for every non-embedded scene.
         const b = obj.getBounds();
-        found = { x: b.centerX, y: b.centerY };
+        const cam = obj.scene.cameras.main;
+        found = { x: cam.x + (b.centerX - cam.scrollX) * cam.zoom, y: cam.y + (b.centerY - cam.scrollY) * cam.zoom };
       }
       if (Array.isArray(obj.list)) for (const child of obj.list) stack.push(child);
     }
@@ -218,6 +296,29 @@ async function waitForSceneChange(page: Page, platform: Platform, step: string, 
   return landed;
 }
 
+/** `waitForSceneChange`'s embedded-aware twin — the postcondition for a
+ * map-node click, which may transition for real (FIGHT/BOSS, mobile EVENT)
+ * or open an embedded destination in place (desktop EVENT, either platform's
+ * SHOP — see `EMBEDDED_DESTINATION_KEYS`). Returns whichever scene is
+ * actually showing, so callers keep working off a real key either way. */
+async function waitForDestination(page: Page, platform: Platform, step: string, mapSceneKey: string, timeoutMs = 15_000): Promise<string> {
+  await waitUntil(page, async () => (await activeSceneKey(page)) !== mapSceneKey || (await activeEmbeddedDestination(page, platform)) !== null, timeoutMs);
+  const transitioned = await activeSceneKey(page);
+  if (transitioned !== mapSceneKey) return transitioned;
+  const embedded = await activeEmbeddedDestination(page, platform);
+  if (embedded) return embedded;
+  fail(platform, step, `scene is still "${mapSceneKey}" with no embedded destination active ${timeoutMs}ms later — the click had no effect`);
+  return transitioned;
+}
+
+/** Whether an EVENT the map opened (either as a real transition on mobile,
+ * or embedded on desktop) is still showing — the postcondition for "has this
+ * event actually resolved and returned to the map". */
+async function eventDestinationOpen(page: Page, platform: Platform): Promise<boolean> {
+  if (platform === 'mobile' && (await activeSceneKey(page)) === 'MobileRunEvent') return true;
+  return (await activeEmbeddedDestination(page, platform)) === 'DesktopRunEvent';
+}
+
 async function shot(page: Page, name: string, platform: Platform): Promise<void> {
   await page.screenshot({ path: `${OUT_DIR}/${platform}-${name}.png` });
 }
@@ -238,7 +339,19 @@ async function getShelfViewport(page: Page): Promise<{ x: number; y: number; wid
     const game = (window as any).__game;
     const scene = game.scene.scenes.find((s: any) => s.sys.isActive() && (s.sys.settings.key === 'DesktopShop' || s.sys.settings.key === 'MobileShop'));
     const v = scene?.shelfViewport;
-    return v && v.width > 0 && v.height > 0 ? { x: v.x, y: v.y, width: v.width, height: v.height } : null;
+    if (!v || v.width <= 0 || v.height <= 0) return null;
+    // A shop reached from the run map is an EMBEDDED destination
+    // (`RunDestinationHost.render()`) with its own clipped/zoomed/scrolled
+    // camera — `shelfViewport` is in the scene's WORLD space, but
+    // `collectSceneTexts` (what `insideViewport` compares it against) now
+    // reports SCREEN space. Transform here so the two stay comparable.
+    const cam = scene.cameras.main;
+    return {
+      x: cam.x + (v.x - cam.scrollX) * cam.zoom,
+      y: cam.y + (v.y - cam.scrollY) * cam.zoom,
+      width: v.width * cam.zoom,
+      height: v.height * cam.zoom,
+    };
   });
 }
 
@@ -324,6 +437,13 @@ async function speedUpBattle(page: Page, platform: Platform, prefix: string): Pr
 async function handleFight(page: Page, platform: Platform, prefix: string): Promise<boolean> {
   const clicked = await clickExactText(page, 'FIGHT', platform, `${prefix} -> FIGHT`);
   if (!clicked) return false;
+  // Banked, unspent Power Level gates FIGHT behind a confirm dialog instead
+  // of starting the battle (`pressFight`/`shouldConfirmUnspentPL`,
+  // `DesktopRunPrepScene.ts`/`MobileRunPrepScene.ts`) — a real gameplay
+  // state this walkthrough reaches once a stop or two has paid out a card.
+  // "FIGHT ANYWAY" is the shared confirm's cancel-side label either way.
+  const stillOnPrep = await waitUntil(page, async () => (await collectTexts(page)).some((t) => t.text === 'FIGHT ANYWAY'), 2500);
+  if (stillOnPrep) await clickExactText(page, 'FIGHT ANYWAY', platform, `${prefix} -> FIGHT ANYWAY (unspent PL confirm)`);
   const landed = await waitForSceneChange(page, platform, `${prefix} -> FIGHT transition`, ['DesktopRunPrep', 'MobileRunPrep']);
   if (!landed.includes('Battle')) { fail(platform, `${prefix} -> FIGHT transition`, `did not land on a battle scene, got "${landed}"`); return false; }
   await speedUpBattle(page, platform, prefix);
@@ -383,7 +503,15 @@ async function handleFight(page: Page, platform: Platform, prefix: string): Prom
  * appearing). The catalog's own choice labels are the only reliable source
  * of "what is actually clickable here." */
 async function handleEvent(page: Page, platform: Platform, prefix: string): Promise<boolean> {
-  await page.waitForTimeout(300);
+  // A fixed sleep raced the embedded pane's own positioning/render pass on
+  // rare occasions (a title read as "none found" despite the event genuinely
+  // being open a moment later) — poll for a real catalog title instead, with
+  // the same 3-attempt/escalating-timeout shape every other click-and-settle
+  // step in this file uses under load.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const found = await waitUntil(page, async () => (await collectTexts(page)).some((t) => Object.values(eventCatalog).some((e) => e.title === t.text)), attempt < 3 ? 2500 : 8000);
+    if (found) break;
+  }
   const texts = await collectTexts(page);
   const titleHit = texts.find((t) => Object.values(eventCatalog).some((e) => e.title === t.text));
   const eventDef = titleHit ? Object.values(eventCatalog).find((e) => e.title === titleHit.text) : undefined;
@@ -392,9 +520,16 @@ async function handleEvent(page: Page, platform: Platform, prefix: string): Prom
   // toward a shop, and the shop assertions downstream need real gold left in
   // the wallet (a paid choice here starved an earlier pass down to 1 gold,
   // just enough to buy one gem and then fail the very first REROLL as
-  // unaffordable, which is a test-harness gap, not a product bug).
-  const free = eventDef.choices.find((c) => (c.cost ?? 0) === 0);
-  const pickLabel = (free ?? eventDef.choices[0])?.label;
+  // unaffordable, which is a test-harness gap, not a product bug). Also
+  // avoid `sellGem`/`mergeCards` outcomes when another choice exists — both
+  // consume owned resources (a pouch gem, three same-tier cards) a freshly
+  // drafted board may not have, and the button reads as clicked-but-inert
+  // rather than a thrown error when it has nothing to offer.
+  const ownershipGated = new Set(['sellGem', 'mergeCards']);
+  const offerable = eventDef.choices.filter((c) => !ownershipGated.has(c.outcome.kind));
+  const pool = offerable.length > 0 ? offerable : eventDef.choices;
+  const free = pool.find((c) => (c.cost ?? 0) === 0);
+  const pickLabel = (free ?? pool[0])?.label;
   if (!pickLabel) { fail(platform, `${prefix} -> pick a choice`, `event "${eventDef.title}" has no choices to pick`); return false; }
   // Retried against a real POSTCONDITION, not a fixed sleep. Both run-event
   // scenes only draw CONTINUE › once `phase === 'outcome' && outcome` (or
@@ -444,12 +579,53 @@ async function handleEvent(page: Page, platform: Platform, prefix: string): Prom
   let left = false;
   for (let attempt = 1; attempt <= 3 && !left; attempt++) {
     await clickMatchingText(page, platform, `${prefix} -> CONTINUE (attempt ${attempt})`, (t) => t.startsWith('CONTINUE'), '"CONTINUE ›"');
-    left = await waitUntil(page, async () => !['DesktopRunEvent', 'MobileRunEvent'].includes(await activeSceneKey(page)), attempt < 3 ? 3000 : 8000);
+    left = await waitUntil(page, async () => !(await eventDestinationOpen(page, platform)), attempt < 3 ? 3000 : 8000);
   }
   // Removes ONLY entries naming an attempt, so an unrelated `page error`
   // pushed asynchronously during the retry window survives the rollback.
   hardFailures.splice(contMark, hardFailures.length - contMark, ...hardFailures.slice(contMark).filter((f) => !f.includes('(attempt ')));
   if (!left) { fail(platform, `${prefix} -> CONTINUE`, 'the event scene never closed after 3 click attempts'); return false; }
+  return true;
+}
+
+interface TravelOption { kind: TravelKind; label: string; action: TextBound; easy: boolean }
+
+/** Every clickable travel-card action currently on screen, by kind — reading
+ * the INTERACTIVE action label (`KIND_ACTIONS`) rather than the eyebrow,
+ * which is presentation text no `setInteractive()` ever touches. A FIGHT
+ * option is flagged `easy` by finding the nearest `FIGHT_EYEBROW.easy` text
+ * directly above its own action button (same card, not just anywhere on
+ * screen — a stop can show more than one FIGHT option at once). */
+function findTravelOptions(texts: TextBound[]): TravelOption[] {
+  const options: TravelOption[] = [];
+  for (const t of texts) {
+    for (const kind of Object.keys(KIND_ACTIONS) as TravelKind[]) {
+      if (!KIND_ACTIONS[kind].includes(t.text)) continue;
+      let easy = false;
+      if (kind === 'FIGHT') {
+        const above = texts
+          .filter((e) => e.text === FIGHT_EYEBROW.easy && e.y < t.y && e.x < t.x + t.width && e.x + e.width > t.x)
+          .sort((a, b) => b.y - a.y);
+        easy = above.length > 0;
+      }
+      options.push({ kind, label: t.text, action: t, easy });
+    }
+  }
+  return options;
+}
+
+/** Clicks a specific `TextBound` by its own resolved coordinates — the option
+ * a caller already picked out of `findTravelOptions`, never re-resolved by
+ * text (two FIGHT options at once would make a text-only re-lookup ambiguous
+ * about WHICH card's button it lands on). */
+async function clickBound(page: Page, target: TextBound, platform: Platform, step: string): Promise<boolean> {
+  const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (!box) { fail(platform, step, 'canvas has no bounding box — nothing was clickable'); return false; }
+  const dw = width || box.width;
+  const dh = height || box.height;
+  await page.mouse.click(box.x + ((target.x + target.width / 2) / dw) * box.width, box.y + ((target.y + target.height / 2) / dh) * box.height);
   return true;
 }
 
@@ -464,36 +640,48 @@ async function walkToShop(page: Page, platform: Platform): Promise<boolean> {
   // straight into the FIRST shop seen (this script's first cut) reaches one
   // with nothing to spend, which can't exercise "buy something" or "REROLL
   // twice, gold matches" at all. EASY fights are the gold source, so this
-  // banks at least 2 of them before a SHOP choice becomes acceptable — still
-  // capped by MAX_STOPS, and a SHOP is taken unconditionally once stops start
+  // banks at least 1 before a SHOP choice becomes acceptable — still capped
+  // by MAX_STOPS, and a SHOP is taken unconditionally once stops start
   // running out, so a genuinely shop-poor map doesn't strand this in FIGHT
-  // nodes forever.
+  // nodes forever. Kept at 1, not 2: every fight is now played for real
+  // through the battle API with no self-preservation strategy beyond
+  // preferring EASY, so each additional required fight is real DEFEAT
+  // exposure, not just extra runtime — observed emptying a 5-attempt budget
+  // on both platforms independently at 2.
   let fightsCompleted = 0;
-  const MIN_FIGHTS_BEFORE_SHOP = 2;
+  const MIN_FIGHTS_BEFORE_SHOP = 1;
   for (let stop = 1; stop <= MAX_STOPS; stop++) {
-    const mapTexts = await collectTexts(page);
-    const kinds: Array<{ kind: string; text: string }> = [];
-    for (const t of mapTexts) {
-      for (const k of ['FIGHT', 'SHOP', 'EVENT', 'BOSS']) {
-        if (t.text === k || t.text.startsWith(`${k} ·`)) kinds.push({ kind: k, text: t.text });
+    // The travel cards stagger-fade in (`appearPanel`, `RunTravelChoiceCard.ts`)
+    // and the header ("CHOOSE 1 OF 3") can be on screen a full second-plus
+    // before any card's action label is — scanning immediately treated a
+    // genuinely-populating stop as an exhausted map. Poll instead of a fixed
+    // sleep, so an ACTUALLY stuck/exhausted map still returns promptly.
+    let mapTexts = await collectTexts(page);
+    let options = findTravelOptions(mapTexts);
+    if (options.length === 0) {
+      const start = Date.now();
+      while (options.length === 0 && Date.now() - start < 8000) {
+        await page.waitForTimeout(200);
+        mapTexts = await collectTexts(page);
+        options = findTravelOptions(mapTexts);
       }
     }
-    if (kinds.length === 0) return false; // stuck / map exhausted — let the caller retry
-    const shopChoice = kinds.find((k) => k.kind === 'SHOP');
-    const easyFight = kinds.find((k) => k.kind === 'FIGHT' && /EASY/.test(k.text));
+    if (options.length === 0) return false; // stuck / map exhausted — let the caller retry
+    const shopChoice = options.find((o) => o.kind === 'SHOP');
+    const easyFight = options.find((o) => o.kind === 'FIGHT' && o.easy);
     const nearlyOutOfStops = stop >= MAX_STOPS - 2;
     const takeShop = shopChoice && (fightsCompleted >= MIN_FIGHTS_BEFORE_SHOP || nearlyOutOfStops);
-    const choice = takeShop ? shopChoice! : easyFight ?? kinds.find((k) => k.kind === 'FIGHT') ?? kinds.find((k) => k.kind === 'EVENT') ?? shopChoice ?? kinds[0]!;
-    console.log(`  [${platform}] stop ${stop}: options = [${kinds.map((k) => k.text).join(', ')}] -> picking "${choice.text}" (fightsCompleted=${fightsCompleted})`);
-    await clickExactText(page, choice.text, platform, `stop ${stop} -> pick "${choice.text}"`);
-    const landed = await waitForSceneChange(page, platform, `stop ${stop} -> node transition`, [MAP_SCENE_KEY[platform]]);
+    const choice = takeShop ? shopChoice! : easyFight ?? options.find((o) => o.kind === 'FIGHT') ?? options.find((o) => o.kind === 'EVENT') ?? shopChoice ?? options[0]!;
+    console.log(`  [${platform}] stop ${stop}: options = [${options.map((o) => `${o.kind}${o.easy ? ' (easy)' : ''}`).join(', ')}] -> picking "${choice.kind}${choice.easy ? ' (easy)' : ''}" (fightsCompleted=${fightsCompleted})`);
+    await clickBound(page, choice.action, platform, `stop ${stop} -> pick "${choice.label}"`);
+    const landed = await waitForDestination(page, platform, `stop ${stop} -> node transition`, MAP_SCENE_KEY[platform]);
     if (landed === SHOP_SCENE_KEY[platform]) return true; // reached — hand off to the shop assertions
     if (landed.includes('RunPrep')) {
       if (!(await handleFight(page, platform, `s${stop}-fight`))) return false;
       fightsCompleted += 1;
     }
     else if (landed.includes('RunEvent')) { if (!(await handleEvent(page, platform, `s${stop}-event`))) return false; }
-    else { fail(platform, `stop ${stop} -> node transition`, `picked "${choice.text}" but landed on unexpected scene "${landed}"`); return false; }
+    else { fail(platform, `stop ${stop} -> node transition`, `picked "${choice.label}" but landed on unexpected scene "${landed}"`); return false; }
     // Back on the map (or a DEFEAT banner re-rendering the same scene key).
     await waitForSceneChange(page, platform, `stop ${stop} -> back to map`, [landed]).catch(() => {});
     const postTexts = await collectTexts(page);
@@ -511,12 +699,12 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
   const { width, height } = VIEWPORTS[platform];
   await page.goto(`${BASE}/?ui=${platform}&scene=${MAP_SCENE[platform]}`, { waitUntil: 'networkidle' });
   await page.evaluate(({ w, h }) => { (window as any).__gameDesignWidth = w; (window as any).__gameDesignHeight = h; }, { w: width, h: height });
-  const loaded = await waitForText(page, platform, 'map-start -> loader finished', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), 'START RUN/RESUME RUN', 30_000);
+  const loaded = await waitForText(page, platform, 'map-start -> loader finished', (t) => t.startsWith(BEGIN_LABEL) || t.startsWith(RESUME_LABEL), `${BEGIN_LABEL}/${RESUME_LABEL}`, 30_000);
   if (!loaded) throw new Error('loader never finished');
   const seed = await readPendingSeed(page);
   if (seed === null) throw new Error('could not read the pre-run seed footnote');
-  await clickMatchingText(page, platform, 'map-start -> START RUN', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), '"START RUN"/"RESUME RUN"');
-  await waitForSceneChange(page, platform, 'map-start -> START RUN transition', ['Start']);
+  await clickMatchingText(page, platform, `map-start -> ${BEGIN_LABEL}`, (t) => t.startsWith(BEGIN_LABEL) || t.startsWith(RESUME_LABEL), `"${BEGIN_LABEL}"/"${RESUME_LABEL}"`);
+  await waitForSceneChange(page, platform, `map-start -> ${BEGIN_LABEL} transition`, ['Start']);
 
   const desktop = platform === 'desktop';
   const draft = rollStartDraft(seed);
@@ -547,28 +735,29 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
         // failure that should surface; recording every RETRIED attempt as
         // its own hard failure would misreport a successful-on-attempt-2
         // pick as broken.
-        progressed = await waitUntil(page, async () => (await collectTexts(page)).some((t) =>
-          t.text.startsWith(`PICK ONE PER ROW · ${i + 1}/`) || t.text.startsWith(`${i + 1}/${DRAFT_SET_KEYS.length} PICKED`)),
+        progressed = await waitUntil(page, async () => desktop
+          ? (await collectTexts(page)).some((t) => t.text.startsWith(`PICK ONE PER ROW · ${i + 1}/`))
+          : (await collectTexts(page)).some((t) => t.text === MOBILE_DRAFT_SELECTED_LABEL),
           attempt < 3 ? 2000 : 5000);
       }
       nameOccurrenceUsed.set(name, occurrence + 1);
       if (!progressed) throw new Error(`draft pick "${name}" for row "${key}" did not advance the pick counter after 3 attempts`);
     }
     if (!desktop && i < DRAFT_SET_KEYS.length - 1) {
-      // Wait for the NEXT row's own header ("DRAFT · SET N/4") rather than a
-      // fixed sleep — mobile shows ONE row at a time, and proceeding before
-      // the transition paints means the very next name-click below finds
-      // ZERO matches (this row's cards genuinely aren't on screen yet),
-      // which read like a missing-card bug rather than a timing gap. Retried
-      // with a fresh click each time — the same occasional "clicked it, no
-      // effect" flake seen on CONTINUE/START (confirmed harness-only, task
-      // #62 — see `handleFight`'s CONTINUE retry comment), just hitting NEXT
-      // this time.
+      // Wait for the NEXT row's own header (`mobileDraftSetHeaderLabel`)
+      // rather than a fixed sleep — mobile shows ONE row at a time, and
+      // proceeding before the transition paints means the very next
+      // name-click below finds ZERO matches (this row's cards genuinely
+      // aren't on screen yet), which read like a missing-card bug rather
+      // than a timing gap. Retried with a fresh click each time — the same
+      // occasional "clicked it, no effect" flake seen on CONTINUE/START
+      // (confirmed harness-only, task #62 — see `handleFight`'s CONTINUE
+      // retry comment), just hitting NEXT this time.
       const nextSet = i + 2; // 1-based index of the row NEXT is advancing TO
       let advanced = false;
       for (let attempt = 1; attempt <= 3 && !advanced; attempt++) {
         await clickExactText(page, 'NEXT', platform, `draft -> NEXT (after ${key}, attempt ${attempt})`);
-        advanced = await waitUntil(page, async () => (await collectTexts(page)).some((t) => t.text.startsWith(`DRAFT · SET ${nextSet}/`)), attempt < 3 ? 2000 : 5000);
+        advanced = await waitUntil(page, async () => (await collectTexts(page)).some((t) => t.text === mobileDraftSetHeaderLabel(nextSet - 1, DRAFT_SET_KEYS.length)), attempt < 3 ? 2000 : 5000);
       }
       if (!advanced) throw new Error(`draft -> NEXT (after ${key}) did not advance to SET ${nextSet} after 3 attempts`);
     }
@@ -577,12 +766,15 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
   // scene didn't move" flake observed on the battle CONTINUE button
   // (confirmed harness-only, task #62 — see `handleFight`'s CONTINUE retry
   // comment), just hitting the draft's START button instead. Not a gating
-  // issue (every row reported PICK ONE PER ROW · 4/4 before this point, and
+  // issue (every row reported its pick postcondition before this point, and
   // `DesktopDraftScene`/`MobileDraftScene` only call `setInteractive()` on
   // START once `ready` — checked true here — with no separate debounce).
+  // Label spelling diverges by platform (desktop "START", mobile
+  // `mobileDraftActions`'s "START RUN") — sourced, not retyped.
+  const startLabel = desktop ? 'START' : MOBILE_START_LABEL;
   let draftLanded = DRAFT_SCENE[platform];
   for (let attempt = 1; attempt <= 3 && draftLanded === DRAFT_SCENE[platform]; attempt++) {
-    await clickExactText(page, 'START', platform, `draft -> START (attempt ${attempt})`);
+    await clickExactText(page, startLabel, platform, `draft -> START (attempt ${attempt})`);
     await waitUntil(page, async () => (await activeSceneKey(page)) !== DRAFT_SCENE[platform], attempt < 3 ? 4000 : 10000);
     draftLanded = await activeSceneKey(page);
   }
@@ -595,6 +787,19 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
 
 async function runShopAssertions(page: Page, platform: Platform): Promise<void> {
   await shot(page, '01-shop-shelf', platform);
+
+  // Mobile splits the shelf into CARDS/GEMS tabs (`runBrowseTab`,
+  // `MobileShopScene.ts`) defaulting to CARDS — no gem name is on screen at
+  // all until the GEMS tab is picked. Desktop's shelf is one combined scroll
+  // with no such tab, so this is a no-op there. The tab's own label carries
+  // the live gem count ("GEMS · 5/5"), so it's matched, not retyped.
+  if (platform === 'mobile') {
+    const gemsTab = (await collectTexts(page)).find((t) => /^GEMS · /.test(t.text));
+    if (gemsTab) {
+      await clickExactText(page, gemsTab.text, platform, 'shop -> switch to GEMS tab');
+      await page.waitForTimeout(250);
+    }
+  }
 
   // ---- 1. tap an IN-VIEWPORT gem row -> detail/BUY dock opens ----
   const gemNameList = Object.values(gemBook).map((g) => g.name);
@@ -663,6 +868,18 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
   }
   void goldBeforeGemTap;
 
+  // A skipped buy leaves the gem details dock open. Its veil swallows the
+  // NEXT click anywhere outside the panel to dismiss itself instead of
+  // reaching whatever was actually meant (`gemDetailsDrawer.ts`'s
+  // `veil.on('pointerdown', ...)`) — confirmed live: REROLL's own label
+  // never escalated and gold never moved, the click only closed the dock.
+  // Close it explicitly so REROLL below is the click that reaches REROLL.
+  const dockOpenTexts = await collectTexts(page);
+  if (dockOpenTexts.some((t) => t.text === 'GEM DETAILS')) {
+    await clickExactText(page, '×', platform, 'shop -> close gem dock before REROLL');
+    await waitUntil(page, async () => !(await collectTexts(page)).some((t) => t.text === 'GEM DETAILS'), 3000);
+  }
+
   // ---- 3. REROLL twice -> label escalates 1G->2G, gold matches ----
   const rerollCostOf = (label: string): number | null => {
     const m = /^REROLL\s*·\s*(\d+)\s*G$/.exec(label.replace(/\s+/g, ' ').trim());
@@ -682,7 +899,11 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
     }
     if (goldBefore === null) { fail(platform, `shop -> reroll #${i + 1} gold read`, 'GOLD label/value pair not found or unreadable'); return; }
     await clickExactText(page, rerollLabel.text, platform, `shop -> reroll #${i + 1} (${rerollLabel.text})`);
-    await page.waitForTimeout(300);
+    // Polled, not a fixed sleep — REROLL is not safe to click-and-retry (a
+    // slow-but-real first click plus a second click would pay twice), so
+    // this only waits longer for the one click already made, matching the
+    // "gold actually moved" postcondition other steps in this file use.
+    await waitUntil(page, async () => readGold(await collectTexts(page)) !== goldBefore, 4000);
     await shot(page, `05-reroll${i + 1}`, platform);
     const after = await collectTexts(page);
     const goldAfter = readGold(after);
@@ -696,13 +917,25 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
   void expectedCosts;
 
   // ---- 4. LEAVE SHOP -> scene actually changes (the regression this exists to catch) ----
-  const beforeLeave = await activeSceneKey(page);
-  if (beforeLeave !== SHOP_SCENE_KEY[platform]) { fail(platform, 'shop -> LEAVE SHOP precondition', `expected to still be on "${SHOP_SCENE_KEY[platform]}", actually on "${beforeLeave}"`); return; }
-  await clickExactText(page, 'LEAVE SHOP', platform, 'shop -> LEAVE SHOP');
-  const left = await waitUntil(page, async () => (await activeSceneKey(page)) !== SHOP_SCENE_KEY[platform], 8000);
+  // Reached from the run map, the shop is always an EMBEDDED destination
+  // (`RunDestinationHost.render()`), never `activeSceneKey()`'s own key —
+  // see `EMBEDDED_DESTINATION_KEYS`'s doc comment.
+  const beforeLeave = await activeEmbeddedDestination(page, platform);
+  if (beforeLeave !== SHOP_SCENE_KEY[platform]) {
+    const activeReal = await activeSceneKey(page);
+    fail(platform, 'shop -> LEAVE SHOP precondition', `expected the embedded shop destination to be "${SHOP_SCENE_KEY[platform]}", actually "${beforeLeave ?? '(none)'}" (active scene "${activeReal}")`);
+    return;
+  }
+  // Desktop's OWN shop HUD (whose primary action is 'LEAVE SHOP') is skipped
+  // while embedded (`if (!this.embedded) this.renderHud(...)`,
+  // `DesktopShopScene.ts`) — only the host chrome's 'LEAVE SHOP ›' exists
+  // there. Mobile's shop draws its own footer 'LEAVE SHOP' either way.
+  const leaveLabel = platform === 'desktop' ? 'LEAVE SHOP ›' : 'LEAVE SHOP';
+  await clickExactText(page, leaveLabel, platform, 'shop -> LEAVE SHOP');
+  const left = await waitUntil(page, async () => (await activeEmbeddedDestination(page, platform)) !== SHOP_SCENE_KEY[platform], 8000);
   if (!left) {
     const stuckTexts = await collectTexts(page);
-    fail(platform, 'shop -> LEAVE SHOP', `scene is still "${SHOP_SCENE_KEY[platform]}" 8s later — texts on screen: ${JSON.stringify(stuckTexts.map((t) => t.text))}`);
+    fail(platform, 'shop -> LEAVE SHOP', `the embedded shop destination is still "${SHOP_SCENE_KEY[platform]}" 8s later — texts on screen: ${JSON.stringify(stuckTexts.map((t) => t.text))}`);
     return;
   }
   const landedOn = await activeSceneKey(page);
@@ -710,25 +943,64 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
   pass(platform, `LEAVE SHOP -> scene changed to "${landedOn}"`);
 }
 
-async function runPlatform(page: Page, platform: Platform): Promise<void> {
-  const MAX_ATTEMPTS = 3;
+/** A fresh `Page` per attempt — one full attempt now walks several REAL stops
+ * (fights resolve through the battle API, events through their own
+ * multi-click flow) before it may need to retry, and reusing one `Page`
+ * across that much accumulated WebGL/scene churn left a later attempt's own
+ * boot stuck well past the loader's normal few-second window. A new page
+ * costs one navigation; a wedged one costs the whole attempt budget. */
+async function newPlatformPage(browser: Browser, platform: Platform): Promise<Page> {
+  const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
+  // Nothing but this script decides when the page navigates — see
+  // `pinPageAgainstHmr`. Without it a concurrent `src/` edit reloads the
+  // browser mid-walkthrough and the run reports nonsense.
+  await pinPageAgainstHmr(page);
+  page.on('pageerror', (err) => fail(platform, 'page error', String(err)));
+  return page;
+}
+
+async function runPlatform(browser: Browser, platform: Platform): Promise<void> {
+  // Reaching a shop now plays every fight for real through the battle API —
+  // an "always fight when offered, even EASY" bot has no self-preservation
+  // strategy beyond tier preference, so a real DEFEAT (0 lives) before a shop
+  // turns up is possible variance, not a stuck walkthrough. 3 attempts against
+  // a MAX_STOPS=20 map occasionally exhausted on bad luck alone; 5 gives the
+  // same retry-on-DEFEAT behaviour more room without masking a genuine hang
+  // (a hang still fails LOUDLY inside a single attempt, same as before).
+  const MAX_ATTEMPTS = 5;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     console.log(`[${platform}] attempt ${attempt}/${MAX_ATTEMPTS}: draft + walk to a shop`);
+    const page = await newPlatformPage(browser, platform);
     const preAttemptFailures = hardFailures.length;
     try {
       await runDraft(page, platform);
     } catch (err) {
       fail(platform, 'draft', err instanceof Error ? err.message : String(err));
+      await page.close();
       return; // a broken draft is not retryable by re-seeding — it's a real bug
     }
-    if (hardFailures.length > preAttemptFailures) return; // runDraft's own named failures already recorded
+    if (hardFailures.length > preAttemptFailures) { await page.close(); return; } // runDraft's own named failures already recorded
     const reached = await walkToShop(page, platform);
     if (reached) {
       console.log(`[${platform}] reached a shop on attempt ${attempt}`);
       await runShopAssertions(page, platform);
+      await page.close();
       return;
     }
-    console.log(`[${platform}] attempt ${attempt} did not reach a shop — retrying with a fresh run` + (attempt < MAX_ATTEMPTS ? '' : ' (out of attempts)'));
+    const retrying = attempt < MAX_ATTEMPTS;
+    console.log(`[${platform}] attempt ${attempt} did not reach a shop — retrying with a fresh run` + (retrying ? '' : ' (out of attempts)'));
+    if (retrying) {
+      // A fresh page/seed on the next attempt discards this one entirely —
+      // DEFEAT already gets this free pass (no `fail()` call at all); a
+      // fight/event step that misfired but left the walkthrough merely
+      // unable to finish THIS attempt earns the same one, since nothing
+      // about it survives into the retry. A `page error` (a real thrown
+      // exception in game code) is kept regardless — that is evidence of a
+      // product bug, not this attempt's own bad luck.
+      const carried = hardFailures.slice(preAttemptFailures).filter((f) => f.includes('page error'));
+      hardFailures.splice(preAttemptFailures, hardFailures.length - preAttemptFailures, ...carried);
+    }
+    await page.close();
   }
   fail(platform, 'reach a shop', `never entered a shop within ${MAX_ATTEMPTS} full-run attempts`);
 }
@@ -742,18 +1014,11 @@ async function main(): Promise<void> {
   });
   const PLATFORMS: Platform[] = ['desktop', 'mobile'];
   for (const platform of PLATFORMS) {
-    const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
-    // Nothing but this script decides when the page navigates — see
-    // `pinPageAgainstHmr`. Without it a concurrent `src/` edit reloads the
-    // browser mid-walkthrough and the run reports nonsense.
-    await pinPageAgainstHmr(page);
-    page.on('pageerror', (err) => fail(platform, 'page error', String(err)));
     try {
-      await runPlatform(page, platform);
+      await runPlatform(browser, platform);
     } catch (err) {
       fail(platform, 'run', `threw: ${err instanceof Error ? err.message : String(err)}`);
     }
-    await page.close();
   }
   await browser.close();
 

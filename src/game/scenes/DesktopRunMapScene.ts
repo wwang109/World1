@@ -17,7 +17,7 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addBrightRunArt, addRunArt, desktopBiomeArtKey, RUN_ART_KEYS } from '../ui/runArt';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
+import { renderEmbeddedRunLedger, renderRunStatsGrid, runStatsGridHeight, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -53,8 +53,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private readonly destination = new RunDestinationHost(this, () => this.rerender());
   private statPanelOpen = false;
   private retireConfirmOpen = false;
-  private statsOverlayOpen = false;
-  /** EXPLORE REGION replaces the planner's cards with the current-band read. */
+  private ledgerOpen = false;
   private bandReadOpen = false;
   /** Desktop-only width toggle. Shops open with the region art collapsed so
    * the embedded workspace can use the room; the player can expand it. */
@@ -69,13 +68,19 @@ export class DesktopRunMapScene extends Phaser.Scene {
     this.destination.reset();
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
-    this.statsOverlayOpen = false;
+    this.ledgerOpen = false;
     this.bandReadOpen = false;
     this.regionPaneCollapsed = false;
     this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
+
+  private openLedger(): void {
+    this.ledgerOpen = true;
+    this.bandReadOpen = false;
+    this.rerender();
+  }
 
   /** A width-changing rebuild must wait until the current pointerdown has
    * finished. Otherwise the newly widened child shop can receive that same
@@ -121,7 +126,9 @@ export class DesktopRunMapScene extends Phaser.Scene {
       return;
     }
     if (run.status === 'defeat' || run.status === 'retired') {
-      this.renderBanner(run.status);
+      // Overlay panel over the map, not a full-page takeover (2026-09-21).
+      this.renderHud(run, false);
+      this.renderEndOverlay(run.status);
       return;
     }
 
@@ -137,7 +144,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // UNDER another. Skipping the trail while a modal owns the screen is the
     // default for page-replacing modals. The stat drawer is the deliberate
     // exception: its interactive scrim keeps the retained route inert.
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen;
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen;
     if (!modalOpen) this.renderTrail(run);
     else if (this.statPanelOpen) this.renderTrail(run);
     if (this.statPanelOpen) {
@@ -146,12 +153,6 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onCancel: () => { this.statPanelOpen = false; this.rerender(); },
         onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
         onChanged: () => this.rerender(),
-      });
-    }
-    if (this.statsOverlayOpen) {
-      renderRunStatsOverlay(this, {
-        compact: false,
-        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
       });
     }
     if (this.retireConfirmOpen) {
@@ -177,15 +178,15 @@ export class DesktopRunMapScene extends Phaser.Scene {
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
    * `run` undefined only on the pre-start "START A NEW RUN" state (no stats
    * to show yet, so the strip reads all zeroes and the actions row is bare). */
-  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined): void {
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined, actionsEnabled = true): void {
     renderRunHud(this, {
       screen: 'RUN',
       compact: false,
       snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
-      onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
-      actions: run ? {
+      onOpenStatPanel: run && actionsEnabled ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
+      actions: run && actionsEnabled ? {
         back: { label: 'BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
-        secondary: { label: 'RUN LEDGER', onPress: () => { this.statsOverlayOpen = true; this.rerender(); } },
+        secondary: { label: 'RUN LEDGER', onPress: () => this.openLedger() },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
     });
@@ -294,13 +295,13 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
       .setStrokeStyle(1, UI.chip, 0.75);
     const label = this.add.text(x + 16 + buttonW / 2, footerY + 32,
-      this.bandReadOpen ? 'REGION OPEN' : 'EXPLORE REGION ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+      this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
     auditControlLabel(button, label, { name: 'Desktop explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
     if (!this.bandReadOpen) {
       button.setInteractive({ useHandCursor: true });
       attachButtonFeel(this, button, {
         fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
-        onPress: () => { this.destination.close(false); this.bandReadOpen = true; this.rerender(); },
+        onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
       });
     }
     const status = this.add.text(x + w - 16, footerY + 32, intelCount > 0 ? `MAP INTEL · ${intelCount}` : 'NO DISCOVERIES YET',
@@ -313,13 +314,20 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const options = this.destination.choices(pending ? [pending] : choices());
     const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
     const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
-    const planner = this.add.text(x, top, 'CHOOSE YOUR NEXT STOP', textRole('section'));
+    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE' : 'CHOOSE YOUR NEXT STOP';
+    const planner = this.add.text(x, top, plannerTitle, textRole('section'));
     auditTextBlock(planner, { name: 'Desktop run map choice planner', maxWidth: w - 160, maxHeight: 30, minFontSize: 9 });
-    const status = this.bandReadOpen ? 'REGION VIEW' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+    const status = this.ledgerOpen || this.bandReadOpen ? '' : arrival ? '' : pending ? 'STOP IN PROGRESS'
       : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
         : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
     const statusText = this.add.text(x + w, top + 4, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
     auditTextBlock(statusText, { name: 'Desktop route choice count', maxWidth: 148, maxHeight: 20, minFontSize: 9 });
+    if (this.ledgerOpen) {
+      renderEmbeddedRunLedger(this, { x, y: top + 38, width: w, height: availableH - 38 }, getActiveRun()!, {
+        compact: false, onBack: () => { this.ledgerOpen = false; this.rerender(); },
+      });
+      return;
+    }
     if (this.bandReadOpen && this.band) {
       renderEmbeddedBandRead(this, { x, y: top + 38, w, h: availableH - 38 }, this.band, {
         mode: 'desktop', onBack: () => { this.bandReadOpen = false; this.rerender(); },
@@ -377,30 +385,47 @@ export class DesktopRunMapScene extends Phaser.Scene {
     return { ...band, artKey: desktopBiomeArtKey(band.biomeId) };
   }
 
-  // ---------- defeat / retired end-summary banner ----------
+  // ---------- defeat / retired end overlay ----------
 
-  /** The run's end screen — reached at 0 lives (`'defeat'`) or a voluntary
-   * RETIRE (`'retired'`). `'victory'` is legacy (the engine never sets it any
-   * more, see `RunStatus`) and is deliberately not handled here. */
-  private renderBanner(status: 'defeat' | 'retired'): void {
+  /** Panel over the map (2026-09-21), not a full-page takeover — `create()`
+   * draws the HUD first, this scrim+panel on top. `'victory'` is legacy (the
+   * engine never sets it any more, see `RunStatus`) and is deliberately not
+   * handled here. */
+  private renderEndOverlay(status: 'defeat' | 'retired'): void {
     const retired = status === 'retired';
-    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, retired ? UI.panelMuted : UI.badSoft, 1).setOrigin(0, 0);
-    const cx = SCREEN.width / 2;
-    // THE ONE FIRST THING on this screen — `display` is spent here and nowhere
+    const run = getActiveRun()!;
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.82).setOrigin(0, 0).setInteractive().setDepth(6000);
+
+    const panelW = Math.min(760, SCREEN.width - 160);
+    const px = (SCREEN.width - panelW) / 2;
+    const py = TEMPLATE.regions.content.y + 20;
+    const cx = px + panelW / 2;
+    const pad = 32;
+    const gridW = Math.min(700, panelW - pad * 2);
+    const pairs = runStatsPairs(run);
+    const gridH = runStatsGridHeight(pairs.length, false);
+    const titleY = py + pad;
+    const dayY = titleY + 72;
+    const factsY = dayY + 28;
+    const gridTop = factsY + 34;
+    const btnY = gridTop + gridH + 40;
+    const btnH = 48;
+    const panelH = btnY + btnH + pad - py;
+
+    this.add.rectangle(px, py, panelW, panelH, retired ? UI.panelMuted : UI.badSoft, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(2, retired ? UI.border : UI.bad, 0.9).setInteractive().setDepth(6001);
+    // THE ONE FIRST THING on this panel — `display` is spent here and nowhere
     // else in the scene, and its 56px is the ladder rung that replaced this
     // line's old `F.big * 1.6` expression (see layoutProfile.ts#font.display).
-    this.add.text(cx, 56, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
-    const run = getActiveRun()!;
-    this.add.text(cx, 128, `DAY REACHED ${runCalendar(run).absoluteDay}`, textRole('statValue', { ink: 'accent' })).setOrigin(0.5, 0);
-    this.add.text(cx, 156, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
+    this.add.text(cx, titleY, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0).setDepth(6002);
+    this.add.text(cx, dayY, `DAY REACHED ${runCalendar(run).absoluteDay}`, textRole('statValue', { ink: 'accent' })).setOrigin(0.5, 0).setDepth(6002);
+    this.add.text(cx, factsY, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(0.5, 0);
-    const gridW = Math.min(700, SCREEN.width - 160);
-    const gridTop = 190;
-    const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: false });
-    const btnY = gridTop + gridH + 40;
-    const btn = this.add.rectangle(cx, btnY, 220, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    const btnLabel = this.add.text(cx, btnY + 24, 'MAIN MENU ›', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
+    }).setOrigin(0.5, 0).setDepth(6002);
+    renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, pairs, { compact: false, depth: 6002 });
+    const btn = this.add.rectangle(cx, btnY, 220, btnH, UI.chip, 1).setOrigin(0.5, 0)
+      .setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+    const btnLabel = this.add.text(cx, btnY + btnH / 2, 'MAIN MENU ›', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5).setDepth(6003);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.
     // Shared feel (ui/motion) — this button had neither hover nor press

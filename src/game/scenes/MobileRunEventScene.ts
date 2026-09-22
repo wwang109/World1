@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { embeddedEventLayout, positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
+import { roundRect } from '../ui/roundedRect';
+import { positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
 import { RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
@@ -10,10 +11,10 @@ import { mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui
 import { buildMergeSpentEntries, mergeConfirmPreviewForChoice } from '../ui/runMergeViewModel';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import {
-  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud, renderSellGemConfirm,
-  snapshotRunProgress,
+  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud,
+  renderSellGemConfirm, snapshotRunProgress,
 } from '../ui/RunProgressStrip';
-import { addBrightRunArt, addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
+import { addBrightRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { renderEventArtBorder } from '../ui/eventArtBorder';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { EVENT_REWARD_COLORS, renderRunEventOutcomePane } from '../ui/RunRewardPanel';
@@ -21,9 +22,8 @@ import {
   buildRunEventScenePresentation,
   type RunEventScenePresentation,
 } from '../ui/runEventScenePresenter';
-import { eventBodyScrollLayout, eventBodyScrollThumb } from '../ui/runEventStoryLayout';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
+import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   currentRunEventViewModel,
@@ -65,11 +65,9 @@ export function mobileEventChoosingLayout(
   const headerGap = 8;
   const rowGap = 8;
   const count = Math.max(1, choiceCount);
-  const choiceBlockHeight = count * choiceMinHeight + Math.max(0, count - 1) * rowGap;
-  const storyHeight = Math.max(
-    250,
-    content.height - sectionGap - Math.max(390, headerHeight + headerGap + choiceBlockHeight),
-  );
+  const storyHeight = 96;
+  const rowHeight = Math.max(choiceMinHeight,
+    (content.height - storyHeight - sectionGap - headerHeight - headerGap - Math.max(0, count - 1) * rowGap) / count);
   const story = { x, y: content.y, width: paneWidth, height: storyHeight };
   const outcomeHeader = {
     x,
@@ -80,9 +78,9 @@ export function mobileEventChoosingLayout(
   const firstRowY = outcomeHeader.y + headerHeight + headerGap;
   const choiceRows = Array.from({ length: choiceCount }, (_, index) => ({
     x,
-    y: firstRowY + index * (choiceMinHeight + rowGap),
+    y: firstRowY + index * (rowHeight + rowGap),
     width: paneWidth,
-    height: choiceMinHeight,
+    height: rowHeight,
   }));
   const outcomeBottom = choiceRows.length > 0
     ? choiceRows[choiceRows.length - 1]!.y + choiceRows[choiceRows.length - 1]!.height
@@ -93,7 +91,7 @@ export function mobileEventChoosingLayout(
 
 /** Mobile Run Event: persistent story/art and one EVENT OUTCOME pane.
  * Choices, all deferred pickers and final receipts reuse the same pane bounds.
- * Compact stacks the story above it with a bounded, scrollable body.
+ * Compact keeps the story reader separate from the outcome choices.
  * Both fresh and re-entered receipts own one pane-local CONTINUE; choosing
  * and picker states have none. Reward mechanics remain in the shared store. */
 export class MobileRunEventScene extends Phaser.Scene {
@@ -102,6 +100,9 @@ export class MobileRunEventScene extends Phaser.Scene {
   private H = SCREEN.height;
   private readonly pane = new RunEventOutcomePaneController();
   private retireConfirmOpen = false;
+  private storyOpen = false;
+  private storyPage = 0;
+  private choicePage = 0;
   /** The id of a `mergeCards` choice the player just tapped and has not yet
    * confirmed, `null` otherwise. The rebuilt confirm resolves this id back to
    * the exact choice-local persisted offer (or the legacy live preview) and
@@ -126,6 +127,9 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.embedded = data?.embedded;
     this.pane.reset();
     this.retireConfirmOpen = false;
+    this.storyOpen = false;
+    this.storyPage = 0;
+    this.choicePage = 0;
     this.mergeConfirmChoiceId = null;
     this.costConfirmChoiceId = null;
     this.sellGemConfirmOption = null;
@@ -155,55 +159,47 @@ export class MobileRunEventScene extends Phaser.Scene {
     run = getActiveRun() ?? run;
     const presentation = buildRunEventScenePresentation(view, run, 'mobile');
 
-    const embeddedLayout = this.embedded ? embeddedEventLayout(this.embedded.bounds, presentation.choices.length, true) : null;
-    const layout = embeddedLayout ?? mobileEventChoosingLayout(TEMPLATE.regions.content, presentation.choices.length, runChoicePanelMinHeight(F));
-    const content = embeddedLayout?.content ?? TEMPLATE.regions.content;
-    const template = embeddedLayout ? { ...TEMPLATE, canvas: { width: content.width, height: content.height }, regions: { ...TEMPLATE.regions, content } } : TEMPLATE;
+    const content = this.embedded
+      ? { x: 8, y: 8, width: this.embedded.bounds.width - 16, height: this.embedded.bounds.height - 16 }
+      : TEMPLATE.regions.content;
+    const minChoiceHeight = runChoicePanelMinHeight(F);
+    const allFit = 138 + presentation.choices.length * (minChoiceHeight + 8) <= content.height;
+    const pageSize = allFit ? Math.max(1, presentation.choices.length)
+      : Math.max(1, Math.floor((content.height - 186) / (minChoiceHeight + 8)));
+    const pageCount = Math.max(1, Math.ceil(presentation.choices.length / pageSize));
+    this.choicePage = Math.min(this.choicePage, pageCount - 1);
+    const shownChoices = presentation.choices.slice(this.choicePage * pageSize, (this.choicePage + 1) * pageSize);
+    const layout = mobileEventChoosingLayout({ ...content, height: content.height - (pageCount > 1 ? 48 : 0) }, shownChoices.length, minChoiceHeight);
+    const template = this.embedded ? { ...TEMPLATE, canvas: { width: content.width, height: content.height }, regions: { ...TEMPLATE.regions, content } } : TEMPLATE;
     if (this.embedded) {
       this.data.set('embeddedEventOutcomeBounds', layout.outcomes);
-      if (this.costConfirmChoiceId || this.mergeConfirmChoiceId || this.sellGemConfirmOption) {
-        this.embedded.scrollY = Math.max(0, layout.outcomes.y);
-      }
+      this.embedded.scrollY = 0;
     } else this.data.remove('embeddedEventOutcomeBounds');
-    positionRunDestination(this, this.embedded, content);
+    positionRunDestination(this, this.embedded, this.embedded
+      ? { x: 0, y: 0, width: this.embedded.bounds.width, height: this.embedded.bounds.height }
+      : content);
     if (!this.embedded) this.renderHud(run);
+    if (this.storyOpen) {
+      this.renderStoryReader(presentation, content);
+      this.renderRetirementConfirm();
+      return;
+    }
     this.renderStory(presentation, layout.story);
     const paneTemplate = eventOutcomePaneTemplate(template, 'icon', layout.outcomes, layout.outcomeHeader);
     renderRunEventOutcomePane(this, paneTemplate);
     this.pane.render({
       scene: this, template, panel: layout.outcomes, header: layout.outcomeHeader,
       font: F, compact: true, presentation,
-      onChoices: () => this.renderChoosing(presentation, layout),
+      onChoices: () => {
+        this.renderChoices({ ...presentation, choices: shownChoices }, layout.outcomes, layout.outcomeHeader, layout.choiceRows, presentation.choices.length);
+        if (pageCount > 1) this.renderPager(content, this.choicePage, pageCount, (page) => { this.choicePage = page; this.rerender(); });
+      },
       onContinue: () => this.continueToMap(),
       onFinalize: (selection, receipt) => this.finalizePicker(finalizeCurrentRunEventOffer(selection), receipt),
       onSell: option => { this.sellGemConfirmOption = option; this.rerender(); },
       onChange: () => this.rerender(),
     });
-    if (this.retireConfirmOpen) {
-      // CORRECTED (audit 2026-08): unlike its RunPrep/RunMap siblings, THIS
-      // scene DOES register a scene-level generic pointerdown/pointermove/
-      // pointerup/wheel listener — conditionally, only when the event body
-      // text is long enough to need the small-scroll idiom (see the
-      // `this.input.on('pointerdown', …)` block inside `renderStory` below).
-      // So `renderRetireConfirm`'s rebuild-on-close COULD race that
-      // listener's stale-vs-fresh scene-level re-dispatch (see
-      // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts). It's
-      // covered: that listener's FIRST line is
-      // `wasPointerConsumedByRebuild(this, p)`, and it guards ANY
-      // `rerender()`-calling handler in this scene automatically — including
-      // this RETIRE dialog's — since both close through the same
-      // `rebuildScene()` stamp. No PER-DIALOG guard is needed here, but the
-      // scene-level listener existing at all is the reason one is needed
-      // somewhere, which is not true of its five siblings.
-      renderRetireConfirm(this, {
-        compact: true,
-        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
-      });
-    }
-    // Same pointer-consumption note as RETIRE above applies here too — this
-    // scene's conditional scroll listener guards ANY `rerender()`-calling
-    // dialog, this one included, so no per-dialog guard is needed.
+    this.renderRetirementConfirm();
     if (this.mergeConfirmChoiceId !== null) {
       const choiceId = this.mergeConfirmChoiceId;
       // UNCONDITIONAL (2026-09-06 user ruling): a merge always costs three
@@ -348,164 +344,82 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   // ---------- persistent story + replaceable outcome contents ----------
 
-  private renderChoosing(event: RunEventScenePresentation, layout: MobileEventChoosingLayout): void {
-    this.renderChoices(event, layout.outcomes, layout.outcomeHeader, layout.choiceRows);
+  private renderRetirementConfirm(): void {
+    if (!this.retireConfirmOpen) return;
+    renderRetireConfirm(this, {
+      compact: true,
+      onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+      onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+    });
+  }
+
+  private storyButton(x: number, y: number, width: number, label: string, onPress: () => void): void {
+    const button = roundRect(this.add.rectangle(x, y, width, 40, UI.chipDark), 12).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
+    this.add.text(x + width / 2, y + 20, label, textRole('label', { ink: 'accent' })).setOrigin(0.5);
+    button.on('pointerdown', onPress);
+  }
+
+  private renderPager(bounds: MobileEventChoosingRect, page: number, pages: number, onPage: (page: number) => void): void {
+    const y = bounds.y + bounds.height - 40;
+    const width = Math.min(96, (bounds.width - 100) / 2);
+    if (page > 0) this.storyButton(bounds.x, y, width, '‹ PREVIOUS', () => onPage(page - 1));
+    if (page + 1 < pages) this.storyButton(bounds.x + bounds.width - width, y, width, 'NEXT ›', () => onPage(page + 1));
+    this.add.text(bounds.x + bounds.width / 2, y + 20, `${page + 1} / ${pages}`, textRole('label')).setOrigin(0.5);
   }
 
   private renderStory(event: RunEventScenePresentation, story: MobileEventChoosingRect): void {
-    // RUNG 2 (event chains): a chain payoff opens with ONE recap line naming
-    // the past this event pays off ("You have spent 14 gold on this road."),
-    // worded by the run layer (`eventRecapLine`) off `eventResolutions`/the
-    // tally counters. Prepended INSIDE the existing body box so the box's own
-    // height budget absorbs it (here it caps + scrolls exactly like a long
-    // body) and the choice-block reservation math above stays untouched.
-    // `null` — the plain body — for every ungated event.
-    const bodyCopy = event.body;
+    roundRect(this.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94), 12).setOrigin(0, 0).setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.7);
+    const title = this.add.text(story.x + 10, story.y + 8, event.title, {
+      fontSize: `${F.title}px`, color: EVENT_REWARD_COLORS.text, fontFamily: FONT.display,
+      fontStyle: 'bold', wordWrap: { width: story.width - 20 },
+    });
+    auditTextBlock(title, { name: 'Mobile run event title', maxWidth: story.width - 20, maxHeight: 40, minFontSize: 12 });
+    this.storyButton(story.x + 10, story.y + story.height - 48, story.width - 20, 'READ STORY', () => {
+      this.storyOpen = true;
+      this.storyPage = 0;
+      this.rerender();
+    });
+  }
+
+  private renderStoryReader(event: RunEventScenePresentation, bounds: MobileEventChoosingRect): void {
+    const x = bounds.x + 12;
+    const width = bounds.width - 24;
+    roundRect(this.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, EVENT_REWARD_COLORS.panelAlt, 1), 12).setOrigin(0, 0).setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.7);
+    this.storyButton(x, bounds.y + 8, width, '‹ BACK TO EVENT', () => { this.storyOpen = false; this.rerender(); });
+    let y = bounds.y + 60;
+    const artH = bounds.height >= 440 ? Math.min(110, bounds.height * 0.18) : 0;
+    if (artH > 0) {
+      const art = addBrightRunArt(this, eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined),
+        { x, y, width, height: artH }, BRIGHT_ART_TREATMENT.story);
+      if (event.art.kind === 'event') renderEventArtBorder(this, event.art.kind, { x, y, width, height: artH });
+      else art.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.4);
+      y += artH + 10;
+    }
     const metadata = [event.context.rarityLabel, event.context.storyStageLabel, event.context.visibilityLabel, event.context.dueLabel]
-      .filter((label): label is string => label !== null)
-      .join(' · ');
-    const inset = 10;
-    const innerX = story.x + inset;
-    const innerW = story.width - inset * 2;
-    this.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94)
-      .setOrigin(0, 0)
-      .setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.7)
-      .setData('layoutAuditName', 'Compact event story pane');
-    let y = story.y + inset;
-
-    const areaLine = this.add.text(
-      innerX,
-      y,
+      .filter((label): label is string => label !== null).join(' · ');
+    const copy = [
+      event.title,
       `${event.context.biomeName} · ${event.context.areaName} — ${event.context.areaBlurb}`,
-      {
-      fontSize: `${F.tiny}px`, color: EVENT_REWARD_COLORS.textSoft, fontFamily: FONT.body, fontStyle: 'italic',
-      wordWrap: { width: innerW }, lineSpacing: 2,
-      },
-    );
-    auditTextBlock(areaLine, { name: 'Mobile run event area intro', maxWidth: innerW, maxHeight: F.tiny * 4 + 8, minFontSize: 8 });
-    y += areaLine.height + 8;
-
-    const artH = this.embedded ? Math.min(150, innerW * 0.5, story.height * 0.32) : Math.min(140, Math.round(innerW * 0.5));
-    const storyArt = addBrightRunArt(
-      this,
-      eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined),
-      { x: innerX, y, width: innerW, height: artH },
-      BRIGHT_ART_TREATMENT.story,
-    );
-    if (event.art.kind === 'event') {
-      renderEventArtBorder(this, event.art.kind, { x: innerX, y, width: innerW, height: artH });
-    } else storyArt.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.4);
-    y += artH + 10;
-
-    const title = this.add.text(innerX, y, event.title, {
-      fontSize: `${F.title}px`, color: EVENT_REWARD_COLORS.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
+      metadata,
+      event.body,
+    ].filter(Boolean).join('\n\n');
+    const body = this.add.text(x, y, copy, {
+      fontSize: `${F.body}px`, color: EVENT_REWARD_COLORS.textDim, fontFamily: FONT.body,
+      wordWrap: { width }, lineSpacing: 4,
     });
-    auditTextBlock(title, { name: 'Mobile run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
-    y += title.height;
-    if (metadata) {
-      y += 3;
-      const metadataLabel = this.add.text(innerX, y, metadata, {
-        ...textRole('kicker'),
-        wordWrap: { width: innerW },
-      });
-      auditTextBlock(metadataLabel, { name: 'Mobile run event metadata', maxWidth: innerW, maxHeight: F.tiny * 3, minFontSize: 8 });
-      y += metadataLabel.height;
-      y += 7;
-    } else {
-      y += 8;
+    const lines = body.getWrappedText(copy);
+    const bodyHeight = Math.max(24, bounds.y + bounds.height - 52 - y);
+    let pageSize = Math.max(1, Math.floor(bodyHeight / (F.body * 1.4 + 4)));
+    body.setText(lines.slice(0, pageSize).join('\n'));
+    while (body.height > bodyHeight && pageSize > 1) {
+      pageSize -= 1;
+      body.setText(lines.slice(0, pageSize).join('\n'));
     }
-
-    const bodyPad = 12;
-    const bodyBoxTop = y;
-    const bodyBox = this.add.rectangle(story.x, bodyBoxTop, story.width, 10, EVENT_REWARD_COLORS.panelAlt, 0.9).setOrigin(0, 0).setStrokeStyle(1, EVENT_REWARD_COLORS.chip, 0.6);
-    const bodyContainer = this.add.container(innerX, bodyBoxTop + bodyPad);
-    const body = this.add.text(0, 0, bodyCopy, {
-      fontSize: `${F.body}px`, color: EVENT_REWARD_COLORS.textDim, fontFamily: FONT.body, wordWrap: { width: innerW }, lineSpacing: 4,
-    });
-    bodyContainer.add(body);
-    // Width-overflow guard only — height is handled by the scroll idiom below
-    // (req: cap the panel and scroll rather than shrinking under the 9px floor).
-    auditTextBlock(body, { name: 'Mobile run event body', maxWidth: innerW, maxHeight: 6000, minFontSize: 9 });
-
-    const naturalH = body.height;
-    const bodyLineSpacing = 4;
-    const bodyLineCount = body.getWrappedText(bodyCopy).length;
-    // The story owns a fixed bounded slice; overflow scrolls inside that
-    // slice and cannot displace the outcome group below it.
-    const maxBottom = story.y + story.height;
-    const budget = Math.max(70, maxBottom - bodyBoxTop);
-    const boxInnerBudget = budget - bodyPad * 2;
-
-    let boxH: number;
-    if (naturalH > boxInnerBudget && boxInnerBudget > 30) {
-      const scrollLayout = eventBodyScrollLayout(
-        naturalH,
-        boxInnerBudget,
-        bodyLineCount,
-        bodyLineSpacing,
-      );
-      const viewportH = scrollLayout.viewportHeight;
-      boxH = viewportH + bodyPad * 2;
-      // The SAME small-scroll idiom as `cardInfoBox`/the deck-build gem pouch:
-      // a complete-line mask, persistent track/thumb affordance, and
-      // pointerdown/move/up + wheel gated by its own hit-test.
-      const maskShape = this.make.graphics({}, false);
-      maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(innerX, bodyBoxTop + bodyPad, innerW, viewportH);
-      bodyContainer.setMask(maskShape.createGeometryMask());
-      const maxScroll = scrollLayout.maxScroll;
-      let scrollY = 0;
-      let dragging = false;
-      let startY = 0;
-      let startScroll = 0;
-      const trackX = story.x + story.width - 5;
-      const trackY = bodyBoxTop + bodyPad;
-      this.add.rectangle(trackX, trackY, 3, viewportH, EVENT_REWARD_COLORS.border, 0.28).setOrigin(0.5, 0);
-      const initialThumb = eventBodyScrollThumb(viewportH, viewportH, naturalH, 0);
-      const thumb = this.add.rectangle(trackX, trackY, 4, initialThumb.height, EVENT_REWARD_COLORS.chip, 0.95).setOrigin(0.5, 0);
-      const applyScroll = (next: number): void => {
-        const clamped = Phaser.Math.Clamp(next, -maxScroll, 0);
-        const snapped = Phaser.Math.Clamp(
-          -Math.round((-clamped) / scrollLayout.lineAdvance) * scrollLayout.lineAdvance,
-          -maxScroll,
-          0,
-        );
-        scrollY = snapped;
-        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
-        const thumbGeometry = eventBodyScrollThumb(viewportH, viewportH, naturalH, -scrollY);
-        thumb.setY(trackY + thumbGeometry.offset);
-      };
-      const inBox = (px: number, py: number): boolean => (
-        px >= innerX && px <= innerX + innerW && py >= bodyBoxTop && py <= bodyBoxTop + boxH
-      );
-      this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — RETIRE/DECK
-        // actions in the HUD (and the choice rows themselves) call
-        // `rerender()` from their own pointerdown handler.
-        if (wasPointerConsumedByRebuild(this, p)) return;
-        if (!inBox(p.worldX, p.worldY)) return;
-        dragging = true; startY = p.worldY; startScroll = scrollY;
-      });
-      this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-        if (!dragging) return;
-        applyScroll(startScroll + (p.worldY - startY));
-      });
-      // Trivial today (just clears the local `dragging` flag), but `pointerup`
-      // gets the same two-phase re-dispatch risk as `pointerdown` — see
-      // `wasPointerConsumedByRebuild`'s doc comment — so it is guarded on the
-      // same terms as its sibling above rather than being a silent exception.
-      this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
-        if (wasPointerConsumedByRebuild(this, p)) return;
-        dragging = false;
-      });
-      this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-        if (!inBox(pointer.worldX, pointer.worldY)) return;
-        applyScroll(scrollY - dy);
-      });
-    } else {
-      boxH = naturalH + bodyPad * 2;
-    }
-    bodyBox.setSize(story.width, Math.min(boxH, maxBottom - bodyBoxTop));
+    const pages = Math.max(1, Math.ceil(lines.length / pageSize));
+    this.storyPage = Math.min(this.storyPage, pages - 1);
+    body.setText(lines.slice(this.storyPage * pageSize, (this.storyPage + 1) * pageSize).join('\n'));
+    this.renderPager(bounds, this.storyPage, pages, (page) => { this.storyPage = page; this.rerender(); });
   }
 
   private renderChoices(
@@ -513,8 +427,9 @@ export class MobileRunEventScene extends Phaser.Scene {
     outcomes: MobileEventChoosingRect,
     outcomeHeader: MobileEventChoosingRect,
     choiceRows: MobileEventChoosingRect[],
+    totalChoices = event.choices.length,
   ): void {
-    const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${event.choices.length}`, {
+    const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${totalChoices}`, {
       ...textRole('kicker'),
       color: UI.textSoft,
     }).setOrigin(1, 0);

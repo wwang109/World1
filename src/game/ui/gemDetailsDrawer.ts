@@ -1,12 +1,15 @@
 import type Phaser from 'phaser';
+import { roundRect } from './roundedRect';
 import type { GemDef } from '../../data/gems';
 import { STAT_RULE } from '../../engine/keywords/text';
+import { renderGemText } from '../../engine/keywords/gemText';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI, textRoleFor, type TextRole } from '../theme';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import type { DetailsRect } from './cardDetailsLayout';
 import { gemDetailsLayout } from './gemDetailsLayout';
 import { GemToken } from './GemToken';
 import { gemChipLines, gemHoverEntries } from './gemPresentation';
+import { renderDetailText } from './detailText';
 
 export interface GemDetailsAction { label: string; enabled: boolean; onPress(): void }
 export interface GemDetailsSlot { key: string; label: string; gem: GemDef; action?: GemDetailsAction }
@@ -39,8 +42,10 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
     content.add(name); cy += name.height + 6;
     const meta = text(initial.info.x, cy, lines.meta, initial.info.width, 'label', `#${GEM_RARITY_COLOR[gem.rarity].toString(16).padStart(6, '0')}`, true);
     content.add(meta); cy += meta.height + 12;
-    const effect = text(initial.info.x, cy, lines.effect, initial.info.width, 'body', UI.textAccent, true);
-    content.add(effect); cy = Math.max(cy + effect.height, initial.art.height) + 16;
+    const effect = renderDetailText(scene, { x: initial.info.x, y: cy, text: renderGemText(gem), width: initial.info.width,
+      style: { ...textRoleFor(opts.compact ? 'mobile' : 'desktop', 'body'), fontFamily: FONT.body, color: UI.textBright, lineSpacing: 3 } });
+    content.add(effect.container);
+    cy = Math.max(cy + effect.height, initial.art.height) + 16;
     // The concrete face is authoritative. Generic parameter templates are not useful
     // standalone; keep only already-resolved registry definitions, without re-authoring.
     for (const entry of gemHoverEntries(gem).slice(1)) {
@@ -77,17 +82,19 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
   const veil = scene.add.rectangle(view.x, view.y, view.width, view.height, UI.shadow, 0.65).setOrigin(0).setInteractive();
   veil.on('pointerdown', (...args: Parameters<typeof stop>) => { stop(...args); opts.onClose(); });
   const panel = scene.add.rectangle(pane.x, pane.y, pane.width, pane.height, UI.panel, 1).setOrigin(0).setStrokeStyle(1, UI.chip, 1).setInteractive();
+  if (opts.compact) roundRect(panel, 12);
   // Root child order keeps the modal shield below its content and controls.
   root.add([veil, panel]); root.remove(content); root.add(content);
-  root.add(text(pane.x + 20, pane.y + 16, 'GEM DETAILS', pane.width - 90, 'title', UI.textAccent, true));
-  root.add(scene.add.rectangle(pane.x + 20, pane.y + 52, pane.width - 40, 1, UI.chip, 0.65).setOrigin(0));
+  root.add(text(layout.title.x, layout.title.y, 'GEM DETAILS', layout.title.width, 'title', UI.textAccent, true));
+  root.add(scene.add.rectangle(layout.divider.x, layout.divider.y, layout.divider.width, layout.divider.height, UI.chip, 0.65).setOrigin(0));
   const button = (rect: DetailsRect, label: string, action: () => void, enabled = true, filled = false) => {
     const bg = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, filled ? UI.chip : UI.panelMuted, enabled ? 1 : 0.5).setOrigin(0).setStrokeStyle(1, UI.chip, 0.7);
+    if (opts.compact) roundRect(bg, label === '×' ? 6 : 10);
     const caption = text(rect.x + rect.width / 2, rect.y + rect.height / 2, label, rect.width - 8, label === '×' ? 'title' : 'body', filled ? UI.textOnChip : UI.textBright, true).setOrigin(0.5);
     root.add([bg, caption]);
     if (enabled) bg.setInteractive({ useHandCursor: true }).on('pointerdown', (...args: Parameters<typeof stop>) => { stop(...args); action(); });
   };
-  button({ x: pane.x + pane.width - 56, y: pane.y + 4, width: 50, height: 50 }, '×', opts.onClose);
+  button(layout.close, '×', opts.onClose);
   const chosen = slots.find(slot => slot.key === opts.selectedKey);
   const action = chosen?.action ?? opts.primaryAction;
   if (action) button(footer, action.label, action.onPress, action.enabled, true);

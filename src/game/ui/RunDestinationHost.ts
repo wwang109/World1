@@ -9,6 +9,7 @@ import { renderRunBossArrivalPanel, type RunBossArrivalViewModel } from './RunBo
 import { renderRunTravelChoiceCard, runTravelChoiceCardLayout, runTravelChoiceCardsLayout } from './RunTravelChoiceCard';
 import type { RunTravelChoiceViewModel } from './runTravelChoiceViewModel';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
+import { roundRect } from './roundedRect';
 
 const hostMasks = new WeakMap<Phaser.Scene, Phaser.GameObjects.Graphics>();
 
@@ -24,7 +25,7 @@ export function renderRunHostButton(
   const width = Math.max(40, Math.ceil(text.width) + horizontal * 2);
   const height = Math.max(dense ? 32 : 40, Math.ceil(text.height) + vertical * 2);
   const rect = { x: Math.round(x - (alignRight ? width : 0)), y: Math.round(y), width, height };
-  const box = scene.add.rectangle(rect.x, rect.y, width, height, UI.chip, 1).setOrigin(0, 0)
+  const box = roundRect(scene.add.rectangle(rect.x, rect.y, width, height, UI.chip, 1), compact ? 12 : 0).setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
   text.setPosition(Math.round(rect.x + (width - text.width) / 2), Math.round(rect.y + (height - text.height) / 2));
   scene.children.bringToTop(text);
@@ -108,6 +109,7 @@ export class RunDestinationHost {
   private choiceScroll = 0;
   private choiceKey = '';
   private readonly expandedChoices = new Set<string>();
+  private mobileDetailId: string | null = null;
 
   constructor(private readonly owner: Phaser.Scene, private readonly redraw: () => void) {}
 
@@ -118,12 +120,15 @@ export class RunDestinationHost {
     this.choiceScroll = 0;
     this.choiceKey = '';
     this.expandedChoices.clear();
+    this.mobileDetailId = null;
     this.owner.events.once('shutdown', () => this.close(false));
   }
 
   choices(fallback: readonly RunNode[]): readonly RunNode[] {
     return currentNode()?.id === this.nodeId && this.savedChoices ? this.savedChoices : fallback;
   }
+
+  isOpen(key: string): boolean { return this.key === key; }
 
   open(key: string, nodeId: string, choices: readonly RunNode[]): void {
     this.key = key;
@@ -158,12 +163,32 @@ export class RunDestinationHost {
     renderRunBossArrivalPanel(this.owner, bounds, model, { compact, onFaceBoss });
   }
 
-  /** Encounter dossiers share one clipped route-host scroller. Card state and
-   * scroll survive detail toggles, but reset when the route choices change. */
   renderEncounters(bounds: Rect, models: readonly RunTravelChoiceViewModel[], compact: boolean,
     pendingId: string | undefined, onSelect: (nodeId: string) => void): void {
     const key = models.map((model) => model.nodeId).join('|');
-    if (key !== this.choiceKey) { this.choiceKey = key; this.choiceScroll = 0; this.expandedChoices.clear(); }
+    if (key !== this.choiceKey) { this.choiceKey = key; this.choiceScroll = 0; this.expandedChoices.clear(); this.mobileDetailId = null; }
+    if (compact) {
+      const detail = models.find((model) => model.nodeId === this.mobileDetailId);
+      if (detail) {
+        const back = renderRunHostButton(this.owner, bounds.x, bounds.y, '‹ ALL STOPS', true,
+          () => { this.mobileDetailId = null; this.redraw(); });
+        const top = back.y + back.height + 8;
+        renderRunTravelChoiceCard(this.owner, { ...bounds, y: top, height: bounds.y + bounds.height - top }, detail, {
+          compact: true, fitHeight: true, expanded: true, pending: detail.nodeId === pendingId,
+          onSelect: () => onSelect(detail.nodeId),
+        });
+      } else {
+        const gap = 8;
+        const height = Math.min(176, Math.floor((bounds.height - gap * (models.length - 1)) / Math.max(1, models.length)));
+        models.forEach((model, index) => renderRunTravelChoiceCard(this.owner,
+          { ...bounds, y: bounds.y + index * (height + gap), height }, model, {
+            compact: true, fitHeight: true, pending: model.nodeId === pendingId,
+            onSelect: () => onSelect(model.nodeId),
+            onToggle: () => { this.mobileDetailId = model.nodeId; this.redraw(); },
+          }));
+      }
+      return;
+    }
     const rail = compact ? 40 : 0;
     const width = compact ? Math.min(660, bounds.width - rail) : bounds.width;
     const view = { ...bounds, x: bounds.x + (bounds.width - rail - width) / 2, width };
@@ -246,12 +271,13 @@ export class RunDestinationHost {
     const horizontal = compact ? 12 : 16;
     const denseShopToolbar = key === 'DesktopShop';
     const vertical = denseShopToolbar ? 6 : compact ? 10 : 12;
-    this.owner.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, UI.panel, 1).setOrigin(0, 0)
+    roundRect(this.owner.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, UI.panel, 1), compact ? 12 : 0).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.8);
-    const back = renderRunHostButton(this.owner, bounds.x + horizontal, bounds.y + vertical, '‹ BACK', compact, () => this.close(), false, denseShopToolbar);
-    const barH = back.height + vertical * 2;
+    const mobileShop = key === 'MobileShop';
+    const back = mobileShop ? null : renderRunHostButton(this.owner, bounds.x + horizontal, bounds.y + vertical, '‹ BACK', compact, () => this.close(), false, denseShopToolbar);
+    const barH = back ? back.height + vertical * 2 : 0;
     const view = { x: bounds.x, y: bounds.y + barH, width: bounds.width, height: Math.max(40, bounds.height - barH) };
-    if (key.endsWith('Shop')) renderRunHostButton(this.owner, back.x + back.width + 8, back.y, 'LEAVE SHOP ›', compact, () => { leaveCurrentShop(); this.close(); }, false, denseShopToolbar);
+    if (key.endsWith('Shop') && back) renderRunHostButton(this.owner, back.x + back.width + 8, back.y, 'LEAVE SHOP ›', compact, () => { leaveCurrentShop(); this.close(); }, false, denseShopToolbar);
     const scroll = (direction: number): void => {
       if (!this.embedded) return;
       this.embedded.scrollY += direction * this.embedded.bounds.height * 0.7;
@@ -259,7 +285,7 @@ export class RunDestinationHost {
     };
     const source = this.embedded?.source;
     const overflows = source && source.height * Math.min(1, view.width / source.width) > view.height + 1;
-    if (overflows) {
+    if (overflows && back) {
       const down = renderRunHostButton(this.owner, bounds.x + bounds.width - horizontal, back.y, '↓', compact, () => scroll(1), true);
       renderRunHostButton(this.owner, down.x - 8, back.y, '↑', compact, () => scroll(-1), true);
     }

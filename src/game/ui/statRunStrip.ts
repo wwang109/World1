@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import {
-  INK, TEXT_ROLE_SPEC, TEXT_SHRINK_FLOOR_PX, textRole,
+  INK, TEXT_ROLE_SPEC, TEXT_SHRINK_FLOOR_PX, UI, textRole,
   type StatDensity, type TextRole,
 } from '../theme';
 import {
@@ -65,6 +65,10 @@ export interface StatRunResult {
   /** How many segments had to be dropped to fit. 0 in every shipping layout
    * today; non-zero is a signal the surface is over-subscribed. */
   dropped: number;
+  /** The drawn box of a `ready` segment (e.g. LV), so a caller can lay an
+   * interactive zone over the glowing cell instead of re-deriving its
+   * position. Undefined when no segment in this run is `ready`. */
+  readyRect?: { x: number; y: number; width: number; height: number };
 }
 
 /** One drawn piece, before it is positioned. */
@@ -158,11 +162,14 @@ export function renderStatRun(scene: Phaser.Scene, run: StatRun, opts: StatRunOp
     pieces.push({ text, width: text.width, height: text.height });
   };
 
+  const readyRanges: Array<{ start: number; end: number }> = [];
   fitted.run.segments.forEach((seg, i) => {
     const roles = statSegmentRoles(seg, density);
+    const start = pieces.length;
     push(seg.label, roles.label, statLabelInk(seg));
     push(` ${seg.value}`, roles.value, statValueInk(seg));
     if (seg.delta) push(` ${seg.delta}`, roles.label, statDeltaInk(seg));
+    if (seg.ready) readyRanges.push({ start, end: pieces.length });
     if (i < fitted.run.segments.length - 1) push(run.separator, roles.label, 'disabled');
   });
 
@@ -176,7 +183,23 @@ export function renderStatRun(scene: Phaser.Scene, run: StatRun, opts: StatRunOp
     p.text.setPosition(cursor, opts.y + (height - p.height));
     cursor += p.width;
   }
-  return { width, height, endX: cursor, dropped: fitted.dropped };
+
+  // The bg must be measured off the real positioned text, so it is created
+  // last — `setDepth` keeps it behind its own text despite that draw order.
+  let readyRect: StatRunResult['readyRect'];
+  const readyPad = 4;
+  for (const { start, end } of readyRanges) {
+    const segPieces = pieces.slice(start, end);
+    const minX = Math.min(...segPieces.map((p) => p.text.x));
+    const maxX = Math.max(...segPieces.map((p) => p.text.x + p.width));
+    readyRect = { x: minX - readyPad, y: opts.y, width: maxX - minX + readyPad * 2, height };
+    const bg = scene.add.rectangle(readyRect.x, readyRect.y, readyRect.width, readyRect.height, UI.chip, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setDepth(opts.depth ?? 0);
+    opts.track?.push(bg);
+    for (const p of segPieces) p.text.setDepth((opts.depth ?? 0) + 1);
+  }
+
+  return { width, height, endX: cursor, dropped: fitted.dropped, readyRect };
 }
 
 /**
