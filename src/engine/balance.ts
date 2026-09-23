@@ -11,7 +11,7 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { BASELINE_COOLDOWN, isMultiTargetSkill, tierResolved, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { BASELINE_COOLDOWN, isMultiTargetSkill, tierResolved, weightOf, TIER_ORDER, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 import { buildKeywordPricing, priceActionDeci, scalableRateDeci, walkBrackets, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
@@ -455,12 +455,12 @@ export const PRICE = {
   conditionalBonusDen: 2,
 
   /**
-   * AFFINITY PAYOFF (`affinityStrike`) — pay `affinityPayoffNum/affinityPayoffDen`
-   * of the ordinary strike rate: 1/2, so 2.5 deci per point of power instead
-   * of 5 (5 instead of 10 on TRUE). The integer pricer floors fractional
-   * deci; whole-PL validation requires authored magnitudes whose discounted
-   * action price is a multiple of 10 deci (ordinary 5-deci damage therefore
-   * needs a power multiple of 4).
+   * AFFINITY PAYOFF (`affinityStrike`) — pay `affinityPayoffNumDeci(tier,
+   * size)/affinityPayoffDen` of the ordinary strike rate. At the floor (5/10 =
+   * 1/2) that is 2.5 deci per point of power instead of 5 (5 instead of 10 on
+   * TRUE). The integer pricer floors fractional deci; whole-PL validation
+   * requires authored magnitudes whose discounted action price is a multiple
+   * of 10 deci.
    *
    * WHY NOT THE ½ CONDITIONAL DISCOUNT. `conditionalBonusDen` prices a gate the
    * card cannot supply AND that is only SOMETIMES open — the target happens to
@@ -506,9 +506,18 @@ export const PRICE = {
    * numerator rises toward 5 (full price) and if the mechanic goes unplayed it
    * falls toward 3. Content re-solves against it automatically because every
    * affinity card is authored to a tier budget.
+   *
+   * THE LADDER (user-locked 2026-09-20): payNum erodes by TIER and is DELAYED
+   * by SIZE — payNum = affinityPayoffNum + max(0, tierStep - (size - 1)),
+   * tierStep = TIER_ORDER's own index (bronze 0 .. diamond 3), size clamped to
+   * MAX_CARD_SIZE. Read it as: each extra slot buys one more tier at the
+   * current refund rate. Bronze's tierStep (0) can never exceed size − 1, so
+   * every Bronze affinity card still prices at exactly this base ratio (1/2),
+   * byte-identical to the flat refund this ladder replaces. See
+   * `affinityPayoffNumDeci`.
    */
-  affinityPayoffNum: 1,
-  affinityPayoffDen: 2,
+  affinityPayoffNum: 5,
+  affinityPayoffDen: 10,
 
   /**
    * guard: pct * turns * (guardPerPctTurnNum/Den) deci. Priced at PARITY with
@@ -1266,6 +1275,13 @@ export function additionalStatCount(actions: readonly Action[]): number {
   return count;
 }
 
+/** The affinity ladder's payNum; derivation lives at `PRICE.affinityPayoffNum`. */
+export function affinityPayoffNumDeci(tier: SkillTier | undefined, size: number | undefined): number {
+  const tierStep = tier === undefined ? 0 : TIER_ORDER.indexOf(tier);
+  const sizeStep = Math.min(MAX_CARD_SIZE, Math.max(1, size ?? 1));
+  return PRICE.affinityPayoffNum + Math.max(0, tierStep - (sizeStep - 1));
+}
+
 export function actionsPriceDeci(
   actions: readonly Action[],
   property: Property,
@@ -1288,6 +1304,8 @@ export function actionsPriceDeci(
   kit: readonly Action[] = actions,
   /** Card tier for tier-aware authored-card terms. Omit for tierless gems. */
   tier?: SkillTier,
+  /** Card size for the affinity payoff ladder (`affinityPayoffNumDeci`). Omit for tierless gems. */
+  size?: number,
 ): number {
   let selfDeci = 0;
   let foeDeci = 0;
@@ -1326,7 +1344,7 @@ export function actionsPriceDeci(
      *
      */
     const price = action.affinity === true
-      ? Math.floor((base * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen)
+      ? Math.floor((base * affinityPayoffNumDeci(tier, size)) / PRICE.affinityPayoffDen)
       : base;
     if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
     else selfDeci += price;
@@ -1362,7 +1380,7 @@ export function actionsPriceDeci(
  */
 export function powerLevelDeci(raw: SkillDef): number {
   const skill = tierResolved(raw);
-  let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope, skill.effects, skill.tier);
+  let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope, skill.effects, skill.tier, skill.size);
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -1447,7 +1465,7 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
     //
     // `splash` is its own tier-priced part here; the combined
     // "burden + splash" part died with the coverage-multiplier model.
-    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects, skill.tier));
+    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects, skill.tier, skill.size));
   }
   push('Additional Stat', additionalStatCount(skill.effects) * PRICE.additionalStatPremium);
 
@@ -1457,8 +1475,8 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
   // above could sum to a different number — reported here as the exact
   // DELTA the multiplier adds (raw parts + this delta = the scoped total).
   if (skill.scope === 'all') {
-    const raw = actionsPriceDeci(skill.effects, skill.property, 'one', skill.effects, skill.tier);
-    const scoped = actionsPriceDeci(skill.effects, skill.property, 'all', skill.effects, skill.tier);
+    const raw = actionsPriceDeci(skill.effects, skill.property, 'one', skill.effects, skill.tier, skill.size);
+    const scoped = actionsPriceDeci(skill.effects, skill.property, 'all', skill.effects, skill.tier, skill.size);
     push('aoe reach', scoped - raw);
   }
 
@@ -1656,7 +1674,7 @@ export function capViolations(raw: SkillDef): string[] {
     // DIFFERENT family (the poison/thorns line that arms it), so a filtered
     // list alone would charge the discounted rate here and the full rate in
     // `powerLevelDeci` — a cap check quietly softer than the budget check.
-    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope, skill.effects, skill.tier);
+    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope, skill.effects, skill.tier, skill.size);
   const check = (family: keyof typeof EFFECT_CAPS_DECI, kinds: ReadonlySet<Action['kind']>): void => {
     const deci = spent(kinds);
     const cap = effectCapDeci(family, skill.size, skill.tier);

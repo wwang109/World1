@@ -155,6 +155,21 @@
         "minTier": "diamond"
        }
       ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 8
+         },
+         {
+          "kind": "damage",
+          "power": 50,
+          "affinity": true
+         }
+        ]
+       }
+      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -183,7 +198,12 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Diamond PL 25: damage -> 8, gated damage -> 50.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ]
      }
     }
@@ -1756,6 +1776,21 @@
         "minTier": "diamond"
        }
       ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 22
+         },
+         {
+          "kind": "damage",
+          "power": 35,
+          "affinity": true
+         }
+        ]
+       }
+      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -1783,7 +1818,12 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Diamond PL 25: damage -> 22, gated damage -> 35.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ]
      }
     }
@@ -2046,6 +2086,27 @@
         "minTier": "diamond"
        }
       ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 14
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 20,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 35,
+          "affinity": true
+         }
+        ]
+       }
+      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2086,7 +2147,12 @@
        "the RESOLVED kit, and the face text reads in the same direction as the log.",
        "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
        "own price and no term reads a sibling's position, so the numbers above hold.",
-       "This card (Diamond) is the one the whole ruling was argued on, and the refinement puts it BACK: the gated Holy hit again cashes in the MDEF debuff the base hit bought. `hit 27 -DEF6 / MDEF -20% / hit 32 -DEF4` on the MDEF-6 dummy \u2014 21 then 28, where the one-class rule gave 21 then 26. The user was shown both and chose this one. The Diamond budget (250) is untouched."
+       "This card (Diamond) is the one the whole ruling was argued on, and the refinement puts it BACK: the gated Holy hit again cashes in the MDEF debuff the base hit bought. `hit 27 -DEF6 / MDEF -20% / hit 32 -DEF4` on the MDEF-6 dummy \u2014 21 then 28, where the one-class rule gave 21 then 26. The user was shown both and chose this one. The Diamond budget (250) is untouched.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Diamond PL 25: damage -> 14, gated damage -> 35.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ]
      }
     }
@@ -2119,6 +2185,21 @@
         "minTier": "diamond"
        }
       ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "damage",
+          "power": 50,
+          "affinity": true
+         }
+        ]
+       }
+      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2144,7 +2225,12 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Diamond PL 25: damage -> 10, gated damage -> 50.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ]
      }
     }
@@ -2183,6 +2269,25 @@
         "minTier": "diamond"
        }
       ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "lifesteal",
+          "pct": 45
+         },
+         {
+          "kind": "damage",
+          "power": 35,
+          "affinity": true
+         }
+        ]
+       }
+      },
       "notes": [
        "",
        "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
@@ -2211,7 +2316,12 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Diamond PL 25: damage -> 18, gated damage -> 35.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ]
      }
     }
@@ -8010,7 +8120,12 @@
        "of the day REFUSED to touch an ambiguous numeral (a value appearing twice), so",
        "every tier above bronze kept printing the bronze base. That guard was right; the",
        "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
-       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
+       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8030,7 +8145,35 @@
         "power": 28,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8096,7 +8239,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8116,7 +8264,35 @@
         "power": 24,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8139,7 +8315,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 52, gated damage -> 50. Diamond PL 25: damage -> 56, gated damage -> 60.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8159,7 +8340,35 @@
         "power": 48,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 52
+         },
+         {
+          "kind": "damage",
+          "power": 50,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 56
+         },
+         {
+          "kind": "damage",
+          "power": 60,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8182,7 +8391,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8202,7 +8416,35 @@
         "power": 24,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8225,7 +8467,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 70, gated damage -> 20. Diamond PL 25: damage -> 84, gated damage -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8245,7 +8492,35 @@
         "power": 16,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 84
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8317,7 +8592,12 @@
        "of the day REFUSED to touch an ambiguous numeral (a value appearing twice), so",
        "every tier above bronze kept printing the bronze base. That guard was right; the",
        "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
-       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
+       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8337,7 +8617,35 @@
         "power": 28,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8360,7 +8668,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8380,7 +8693,35 @@
         "power": 24,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8446,7 +8787,12 @@
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 64, gated damage -> 30. Diamond PL 25: damage -> 70, gated damage -> 40.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8466,7 +8812,35 @@
         "power": 24,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "damage",
+          "power": 40,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8485,7 +8859,12 @@
        "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
        "with depth, so several cards lost to an ungated peer even on their best board.",
        "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
-       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 18, empowerNext amount -> 20. Gold PL 20: damage -> 26, empowerNext amount -> 20. Diamond PL 25: damage -> 34, empowerNext amount -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8505,7 +8884,48 @@
         "amount": 16,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8524,7 +8944,12 @@
        "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
        "with depth, so several cards lost to an ungated peer even on their best board.",
        "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
-       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 18, empowerNext amount -> 20. Gold PL 20: damage -> 26, empowerNext amount -> 20. Diamond PL 25: damage -> 34, empowerNext amount -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8544,7 +8969,48 @@
         "amount": 16,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8752,7 +9218,12 @@
        "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
        "with depth, so several cards lost to an ungated peer even on their best board.",
        "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
-       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 58, burn stacks -> 20. Diamond PL 25: damage -> 70, burn stacks -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -8772,7 +9243,35 @@
         "stacks": 16,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 58
+         },
+         {
+          "kind": "burn",
+          "stacks": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "burn",
+          "stacks": 20,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8836,7 +9335,12 @@
        "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
        "with depth, so several cards lost to an ungated peer even on their best board.",
        "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
-       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 40, gated heal -> 70. Diamond PL 25: damage -> 42, gated heal -> 80.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "healing"
@@ -8856,7 +9360,35 @@
         "power": 64,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 40
+         },
+         {
+          "kind": "heal",
+          "power": 70,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 42
+         },
+         {
+          "kind": "heal",
+          "power": 80,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8884,7 +9416,12 @@
        "the ungated hit absorbs the whole tier delta: 14 -> 24 -> 34 -> 44, each landing",
        "exactly on 150/200/250. BASE AND PAYOFF ARE ON DIFFERENT NUMERALS (14 vs 30/2)",
        "the tier ladder reads unambiguously on the face. (Both facts are now moot for",
-       "DISPLAY \u2014 the face is generated from the resolved kit \u2014 but the numbers they forced are the shipped ones.)"
+       "DISPLAY \u2014 the face is generated from the resolved kit \u2014 but the numbers they forced are the shipped ones.)",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 22, debuffStat pct -> 34. Gold PL 20: damage -> 30, debuffStat pct -> 36. Diamond PL 25: damage -> 38, debuffStat pct -> 38.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "debuff"
@@ -8906,7 +9443,54 @@
         "turns": 2,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 22
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 34,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 36,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 38
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 38,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8928,7 +9512,12 @@
        "must be EVEN for the refunded DoT part to land on a whole PL.",
        "GATED DoT LINES ARE FROZEN TOO (the 2026-08-26 `autoScaleTier` fix), so the",
        "greedy DoT walk never eats this card's always-on half: 16 -> 26 -> 36 -> 46",
-       "with bleed held at 4."
+       "with bleed held at 4.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 24, bleed -> 5. Gold PL 20: damage -> 26, bleed -> 10. Diamond PL 25: damage -> 34, bleed -> 10.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -8949,7 +9538,48 @@
         "stacks": 4,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "bleed",
+          "stacks": 5,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "bleed",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "bleed",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -8972,7 +9602,12 @@
        "Control spend 30 is under the size-2 cap (150) and pct 30 is under",
        "MAX_EXPOSE_PCT (50).",
        "The grant moves with tier (140/170/210/240) and the ungated hit absorbs the",
-       "rest: 42 -> 58 -> 76 -> 92, exact at every rung."
+       "rest: 42 -> 58 -> 76 -> 92, exact at every rung.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Gold PL 20: damage -> 74, expose pct -> 34. Diamond PL 25: damage -> 88, expose pct -> 36.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "debuff"
@@ -8993,7 +9628,37 @@
         "turns": 2,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 74
+         },
+         {
+          "kind": "expose",
+          "pct": 34,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 88
+         },
+         {
+          "kind": "expose",
+          "pct": 36,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -9017,7 +9682,12 @@
        "= 100 = Bronze exactly. Empower spend is the refunded 40 (cap 100 at size 1),",
        "and pct 40 is under MAX_GUARD_PCT (60).",
        "Guard is frozen empower, and the gate freezes it again, so the plating is the",
-       "sink: 12 -> 22 -> 32 -> 42."
+       "sink: 12 -> 22 -> 32 -> 42.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: shield -> 20, guard pct -> 42. Gold PL 20: shield -> 28, guard pct -> 43. Diamond PL 25: shield -> 36, guard pct -> 44.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "defensive"
@@ -9039,7 +9709,54 @@
         "turns": 2,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 20
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 42,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 28
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 43,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 36
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 44,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -9105,7 +9822,12 @@
        "5 = 70. 70 + 30 = 100 = Bronze exactly. At 7.5 deci/pt ungated and 3.75",
        "gated, the plating must be a multiple of 8 for a whole-PL part.",
        "`attunedShield` is already `scalable: false`, and the gate freezes it again, so",
-       "the plain plating is the sink: 14 -> 24 -> 34 -> 44."
+       "the plain plating is the sink: 14 -> 24 -> 34 -> 44.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: shield -> 22, attunedShield power -> 9. Gold PL 20: shield -> 38, attunedShield power -> 2. Diamond PL 25: shield -> 38, attunedShield power -> 10.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "defensive"
@@ -9125,7 +9847,48 @@
         "power": 8,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 22
+         },
+         {
+          "kind": "attunedShield",
+          "power": 9,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 38
+         },
+         {
+          "kind": "attunedShield",
+          "power": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 38
+         },
+         {
+          "kind": "attunedShield",
+          "power": 10,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -9200,7 +9963,12 @@
        "20, and it pays no multi-hit premium (gated hits are excluded from the count).",
        "Sink damage 10 * 5 = 50. 30 + 20 + 50 = 100 = Bronze exactly. The gated line and",
        "the aura are both FROZEN by `autoScaleTier`, so the sink absorbs every higher",
-       "budget: 20 / 30 / 40 at silver / gold / diamond, all whole PL."
+       "budget: 20 / 30 / 40 at silver / gold / diamond, all whole PL.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 18, gated damage -> 10. Gold PL 20: damage -> 20, gated damage -> 20. Diamond PL 25: damage -> 28, gated damage -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense"
@@ -9227,6 +9995,47 @@
        "mods": {
         "damageFlat": 3
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "damage",
+          "power": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 20
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 28
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9249,7 +10058,12 @@
        "refund 1/2 -> 20. Sink shield 8 * 5 = 40. 40 + 20 + 40 = 100 = Bronze exactly.",
        "Shield is the only unfrozen line, so it takes the whole ladder: 18 / 28 / 38.",
        "Coverage is two pieces on ONE side, which is the calibration `PRICE.auraWeightDelta`",
-       "is derived at \\u2014 see Enfilade Volley's note for the full argument."
+       "is derived at \\u2014 see Enfilade Volley's note for the full argument.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: shield -> 16, guard pct -> 25. Gold PL 20: shield -> 24, guard pct -> 29. Diamond PL 25: shield -> 30, guard pct -> 38.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "defensive",
@@ -9279,6 +10093,53 @@
        "mods": {
         "weightDelta": -2
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 16
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 25,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 24
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 29,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 30
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 38,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9300,7 +10161,12 @@
        "TWO HEALS, ONE GATED, ON PURPOSE: the gated half is the payoff for holding the",
        "Dark identity and is frozen at 12 forever (`autoScaleTier`'s GATED SINKS ARE",
        "FROZEN rule), so ranking the card up can never move budget out of the always-on",
-       "heal and into the conditional one \\u2014 the `wildfire_rite` failure."
+       "heal and into the conditional one \\u2014 the `wildfire_rite` failure.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: heal -> 10, gated heal -> 20. Gold PL 20: heal -> 18, gated heal -> 20. Diamond PL 25: heal -> 26, gated heal -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "healing",
@@ -9328,6 +10194,47 @@
        "mods": {
         "healFlat": 4
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 10
+         },
+         {
+          "kind": "heal",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 18
+         },
+         {
+          "kind": "heal",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 26
+         },
+         {
+          "kind": "heal",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9346,7 +10253,12 @@
        "against 10 on-type cards, the joint-thinnest type in the book.",
        "BUDGET. aura |-2| * 20 = 40. Gated debuffStat (armor 20% x 2t) = 40 base,",
        "affinity refund 1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly.",
-       "Ladder 18 / 28 / 38 on the damage line; gate and aura frozen."
+       "Ladder 18 / 28 / 38 on the damage line; gate and aura frozen.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 16, debuffStat pct -> 25. Gold PL 20: damage -> 24, debuffStat pct -> 29. Diamond PL 25: damage -> 30, debuffStat pct -> 38.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -9376,6 +10288,53 @@
        "mods": {
         "weightDelta": -2
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 29,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 38,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9395,7 +10354,12 @@
        "attack rather than being a dedicated buff piece.",
        "Q3: lightning had 2 bronze-reachable gated cards against 11 on-type.",
        "BUDGET. aura |-2| * 20 = 40. Gated buffStat (speed 20% x 2t) = 40 base, refund",
-       "1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly. Ladder 18/28/38."
+       "1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly. Ladder 18/28/38.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 16, buffStat pct -> 25. Gold PL 20: damage -> 24, buffStat pct -> 29. Diamond PL 25: damage -> 30, buffStat pct -> 38.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -9426,6 +10390,53 @@
        "mods": {
         "weightDelta": -2
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 25,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 29,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 38,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9445,7 +10456,12 @@
        "Q3: beast had 2 bronze-reachable gated cards against 13 on-type.",
        "BUDGET. aura |4| * 10 = 40. Gated hit 12: base 60, refund 1/2 -> 30, no multi-hit",
        "premium (gated hits are excluded from the count). Sink damage 6 * 5 = 30.",
-       "40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36."
+       "40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 10, gated damage -> 20. Gold PL 20: damage -> 18, gated damage -> 20. Diamond PL 25: damage -> 26, gated damage -> 20.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -9473,6 +10489,47 @@
        "mods": {
         "damageFlat": 4
        }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
+         }
+        ]
+       }
       }
      }
     }
@@ -9493,7 +10550,12 @@
        "BUDGET. Gated bleed 8: base 8 * 10 = 80, affinity refund 1/2 -> 40. Sink damage",
        "12 * 5 = 60. 40 + 60 = 100 = Bronze exactly. The gated DoT is frozen in the DoT",
        "bucket too (the `wildfire_rite` fix), so the damage line takes the whole ladder:",
-       "22 / 32 / 42, and the bleed pile stays 8 at every rank."
+       "22 / 32 / 42, and the bleed pile stays 8 at every rank.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 18, bleed -> 10. Gold PL 20: damage -> 26, bleed -> 10. Diamond PL 25: damage -> 34, bleed -> 10.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -9514,7 +10576,48 @@
         "stacks": 8,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "bleed",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "bleed",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "bleed",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -9532,7 +10635,12 @@
        "archetype spread was the worse half of the measurement: 17 of the 24 shipped",
        "bronze-reachable gated cards are `offense`.",
        "BUDGET. Gated poison 8: base 80, affinity refund 1/2 -> 40. Sink shield 12 * 5 =",
-       "60. Total 100 = Bronze exactly. Ladder 22 / 32 / 42 on the shield; poison frozen."
+       "60. Total 100 = Bronze exactly. Ladder 22 / 32 / 42 on the shield; poison frozen.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: shield -> 18, poison -> 10. Gold PL 20: shield -> 26, poison -> 10. Diamond PL 25: shield -> 34, poison -> 10.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "defensive",
@@ -9553,7 +10661,48 @@
         "stacks": 8,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 18
+         },
+         {
+          "kind": "poison",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 26
+         },
+         {
+          "kind": "poison",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shield",
+          "power": 34
+         },
+         {
+          "kind": "poison",
+          "stacks": 10,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -9571,7 +10720,12 @@
        "thinnest payoff supply in the game, for the type whose enabler pool is also",
        "joint-thinnest. This and Enfilade Volley take bow to three.",
        "BUDGET. Gated expose (20% x 2t) = 40 base, affinity refund 1/2 -> 20. Sink",
-       "damage 16 * 5 = 80. Total 100 = Bronze exactly. Ladder 26 / 36 / 46."
+       "damage 16 * 5 = 80. Total 100 = Bronze exactly. Ladder 26 / 36 / 46.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
+       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
+       "Silver PL 15: damage -> 24, expose pct -> 25. Gold PL 20: damage -> 32, expose pct -> 29. Diamond PL 25: damage -> 38, expose pct -> 38.",
+       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
+       "its magnitudes and price are byte-identical to before this pass."
       ],
       "archetypes": [
        "offense",
@@ -9593,7 +10747,51 @@
         "turns": 2,
         "affinity": true
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "expose",
+          "pct": 25,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 32
+         },
+         {
+          "kind": "expose",
+          "pct": 29,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 38
+         },
+         {
+          "kind": "expose",
+          "pct": 38,
+          "turns": 2,
+          "affinity": true
+         }
+        ]
+       }
+      }
      }
     }
    ]
@@ -10547,7 +11745,20 @@
        "line stripped) is 90 -> 140 -> 190 -> 240, climbing at every rank \u2014",
        "an off-type board's copy gets strictly better with every purchase, so",
        "this is not one of the deliberate Diamond capstone trades and needs no",
-       "allowlist entry."
+       "allowlist entry.",
+       "AFFINITY LADDER RE-SOLVE (2026-09-20). At size 1 the disrupt bracket price",
+       "for amount 4 (20 raw deci) no longer lands on a whole PL once the refund",
+       "erodes past 1/2 (payNum 6/7/8 at silver/gold/diamond): 20*6/10 = 12,",
+       "20*7/10 = 14, 20*8/10 = 16, all fractional. Only a raw price that is itself",
+       "a multiple of 100 deci stays whole at every eroded payNum (floor(100k*payNum/10)",
+       "= 10k*payNum), and amount 10 is the smallest disrupt magnitude whose bracket",
+       "price (100 raw) clears that bar, so the gated disrupt moves from frozen-at-4",
+       "to frozen-at-10 from Silver on. Damage absorbs the remaining ladder: Silver",
+       "PL 15 damage 10 (unchanged from Bronze) + burden 8 (unchanged) + disrupt 10.",
+       "Gold PL 20 damage 18 + burden 8 + disrupt 10. Diamond PL 25 damage 26 +",
+       "burden 8 + disrupt 10. guaranteedPowerLevelDeci (damage+burden) is",
+       "90 -> 90 -> 130 -> 190, still non-decreasing so this is not a capstone trade.",
+       "Bronze is untouched — tierStep 0 there at every size, byte-identical to before."
       ],
       "archetypes": [
        "offense",
@@ -10574,19 +11785,36 @@
        }
       ],
       "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "disrupt",
+          "amount": 10,
+          "affinity": true
+         }
+        ]
+       },
        "gold": {
         "effects": [
          {
           "kind": "damage",
-          "power": 26
+          "power": 18
          },
          {
           "kind": "burden",
-          "weight": 12
+          "weight": 8
          },
          {
           "kind": "disrupt",
-          "amount": 4,
+          "amount": 10,
           "affinity": true
          }
         ]
@@ -10595,15 +11823,15 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 36
+          "power": 26
          },
          {
           "kind": "burden",
-          "weight": 12
+          "weight": 8
          },
          {
           "kind": "disrupt",
-          "amount": 4,
+          "amount": 10,
           "affinity": true
          }
         ]
