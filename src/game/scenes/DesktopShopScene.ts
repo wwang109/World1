@@ -13,7 +13,7 @@ import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
 import type { Gem, SkillDef, SkillTier } from '../../engine/types';
 import type { CardOffer, GemOffer } from '../../run/shop';
-import { sellPriceOfCard, sellPriceOfGem, shopPoolInfo } from '../../run/shop';
+import { addTierValue, previewCardMerge, sellPriceOfCard, sellPriceOfGem, shopPoolInfo } from '../../run/shop';
 import { canPlace, bagAsBoardPieces } from '../../run/loadout';
 import {
   bagHasRoomFor, buyCard, buyCardTo, buyGem, ensureShelf, mergeCard, mergeTargetFor, moveToBag, moveToBoard,
@@ -221,6 +221,8 @@ export class DesktopShopScene extends Phaser.Scene {
    * default target (lowest owned tier, board before bag). */
   private mergeChosenInstanceId: string | null = null;
   private mergeSlotChooserOpen = false;
+  private pickerPage = 0;
+  private pickerInspectId: string | null = null;
   private pendingSell: PendingSell | null = null;
   /** One-shot transient red flash on an invalid BUY-to-slot drop — read and
    * cleared the instant it's rendered (see `renderOwnedColumns`), so it never
@@ -422,6 +424,7 @@ export class DesktopShopScene extends Phaser.Scene {
       if (this.mergeChooserOpen) this.renderMergeChooser();
       else if (this.mergePreviewOpen) this.renderMergePreview();
     }
+    else if (this.mergeSlotChooserOpen) this.renderMergeSlotChooser();
     else if (this.pendingSell) this.renderSellConfirm();
     else if (this.inspectOwned) this.renderOwnedCardDetail();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
@@ -434,7 +437,7 @@ export class DesktopShopScene extends Phaser.Scene {
         onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('DesktopRunMap'); },
       });
     }
-    const inspecting = this.pendingBuy || this.pendingSell || this.mergePreviewOpen;
+    const inspecting = this.pendingBuy || this.pendingSell || this.mergePreviewOpen || this.mergeSlotChooserOpen;
     const sourceTop = this.embedded ? 0 : inspecting ? 0 : this.contentTop;
     positionRunDestination(this, this.embedded, {
       x: 0, y: sourceTop, width: this.viewWidth, height: this.viewHeight - sourceTop,
@@ -592,8 +595,8 @@ export class DesktopShopScene extends Phaser.Scene {
     // Deriving the gap from `titleText.height` (same measurement `getBounds()`
     // uses) guarantees the tagline clears the title for every theme, long or
     // short, with no per-theme layout math to keep in sync with content.
-    const titleText = this.add.text(titleX + 8, top + 8, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent, wordWrap: { width: Math.max(80, shelfRight - titleX - 152) }, maxLines: 1 });
-    this.add.text(titleX + 8, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, shelfRight - titleX - 152) }, maxLines: 1 });
+    const titleText = this.add.text(titleX + 8, top + 8, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent, wordWrap: { width: Math.max(80, shelfRight - titleX - 284) }, maxLines: 1 });
+    this.add.text(titleX + 8, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, shelfRight - titleX - 284) }, maxLines: 1 });
 
     // A thin shop whose WHOLE pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
@@ -628,6 +631,8 @@ export class DesktopShopScene extends Phaser.Scene {
         reroll.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
+
+    this.renderMergeSlotButton(shopId, rerollX - 8 - rerollW, rerollY, rerollW, rerollControl.height);
 
     const rowTop = top + SHOP_HEADER_H + 8;
     // Scrollable viewport for the CARDS+GEMS grid — runs the FULL remaining
@@ -1476,7 +1481,7 @@ export class DesktopShopScene extends Phaser.Scene {
       // including the storefront shop tiles, which have no dialog to guard
       // behind a state flag at all (see `renderStorefront`).
       if (wasPointerConsumedByRebuild(this, p)) return;
-      if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen || this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null) return;
+      if (this.pendingBuy || this.pendingSell || this.mergeSlotChooserOpen || this.retireConfirmOpen || this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null) return;
       // A shelfCard/shelfGem's registered bounds are its UNCLIPPED position
       // inside the scrollable container — a row scrolled below the masked
       // viewport still has bounds sitting where it would be, invisible but
@@ -1733,7 +1738,7 @@ export class DesktopShopScene extends Phaser.Scene {
     });
 
     this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      if (this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null || this.pendingBuy || this.pendingSell) return;
+      if (this.inspectOwned || this.detailCardIndex !== null || this.detailGemIndex !== null || this.inspectGemIndex !== null || this.pendingBuy || this.pendingSell || this.mergeSlotChooserOpen) return;
       this.detailActivation.reset();
       if (this.inventoryMaxScroll > 0 && inInventoryViewport(pointer.worldX, pointer.worldY)) {
         this.inventoryScrollY = Phaser.Math.Clamp(this.inventoryScrollY - dy, -this.inventoryMaxScroll, 0);
@@ -1860,7 +1865,7 @@ export class DesktopShopScene extends Phaser.Scene {
         label: needsChooser ? 'CHOOSE COPY' : 'MERGE',
         fill: UI.good,
         color: UI.textOnChip,
-        fn: needsChooser ? () => { playSfx('uiClick'); this.mergeChooserOpen = true; this.rerender(); } : doMerge,
+        fn: needsChooser ? () => { playSfx('uiClick'); this.mergeChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); } : doMerge,
       });
       buttons.push({ label: 'PREVIEW', fill: UI.panelMuted, color: UI.textAccent, fn: () => { playSfx('uiClick'); this.mergePreviewOpen = true; this.rerender(); } });
     }
@@ -1900,6 +1905,61 @@ export class DesktopShopScene extends Phaser.Scene {
     });
   }
 
+  private renderMergeSlotButton(shopId: string, x: number, y: number, w: number, h: number): void {
+    const runMode = this.isRunMode();
+    const price = shopMergeSlotPrice(runMode);
+    const available = shopMergeSlotAvailable(runMode, shopId);
+    const hasTarget = shopMergeSlotTargets(runMode).length > 0;
+    const affordable = !runMode || this.activeGold() >= price;
+    const enabled = available && hasTarget && affordable;
+    const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE CARD · ${price} G`;
+    const btn = this.add.rectangle(x, y, w, h, enabled ? UI.good : UI.panelMuted, enabled ? 1 : 0.5)
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, enabled ? 1 : 0.4);
+    this.add.text(x + w / 2, y + h / 2, label, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: enabled ? UI.textOnChip : UI.textSoft,
+    }).setOrigin(0.5);
+    if (enabled) {
+      btn.setInteractive({ useHandCursor: true });
+      btn.on('pointerdown', () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); });
+    }
+  }
+
+  private renderMergeSlotChooser(): void {
+    const shopId = this.activeShopId();
+    const runMode = this.isRunMode();
+    const rows: OwnedCardPickerRow[] = shopMergeSlotTargets(runMode)
+      .map((t) => {
+        const card = t.location === 'board' ? this.pieces[t.index] : this.bagSlots[t.index];
+        const skill = card ? skillBook[card.skillId] : undefined;
+        return skill ? { instanceId: t.instanceId, skill, tier: t.tier, points: t.points, to: addTierValue({ tier: t.tier, points: t.points }, 1) } : null;
+      })
+      .filter((row): row is OwnedCardPickerRow => row !== null);
+    renderOwnedCardPicker(this, {
+      viewWidth: this.viewWidth,
+      viewHeight: this.viewHeight,
+      title: `UPGRADE CARD · ${shopMergeSlotPrice(runMode)} G`,
+      actionWord: 'UPGRADE',
+      rows,
+      fontBody: F.body,
+      fontName: F.name,
+      font: F,
+      compact: false,
+      page: this.pickerPage,
+      onPageChange: (page) => { this.pickerPage = page; this.rerender(); },
+      inspectedInstanceId: this.pickerInspectId,
+      onInspect: (id) => { this.pickerInspectId = id; this.rerender(); },
+      onPick: (instanceId) => {
+        const row = rows.find((r) => r.instanceId === instanceId);
+        const result = shopBuyMergeSlotPoint(runMode, shopId, instanceId);
+        this.mergeSlotChooserOpen = false;
+        this.rerender();
+        if (!result.ok) this.showToast('Could not add the point', UI.bad);
+        else { playSfx('purchase'); this.showToast(`${row?.skill.name ?? 'Card'} advances`, UI.good); }
+      },
+      onCancel: () => { playSfx('uiBack'); this.mergeSlotChooserOpen = false; this.rerender(); },
+    });
+  }
+
   private renderMergeChooser(): void {
     const shopId = this.activeShopId();
     const buy = this.pendingBuy;
@@ -1907,19 +1967,28 @@ export class DesktopShopScene extends Phaser.Scene {
     if (!skillId) { this.mergeChooserOpen = false; return; }
     const runMode = this.isRunMode();
     const duplicates = shopMergeableDuplicatesForSkill(runMode, skillId);
+    const offerTier = buy?.kind === 'card' ? this.shelfFor(shopId).cards[buy.index]?.tier : undefined;
     const rows: OwnedCardPickerRow[] = duplicates
       .map((d) => {
         const skill = skillBook[skillId];
-        return skill ? { instanceId: d.instanceId, skill, tier: d.tier, points: d.points } : null;
+        const from = { tier: d.tier, points: d.points };
+        return skill && offerTier ? { instanceId: d.instanceId, skill, tier: d.tier, points: d.points, to: previewCardMerge(from, { tier: offerTier, points: 0 }) } : null;
       })
       .filter((row): row is OwnedCardPickerRow => row !== null);
     renderOwnedCardPicker(this, {
       viewWidth: this.viewWidth,
       viewHeight: this.viewHeight,
       title: 'CHOOSE A COPY TO MERGE INTO',
+      actionWord: 'MERGE',
       rows,
       fontBody: F.body,
       fontName: F.name,
+      font: F,
+      compact: false,
+      page: this.pickerPage,
+      onPageChange: (page) => { this.pickerPage = page; this.rerender(); },
+      inspectedInstanceId: this.pickerInspectId,
+      onInspect: (id) => { this.pickerInspectId = id; this.rerender(); },
       onPick: (instanceId) => { this.mergeChosenInstanceId = instanceId; this.mergeChooserOpen = false; this.rerender(); },
       onCancel: () => { this.mergeChooserOpen = false; this.rerender(); },
     });
