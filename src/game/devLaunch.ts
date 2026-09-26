@@ -590,8 +590,7 @@ export function buildDevBossFixture(seed = 1103): RunState {
 }
 
 /** A single-card, level-5 board coded exactly like `ghostCodeOf` would code a
- * real player's run — the fixture's stand-in for "a saved player build".
- * `opts` lets a caller substitute a stronger board/level (`buildDevGhostExtraFightLoseFixture`). */
+ * real player's run — the fixture's stand-in for "a saved player build". */
 function devGhostRecord(displayName: string, bossNode: RunNode, opts?: { board?: GhostBoardPiece[]; heroLevel?: number }): GhostRecord {
   const code = encodeLoadout(ghostLoadoutToShareLoadout({
     board: opts?.board ?? [{ skillId: 'sworn_edge', tier: 'bronze', slot: 0, gemId: null }],
@@ -605,16 +604,12 @@ function devGhostRecord(displayName: string, bossNode: RunNode, opts?: { board?:
   };
 }
 
-/** Every board slot filled with the catalog's strongest (diamond-tier) size-1
- * card — the opposing saved build for `buildDevGhostExtraFightLoseFixture`. */
 function strongDevGhostBoard(): GhostBoardPiece[] {
   const skillId = Object.values(skillBook).find((s) => s.size === 1 && cardOfferableAtTier(s, 'diamond'))?.id;
   if (skillId === undefined) throw new Error('strongDevGhostBoard: no diamond-offerable size-1 skill in the catalog');
   return Array.from({ length: HERO_BOARD_SLOTS }, (_, slot): GhostBoardPiece => ({ skillId, tier: 'diamond' as SkillTier, slot, gemId: null }));
 }
 
-/** A single weak bronze-tier card — the hero's board for
- * `buildDevGhostExtraFightLoseFixture`, a guaranteed loss against `strongDevGhostBoard`. */
 function weakDevHeroBoard(): RunBoardPiece[] {
   const skillId = Object.values(skillBook).find((s) => s.size === 1 && cardOfferableAtTier(s, 'bronze'))?.id;
   if (skillId === undefined) throw new Error('weakDevHeroBoard: no bronze-offerable size-1 skill in the catalog');
@@ -648,11 +643,8 @@ export function buildDevGhostBattleFixture(seed = 1103): RunState {
   };
 }
 
-/** `?devGhostExtra=1` — an ACCEPTED extra fight the hero wins (overwhelming
- * diamond board), with `heroLevel`/`heroAllocation` brought inside
- * `maxHeroLevelForFightNumber`'s save cap for this boss's `fightNumber` —
- * `buildDevBossFixture`'s own `heroLevel: 30` is over that cap, which made the
- * post-win SAVE prompt fail `level-too-high`. Mirrors `buildDevGhostSaveOkFixture`. */
+/** `?devGhostExtra=1` — an ACCEPTED extra fight the hero wins; `heroLevel`/
+ * `heroAllocation` stay inside `maxHeroLevelForFightNumber`'s save cap. */
 export function buildDevGhostExtraFightFixture(seed = 1103): RunState {
   const boss = buildDevBossFixture(seed);
   const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;
@@ -668,11 +660,7 @@ export function buildDevGhostSaveOkFixture(seed = 1103): RunState {
   return { ...buildDevBossFixture(seed), heroLevel: 5, heroAllocation: { maxHp: 12 } };
 }
 
-/** `?devGhostExtraLose=1` — an ACCEPTED extra fight the hero deterministically
- * LOSES: a single weak bronze card against an opposing saved build with every
- * board slot filled diamond-tier. No SAVE prompt follows a loss
- * (`recordExtraGhostFightResult` only offers one on `won`); the run's own
- * starting `LIVES_PER_RUN` keeps the run alive past the life lost here. */
+/** `?devGhostExtraLose=1` — an ACCEPTED extra fight the hero deterministically LOSES. */
 export function buildDevGhostExtraFightLoseFixture(seed = 1103): RunState {
   const boss = buildDevBossFixture(seed);
   const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;

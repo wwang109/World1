@@ -11,7 +11,10 @@ import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { castableGap, extraCooldownPieces } from '../../run/extraCooldown';
 import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
-import { nextSkillTier } from '../../run/shop';
+import { mergeableDuplicatesFor, pointsOf, previewCardMerge, type OwnedDuplicate, type TierProgress } from '../../run/shop';
+import { tierProgressAccessory, tierProgressMergeLine } from '../ui/tierProgressDisplay';
+import { tierUpgradePreview } from '../ui/tierUpgradePreview';
+import { renderTierUpgradeDetailOverlay } from '../ui/tierUpgradeDetailOverlay';
 import { castableGapWarningLines, extraCooldownWarningEntries, type ExtraCooldownWarningEntry } from '../../engine/keywords/compose';
 import { gemBook } from '../../data/gems';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
@@ -76,6 +79,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    *  the SAME skill at the SAME tier (see `canStackMerge`). Survives the
    *  rebuild idiom exactly like `pendingTrash` (it IS a pending dialog). */
   private pendingMerge: { target: MergeSource; dragged: MergeSource } | null = null;
+  private pendingMergeChoice: { target: MergeSource; options: OwnedDuplicate[] } | null = null;
+  private mergePreviewOpen = false;
   /** Deck piece instanceId whose gem-socket panel is open (survives restart). */
   private readonly detailActivation = new CardDetailActivation();
   private inspectCard: Source | null = null;
@@ -170,6 +175,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.wireDrag();
     if (this.pendingTrash) this.renderConfirm();
     if (this.pendingMerge) this.renderMergeConfirm();
+    if (this.pendingMergeChoice) this.renderMergeChoice();
+    if (this.pendingMerge && this.mergePreviewOpen) this.renderMergePreview();
     if (this.socketFor) this.renderSocketPanel();
     if (this.inspectCard) this.renderCardDetails();
     if (this.retireConfirmOpen) {
@@ -233,7 +240,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       // this — the flag is cleared in the same synchronous handler, before
       // the rebuild. This structural guard is what actually protects it.
       if (wasPointerConsumedByRebuild(this, p)) return;
-      if (this.pendingTrash || this.pendingMerge || this.socketFor || this.inspectCard || this.statPanelOpen || this.retireConfirmOpen) return; // dialog/panel owns input
+      if (this.pendingTrash || this.pendingMerge || this.pendingMergeChoice || this.socketFor || this.inspectCard || this.statPanelOpen || this.retireConfirmOpen) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) { this.detailActivation.reset(); return; }
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
@@ -304,13 +311,22 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const base = skillBook[card.skillId];
     if (!base) { this.inspectCard = null; return; }
     const shown = piece ? resolveDisplaySkill(base, piece) : applyTier(base, card.tier);
+    const mergeTarget: MergeSource | null = src.where === 'deck' || src.where === 'bag' ? src : null;
+    const duplicates = mergeTarget ? mergeableDuplicatesFor(
+      { instanceId: card.instanceId, skillId: card.skillId, tier: card.tier, points: pointsOf(card) },
+      this.pieces, this.bagSlots,
+    ) : [];
     renderCardDetailsDrawer(this, shown, {
       compact: false,
       gem: piece?.gem ? gemBook[piece.gem.id] : null,
       powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
+      progress: { tier: card.tier, points: pointsOf(card) },
       onClose: () => { this.inspectCard = null; this.rerender(); },
       primaryAction: piece ? { label: 'GEM SOCKET', enabled: true, onPress: () => {
         this.inspectCard = null; this.socketFor = piece.instanceId; this.rerender();
+      } } : undefined,
+      secondaryAction: mergeTarget && duplicates.length > 0 ? { label: 'MERGE', enabled: true, onPress: () => {
+        this.inspectCard = null; this.pendingMergeChoice = { target: mergeTarget, options: duplicates }; this.rerender();
       } } : undefined,
     });
   }
@@ -880,20 +896,21 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'DELETE', UI.badSoft, '#ffffff', () => { playSfx('uiClick'); this.removeSource(src); this.pendingTrash = null; this.rerender(); });
   }
 
-  /** "MERGE? 2× <NAME> <TIER> → <NEXT TIER>" — CANCEL returns the dragged card
-   *  home (nothing was mutated on drop, so a re-render alone restores it,
-   *  exactly like `renderConfirm`'s CANCEL); MERGE applies `stackMergePieces`
-   *  through the pieces/bagSlots/gemInventory setters. */
+  private mergeOutcome(pending: { target: MergeSource; dragged: MergeSource }): { from: TierProgress; to: TierProgress } {
+    const from: TierProgress = { tier: pending.target.card.tier, points: pointsOf(pending.target.card) };
+    const fed: TierProgress = { tier: pending.dragged.card.tier, points: pointsOf(pending.dragged.card) };
+    return { from, to: previewCardMerge(from, fed) };
+  }
+
   private renderMergeConfirm(): void {
-    const { target } = this.pendingMerge!;
-    const skill = skillBook[target.card.skillId];
-    const fromTier = target.card.tier;
-    const toTier = nextSkillTier(fromTier);
+    const pending = this.pendingMerge!;
+    const skill = skillBook[pending.target.card.skillId];
+    const { from, to } = this.mergeOutcome(pending);
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
-    const bw = 460; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
+    const bw = 520; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
     this.add.rectangle(bx, by, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
     this.add.text(SCREEN.width / 2, by + 30, 'MERGE?', { fontSize: `${F.name}px`, color: ACCENT_TEXT, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(SCREEN.width / 2, by + 62, `2× ${skill?.name ?? 'card'} ${fromTier.toUpperCase()} → ${(toTier ?? fromTier).toUpperCase()}`, {
+    this.add.text(SCREEN.width / 2, by + 62, `${skill?.name ?? 'card'}: ${tierProgressMergeLine(from, to)}`, {
       fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, align: 'center', wordWrap: { width: bw - 40 },
     }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
@@ -901,8 +918,64 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingMerge = null; this.rerender(); });
-    mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'MERGE', UI.chip, UI.textOnChip, () => { playSfx('uiClick'); this.applyMerge(); });
+    const w = (bw - 80) / 3;
+    mk(bx + 20, w, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingMerge = null; this.mergePreviewOpen = false; this.rerender(); });
+    mk(bx + 40 + w, w, 'PREVIEW', UI.panelMuted, UI.text, () => { playSfx('uiClick'); this.mergePreviewOpen = true; this.rerender(); });
+    mk(bx + 60 + w * 2, w, 'MERGE', UI.chip, UI.textOnChip, () => { playSfx('uiClick'); this.mergePreviewOpen = false; this.applyMerge(); });
+  }
+
+  private renderMergePreview(): void {
+    const pending = this.pendingMerge!;
+    const { from, to } = this.mergeOutcome(pending);
+    const preview = tierUpgradePreview(pending.target.card.skillId, from.tier, to.tier);
+    if (!preview.available) { this.mergePreviewOpen = false; return; }
+    renderTierUpgradeDetailOverlay(this, preview, {
+      font: F,
+      mode: 'composition',
+      actionWord: 'MERGE',
+      progressLine: tierProgressMergeLine(from, to),
+      onClose: () => { this.mergePreviewOpen = false; this.rerender(); },
+    });
+  }
+
+  private renderMergeChoice(): void {
+    const { target, options } = this.pendingMergeChoice!;
+    const skill = skillBook[target.card.skillId];
+    const from: TierProgress = { tier: target.card.tier, points: pointsOf(target.card) };
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
+    const rowH = 52;
+    const bw = 520; const bh = 110 + options.length * (rowH + 8) + 60;
+    const bx = SCREEN.width / 2 - bw / 2; const by = Math.max(20, SCREEN.height / 2 - bh / 2);
+    this.add.rectangle(bx, by, bw, bh, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    this.add.text(SCREEN.width / 2, by + 30, 'MERGE WHICH COPY?', { fontSize: `${F.name}px`, color: ACCENT_TEXT, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(SCREEN.width / 2, by + 62, `Into ${skill?.name ?? 'card'}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5);
+    options.forEach((o, i) => {
+      const ry = by + 90 + i * (rowH + 8);
+      const to = previewCardMerge(from, { tier: o.tier, points: o.points });
+      const r = this.add.rectangle(bx + 20, ry, bw - 40, rowH, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      r.on('pointerdown', () => {
+        playSfx('uiClick');
+        const dragged = this.mergeSourceOf(o);
+        this.pendingMergeChoice = null;
+        if (dragged) this.pendingMerge = { target, dragged };
+        this.rerender();
+      });
+      this.add.text(bx + 36, ry + rowH / 2, `${o.location === 'board' ? 'DECK' : 'BAG'} · ${o.tier.toUpperCase()}`, { fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
+      this.add.text(bx + bw - 36, ry + rowH / 2, tierProgressMergeLine(from, to), { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(1, 0.5);
+    });
+    const cy = by + bh - 52;
+    const c = this.add.rectangle(bx + bw / 2 - 90, cy, 180, 40, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    c.on('pointerdown', () => { playSfx('uiBack'); this.pendingMergeChoice = null; this.rerender(); });
+    this.add.text(bx + bw / 2, cy + 20, 'CANCEL', { fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+  }
+
+  private mergeSourceOf(o: OwnedDuplicate): MergeSource | null {
+    if (o.location === 'board') {
+      const piece = this.pieces.find((p) => p.instanceId === o.instanceId);
+      return piece ? { where: 'deck', instanceId: piece.instanceId, card: piece } : null;
+    }
+    const card = this.bagSlots[o.index];
+    return card && card.instanceId === o.instanceId ? { where: 'bag', index: o.index, card } : null;
   }
 
   /** The live gem (if any) currently socketed on a merge participant — only a

@@ -354,12 +354,12 @@
           "def": {
             "title": "The Regrinding Wheel",
             "theme": "forge",
-            "body": "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
+            "body": "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Two gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
             "choices": [
               {
                 "id": "regrind",
-                "label": "Pay 5 gold to regrind your gear",
-                "cost": 5,
+                "label": "Pay 2 gold to regrind your gear",
+                "cost": 2,
                 "outcome": {
                   "kind": "awardCardPoint"
                 }
@@ -1172,12 +1172,11 @@
           "def": {
             "title": "The Smith's Last Commission",
             "theme": "forge",
-            "body": "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
+            "body": "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"No charge,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
             "choices": [
               {
                 "id": "commission",
-                "label": "Pay 6 gold for one last commission",
-                "cost": 6,
+                "label": "Take her last commission",
                 "outcome": {
                   "kind": "awardCardPoint"
                 }
@@ -4569,7 +4568,7 @@
                   {
                     "id": "buy_gold_upgrade",
                     "label": "Commission an advance",
-                    "cost": 8,
+                    "cost": 3,
                     "outcome": {
                       "kind": "awardCardPoint"
                     }

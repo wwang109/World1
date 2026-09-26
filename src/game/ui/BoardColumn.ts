@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { UI } from '../theme';
-import { CardToken } from './CardToken';
+import { CardToken, type TokenAccessory } from './CardToken';
 import type { ScalingStats, SkillFaceMode } from './skillPresentation';
 
 /** A card placed at a starting slot; a size-N card occupies N slots. */
@@ -25,6 +25,10 @@ export interface ColumnPiece {
    * (prep/shop/deck build/draft/wiki have no caster to check a gate against),
    * exactly like `comboLive`/`slotMods` above. */
   affinityOpen?: boolean;
+  /** Accessory-rail badges (gem socket, tier-progress pips, …) — see
+   * `CardTokenOptions.accessories`. Omitted by every caller with nothing to
+   * show there. */
+  accessories?: TokenAccessory[];
 }
 
 export interface BoardColumnOptions {
@@ -91,6 +95,7 @@ export class BoardColumn {
           comboLive: piece.comboLive,
           slotMods: piece.slotMods,
           affinityOpen: piece.affinityOpen,
+          accessories: piece.accessories,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;

@@ -73,7 +73,7 @@
               "pool": {
                 "draw": 1,
                 "entries": [
-                  { "id": "buy_gold_upgrade", "label": "Commission an advance", "cost": 8, "outcome": { "kind": "awardCardPoint" } },
+                  { "id": "buy_gold_upgrade", "label": "Commission an advance", "cost": 3, "outcome": { "kind": "awardCardPoint" } },
                   { "id": "buy_premium_gem", "label": "Choose a premium gem", "cost": 6, "outcome": { "kind": "gemChoice", "filter": [{ "all": true }] } }
                 ]
               }

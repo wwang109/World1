@@ -33,7 +33,7 @@ import { battleStatsFromEvents } from '../run/logAnalysis';
 import { mapIntelRecords } from '../run/eventMapInfo';
 import { biomeFor } from '../run/biome';
 import { battleFactFromLog } from '../run/eventV3Facts';
-import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
+import { battleGoldReward, listOwnedDuplicates, pointsOf, type BattleFoeSummary, type OwnedDuplicate, type TierProgress } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
 import { noteRunEnded, noteRunStarted } from './metaStore';
 import {
@@ -63,6 +63,9 @@ import {
   leaveEvent,
   leaveShop,
   mergeRunCard,
+  mergeSlotAvailable as runMergeSlotAvailable,
+  mergeSlotPriceForNode as runMergeSlotPriceForNode,
+  buyMergeSlotPoint as runBuyMergeSlotPoint,
   recordBattleResult,
   rerollCostForNode,
   rerollRunShop,
@@ -691,18 +694,73 @@ export function buyCurrentShopCard(index: number): ShopBuyResult {
 export type ShopMergeResult = { ok: true } | { ok: false; reason: 'gold' | 'no-target' | 'gone' };
 
 /** Merge target preview for a shop card offer's `skillId` at `tier` — null if
- * the player owns no mergeable (non-diamond) instance of it. The BUY confirm
- * dialog calls this to decide whether to surface the MERGE choice. */
-export function currentShopMergeTarget(skillId: string, tier: SkillTier): MergeTarget | null {
-  return activeRun ? runMergeTargetFor(activeRun, skillId, tier) : null;
+ * the player owns no mergeable (non-diamond) instance of it, or none matching
+ * `targetInstanceId` when given. The BUY confirm dialog calls this to decide
+ * whether to surface the MERGE choice, and to preview a player-chosen copy. */
+export function currentShopMergeTarget(skillId: string, tier: SkillTier, targetInstanceId?: string): MergeTarget | null {
+  return activeRun ? runMergeTargetFor(activeRun, skillId, tier, targetInstanceId) : null;
+}
+
+/** Every owned copy of `skillId` (board + bag) the player could feed a shop
+ * offer into — for the MERGE copy chooser. Empty when the player owns none,
+ * or only one (the buy-confirm skips the chooser in that case). */
+export function currentShopMergeableDuplicates(skillId: string): OwnedDuplicate[] {
+  if (!activeRun) return [];
+  return listOwnedDuplicates(skillId, activeRun.pieces, activeRun.bagSlots);
 }
 
 /** MERGE: buys the card offer at `index` on the current shop node's shelf,
- * feeding it into an owned instance instead of adding a copy. */
-export function mergeCurrentShopCard(index: number): ShopMergeResult {
+ * feeding it into an owned instance instead of adding a copy. `targetInstanceId`
+ * picks which owned copy receives it; omitted falls back to the default
+ * (lowest owned tier first, board before bag). */
+export function mergeCurrentShopCard(index: number, targetInstanceId?: string): ShopMergeResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
-  const result = mergeRunCard(activeRun, node.id, index);
+  const result = mergeRunCard(activeRun, node.id, index, targetInstanceId);
+  if (result.ok) { setActiveRun(result.state); return { ok: true }; }
+  return { ok: false, reason: result.reason };
+}
+
+// ---------------------------------------------------------------------------
+// Shop merge slot — "+1 point" per shop visit, feeding an owned non-Diamond
+// card's counter without buying a new copy.
+// ---------------------------------------------------------------------------
+
+export type ShopMergeSlotResult = { ok: true } | { ok: false; reason: 'gold' | 'used' | 'target' | 'gone' };
+
+/** Gold price of this shop visit's merge-slot point, for the current node. */
+export function currentShopMergeSlotPrice(): number {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return 0;
+  return runMergeSlotPriceForNode(activeRun, node.id);
+}
+
+/** Whether the merge slot is still open on this shop visit (not yet used,
+ * and the player owns at least one non-Diamond card to feed it into). */
+export function currentShopMergeSlotAvailable(): boolean {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return false;
+  return runMergeSlotAvailable(activeRun, node.id);
+}
+
+/** Every owned non-Diamond card (board + bag) the merge slot can target. */
+export function currentShopMergeSlotTargets(): OwnedDuplicate[] {
+  if (!activeRun) return [];
+  const result: OwnedDuplicate[] = [];
+  activeRun.pieces.forEach((p, index) => {
+    if (p.tier !== 'diamond') result.push({ location: 'board', index, instanceId: p.instanceId, tier: p.tier, points: pointsOf(p) });
+  });
+  activeRun.bagSlots.forEach((c, index) => {
+    if (c && c.tier !== 'diamond') result.push({ location: 'bag', index, instanceId: c.instanceId, tier: c.tier, points: pointsOf(c) });
+  });
+  return result;
+}
+
+/** Spends the shop visit's merge slot, feeding +1 point into `targetInstanceId`. */
+export function buyCurrentShopMergeSlotPoint(targetInstanceId: string): ShopMergeSlotResult {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
+  const result = runBuyMergeSlotPoint(activeRun, node.id, targetInstanceId);
   if (result.ok) { setActiveRun(result.state); return { ok: true }; }
   return { ok: false, reason: result.reason };
 }

@@ -2153,7 +2153,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Identity: `cinderworks_regrind@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Regrinding Wheel"
-- Presentation body: "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink."
+- Presentation body: "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Two gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink."
 - Discovery: none
 
 - Story: legacy compatibility definition (no schema-v3 story role).
@@ -2164,8 +2164,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `regrind`
 
-- Presentation label: "Pay 5 gold to regrind your gear"
-- Cost: `5` gold
+- Presentation label: "Pay 2 gold to regrind your gear"
+- Cost: `2` gold
 - Typed outcome:
 
 ```json
@@ -4241,7 +4241,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 #### Pool choice 1: `buy_gold_upgrade`
 
 - Presentation label: "Commission an advance"
-- Cost: `8` gold
+- Cost: `3` gold
 - Typed outcome:
 
 ```json
@@ -7844,7 +7844,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Identity: `retiring_smith@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Smith's Last Commission"
-- Presentation body: "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you."
+- Presentation body: "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"No charge,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you."
 - Discovery: none
 
 - Story: legacy compatibility definition (no schema-v3 story role).
@@ -7855,8 +7855,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `commission`
 
-- Presentation label: "Pay 6 gold for one last commission"
-- Cost: `6` gold
+- Presentation label: "Take her last commission"
+- Cost: `0` gold
 - Typed outcome:
 
 ```json

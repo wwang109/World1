@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { roundRect } from './roundedRect';
 import { TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
+import type { TierProgress } from '../../run/shop';
 import { FONT, SCREEN, UI, textRoleFor, type TextRole } from '../theme';
 import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
 import { cardDetailsLayout, type CardDetailsPresentation, type DetailsRect } from './cardDetailsLayout';
@@ -22,12 +23,17 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
   presentation?: CardDetailsPresentation;
   primaryAction?: CardDetailsAction;
   secondaryAction?: CardDetailsAction;
+  /** Merge progress toward this card's next tier — shown only while `shown`
+   * is at the card's OWN current tier (a previewed other tier has no progress
+   * of its own). `null`/omitted draws nothing (Diamond, or an unowned face). */
+  progress?: TierProgress;
 }): void {
   const view = opts.view ?? { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height };
   const presentation = opts.presentation ?? 'default';
   const { pane, card, identity, info, preview, rankButtons, footer } = cardDetailsLayout(view, opts.compact, presentation);
   let shown = skill;
-  let content = buildCardDetailsContent(shown, { gem: opts.gem });
+  const progressFor = (tier: SkillTier): TierProgress | undefined => (tier === skill.tier ? opts.progress : undefined);
+  let content = buildCardDetailsContent(shown, { gem: opts.gem, progress: progressFor(shown.tier) });
   const depth = 2400;
   const text = (x: number, y: number, value: string, role: TextRole, color = UI.textBright, display = false, width?: number) => scene.add.text(x, y, value, {
     ...textRoleFor(opts.compact ? 'mobile' : 'desktop', role),
@@ -53,7 +59,7 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
   };
   button({ x: pane.x + pane.width - 54, y: pane.y + 10, width: 44, height: 40 }, '×', opts.onClose);
   const makeCard = () => new FantasyCardTemplateV2(scene, card.x + card.width / 2, card.y + card.height / 2, { ...shown, speedWeight: content.weight },
-    { width: card.width, height: card.height, tier: shown.tier, glossary: false }).setDepth(depth + 2);
+    { width: card.width, height: card.height, tier: shown.tier, glossary: false, progress: progressFor(shown.tier) }).setDepth(depth + 2);
   let cardView = makeCard();
   panel.once('destroy', () => cardView.destroy());
 
@@ -134,6 +140,7 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
     }
     add(shown.name, 'title', UI.textBright, true);
     add(content.roles.join(' · '), 'body', UI.textSoft, true);
+    if (content.progressLine) add(content.progressLine, 'body', UI.textAccent, true);
     const stats = [['TYPE', (shown.weapon ?? shown.element ?? shown.property).toUpperCase()], ['WEIGHT', String(content.weight)], ['SIZE', String(shown.size)]];
     const statY = y();
     const statWidth = Math.min(width, 360);
@@ -171,7 +178,7 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
   const select = (tier: SkillTier) => {
     if (tier === shown.tier) return;
     shown = resolveCardDetailsPreview(skill, tier, opts.gem);
-    content = buildCardDetailsContent(shown, { gem: opts.gem });
+    content = buildCardDetailsContent(shown, { gem: opts.gem, progress: progressFor(shown.tier) });
     cardView.destroy(); cardView = makeCard();
     redrawInfo(); refreshTabs();
   };
