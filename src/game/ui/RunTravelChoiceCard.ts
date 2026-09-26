@@ -1,6 +1,5 @@
 import type Phaser from 'phaser';
-import { playSfx } from '../audio/sfxSynth';
-import { textRoleFor, TEXT_ROLE_SPEC, UI, type InkRole, type TextRole } from '../theme';
+import { INK, textRoleFor, TEXT_ROLE_SPEC, UI, type InkRole, type TextRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
 import { addRunArt } from './runArt';
@@ -102,7 +101,9 @@ export function runTravelChoiceCardLayout(
   cursor = header.y + header.height + headerGap;
   const detail = block(copy.detail, detailRole);
   if (compact && art) cursor = Math.max(cursor, art.y + art.height + gap);
-  const footer = model.footer ? block(model.footer, 'micro', bounds.x + pad, innerW) : undefined;
+  const footer = model.footer
+    ? block(model.footer, 'micro', bounds.x + pad, innerW, model.footerSegments?.length ?? 1)
+    : undefined;
   let requirements: RunTravelChoiceCardLayout['requirements'];
   if (copy.requirementLines.length > 0) {
     cursor += gap;
@@ -231,10 +232,39 @@ export function renderRunTravelChoiceCard(
     parts.push(text);
     return text;
   };
+  // A footer segment's identity colour rides a small SWATCH, never the text
+  // itself — several of `theme.ts`'s fill palettes fail WCAG AA as a text
+  // foreground on this card either way up (see `rewardChipTextColor`'s doc
+  // comment, `runTravelChoiceViewModel.ts`); the label stays in an audited ink.
+  const addFooterSegment = (rect: Rect, segment: NonNullable<RunTravelChoiceViewModel['footerSegments']>[number]): void => {
+    const swatchSize = Math.round(rect.height * 0.42);
+    const swatchGap = 5;
+    let textX = rect.x;
+    if (segment.swatchColor !== undefined) {
+      const swatchY = rect.y + (rect.height - swatchSize) / 2;
+      const swatch = scene.add.rectangle(rect.x, swatchY, swatchSize, swatchSize, segment.swatchColor, model.enabled ? 1 : 0.4).setOrigin(0, 0);
+      parts.push(swatch);
+      textX = rect.x + swatchSize + swatchGap;
+    }
+    const text = scene.add.text(textX, rect.y, segment.text, {
+      ...textRoleFor(profile, 'micro'),
+      color: model.enabled ? segment.textColor : INK.disabled,
+      wordWrap: { width: Math.max(1, rect.x + rect.width - textX) },
+    });
+    auditTextBlock(text, { name: `${model.nodeId} travel footer segment: ${segment.text}`, maxWidth: Math.max(1, rect.x + rect.width - textX), maxHeight: rect.height, minFontSize: 9 });
+    parts.push(text);
+  };
   addText(layout.eyebrow, copy.eyebrow, 'kicker', colors.ink);
   addText(layout.title, copy.title, opts.compact ? 'statValue' : 'section', 'primary');
   addText(layout.detail, copy.detail, opts.compact ? 'micro' : 'body', 'secondary');
-  if (layout.footer && model.footer) addText(layout.footer, model.footer, 'micro', model.footerInk ?? 'accent');
+  if (layout.footer && model.footerSegments && model.footerSegments.length > 0) {
+    const lineH = layout.footer.height / model.footerSegments.length;
+    model.footerSegments.forEach((segment, index) => {
+      addFooterSegment({ x: layout.footer!.x, y: layout.footer!.y + index * lineH, width: layout.footer!.width, height: lineH }, segment);
+    });
+  } else if (layout.footer && model.footer) {
+    addText(layout.footer, model.footer, 'micro', model.footerInk ?? 'accent');
+  }
   if (layout.requirements) {
     addText(layout.requirements.heading, copy.requirementHeading, 'kicker', 'gain');
     layout.requirements.lines.forEach((rect, index) => addText(rect, copy.requirementLines[index]!, 'micro', 'secondary'));
@@ -256,7 +286,7 @@ export function renderRunTravelChoiceCard(
   action.setInteractive({ useHandCursor: true });
   attachButtonFeel(scene, action, {
     fill: actionFill, hover: UI.chipDark, alpha, lift: 0, follow: [label],
-    onPress: () => { playSfx('uiClick'); flashConfirm(scene, plate); opts.onSelect(); },
+    onPress: () => { flashConfirm(scene, plate); opts.onSelect(); },
   });
 }
 
@@ -312,7 +342,7 @@ function renderEncounterDossier(
       };
     }
     attachButtonFeel(scene, box, { fill: UI.panelMuted, hover: UI.chipDark, follow: [label], lift: 0,
-      onPress: () => { playSfx('uiClick'); onPress(); } });
+      onPress });
   };
   if (layout.dossier!.toggle) button(layout.dossier!.toggle!, opts.fitHeight ? 'DETAILS ›' : opts.expanded ? 'HIDE DETAILS −' : 'ENCOUNTER DETAILS +', () => opts.onToggle?.());
   button(layout.action, copy.action, opts.onSelect);

@@ -25,12 +25,18 @@ scripts/      fight.ts (ASCII log), balance.ts (sim harness),
               `skill_id[@tier][#gem_id]` board-spec parser, shared by
               fight.ts and enemyOutput.ts), run-hud-audit.ts (Run HUD
               template audit), check-boundaries.mjs, encode-card-art.ts
-              (art-src -> public/game-art WebP).
+              (art-src -> public/game-art WebP), encode-audio.ts
+              (audio-src -> public/game-audio Ogg).
 tests/        vitest suites (engine invariants, audits, run logic, UI specs).
 public/       SERVED VERBATIM by `vite build`. WebP derivatives + the small
-              template/badge PNG chrome. Nothing master-sized belongs here.
+              template/badge PNG chrome, plus the one audio exception:
+              public/game-audio/*.ogg from `npm run audio:encode`.
+              Nothing master-sized belongs here.
 art-src/      NOT served. The PNG art masters (cards/, placeholders/) that
               `npm run art:encode` reads. Tracked in git, never deleted.
+audio-src/    NOT served. Per-SfxKey audio masters + CREDITS.md that
+              `npm run audio:encode` reads (downloaded packs sit in the
+              gitignored audio-src/_packs/). See docs/audio-design.md.
 ```
 
 **`public/` is the deploy.** Vite copies it byte-for-byte into `dist`, so

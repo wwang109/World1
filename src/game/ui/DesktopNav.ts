@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { playSfx } from '../audio/sfxSynth';
 import { FONT, SCREEN, UI } from '../theme';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -44,7 +43,8 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
     fill: UI.panelAlt,
     hover: UI.slotHover,
     follow: [menuLabel],
-    onPress: () => { playSfx('uiBack'); scene.scene.start('Start'); },
+    sfx: 'uiBack',
+    onPress: () => { scene.scene.start('Start'); },
   });
 
   const tabs: Array<[string, DesktopPage]> = [
@@ -67,7 +67,6 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
         hover: UI.slotHover,
         follow: [tabLabel],
         onPress: () => {
-          playSfx('uiClick');
           if (page === 'deck') setDeckBuildContext('demo');
           const target = page === 'prep' ? 'DesktopPrep'
             : page === 'deck' ? 'DesktopDeck'

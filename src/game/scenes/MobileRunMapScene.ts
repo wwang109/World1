@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
+import { setBattleContext } from '../battleContext';
 import { RunDestinationHost } from '../ui/RunDestinationHost';
 import { SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
@@ -17,12 +19,18 @@ import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderEmbeddedRunLedger, renderRunStatsGrid, runStatsGridHeight, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
+  acceptExtraGhostFightOffer,
+  activeChallengeFight,
   choices,
+  chooseRunBiome,
   clearRun,
   currentMapIntel,
   currentEncounter,
   currentNode,
+  declineExtraGhostFightOffer,
+  extraGhostFightOffer,
   getActiveRun,
+  pendingBiomePick,
   pickNode,
   previewEncounter,
   previewRunEvent,
@@ -30,6 +38,8 @@ import {
   type RunNode,
 } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
+import { renderRunBiomePickPanel } from '../ui/RunBiomePickPanel';
+import { renderRunGhostFightOfferPanel } from '../ui/RunGhostFightOfferPanel';
 
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
@@ -104,6 +114,12 @@ export class MobileRunMapScene extends Phaser.Scene {
       this.scene.start('MobileDraft');
       return;
     }
+    // Resume-safety: a save loaded mid-`challengeFight` restarts that battle.
+    if (activeChallengeFight()) {
+      setBattleContext('run');
+      this.scene.start('MobileBattle');
+      return;
+    }
     if (run.status === 'defeat' || run.status === 'retired') {
       // Overlay panel over the map, not a full-page takeover (2026-09-21).
       this.renderHud(run, false);
@@ -147,7 +163,7 @@ export class MobileRunMapScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: true,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.rerender(); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.rerender(); },
       });
     }
     if (this.mapIntelOpen) {
@@ -204,28 +220,34 @@ export class MobileRunMapScene extends Phaser.Scene {
     const content = { ...TEMPLATE.regions.content, height: this.H - TEMPLATE.regions.content.y - 10 };
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
+    const regionPending = pendingBiomePick() !== null;
+    const artKey = regionPending ? RUN_ART_KEYS.runMap : band.artKey;
+    const name = regionPending ? 'CHOOSE YOUR REGION' : band.name;
     // Compact region identity opens the same complete forecast as desktop.
     const regionH = 88;
     this.add.rectangle(content.x, content.y, content.width, regionH, UI.panel, 0.96).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.7);
-    addRunArt(this, band.artKey, { x: content.x + 4, y: content.y + 4, width: 80, height: 80 });
+    addRunArt(this, artKey, { x: content.x + 4, y: content.y + 4, width: 80, height: 80 });
     const textX = content.x + 104;
     const textW = content.width - 112;
-    const name = this.add.text(textX, content.y + 6, band.name, textRole('section'));
-    auditTextBlock(name, { name: 'Mobile current region name', maxWidth: textW, maxHeight: 20, minFontSize: 9 });
-    const facts = this.add.text(textX, content.y + 27, `${band.leanChip} · ${band.waveRange}`, textRole('micro', { ink: 'secondary' }));
+    const nameText = this.add.text(textX, content.y + 6, name, textRole('section'));
+    auditTextBlock(nameText, { name: 'Mobile current region name', maxWidth: textW, maxHeight: 20, minFontSize: 9 });
+    const factsLine = regionPending ? band.waveRange : `${band.leanChip} · ${band.waveRange}`;
+    const facts = this.add.text(textX, content.y + 27, factsLine, textRole('micro', { ink: 'secondary' }));
     auditTextBlock(facts, { name: 'Mobile current region day range', maxWidth: textW, maxHeight: 14, minFontSize: 9 });
-    const opener = this.add.rectangle(textX, content.y + 44, textW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
-      .setStrokeStyle(1, UI.border, 0.8);
-    const openerLabel = this.add.text(textX + textW / 2, content.y + 64,
-      this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
-    auditControlLabel(opener, openerLabel, { name: 'Mobile explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
-    if (!this.bandReadOpen) {
-      opener.setInteractive({ useHandCursor: true });
-      attachButtonFeel(this, opener, {
-        fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
-        onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
-      });
+    if (!regionPending) {
+      const opener = this.add.rectangle(textX, content.y + 44, textW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
+        .setStrokeStyle(1, UI.border, 0.8);
+      const openerLabel = this.add.text(textX + textW / 2, content.y + 64,
+        this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+      auditControlLabel(opener, openerLabel, { name: 'Mobile explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+      if (!this.bandReadOpen) {
+        opener.setInteractive({ useHandCursor: true });
+        attachButtonFeel(this, opener, {
+          fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
+          onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
+        });
+      }
     }
 
     const plannerTop = content.y + regionH + 8;
@@ -235,7 +257,7 @@ export class MobileRunMapScene extends Phaser.Scene {
     const intel = currentMapIntel();
     const routeWidth = content.width - (intel.length > 0 ? 124 : 0);
     renderRunRouteBoard(this, { x: content.x, y: routeTop, w: routeWidth, h: routeH }, snapshotRunRoute(run), {
-      mode: 'mobile', regionName: band.name,
+      mode: 'mobile', regionName: regionPending ? undefined : band.name,
     });
     if (intel.length > 0) {
       const buttonW = 112;
@@ -274,18 +296,36 @@ export class MobileRunMapScene extends Phaser.Scene {
   }
 
   private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {
+    const ghostOffer = this.ledgerOpen || this.bandReadOpen ? null : extraGhostFightOffer();
+    const biomePick = this.ledgerOpen || this.bandReadOpen || ghostOffer ? null : pendingBiomePick();
     const pending = currentNode();
     const options = this.destination.choices(pending ? [pending] : choices());
     const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
     const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
-    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE' : 'CHOOSE YOUR NEXT STOP';
+    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE'
+      : ghostOffer ? 'EXTRA FIGHT' : biomePick ? 'CHOOSE YOUR REGION' : 'CHOOSE YOUR NEXT STOP';
     const planner = this.add.text(x + 8, top, plannerTitle, textRole('label'));
     auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w - 132, maxHeight: 18, minFontSize: 9 });
-    const status = this.ledgerOpen || this.bandReadOpen ? '' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+    const status = this.ledgerOpen || this.bandReadOpen || ghostOffer ? '' : biomePick ? 'CHOOSE 1 OF 3' : arrival ? '' : pending ? 'STOP IN PROGRESS'
       : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
         : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
     const statusText = this.add.text(x + w - 8, top + 2, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
     auditTextBlock(statusText, { name: 'Mobile route choice count', maxWidth: 116, maxHeight: 16, minFontSize: 9 });
+    if (ghostOffer) {
+      renderRunGhostFightOfferPanel(this, { x, y: top + 20, width: w, height: availableH - 20 }, ghostOffer, {
+        compact: true,
+        onFace: () => { acceptExtraGhostFightOffer(); setBattleContext('run'); this.scene.start('MobileBattle'); },
+        onDecline: () => { declineExtraGhostFightOffer(); this.rerender(); },
+      });
+      return;
+    }
+    if (biomePick) {
+      renderRunBiomePickPanel(this, { x, y: top + 20, width: w, height: availableH - 20 }, biomePick, {
+        compact: true,
+        onChoose: (biomeId) => { chooseRunBiome(biomeId); this.rerender(); },
+      });
+      return;
+    }
     if (this.ledgerOpen) {
       renderEmbeddedRunLedger(this, { x, y: top + 20, width: w, height: availableH - 20 }, getActiveRun()!, {
         compact: true, onBack: () => { this.ledgerOpen = false; this.rerender(); },

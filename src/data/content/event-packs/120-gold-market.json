@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "brokers_scale",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Broker's Scale",
+            "body": "A broker has set her scale up at the crossroads, weighing coin against whatever the road has worn thin — a limb still healing, an edge gone dull. She never carries the same goods twice, but she is never far from the road either, and her prices climb a little with every trade she strikes.",
+            "theme": "market",
+            "rarity": "common",
+            "story": { "storyId": "brokers_scale", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 100,
+            "once": "node",
+            "cooldownNodes": 10,
+            "choiceSet": {
+              "fixed": [
+                { "id": "buy_stat_pick", "label": "Buy a stat", "cost": 0, "outcome": { "kind": "buyStatPick" } },
+                { "id": "buy_life", "label": "Buy back a life", "cost": 0, "outcome": { "kind": "buyLife" } },
+                { "id": "leave", "label": "Step away from the scale", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

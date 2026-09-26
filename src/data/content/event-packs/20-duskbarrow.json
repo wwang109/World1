@@ -123,6 +123,93 @@
           }
         }
       ]
+    },
+    {
+      "id": "last_acolyte",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Acolyte",
+            "body": "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": ["duskbarrow"],
+            "story": { "storyId": "last_acolyte", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["duskbarrow"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_siphon_life",
+                  "label": "Take Siphon Life",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "siphon_life", "tier": "bronze" }
+                },
+                {
+                  "id": "take_dark_card",
+                  "label": "Take a Dark card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["dark"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Leave the acolyte to the rot", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grave_wax_seals",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Grave-Wax Seals",
+            "body": "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": ["duskbarrow"],
+            "story": { "storyId": "grave_wax_seals", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "biome.current", "args": { "ids": ["duskbarrow"] } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["dark"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_grave_seals",
+                  "label": "Break the grave-wax seals",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["hex_of_frailty_echo", "blunting_sliver", "slow_hex_echo"] }] }
+                },
+                {
+                  "id": "anoint_dark_card",
+                  "label": "Anoint a Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["dark"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "leave", "label": "Leave the seals unbroken", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

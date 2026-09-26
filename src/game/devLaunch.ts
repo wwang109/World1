@@ -1,19 +1,23 @@
 import { enemies } from '../data/enemies';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { skillBook } from '../data/skills';
-import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
+import { cardOfferableAtTier, clampTierToCard, type SkillTier } from '../engine/types';
 import { defaultTitleFor, ELITE_AFFIX_IDS, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { DRAFT_SET_KEYS } from '../run/draft';
 import { resolveEventChoice, rollEventForNode } from '../run/events';
-import { applyDraftResult, createRun, currentStartDraft, type RunBagSlot, type RunNode, type RunState } from '../run/runState';
+import { resolveEventChoiceV3 } from '../run/eventsV3';
+import { applyDraftResult, biomeLedgerOf, createRun, currentStartDraft, LIVES_PER_RUN, type RunBagSlot, type RunBoardPiece, type RunNode, type RunState } from '../run/runState';
+import { BOSS_EVERY, ensureWavesThrough } from '../run/runMap';
 import { recordEventInstance } from '../run/eventInstances';
+import { encodeLoadout } from '../run/shareCode';
+import { ghostBandOf, ghostLoadoutToShareLoadout, type GhostBoardPiece, type GhostRecord } from '../run/ghost';
 import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type OwnedBoardPiece, type PrepView } from './demoState';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
   | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
   | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
-  | 'desktop-runevent' | 'mrunevent' | 'card-design';
+  | 'desktop-runevent' | 'mrunevent' | 'card-design' | 'credits';
 
 export const DEV_EVENT_FIXTURE_IDS = [
   'bell_beneath_ice',
@@ -33,6 +37,26 @@ export const DEV_EVENT_FIXTURE_IDS = [
   // renders LOCKED and the merge confirm this fixture exists to reach is never seen.
   'ember_pit',
   'ruined_anvil',
+  // The catalog's simplest `upgradeCard` door — one choice, no prerequisite
+  // chain — resolved immediately so the fixture lands ON the deferred
+  // `upgradeCardPick` outcome (see `cinderworksRegrindSource` below).
+  'cinderworks_regrind',
+  // The gold market's schema-v3 event (`event-packs/120-gold-market.json`) —
+  // `brokers_scale` fresh (no purchases yet) and after 2 purchases + full
+  // lives (the price ladder having climbed and the life buy locked out).
+  'brokers_scale',
+  'brokers_scale_after_buys',
+  // The gold market's `buyStatPick` picker itself — already open (its choice
+  // costs no gold to open), one with plenty of gold to show all three rows
+  // affordable, one with none to show the LOCKED-row dim treatment.
+  'brokers_scale_stat_pick',
+  'brokers_scale_stat_pick_low_gold',
+  'brokers_scale_stat_pick_after_buy',
+  // The challenge pack's off-column battles (`event-packs/06-challenges.json`,
+  // `src/run/challengeFight.ts`) — `bandit_toll` fresh for the choice row's
+  // BATTLE hint, `champions_duel` as the catalog's easiest reliable LOSS.
+  'bandit_toll',
+  'champions_duel',
 ] as const;
 export type DevEventFixtureId = (typeof DEV_EVENT_FIXTURE_IDS)[number];
 
@@ -59,6 +83,16 @@ export interface DevLaunchConfig {
   /** Development-only `?eventFixture=<Bell id>` selector for reproducible
    * run-event screenshot routes. Production builds always resolve this null. */
   eventFixtureId: DevEventFixtureId | null;
+  devBossFixture: boolean;
+  /** `?devMarketPrep=1` — a drafted run with `purchasedStats` already bought
+   * (gold-market/rare-boon stat buys), for screenshotting the PREP screen's
+   * boosted hero stat readout without visiting the market event itself. */
+  devMarketPrepFixture: boolean;
+  devGhostOfferFixture: boolean;
+  devGhostBattleFixture: boolean;
+  devGhostExtraFightFixture: boolean;
+  devGhostExtraFightLoseFixture: boolean;
+  devGhostSaveOkFixture: boolean;
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -104,6 +138,7 @@ function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'desktop-runevent' || value === 'desktop-runevent') return 'desktop-runevent';
   if (view === 'mrunevent' || value === 'mrunevent') return 'mrunevent';
   if (view === 'card-design' || value === 'card-design') return 'card-design';
+  if (view === 'credits' || value === 'credits') return 'credits';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
@@ -177,6 +212,10 @@ function parseGold(value: string | null): number {
 
 function parseDevEventFixture(value: string | null): DevEventFixtureId | null {
   return DEV_EVENT_FIXTURE_IDS.find((id) => id === value) ?? null;
+}
+
+function parseDevBossFixture(value: string | null): boolean {
+  return import.meta.env.DEV && value === '1';
 }
 
 /**
@@ -278,6 +317,13 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     affix,
     gold: parseGold(params.get('gold')),
     eventFixtureId: import.meta.env.DEV ? parseDevEventFixture(params.get('eventFixture')) : null,
+    devBossFixture: parseDevBossFixture(params.get('devBoss')),
+    devMarketPrepFixture: parseDevBossFixture(params.get('devMarketPrep')),
+    devGhostOfferFixture: parseDevBossFixture(params.get('devGhostOffer')),
+    devGhostBattleFixture: parseDevBossFixture(params.get('devGhostBattle')),
+    devGhostExtraFightFixture: parseDevBossFixture(params.get('devGhostExtra')),
+    devGhostExtraFightLoseFixture: parseDevBossFixture(params.get('devGhostExtraLose')),
+    devGhostSaveOkFixture: parseDevBossFixture(params.get('devGhostSaveOk')),
   };
 }
 
@@ -336,6 +382,77 @@ function firstDevEventNode(state: RunState, seed: number): RunNode {
   return eventNode;
 }
 
+/** Parks on a fresh `cinderworks_regrind` node and immediately resolves its
+ * only choice — `upgradeCardOutcome` (`run/events.ts`) defers to the player
+ * whenever the drafted run owns at least one non-diamond card (always true
+ * here, straight off the start draft), landing on `{kind: 'upgradeCardPick'}`
+ * exactly like a real run reaching this door would. */
+function cinderworksRegrindSource(state: RunState, seed: number): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
+    eventId: 'cinderworks_regrind',
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
+}
+
+/** Parks a fresh, unresolved `brokers_scale` node — same forced-instance
+ * technique as every other fixture here (`recordEventInstance` stands in for
+ * the real roll, so the CONTENT is deterministic regardless of `seed`). */
+function brokersScaleSource(state: RunState, seed: number): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
+    eventId: 'brokers_scale',
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
+}
+
+/** Opens the `brokers_scale` market's `buyStatPick` picker itself, at
+ * `gold` — resolving `buy_stat_pick` (a free rung) lands the fixture ON the
+ * open picker rather than the choice list, since that choice's own cost is
+ * always 0 regardless of `gold`. */
+function brokersScaleStatPickSource(state: RunState, seed: number, gold: number, marketPurchases = 0): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  const parked = { ...brokersScaleSource(state, seed), gold, marketPurchases };
+  const rolled = rollEventForNode(parked, eventNode);
+  const resolved = resolveEventChoiceV3(rolled.state, `event:${eventNode.id}`, 'buy_stat_pick');
+  if (!resolved.ok) {
+    throw new Error(`buildDevEventFixture: brokers_scale stat pick failed to open (${resolved.reason})`);
+  }
+  return resolved.state;
+}
+
+/** Parks a fresh, unresolved `bandit_toll` node — its "Fight through" rung is
+ * a `standard`-difficulty `challengeFight` (`event-packs/06-challenges.json`),
+ * for screenshotting the choice row's BATTLE hint and driving the fight it
+ * starts. */
+function banditTollSource(state: RunState, seed: number): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
+    eventId: 'bandit_toll',
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
+}
+
+/** Parks a fresh, unresolved `champions_duel` node — its "Accept the duel"
+ * rung is an `elite`-difficulty `challengeFight` against a fresh wave-1
+ * starter board, the catalog's easiest reliable LOSS among the challenge
+ * pack's fights. */
+function championsDuelSource(state: RunState, seed: number): RunState {
+  const eventNode = firstDevEventNode(state, seed);
+  return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
+    eventId: 'champions_duel',
+    contentVersion: 1,
+    instanceId: `event:${eventNode.id}`,
+    drawnDepth: eventNode.depth,
+  });
+}
+
 function featheredCairnSource(state: RunState, seed: number): RunState {
   const eventNode = firstDevEventNode(state, seed);
   return recordEventInstance(parkDevRunOnEventNode(state, eventNode), eventNode.id, {
@@ -376,7 +493,19 @@ function farSightDue(state: RunState, seed: number): RunState {
 export function buildDevEventFixture(eventId: DevEventFixtureId, seed = 1103): RunState {
   const active = draftedDevRun(seed);
 
+  if (eventId === 'brokers_scale') return brokersScaleSource(active, seed);
+  if (eventId === 'brokers_scale_after_buys') {
+    return { ...brokersScaleSource(active, seed), gold: MAX_GOLD, marketPurchases: 2, lives: LIVES_PER_RUN };
+  }
+  if (eventId === 'brokers_scale_stat_pick') return brokersScaleStatPickSource(active, seed, MAX_GOLD);
+  if (eventId === 'brokers_scale_stat_pick_low_gold') return brokersScaleStatPickSource(active, seed, 0);
+  if (eventId === 'brokers_scale_stat_pick_after_buy') return brokersScaleStatPickSource(active, seed, MAX_GOLD, 1);
+  if (eventId === 'bandit_toll') return banditTollSource(active, seed);
+  if (eventId === 'champions_duel') return championsDuelSource(active, seed);
   if (eventId === 'feathered_cairn') return featheredCairnSource(active, seed);
+  if (eventId === 'cinderworks_regrind') {
+    return resolveEventChoice(cinderworksRegrindSource(active, seed), 'cinderworks_regrind', 'regrind').state;
+  }
   if (eventId === 'far_sight_queued' || eventId === 'map_intel_2') return farSightQueued(active, seed);
 
   if (eventId === 'far_sight_due') return farSightDue(active, seed);
@@ -424,6 +553,141 @@ export function buildDevEventFixture(eventId: DevEventFixtureId, seed = 1103): R
     instanceId: `event:${eventNode.id}`,
     drawnDepth: eventNode.depth,
   });
+}
+
+function overwhelmingDevBoard(): RunBoardPiece[] {
+  const skillId = Object.values(skillBook).find((s) => s.size === 1 && cardOfferableAtTier(s, 'diamond'))?.id;
+  if (skillId === undefined) throw new Error('overwhelmingDevBoard: no diamond-offerable size-1 skill in the catalog');
+  return Array.from({ length: HERO_BOARD_SLOTS }, (_, slot) => ({
+    instanceId: `dev-boss-board-${slot}`, skillId, tier: 'diamond', slot,
+  }));
+}
+
+/** `?devMarketPrep=1` — `buildDevBossFixture`'s already-parked-on-a-fight-node
+ * run, with `purchasedStats` added (the gold-market/rare-boon stat buys), so
+ * the PREP screen's hero stat readout shows the boosted total the same way it
+ * would after real market visits. */
+export function buildDevMarketPrepFixture(seed = 1103): RunState {
+  return { ...buildDevBossFixture(seed), purchasedStats: { attack: 2, armor: 1, maxHp: 1 } };
+}
+
+export function buildDevBossFixture(seed = 1103): RunState {
+  const drafted = draftedDevRun(seed);
+  const map = ensureWavesThrough(drafted.map, BOSS_EVERY, biomeLedgerOf(drafted));
+  const bossNode = map.depths.flat().find((node) => node.kind === 'boss');
+  if (!bossNode) throw new Error(`buildDevBossFixture: seed ${seed} generated no boss node through wave ${BOSS_EVERY}`);
+  return {
+    ...drafted,
+    map,
+    depth: bossNode.depth,
+    currentNodeId: bossNode.id,
+    heroLevel: 30,
+    // 37+20+30 spends all 87 PL a level-30 hero banks — else the PREP screen's unspent-PL confirm blocks FIGHT.
+    heroAllocation: { maxHp: 37, armor: 20, attack: 30 },
+    pieces: overwhelmingDevBoard(),
+    bagSlots: [],
+  };
+}
+
+/** A single-card, level-5 board coded exactly like `ghostCodeOf` would code a
+ * real player's run — the fixture's stand-in for "a saved player build".
+ * `opts` lets a caller substitute a stronger board/level (`buildDevGhostExtraFightLoseFixture`). */
+function devGhostRecord(displayName: string, bossNode: RunNode, opts?: { board?: GhostBoardPiece[]; heroLevel?: number }): GhostRecord {
+  const code = encodeLoadout(ghostLoadoutToShareLoadout({
+    board: opts?.board ?? [{ skillId: 'sworn_edge', tier: 'bronze', slot: 0, gemId: null }],
+    heroLevel: opts?.heroLevel ?? 5,
+    heroAllocation: {},
+  }));
+  return {
+    id: 'dev-ghost', code, displayName,
+    band: ghostBandOf(bossNode.fightNumber!), fightNumber: bossNode.fightNumber!,
+    createdAt: 0, ownerLocalId: 'dev',
+  };
+}
+
+/** Every board slot filled with the catalog's strongest (diamond-tier) size-1
+ * card — the opposing saved build for `buildDevGhostExtraFightLoseFixture`. */
+function strongDevGhostBoard(): GhostBoardPiece[] {
+  const skillId = Object.values(skillBook).find((s) => s.size === 1 && cardOfferableAtTier(s, 'diamond'))?.id;
+  if (skillId === undefined) throw new Error('strongDevGhostBoard: no diamond-offerable size-1 skill in the catalog');
+  return Array.from({ length: HERO_BOARD_SLOTS }, (_, slot): GhostBoardPiece => ({ skillId, tier: 'diamond' as SkillTier, slot, gemId: null }));
+}
+
+/** A single weak bronze-tier card — the hero's board for
+ * `buildDevGhostExtraFightLoseFixture`, a guaranteed loss against `strongDevGhostBoard`. */
+function weakDevHeroBoard(): RunBoardPiece[] {
+  const skillId = Object.values(skillBook).find((s) => s.size === 1 && cardOfferableAtTier(s, 'bronze'))?.id;
+  if (skillId === undefined) throw new Error('weakDevHeroBoard: no bronze-offerable size-1 skill in the catalog');
+  return [{ instanceId: 'dev-weak-hero-board-0', skillId, tier: 'bronze', slot: 0 }];
+}
+
+/** `?devGhostOffer=1` — lands the run just after the boss fight resolves
+ * (node committed, no `currentNodeId`), with the EXTRA FIGHT offer already
+ * pinned so the Run Map's post-win panel shows without a live ghost fetch. */
+export function buildDevGhostOfferFixture(seed = 1103): RunState {
+  const boss = buildDevBossFixture(seed);
+  const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;
+  return {
+    ...boss,
+    currentNodeId: null,
+    bossesCleared: boss.bossesCleared + 1,
+    ghostBossOffer: { nodeId: bossNode.id, ghost: devGhostRecord('DevRival', bossNode) },
+  };
+}
+
+/** `?devGhostBattle=1` — an ACTIVE substitute ghost fight already pinned to
+ * the boss node, for screenshotting the foe board rendering the ghost's own
+ * cards/name instead of the boss's. Pair with `&scene=desktop-battle` (or
+ * `mbattle`) and battle context is forced to `'run'` by the boot flow. */
+export function buildDevGhostBattleFixture(seed = 1103): RunState {
+  const boss = buildDevBossFixture(seed);
+  const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;
+  return {
+    ...boss,
+    activeGhostFight: { nodeId: bossNode.id, ghost: devGhostRecord('DevSubstitute', bossNode), role: 'substitute' },
+  };
+}
+
+/** `?devGhostExtra=1` — an ACCEPTED extra fight the hero wins (overwhelming
+ * diamond board), with `heroLevel`/`heroAllocation` brought inside
+ * `maxHeroLevelForFightNumber`'s save cap for this boss's `fightNumber` —
+ * `buildDevBossFixture`'s own `heroLevel: 30` is over that cap, which made the
+ * post-win SAVE prompt fail `level-too-high`. Mirrors `buildDevGhostSaveOkFixture`. */
+export function buildDevGhostExtraFightFixture(seed = 1103): RunState {
+  const boss = buildDevBossFixture(seed);
+  const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;
+  return {
+    ...boss,
+    heroLevel: 5,
+    heroAllocation: { maxHp: 12 },
+    activeGhostFight: { nodeId: bossNode.id, ghost: devGhostRecord('DevRival', bossNode), role: 'extra' },
+  };
+}
+
+export function buildDevGhostSaveOkFixture(seed = 1103): RunState {
+  return { ...buildDevBossFixture(seed), heroLevel: 5, heroAllocation: { maxHp: 12 } };
+}
+
+/** `?devGhostExtraLose=1` — an ACCEPTED extra fight the hero deterministically
+ * LOSES: a single weak bronze card against an opposing saved build with every
+ * board slot filled diamond-tier. No SAVE prompt follows a loss
+ * (`recordExtraGhostFightResult` only offers one on `won`); the run's own
+ * starting `LIVES_PER_RUN` keeps the run alive past the life lost here. */
+export function buildDevGhostExtraFightLoseFixture(seed = 1103): RunState {
+  const boss = buildDevBossFixture(seed);
+  const bossNode = boss.map.depths.flat().find((node) => node.id === boss.currentNodeId)!;
+  return {
+    ...boss,
+    heroLevel: 1,
+    heroAllocation: {},
+    pieces: weakDevHeroBoard(),
+    bagSlots: [],
+    activeGhostFight: {
+      nodeId: bossNode.id,
+      ghost: devGhostRecord('DevChampion', bossNode, { board: strongDevGhostBoard(), heroLevel: 30 }),
+      role: 'extra',
+    },
+  };
 }
 
 export function applyDevLaunchConfig(search = window.location.search): DevLaunchConfig {

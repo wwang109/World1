@@ -76,6 +76,7 @@ export function renderCtxOf(skill: SkillDef): RenderCtx {
     property: skill.property,
     element: skill.element,
     weapon: skill.weapon,
+    archetypes: skill.archetypes,
     size: skill.size,
     speedWeight: skill.speedWeight,
     cooldownTurns: skill.cooldownTurns,

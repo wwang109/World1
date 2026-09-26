@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "bandit_toll",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bandit's Toll",
+            "body": "A ragged band blocks the road, spears low and grins lower. Their captain names a toll in gold — or, failing that, in blood. Either way, they say, you are paying something before you pass.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": { "storyId": "bandit_toll", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "fight_bandits",
+                  "label": "Fight through",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": { "kind": "cardChoice", "filter": [{ "archetypes": ["offense"] }], "maxTier": "bronze" }
+                  }
+                },
+                { "id": "pay_toll", "label": "Pay the toll (3 gold)", "cost": 3, "outcome": { "kind": "nothing" } },
+                { "id": "turn_back", "label": "Turn back", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arena_pit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Arena Pit",
+            "body": "A sunken ring of packed earth waits behind a curtain of oiled canvas, ringed by a crowd that has already placed its bets. The pit-master waves you toward the rope. \"Tougher bout, tougher purse,\" he says, and grins at the fighter already stretching in the sand.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": { "storyId": "arena_pit", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "enter_pit",
+                  "label": "Enter the pit",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": { "kind": "cardChoice", "filter": [{ "archetypes": ["defensive", "healing"] }], "maxTier": "bronze" }
+                  }
+                },
+                { "id": "watch_the_bout", "label": "Watch from the rail", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "champions_duel",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Champion's Duel",
+            "body": "A traveling champion plants a banner at the crossroads and calls out anyone who thinks their steel is worth testing. The crowd that gathers already knows this one is no easy bout — but a champion's duel tempers whatever you carry into it.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": { "storyId": "champions_duel", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "accept_duel",
+                  "label": "Accept the duel",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "elite",
+                    "reward": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "filter": { "where": "any", "match": { "archetypes": ["offense", "defensive", "healing", "support", "debuff"] } } },
+                      "fallback": { "kind": "grantGold", "amount": 4 }
+                    }
+                  }
+                },
+                { "id": "decline_duel", "label": "Decline with a bow", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "barrow_guardian",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Barrow Guardian",
+            "body": "The cairn stones over this barrow have been disturbed, and something under them has noticed. It rises slow and huge from the broken earth, hoard-marks still ground into its knuckles — whatever it was set to guard, it means to keep guarding.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": { "storyId": "barrow_guardian", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "face_guardian",
+                  "label": "Face the guardian",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "elite",
+                    "reward": { "kind": "gemChoice", "filter": [{ "actionKinds": ["shield", "guard", "ward"] }] }
+                  }
+                },
+                { "id": "reseal_barrow", "label": "Reseal the barrow", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sellswords_wager",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Sellswords' Wager",
+            "body": "A band of sellswords has pooled a purse and is offering it to anyone who can put their toughest down. Odds are chalked on a barrel head, and the crowd is already loud about which way they think this goes.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": { "storyId": "sellswords_wager", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_wager",
+                  "label": "Take the wager",
+                  "cost": 0,
+                  "outcome": { "kind": "challengeFight", "difficulty": "hard", "reward": { "kind": "grantGold", "amount": 6 } }
+                },
+                { "id": "side_bet", "label": "Place a side bet (2 gold)", "cost": 2, "outcome": { "kind": "grantGold", "amount": 3 } },
+                { "id": "walk_past", "label": "Walk past", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duskroad_challenger",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Duskroad Challenger",
+            "body": "A masked figure waits where the road dims toward dusk, testing every traveler who passes with the same plain offer: a fair fight, a fair prize, no names asked either way.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": { "storyId": "duskroad_challenger", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "answer_challenge",
+                  "label": "Answer the challenge",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": { "kind": "gemChoice", "filter": [{ "actionKinds": ["slow", "disrupt"] }] }
+                  }
+                },
+                { "id": "refuse", "label": "Refuse", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

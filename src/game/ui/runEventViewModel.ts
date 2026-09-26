@@ -1,6 +1,7 @@
 import { isEventDefV2 } from '../../data/eventContentV2';
 import {
   isEventDefV3,
+  type EventChallengeDifficultyV3,
   type EventChoiceV3,
   type EventDirectOutcomeSpecV3,
   type LoadedEventDefV3,
@@ -13,6 +14,7 @@ import type {
   EventOutcomeSpec,
   EventRarity,
   EventTheme,
+  MarketStat,
 } from '../../data/eventTypes';
 import type { SkillTier } from '../../engine/types';
 import {
@@ -28,7 +30,9 @@ import type {
   EventDeferredOfferV3,
 } from '../../run/eventV3Materialization';
 import { correlatedMaterializedChoiceV3 } from '../../run/eventsV3';
-import type { RunNode, RunState } from '../../run/runState';
+import { challengeFightRewardChip } from '../../run/eventRewardSummary';
+import { canBuyMarketLife, isMarketBuyOutcomeKind, MARKET_VISITS_PER_NODE, marketPurchasePriceGold } from '../../run/market';
+import type { EventResolution, RunNode, RunState } from '../../run/runState';
 import {
   eventChoiceOpportunityHint,
   type EventOpportunityHint,
@@ -49,12 +53,16 @@ type LegacyOutcomeHint =
   | { kind: 'gemChoice'; legacy: true; optionCount: 3 }
   | { kind: 'bonusDraft'; legacy: true; optionCount: 5 }
   | { kind: 'upgradeCard'; legacy: true }
+  | { kind: 'awardCardPoint'; legacy: true }
   | { kind: 'sellGem'; legacy: true }
   | { kind: 'mergeCards'; legacy: true }
   | { kind: 'grantGold'; amount: number }
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
   | { kind: 'grantMapInfo'; bandsAhead: 2 | 3 }
+  | { kind: 'buyLife' }
+  | { kind: 'buyStat'; stat: MarketStat }
+  | { kind: 'grantStat'; stat: MarketStat }
   | { kind: 'nothing' };
 
 type ImmediateOutcomeHint =
@@ -62,7 +70,11 @@ type ImmediateOutcomeHint =
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
   | { kind: 'grantMapInfo'; bandsAhead: 2 | 3 }
-  | { kind: 'nothing' };
+  | { kind: 'buyLife' }
+  | { kind: 'buyStat'; stat: MarketStat }
+  | { kind: 'grantStat'; stat: MarketStat }
+  | { kind: 'nothing' }
+  | { kind: 'challengeFight'; difficulty: EventChallengeDifficultyV3; rewardChip: string };
 
 /** Typed gameplay information a renderer may summarize without parsing copy.
  * V3 reward offers are the exact persisted snapshots, never regenerated. */
@@ -132,12 +144,20 @@ function legacyHint(outcome: EventOutcomeSpec): RunEventOutcomeHint {
     case 'gemChoice': return { kind: 'gemChoice', legacy: true, optionCount: 3 };
     case 'bonusDraft': return { kind: 'bonusDraft', legacy: true, optionCount: 5 };
     case 'upgradeCard': return { kind: 'upgradeCard', legacy: true };
+    case 'awardCardPoint': return { kind: 'awardCardPoint', legacy: true };
     case 'sellGem': return { kind: 'sellGem', legacy: true };
     case 'mergeCards': return { kind: 'mergeCards', legacy: true };
     case 'grantGold': return { kind: 'grantGold', amount: outcome.amount };
     case 'loseGold': return { kind: 'loseGold', amount: outcome.amount };
     case 'grantLevel': return { kind: 'grantLevel' };
     case 'grantMapInfo': return { kind: 'grantMapInfo', bandsAhead: outcome.bandsAhead };
+    case 'buyLife': return { kind: 'buyLife' };
+    case 'buyStat': return { kind: 'buyStat', stat: outcome.stat };
+    // Dead in practice, same as `buyLife`/`buyStat` above — no v1/v2 content
+    // authors it; the live gold market is schema-v3 and its choice-row hint
+    // reads through `persistedHint` below instead.
+    case 'buyStatPick': return { kind: 'nothing' };
+    case 'grantStat': return { kind: 'grantStat', stat: outcome.stat };
     case 'nothing': return { kind: 'nothing' };
   }
 }
@@ -153,7 +173,15 @@ function persistedHint(
     case 'loseGold': return { kind: 'loseGold', amount: outcome.amount, ...weighted };
     case 'grantLevel': return { kind: 'grantLevel', ...weighted };
     case 'grantMapInfo': return { kind: 'grantMapInfo', bandsAhead: outcome.bandsAhead, ...weighted };
+    case 'buyLife': return { kind: 'buyLife', ...weighted };
+    case 'buyStat': return { kind: 'buyStat', stat: outcome.stat, ...weighted };
+    case 'grantStat': return { kind: 'grantStat', stat: outcome.stat, ...weighted };
     case 'nothing': return { kind: 'nothing', ...weighted };
+    case 'challengeFight':
+      return {
+        kind: 'challengeFight', difficulty: outcome.difficulty,
+        rewardChip: challengeFightRewardChip(outcome.reward), ...weighted,
+      };
     case 'grantCard':
     case 'grantGem':
     case 'bonusDraft':
@@ -164,6 +192,17 @@ function persistedHint(
     case 'cardChoice':
     case 'upgradeCardTargeted':
       return offer?.kind === outcome.kind ? { kind: outcome.kind, offer, ...weighted } as RunEventOutcomeHint : undefined;
+    // Unlike the sibling kinds above, no offer persists until this choice is
+    // taken at least once (`correlatedMaterializedChoiceV3`'s `buyStatPick`
+    // exemption, `src/run/eventsV3.ts`) — a never-yet-taken row still needs a
+    // hint, so this falls back to a fresh unopened picker rather than
+    // `undefined`, which would otherwise blank the WHOLE choice list.
+    case 'buyStatPick':
+      return {
+        kind: 'buyStatPick',
+        offer: offer?.kind === 'buyStatPick' ? offer : { kind: 'buyStatPick', status: 'pending' },
+        ...weighted,
+      };
   }
 }
 
@@ -197,6 +236,14 @@ function historicalRequiredChoice(
   return undefined;
 }
 
+/** The choice's live price — the market's dynamic ladder for `buyLife`/
+ * `buyStat`, the authored static `cost` for everything else. The one place
+ * both the lock reason and the choice row's "COST N GOLD" pipeline read the
+ * price from, so they can never disagree. */
+function dynamicChoiceCost(state: RunState, choice: { cost?: number; outcome: { kind: string } }): number {
+  return isMarketBuyOutcomeKind(choice.outcome.kind) ? marketPurchasePriceGold(state) : choice.cost ?? 0;
+}
+
 function v3ChoiceLockReason(
   state: RunState,
   choice: EventChoiceV3,
@@ -205,8 +252,9 @@ function v3ChoiceLockReason(
   lookup: (eventId: string, contentVersion: number) => LoadedEventDef | undefined,
 ): string | null {
   if (unavailableReason === 'no_unvisited_biome') return 'no unvisited biome remains';
-  const cost = choice.cost ?? 0;
+  const cost = dynamicChoiceCost(state, choice);
   if (cost > state.gold) return `needs ${cost} gold`;
+  if (choice.outcome.kind === 'buyLife' && !canBuyMarketLife(state)) return 'already at full lives';
   if (choice.requires !== undefined && !eventGateMet(state, choice.requires)) {
     if (choice.requires.choiceIds?.length === 1) {
       const targetChoice = historicalRequiredChoice(
@@ -267,7 +315,7 @@ function v3Choices(
       materialization.unavailableChoiceReasonsByChoiceId?.[choice.id],
       lookup,
     );
-    const cost = choice.cost ?? 0;
+    const cost = dynamicChoiceCost(state, choice);
     const opportunityHint = eventChoiceOpportunityHint(event, choice.id, eventRuntimeCatalog);
     choices.push({
       id: choice.id,
@@ -294,9 +342,26 @@ function isPendingPickerOffer(offer: EventDeferredOfferV3 | undefined): offer is
   return offer?.status === 'pending' && offer.kind !== 'grantCard' && offer.kind !== 'grantGem';
 }
 
+/** Whether the market's stay-open flow should re-show the choice list rather
+ * than a settled outcome — the one place the view model diverges from every
+ * other event's "one rung, forever" rule (`isMarketBuyOutcomeKind`,
+ * `src/run/market.ts`). Mirrors the exact condition
+ * `resolveEventChoiceV3`/`resolveEventChoice` allow a SECOND rung under. */
+export function marketVisitStillOpen(event: LoadedEventDef, resolution: EventResolution): boolean {
+  if (resolution.pending === true) return false;
+  const choices = isEventDefV3(event)
+    ? [...event.choiceSet.fixed, ...(event.choiceSet.pool?.entries ?? [])]
+    : event.choices;
+  const choice = choices.find((candidate) => candidate.id === resolution.choiceId);
+  return choice !== undefined
+    && isMarketBuyOutcomeKind(choice.outcome.kind)
+    && (resolution.marketVisits ?? 0) < MARKET_VISITS_PER_NODE;
+}
+
 function phaseFor(
   state: RunState,
   node: RunNode,
+  event: LoadedEventDef,
   instanceId: string,
   contentVersion: number,
   v3: boolean,
@@ -311,6 +376,7 @@ function phaseFor(
   if (v3 && !state.eventMaterializations[instanceId]?.choiceIds.includes(resolution.choiceId)) {
     return undefined;
   }
+  if (marketVisitStillOpen(event, resolution)) return { kind: 'open' };
   if (resolution.pending === true) {
     if (!v3) return { kind: 'pending', choiceId: resolution.choiceId };
     const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[resolution.choiceId];
@@ -341,14 +407,14 @@ export function buildRunEventViewModel(
 ): RunEventViewModel | undefined {
   const instance = state.eventInstances[node.id];
   if (node.kind !== 'event' || instance === undefined || instance.eventId !== event.id) return undefined;
-  const phase = phaseFor(state, node, instance.instanceId, instance.contentVersion, isEventDefV3(event));
+  const phase = phaseFor(state, node, event, instance.instanceId, instance.contentVersion, isEventDefV3(event));
   if (phase === undefined) return undefined;
 
   const choices = isEventDefV3(event)
     ? v3Choices(state, event, instance.instanceId, lookup)
     : event.choices.map((choice) => {
       const lockReason = choiceLockReason(state, choice);
-      const cost = choice.cost ?? 0;
+      const cost = dynamicChoiceCost(state, choice);
       const derivedFamily = derivedChoiceFamily(state, choice);
       const opportunityHint = eventChoiceOpportunityHint(event, choice.id, eventRuntimeCatalog);
       return {

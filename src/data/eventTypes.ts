@@ -37,6 +37,11 @@ export interface EventTallyGate {
 
 export type EventRarity = 'common' | 'uncommon' | 'rare' | 'secret';
 
+/** The permanent hero stats the gold market and free stat-boon events buy —
+ * a closed subset of `BuffableStat`, priced by `LEVEL_STAT_COST` (leveling.ts)
+ * and folded via the same unguarded `applyLevelAllocation` a level-up uses. */
+export type MarketStat = 'attack' | 'armor' | 'maxHp';
+
 /** Closed presentation vocabulary for event-specific story illustrations.
  * Map nodes still preview their theme because no event has been resolved there. */
 export type EventArtId = 'bell_beneath_ice' | 'second_toll' | 'bell_unbound';
@@ -76,6 +81,7 @@ export type EventOutcomeSpec =
   | { kind: 'grantLevel' }
   | { kind: 'bonusDraft'; filter?: CardFilter; filterFrom?: FilterFromSource }
   | { kind: 'upgradeCard' }
+  | { kind: 'awardCardPoint' }
   // `sellGem` offers owned, unsocketed pouch gems as a deferred pick; it never
   // targets a socketed gem or a catalog-defined gem id.
   | { kind: 'sellGem' }
@@ -85,6 +91,22 @@ export type EventOutcomeSpec =
   // A typed run-layer snapshot reward. Its resolver derives no behavior from
   // event title/body/choice labels and never consumes map or bag randomness.
   | { kind: 'grantMapInfo'; bandsAhead: 2 | 3 }
+  // The gold market's two paid outcomes (2026-09-25) — `buyLife` refills one
+  // life, never above `LIVES_PER_RUN`; `buyStat` buys one permanent hero stat
+  // buy. Neither carries a price: both are charged the SAME shared per-run
+  // ladder (`marketPurchasePriceGold`, `src/run/market.ts`), so the price
+  // lives in run state, not the authored spec.
+  | { kind: 'buyLife' }
+  | { kind: 'buyStat'; stat: MarketStat }
+  // Opens the market's 3-option stat picker (Attack/Armor/Max HP) — charges
+  // and applies nothing itself; the pick, price and charge happen at
+  // finalize (`finalizeBuyStatPickV3`, `src/run/eventsV3.ts`), because only
+  // then is the stat (and so the eventual `buyStat` outcome it settles to)
+  // known. Schema-v3 only, same as `buyLife`/`buyStat`.
+  | { kind: 'buyStatPick' }
+  // A FREE stat buy (rare boon events) — same fold as `buyStat`, but never
+  // touches the market's price counter.
+  | { kind: 'grantStat'; stat: MarketStat }
   | { kind: 'nothing' };
 
 export interface EventChoiceDef {

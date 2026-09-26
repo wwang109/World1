@@ -13,7 +13,7 @@ import {
 } from './runEventScenePresenter';
 import {
   renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeCardsPicker,
-  renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker,
+  renderRunRewardPanel, renderRunSellGemPicker, renderRunStatPickPicker, renderRunUpgradeCardPicker,
 } from './RunRewardPanel';
 
 /** Scene-independent UI state. A null receipt is a committed/re-entered choice,
@@ -37,6 +37,9 @@ export interface RunEventOutcomePaneContext {
   onFinalize: (selection: RunEventOfferSelection, receipt?: MergeCardsReceipt) => void;
   /** Selling still opens the scene-owned confirmation before finalization. */
   onSell: (option: SellGemOption) => void;
+  /** Backs out of the `buyStatPick` picker for free, re-showing the choice
+   * list (`cancelBuyStatPickV3`, `src/run/eventsV3.ts`). */
+  onCancel: () => void;
   onChange: () => void;
 }
 
@@ -102,6 +105,11 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     ),
     ...ctx.inspect('merge'),
   }),
+  buyStatPick: (picker, ctx) => renderRunStatPickPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
+    ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
+    onPick: stat => ctx.onFinalize({ kind: 'statPick', stat }),
+    onCancel: ctx.onCancel,
+  }),
 } satisfies PickerRegistry & StateRegistry;
 
 export class RunEventOutcomePaneController {
@@ -148,7 +156,12 @@ export class RunEventOutcomePaneController {
           ...ctx,
           rewardTemplate: eventOutcomePaneTemplate(ctx.template, 'picker', ctx.panel, ctx.header),
           paging: { page: this.page, onPageChange: page => { this.page = page; ctx.onChange(); } },
-          inspect: kind => ctx.compact ? {
+          // Desktop otherwise relies on `attachCellHoverTip`'s mouse-hover tip
+          // for a picker's detail, but the upgrade picker's before/after diff
+          // (`renderTierUpgradeDetailOverlay`) has no hover equivalent, so
+          // 'upgrade' opts in on BOTH platforms rather than only `ctx.compact`
+          // (mobile, which has no hover at all).
+          inspect: kind => (ctx.compact || kind === 'upgrade') ? {
             inspectedIndex: this.inspected[kind],
             onInspect: index => { this.inspected[kind] = index; ctx.onChange(); },
           } : {},

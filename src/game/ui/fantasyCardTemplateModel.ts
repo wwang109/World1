@@ -1,5 +1,6 @@
 import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import { renderSkillClauses, renderSkillText } from '../../engine/keywords/compose';
+import type { TierProgress } from '../../run/shop';
 import { archetypeBadges, cardTypeBadge } from './cardArtPresentation';
 import {
   FANTASY_CARD_TEMPLATE_SPEC,
@@ -8,6 +9,7 @@ import {
   selectWtRule,
 } from './fantasyCardTemplateSpec';
 import { getFantasyCardTierSkin } from './fantasyCardTierSkins';
+import { tierProgressPips } from './tierProgressDisplay';
 
 export type FantasyArtAnchor = 'center' | 'upper-center' | 'lower-center';
 
@@ -28,6 +30,10 @@ export interface FantasyCardTemplateModel {
   title: string;
   body: string;
   skill: SkillDef;
+  /** Filled/open pip string toward the next tier (e.g. "●○"), or `null` when
+   * no `progress` was supplied or the tier is Diamond. Shop offer faces and
+   * catalog previews pass no `progress` and get `null`. */
+  progressPips: string | null;
 }
 
 export function buildSlotGlyphText(slotCount: number): string {
@@ -45,6 +51,7 @@ export function buildFantasyCardTemplateModel(
     height?: number;
     tier?: SkillTier;
     artAnchor?: FantasyArtAnchor;
+    progress?: TierProgress;
   } = {},
 ): FantasyCardTemplateModel {
   const tier = options.tier ?? skill.tier;
@@ -78,5 +85,6 @@ export function buildFantasyCardTemplateModel(
     title: skill.name,
     body,
     skill,
+    progressPips: options.progress ? tierProgressPips(options.progress) : null,
   };
 }

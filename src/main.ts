@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './game/scenes/BootScene';
 import { StartScene } from './game/scenes/StartScene';
+import { CreditsScene } from './game/scenes/CreditsScene';
 import { UiKitScene } from './game/scenes/UiKitScene';
 import { MobilePrepScene } from './game/scenes/MobilePrepScene';
 import { MobileDeckBuildScene } from './game/scenes/MobileDeckBuildScene';
@@ -89,7 +90,7 @@ const game = new Phaser.Game({
     expandParent: false,
   },
   scene: [
-    BootScene, StartScene, UiKitScene,
+    BootScene, StartScene, CreditsScene, UiKitScene,
     MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, MobileShopScene, MobileDraftScene, MobileRunMapScene, MobileRunPrepScene, MobileRunEventScene,
     DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene, DesktopShopScene, DesktopDraftScene, DesktopRunMapScene, DesktopRunPrepScene, DesktopRunEventScene,
     DesktopCardDesignScene,

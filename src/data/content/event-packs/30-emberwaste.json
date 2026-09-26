@@ -69,6 +69,93 @@
           }
         }
       ]
+    },
+    {
+      "id": "ash_oracle",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ash Oracle",
+            "body": "An oracle sits cross-legged in the Emberwaste's drifting soot, reading futures out of the way embers curl and die. She presses a warm brand into your palm before you have asked a single question.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": ["emberwaste"],
+            "story": { "storyId": "ash_oracle", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["emberwaste"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_scorching_brand",
+                  "label": "Take the Scorching Brand",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "scorching_brand", "tier": "bronze" }
+                },
+                {
+                  "id": "take_fire_card",
+                  "label": "Take a Fire card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["fire"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Walk on unread", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "slag_glass_cache",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Slag-Glass Cache",
+            "body": "Fused slag has cooled into a glassy shell around a hoard from some earlier traveler, its contents visible but sealed. Only fire-tempered hands can crack it open.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": ["emberwaste"],
+            "story": { "storyId": "slag_glass_cache", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "biome.current", "args": { "ids": ["emberwaste"] } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["fire"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "crack_the_slag",
+                  "label": "Crack the slag-glass",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["fireball_echo", "empowering_core", "war_banner_echo"] }] }
+                },
+                {
+                  "id": "temper_fire_card",
+                  "label": "Temper a Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["fire"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "leave", "label": "Leave the glass sealed", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

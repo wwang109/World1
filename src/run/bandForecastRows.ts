@@ -36,6 +36,8 @@
 // introduces: a `continue` or a filter quietly dropping a fact while a parity
 // test stays green.
 
+import { biomeCatalog } from '../data/biomes';
+import { shopCatalog } from '../data/shopTypes';
 import type { BandForecast, BossCandidate } from './biomeForecast';
 
 /** Longest non-prose forecast-card line allowed by the mobile contract. Both
@@ -195,6 +197,13 @@ export function bandForecastRows(f: BandForecast): readonly BandForecastRow[] {
   rows.push({ style: 'blank', block: 'shops' });
   rows.push({ style: 'heading', block: 'shops', text: 'SHOPS' });
   for (const s of f.shops) rows.push({ style: 'entry', block: 'shops', text: s.name });
+  // Derived from `f.biomeId` (already part of the persisted `BandForecast`
+  // shape) rather than a new field on it — see the module doc comment on why
+  // `BandForecast` itself never grows a presentational field.
+  const exclusiveShopId = biomeCatalog[f.biomeId]?.exclusiveShop;
+  if (exclusiveShopId !== undefined) {
+    rows.push({ style: 'entry', block: 'shops', text: shopCatalog[exclusiveShopId]?.name ?? exclusiveShopId });
+  }
 
   rows.push({ style: 'blank', block: 'events' });
   rows.push({ style: 'heading', block: 'events', text: 'EVENTS' });

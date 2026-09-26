@@ -2,10 +2,12 @@
 // the game layer supplies the string-only storage driver.
 //
 // Schema history: v1 (original), v2 (added the event-callback/story/map-intel
-// containers), v3 (current — added the combat/revenge/signature fact ledgers,
-// journey ledger, event-binding reservations, and per-instance
-// `eventMaterializations`). `loadRun` tries the v3 key, then v2, then v1 —
-// see "PRECEDENCE" below — migrating an older hit forward with
+// containers), v3 (added the combat/revenge/signature fact ledgers, journey
+// ledger, event-binding reservations, and per-instance
+// `eventMaterializations`), v4 (current — no field transform needed from v3;
+// the same `world1:runSave:v3` storage key now also accepts a stored
+// `schemaVersion` of 4). `loadRun` tries that key, then v2, then v1 — see
+// "PRECEDENCE" below — migrating an older hit forward with
 // `migrateV1RunToV2`/`migrateV2Run` before returning it.
 //
 // CORRUPTION SEMANTICS (mirrors `lifetimeStats.ts`'s precedent):
@@ -79,7 +81,8 @@ import {
   INITIAL_EVENT_STORY_STATE_V3,
   type EventMaterializationRecord,
 } from '../run/eventV3Materialization';
-import { biomeIds } from '../data/biomes';
+import { biomeCatalog, biomeIds } from '../data/biomes';
+import { GHOST_NAME_MAX } from '../run/ghost';
 import type { StorageDriver } from './lifetimeStats';
 
 export type { StorageDriver, RunStateV2 };
@@ -92,7 +95,7 @@ export const RUN_SAVE_V1_BACKUP_KEY = `${RUN_SAVE_V1_STORAGE_KEY}:corrupt-backup
 export const RUN_SAVE_V2_BACKUP_KEY = `${RUN_SAVE_V2_STORAGE_KEY}:corrupt-backup`;
 export const RUN_SAVE_BACKUP_KEY = `${RUN_SAVE_STORAGE_KEY}:corrupt-backup`;
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export interface RunSaveEnvelope {
   schemaVersion: number;
@@ -309,7 +312,8 @@ function isEventResolution(value: unknown): value is EventResolution {
     && isFiniteNumber(value.contentVersion)
     && typeof value.instanceId === 'string'
     && typeof value.choiceId === 'string'
-    && (value.pending === undefined || typeof value.pending === 'boolean');
+    && (value.pending === undefined || typeof value.pending === 'boolean')
+    && (value.marketVisits === undefined || isFiniteNumber(value.marketVisits));
 }
 
 function isMissedEventOpportunity(value: unknown): boolean {
@@ -628,6 +632,9 @@ function isDeferredOffer(value: unknown): boolean {
     return pendingOrSettled(value, ['kind', 'from', 'to', 'consumed', 'candidates', 'fallback'],
       value.candidates.map((entry) => entry.skillId));
   }
+  if (value.kind === 'buyStatPick') {
+    return pendingOrSettled(value, ['kind'], ['attack', 'armor', 'maxHp']);
+  }
   if (value.kind !== 'upgradeCardTargeted'
     || !isStringArray(value.optionInstanceIds)
     || !isRecord(value.fallback)) return false;
@@ -756,6 +763,95 @@ function isSignatureFact(value: unknown): boolean {
     && (value.reservedByInstanceId === undefined || typeof value.reservedByInstanceId === 'string');
 }
 
+function isBiomeLedger(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.entries(value).every(([band, id]) => (
+    /^\d+$/.test(band) && typeof id === 'string' && biomeCatalog[id] !== undefined
+  ));
+}
+
+function isGhostRecord(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(
+      value,
+      ['id', 'code', 'displayName', 'band', 'fightNumber', 'createdAt', 'ownerLocalId'],
+      ['defenseWins', 'defenseLosses'],
+    )
+    && typeof value.id === 'string'
+    && typeof value.code === 'string'
+    && typeof value.displayName === 'string'
+    && [...value.displayName].length > 0
+    && [...value.displayName].length <= GHOST_NAME_MAX
+    && isNonNegativeInteger(value.band)
+    && isPositiveInteger(value.fightNumber)
+    && isNonNegativeInteger(value.createdAt)
+    && typeof value.ownerLocalId === 'string'
+    && (value.defenseWins === undefined || isNonNegativeInteger(value.defenseWins))
+    && (value.defenseLosses === undefined || isNonNegativeInteger(value.defenseLosses));
+}
+
+function isActiveGhostFight(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, ['nodeId', 'ghost', 'role'])
+    && typeof value.nodeId === 'string'
+    && isGhostRecord(value.ghost)
+    && (value.role === 'substitute' || value.role === 'extra');
+}
+
+function isGhostBossOffer(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, ['nodeId', 'ghost'])
+    && typeof value.nodeId === 'string'
+    && isGhostRecord(value.ghost);
+}
+
+function isExtraGhostFights(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, ['won', 'lost'])
+    && isNonNegativeInteger(value.won)
+    && isNonNegativeInteger(value.lost);
+}
+
+function isPendingGhostSavePrompt(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, ['nodeId', 'fightNumber', 'band'])
+    && typeof value.nodeId === 'string'
+    && isPositiveInteger(value.fightNumber)
+    && isNonNegativeInteger(value.band);
+}
+
+const CHALLENGE_DIFFICULTIES = ['standard', 'hard', 'elite'];
+const CHALLENGE_REWARD_KINDS = ['cardChoice', 'gemChoice', 'grantGold', 'grantLevel', 'upgradeCardTargeted'];
+
+function isChallengeReward(value: unknown): boolean {
+  return isRecord(value) && typeof value.kind === 'string' && CHALLENGE_REWARD_KINDS.includes(value.kind);
+}
+
+function isActiveChallengeFight(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, [
+      'nodeId', 'instanceId', 'choiceId', 'difficulty', 'enemyId', 'level', 'title', 'rank', 'modifiers', 'fightNumber', 'reward',
+    ])
+    && typeof value.nodeId === 'string'
+    && typeof value.instanceId === 'string'
+    && typeof value.choiceId === 'string'
+    && typeof value.difficulty === 'string' && CHALLENGE_DIFFICULTIES.includes(value.difficulty)
+    && typeof value.enemyId === 'string'
+    && isPositiveInteger(value.level)
+    && typeof value.title === 'string'
+    && isNonNegativeInteger(value.rank)
+    && isStringArray(value.modifiers)
+    && isPositiveInteger(value.fightNumber)
+    && isChallengeReward(value.reward);
+}
+
+function isChallengeFights(value: unknown): boolean {
+  return isRecord(value)
+    && hasExactKeys(value, ['won', 'lost'])
+    && isNonNegativeInteger(value.won)
+    && isNonNegativeInteger(value.lost);
+}
+
 function isJourneyFactLedger(value: unknown): boolean {
   return isRecord(value)
     && hasExactKeys(value, ['visitedBiomeIds'])
@@ -846,7 +942,23 @@ function isRunStateV3(value: unknown): value is RunState {
     && (candidate.missedEventOpportunities === undefined
       || (Array.isArray(candidate.missedEventOpportunities)
         && candidate.missedEventOpportunities.every(isMissedEventOpportunity)))
-    && (candidate.eventComebackUsedIds === undefined || isStringArray(candidate.eventComebackUsedIds));
+    && (candidate.eventComebackUsedIds === undefined || isStringArray(candidate.eventComebackUsedIds))
+    && (candidate.biomeChoices === undefined || isBiomeLedger(candidate.biomeChoices))
+    && (candidate.activeGhostFight === undefined || candidate.activeGhostFight === null
+      || isActiveGhostFight(candidate.activeGhostFight))
+    && (candidate.ghostSubstituteMissNodeIds === undefined || isStringArray(candidate.ghostSubstituteMissNodeIds))
+    && (candidate.ghostBossOffer === undefined || candidate.ghostBossOffer === null
+      || isGhostBossOffer(candidate.ghostBossOffer))
+    && (candidate.ghostExtraDecidedNodeIds === undefined || isStringArray(candidate.ghostExtraDecidedNodeIds))
+    && (candidate.extraGhostFights === undefined || isExtraGhostFights(candidate.extraGhostFights))
+    && (candidate.pendingGhostSavePrompt === undefined || candidate.pendingGhostSavePrompt === null
+      || isPendingGhostSavePrompt(candidate.pendingGhostSavePrompt))
+    && (candidate.ghostResultReportedKeys === undefined || isStringArray(candidate.ghostResultReportedKeys))
+    && (candidate.marketPurchases === undefined || isFiniteNumber(candidate.marketPurchases))
+    && (candidate.purchasedStats === undefined || isRecord(candidate.purchasedStats))
+    && (candidate.activeChallengeFight === undefined || candidate.activeChallengeFight === null
+      || isActiveChallengeFight(candidate.activeChallengeFight))
+    && (candidate.challengeFights === undefined || isChallengeFights(candidate.challengeFights));
   return shapeValid && isV3EventTopology(candidate);
 }
 
@@ -951,7 +1063,7 @@ function migrateHistoricalEnvelope(
 export function loadRun(storage: StorageDriver): RunState | null {
   const v3Raw = storage.get(RUN_SAVE_STORAGE_KEY);
   if (v3Raw !== null) {
-    const loaded = parseEnvelopeAtKey(storage, v3Raw, RUN_SAVE_BACKUP_KEY, [3], 3);
+    const loaded = parseEnvelopeAtKey(storage, v3Raw, RUN_SAVE_BACKUP_KEY, [3, 4], 4);
     if (loaded.kind !== 'run') return null;
     const normalized = normalizeUnavailableChoiceReasons(loaded.run);
     if (!isRunStateV3(normalized)) {

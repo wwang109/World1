@@ -49,6 +49,11 @@ import { renderEventCatalogWiki, validateEventDiscoveryDocument } from './genera
 import { assertGeneratedEventAggregateCurrent } from './eventPackCompiler';
 import { loadEventContent } from '../src/data/eventsContent';
 import { findDuplicateKeys } from './jsonDuplicateKeys';
+import { biomeShopIds, shopCatalog, shopTypeIds } from '../src/data/shopTypes';
+import { biomeCatalog, biomeIds } from '../src/data/biomes';
+import { cardMatchesFilter, gemMatchesFilter } from '../src/run/shop';
+import { skillBook } from '../src/data/skills';
+import { gemBook } from '../src/data/gems';
 import skills from '../src/data/content/skills.v1.json';
 import gems from '../src/data/content/gems.v1.json';
 import enemies from '../src/data/content/enemies.v1.json';
@@ -150,6 +155,70 @@ try {
 if (actualEventCatalogWiki !== undefined && actualEventCatalogWiki !== expectedEventCatalogWiki) {
   failures += 1;
   console.error('  ERROR  docs/generated/event-catalog.md: generated catalog is stale; run npm run content:wiki');
+}
+
+// ---------------------------------------------------------------------------
+// Biome-exclusive shops (2026-09-25) — `src/data/biomes.ts#BiomeDef.exclusiveShop`
+// / `src/data/shopTypes.ts#biomeShopIds`. Three invariants, none checked by
+// the per-document schema validators above (both are hand-authored TS
+// modules, not JSON documents):
+//   1. each exclusive shop id is referenced by exactly one biome;
+//   2. it is not in the shared `shopTypeIds` bag or any biome's `shops` list;
+//   3. everything it can roll (card or gem) is also rollable from some SHARED
+//      theme — an exclusive shop must never be the sole source of anything.
+// ---------------------------------------------------------------------------
+{
+  const exclusiveOwners = new Map<string, string[]>();
+  for (const biomeId of biomeIds) {
+    const owners = exclusiveOwners.get(biomeCatalog[biomeId]!.exclusiveShop) ?? [];
+    owners.push(biomeId);
+    exclusiveOwners.set(biomeCatalog[biomeId]!.exclusiveShop, owners);
+  }
+
+  for (const shopId of biomeShopIds) {
+    const owners = exclusiveOwners.get(shopId) ?? [];
+    if (owners.length !== 1) {
+      failures += 1;
+      console.error(`  ERROR  biome-exclusive-shops ${shopId}: referenced by ${String(owners.length)} biome(s) (${owners.join(', ') || 'none'}), expected exactly 1`);
+    }
+    if (shopTypeIds.includes(shopId)) {
+      failures += 1;
+      console.error(`  ERROR  biome-exclusive-shops ${shopId}: present in the shared shopTypeIds bag`);
+    }
+    for (const biomeId of biomeIds) {
+      if (biomeCatalog[biomeId]!.shops.includes(shopId)) {
+        failures += 1;
+        console.error(`  ERROR  biome-exclusive-shops ${shopId}: present in ${biomeId}'s shops list (must only be its own exclusiveShop)`);
+      }
+    }
+
+    const shop = shopCatalog[shopId];
+    if (!shop) {
+      failures += 1;
+      console.error(`  ERROR  biome-exclusive-shops ${shopId}: not defined in shopCatalog`);
+      continue;
+    }
+    const sharedCatalog = shopTypeIds.map((id) => shopCatalog[id]!);
+    for (const skill of Object.values(skillBook)) {
+      if (!cardMatchesFilter(skill, shop.cardFilter)) continue;
+      const reachable = sharedCatalog.some((shared) => cardMatchesFilter(skill, shared.cardFilter));
+      if (!reachable) {
+        failures += 1;
+        console.error(`  ERROR  biome-exclusive-shops ${shopId}: card "${skill.id}" is unreachable from every shared shop`);
+      }
+    }
+    for (const gem of Object.values(gemBook)) {
+      if (!gemMatchesFilter(gem, shop.gemFilter)) continue;
+      const reachable = sharedCatalog.some((shared) => gemMatchesFilter(gem, shared.gemFilter));
+      if (!reachable) {
+        failures += 1;
+        console.error(`  ERROR  biome-exclusive-shops ${shopId}: gem "${gem.id}" is unreachable from every shared shop`);
+      }
+    }
+  }
+  if (biomeShopIds.length === biomeIds.length) {
+    console.log(`ok  biome-exclusive-shops — ${String(biomeShopIds.length)} exclusive shops, one per biome, fully reachable`);
+  }
 }
 
 if (failures > 0) {

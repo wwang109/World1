@@ -53,6 +53,93 @@
           }
         }
       ]
+    },
+    {
+      "id": "blood_price_muster",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Blood-Price Muster",
+            "body": "An Ironmoot recruiter has nailed a muster notice to a splintered post: axes wanted, blood-price paid in kind. A single notched blade hangs beneath it, already claimed by no one.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": ["ironmoot"],
+            "story": { "storyId": "blood_price_muster", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["ironmoot"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_hemorrhage",
+                  "label": "Take Hemorrhage",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "hemorrhage", "tier": "bronze" }
+                },
+                {
+                  "id": "take_axe_card",
+                  "label": "Take an Axe card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["axe"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Pass the notice by", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "whetting_pit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Whetting Pit",
+            "body": "A stone pit worn smooth by generations of axe-edges sits at Ironmoot's heart, its grindstones still turning under no visible hand.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": ["ironmoot"],
+            "story": { "storyId": "whetting_pit", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "biome.current", "args": { "ids": ["ironmoot"] } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "weapons": ["axe"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "grind_the_pit",
+                  "label": "Set an edge against the grindstones",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["rending_sliver", "bloodscent_sliver", "armor_break_echo"] }] }
+                },
+                {
+                  "id": "hone_axe_card",
+                  "label": "Hone an Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "weapons": ["axe"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "leave", "label": "Leave the stones turning", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

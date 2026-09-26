@@ -181,6 +181,49 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Bell Beneath the Ice",
+            "theme": "cache",
+            "artId": "bell_beneath_ice",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "body": "Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it.",
+            "choices": [
+              {
+                "id": "prise_it_free",
+                "label": "Prise the frost bell free",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "ring_it_here",
+                "label": "Ring it beneath the ice",
+                "outcome": {
+                  "kind": "awardCardPoint"
+                }
+              },
+              {
+                "id": "leave_it_sleeping",
+                "label": "Leave it sleeping",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -238,6 +281,31 @@
                 "cost": 5,
                 "outcome": {
                   "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "watch",
+                "label": "Just watch, and walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Regrinding Wheel",
+            "theme": "forge",
+            "body": "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
+            "choices": [
+              {
+                "id": "regrind",
+                "label": "Pay 5 gold to regrind your gear",
+                "cost": 5,
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               },
               {
@@ -437,6 +505,42 @@
                 "label": "Feed three matched pieces to the coals",
                 "outcome": {
                   "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "2026-09-26 T2: the mergeCards trio trade retired for new draws in favor of awardCardPoint (a free +1 stored tier-up point on one owned card) — version 1 stays live for any save with a pending trio already offered."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Feed one piece of your gear to the coals and it comes back a step further tempered toward its next grade — you choose which piece takes the heat.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed one piece to the coals",
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               }
             ]
@@ -987,6 +1091,31 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Smith's Last Commission",
+            "theme": "forge",
+            "body": "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
+            "choices": [
+              {
+                "id": "commission",
+                "label": "Pay 6 gold for one last commission",
+                "cost": 6,
+                "outcome": {
+                  "kind": "awardCardPoint"
+                }
+              },
+              {
+                "id": "let_her_go",
+                "label": "Let her go",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1027,6 +1156,45 @@
                 "label": "Beat three matched pieces into one",
                 "outcome": {
                   "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Ruined Anvil",
+            "theme": "forge",
+            "notes": [
+              "2026-09-26 T2: the mergeCards trio trade retired for new draws in favor of awardCardPoint (a free +1 stored tier-up point on one owned card) — version 1 stays live for any save with a pending trio already offered."
+            ],
+            "body": "One of the Cinderworks' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go. The anvil will still take a heavier job for nothing: lay one piece of your gear across it and it beats down a step further along its own grade.",
+            "choices": [
+              {
+                "id": "take_rough",
+                "label": "Take the rough blade as-is",
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "retemper",
+                "label": "Pay 3 gold to retemper it",
+                "cost": 3,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "silver"
+                }
+              },
+              {
+                "id": "beat_together",
+                "label": "Beat one piece into shape",
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               }
             ]

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { installUnlock } from '../audio/audioBus';
-import { applyDevLaunchConfig, buildDevEventFixture } from '../devLaunch';
+import { applyDevLaunchConfig, buildDevBossFixture, buildDevEventFixture, buildDevGhostBattleFixture, buildDevGhostExtraFightFixture, buildDevGhostExtraFightLoseFixture, buildDevGhostOfferFixture, buildDevGhostSaveOkFixture, buildDevMarketPrepFixture } from '../devLaunch';
+import { setBattleContext } from '../battleContext';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { applyRenderScale } from '../renderScale';
@@ -153,11 +154,19 @@ export class BootScene extends Phaser.Scene {
     installUnlock();
     const launch = applyDevLaunchConfig();
     if (launch.eventFixtureId) installDevRunFixture(buildDevEventFixture(launch.eventFixtureId, launch.seed));
+    if (launch.devBossFixture) installDevRunFixture(buildDevBossFixture(launch.seed));
+    if (launch.devMarketPrepFixture) installDevRunFixture(buildDevMarketPrepFixture(launch.seed));
+    if (launch.devGhostSaveOkFixture) installDevRunFixture(buildDevGhostSaveOkFixture(launch.seed));
+    if (launch.devGhostOfferFixture) installDevRunFixture(buildDevGhostOfferFixture(launch.seed));
+    if (launch.devGhostBattleFixture) { installDevRunFixture(buildDevGhostBattleFixture(launch.seed)); setBattleContext('run'); }
+    if (launch.devGhostExtraFightFixture) { installDevRunFixture(buildDevGhostExtraFightFixture(launch.seed)); setBattleContext('run'); }
+    if (launch.devGhostExtraFightLoseFixture) { installDevRunFixture(buildDevGhostExtraFightLoseFixture(launch.seed)); setBattleContext('run'); }
     // Explicit ?scene/?view wins; otherwise the game opens on the Start
     // screen (START RUN / SANDBOX doors) regardless of profile.
     const defaultScene = 'Start';
     const battleScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobileBattle' : 'DesktopBattle';
-    const target = launch.scene === 'battle' ? battleScene
+    const target = launch.devGhostBattleFixture || launch.devGhostExtraFightFixture || launch.devGhostExtraFightLoseFixture ? battleScene
+      : launch.scene === 'battle' ? battleScene
       : launch.scene === 'uikit' ? 'UiKit'
       : launch.scene === 'mprep' ? 'MobilePrep'
       : launch.scene === 'mdeck' ? 'MobileDeckBuild'
@@ -178,6 +187,7 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'desktop-runevent' ? 'DesktopRunEvent'
       : launch.scene === 'mrunevent' ? 'MobileRunEvent'
       : launch.scene === 'card-design' ? 'DesktopCardDesign'
+      : launch.scene === 'credits' ? 'Credits'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
       : defaultScene;

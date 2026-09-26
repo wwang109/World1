@@ -423,7 +423,7 @@ export function applyLevelAllocation(base: CombatantStats, alloc: Allocation): C
     }
   }
   next.hp += hpAdded;
-  return next;
+  return clampCombatantStats(next);
 }
 
 /**
@@ -482,9 +482,9 @@ export function applyPlayerLevelAllocation(base: CombatantStats, level: number, 
  * the monster's actual current stat values — a heavily negative spend (e.g.
  * Mob's -12 PL) can therefore drive an "un-buy" allocation whose magnitude
  * exceeds what the monster's tiny floor stats can absorb (a 1-point `attack`
- * floor minus a full-weight un-buy easily goes negative). The CALLER
- * (`scaleMonsterToLevel`) is responsible for clamping the resulting stats to
- * a sane in-engine floor — this function only produces the buy counts.
+ * floor minus a full-weight un-buy easily goes negative). `applyLevelAllocation`
+ * clamps the resulting stats to a sane in-engine floor — this function only
+ * produces the buy counts.
  *
  * This generalizes the old ratio-based allocator to a priced table where
  * different stats cost different PL per buy (e.g. speed costs 2, everything
@@ -542,13 +542,15 @@ export function monsterLevelPL(level: number): number {
 }
 
 /**
- * Clamp a scaled monster's stats to sane in-engine floors after a (possibly
+ * Clamp a combatant's stats to sane in-engine floors after a (possibly
  * negative) PL spend: offensive/defensive stats floor at 0, speed floors at
  * 1 (the engine's turn-order math assumes forward progress), maxHp floors at
  * 1 and hp is kept equal to it. A no-op for a purely positive spend (every
- * universal floor stat only ever grows from there).
+ * universal floor stat only ever grows from there) — the hero's own spends
+ * are always positive, so this never changes hero behaviour. Shared by
+ * `applyLevelAllocation`, so the hero and every monster clamp identically.
  */
-function clampMonsterStats(stats: CombatantStats): CombatantStats {
+function clampCombatantStats(stats: CombatantStats): CombatantStats {
   const maxHp = Math.max(1, stats.maxHp);
   return {
     ...stats,
@@ -567,7 +569,7 @@ function clampMonsterStats(stats: CombatantStats): CombatantStats {
  * (base stats, 0 PL spent). `level` may be a Title-adjusted value below 1
  * (Mob's -4 levels can drive it negative) — the PL spend then goes negative
  * too, un-buying stats through the same profile weights, and the result is
- * clamped to a sane floor (see `clampMonsterStats`). Board/pieces/affinities
+ * clamped to a sane floor (see `clampCombatantStats`). Board/pieces/affinities
  * carry over unchanged — only stats scale, via the SAME PL-budget economy
  * the player uses (`monsterLevelPL` for the signed budget, `allocateMonsterPL`
  * to auto-spend it against the monster's identity profile,
@@ -578,21 +580,13 @@ function clampMonsterStats(stats: CombatantStats): CombatantStats {
  * baseLevel + 2, or baseLevel - 4); no separate title system lives in this
  * module.
  *
- * `growthBoardDeci` (2026-09-06, enemy growth by level, see
- * `src/run/encounter.ts`'s `buildEnemyEncounter`) is the deci-PL price of the
- * growth cards/tier-ups THIS body's `enemy.growth` list bought at its own
- * level — growth is REPLACE, not stack (design ruling Q5): it is bought OUT
- * OF the level's own stat budget, never added free. Only when the level's raw
- * PL spend is POSITIVE (`rawPL > 0`) does growth carry a cost against it — a
- * demoted title (Mob, negative PL) keeps its own un-buy path untouched, so a
- * growth bill never fights the negative-PL "un-buy" direction `allocateMonsterPL`
- * depends on. Floors at 0 rather than going negative twice.
+ * Every level grants the FULL `monsterLevelPL(level)` toward stats. Board
+ * growth (`growthStepsAt`, `src/run/encounter.ts`) is a separate, uncharged
+ * bonus on top — it does not net against this budget.
  */
-export function scaleMonsterToLevel(enemy: EnemyDef, level: number, growthBoardDeci: number = 0): CombatantSetup {
-  const rawPL = monsterLevelPL(level);
-  const totalPL = rawPL > 0 ? Math.max(0, rawPL - Math.floor(growthBoardDeci / 10)) : rawPL;
-  const alloc = allocateMonsterPL(totalPL, profileFor(enemy.id));
-  const stats = clampMonsterStats(applyLevelAllocation(enemy.stats, alloc));
+export function scaleMonsterToLevel(enemy: EnemyDef, level: number): CombatantSetup {
+  const alloc = allocateMonsterPL(monsterLevelPL(level), profileFor(enemy.id));
+  const stats = applyLevelAllocation(enemy.stats, alloc);
   return {
     name: enemy.name,
     stats,

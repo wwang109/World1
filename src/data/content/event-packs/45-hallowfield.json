@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "sanctum_vigil",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Sanctum Vigil",
+            "body": "Past Hallowfield's consecrated line, a keeper still holds a vigil no map explains. The ward has stood since before the road, and it has never once let anything back out.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": ["hallowfield"],
+            "story": { "storyId": "sanctum_vigil", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "combat.affinityWin", "args": { "affinityId": "holy", "atLeast": 1, "biomeId": "hallowfield" } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "keep_the_vigil",
+                  "label": "Keep the vigil",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["holy"] }], "maxTier": "bronze" },
+                  "callback": {
+                    "callbackId": "sanctum_vigil_answer",
+                    "eventId": "sanctum_vigil_answer",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": ["omen"],
+                    "destinationBiomeIds": ["hallowfield"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 15, "fallback": "discard" }
+                  }
+                },
+                {
+                  "id": "take_relic_ward",
+                  "label": "Take a relic ward",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["mending_light_echo", "renewal_sliver", "sanctuary_sliver"] }] }
+                },
+                { "id": "leave", "label": "Walk past", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sanctum_vigil_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "What the Ward Kept Out",
+            "body": "The vigil answers: a wisp of dark magic, held at the boundary since long before you crossed it, still restless against the consecrated line. The keeper offers you the choosing of what becomes of it.",
+            "theme": "omen",
+            "rarity": "rare",
+            "biomeIds": ["hallowfield"],
+            "story": { "storyId": "sanctum_vigil", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "sanctum_vigil_answer" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "consecrate_the_dark",
+                  "label": "Consecrate what it kept out",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["dark"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  },
+                  "mutations": [{ "op": "completeStory", "storyId": "sanctum_vigil" }]
+                },
+                {
+                  "id": "take_the_sanctum_toll",
+                  "label": "Take the sanctum's toll",
+                  "cost": 0,
+                  "outcome": { "kind": "grantGold", "amount": 4 },
+                  "mutations": [{ "op": "completeStory", "storyId": "sanctum_vigil" }]
+                },
+                {
+                  "id": "let_it_rest",
+                  "label": "Let it rest behind the ward",
+                  "cost": 0,
+                  "outcome": { "kind": "nothing" },
+                  "mutations": [{ "op": "completeStory", "storyId": "sanctum_vigil" }]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "penitents_road",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Penitent's Road",
+            "body": "A stretch of Hallowfield's road runs bare of grass, worn smooth by knees rather than boots. At its end a plain altar holds one blade of consecrated light, left for whoever finishes the walk.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": ["hallowfield"],
+            "story": { "storyId": "penitents_road", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["hallowfield"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_judgment_light",
+                  "label": "Take the consecrated blade",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "judgment_light", "tier": "bronze" }
+                },
+                {
+                  "id": "take_holy_card",
+                  "label": "Take a Holy card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["holy"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Walk past unmarked", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

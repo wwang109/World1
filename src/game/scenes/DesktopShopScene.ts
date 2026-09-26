@@ -58,8 +58,9 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
-import { renderCardDetailOverlay } from '../ui/cardDetailOverlay';
 import { tierUpgradePreview } from '../ui/tierUpgradePreview';
+import { renderTierUpgradeDetailOverlay } from '../ui/tierUpgradeDetailOverlay';
+import { tierProgressMergeLine } from '../ui/tierProgressDisplay';
 import { renderGemText } from '../../engine/keywords/gemText';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
@@ -411,7 +412,7 @@ export class DesktopShopScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('DesktopRunMap'); },
       });
     }
     const inspecting = this.pendingBuy || this.pendingSell || this.mergePreviewOpen;
@@ -685,7 +686,7 @@ export class DesktopShopScene extends Phaser.Scene {
         // baked into CardToken: the badge is shop-specific chrome, and
         // CardToken stays feature-agnostic for its other (battle/prep/deck
         // build/draft) callers.
-        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
         if (shelfMergeTarget) A(this.renderMergeBadge(tokenBox.x, tokenBox.y, shelfMergeTarget, F.tiny, tokenBox.w, tokenBox.h));
         const affordable = this.activeGold() >= offer.price;
         const priceAt = boxCenter(caption);
@@ -1257,7 +1258,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const runMode = this.isRunMode();
     const affordable = this.activeGold() >= offer.price;
     const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
-    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
     const canBuy = affordable && (hasRoom || mergeTarget != null);
     const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
     renderCardDetailsDrawer(this, shown, {
@@ -1313,7 +1314,7 @@ export class DesktopShopScene extends Phaser.Scene {
     // A duplicate MERGE never needs bag room (it upgrades an already-owned
     // slot instead of adding a new one) — a full bag no longer blocks the
     // BUY button when a merge target exists.
-    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
     const canBuy = affordable && (hasRoom || mergeTarget != null);
     const btnY = bottom - 56;
     const btn = this.add.rectangle(centerX, btnY, pw - 40, 40, canBuy ? UI.chip : UI.panelMuted, canBuy ? 1 : 0.5)
@@ -1404,6 +1405,7 @@ export class DesktopShopScene extends Phaser.Scene {
     let scrolling: { kind: 'shelf' | 'inventory'; startY: number; startScroll: number } | null = null;
     let pendingShelf: DragEntry | null = null;
     let pendingInventoryGem: DragEntry | null = null;
+    let dragPickPlayedThisGesture = false;
 
     const beginDrag = (entry: DragEntry): void => {
       const visualKind = entry.src.kind === 'gem' ? 'gem'
@@ -1466,6 +1468,7 @@ export class DesktopShopScene extends Phaser.Scene {
         && (d.src.kind !== 'gem' || !this.inventoryContainer || inInventoryViewport(p.worldX, p.worldY)));
       if (hit) {
         totalMove = 0;
+        dragPickPlayedThisGesture = false;
         start = { x: p.worldX, y: p.worldY };
         if (hit.src.kind === 'shelfCard' || hit.src.kind === 'shelfGem') pendingShelf = hit;
         else if (hit.src.kind === 'gem') pendingInventoryGem = hit;
@@ -1517,7 +1520,10 @@ export class DesktopShopScene extends Phaser.Scene {
       }
       if (dragging) {
         totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
-        if (totalMove >= 6) this.detailActivation.reset();
+        if (totalMove >= 6) {
+          this.detailActivation.reset();
+          if (!dragPickPlayedThisGesture) { dragPickPlayedThisGesture = true; playSfx('dragPick'); }
+        }
         if (dragging.src.kind === 'shelfGem') {
           // Tap-only shelf offer (no drop target) — no drag visual, mirrors
           // the native-listener behavior this replaced; `totalMove` above is
@@ -1617,6 +1623,7 @@ export class DesktopShopScene extends Phaser.Scene {
               : canPlace(bagAsBoardPieces(this.bagSlots), skillBook, offer.skillId, slot, BOARD_BAG_SLOTS);
             const afford = this.activeGold() >= offer.price;
             if (fits && afford) {
+              playSfx('dragDrop');
               this.pendingBuy = { kind: 'card', index: src.index, dest: { where, slot } };
             } else {
               this.invalidFlash = { where, index: slot };
@@ -1681,7 +1688,7 @@ export class DesktopShopScene extends Phaser.Scene {
         const outcome = hit.where === 'board'
           ? moveToBoard(this.pieces, this.bagSlots, skillBook, rearrangeSrc, hit.slot, BOARD_BAG_SLOTS)
           : moveToBag(this.pieces, this.bagSlots, skillBook, rearrangeSrc, hit.slot, BOARD_BAG_SLOTS);
-        if (outcome) this.applyRearrange(outcome);
+        if (outcome) { playSfx('dragDrop'); this.applyRearrange(outcome); }
         else this.invalidFlash = { where: hit.where, index: hit.slot };
       }
       this.rerender();
@@ -1730,7 +1737,7 @@ export class DesktopShopScene extends Phaser.Scene {
     if (!buy || buy.kind !== 'card') return null;
     const offer = this.shelfFor(shopId).cards[buy.index];
     if (!offer) return null;
-    return runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+    return runMode ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
   }
 
   private renderConfirm(): void {
@@ -1819,9 +1826,12 @@ export class DesktopShopScene extends Phaser.Scene {
 
     const buttons: ConfirmButton[] = [
       { label: 'CANCEL', fill: UI.panelMuted, color: UI.text, fn: () => { playSfx('uiBack'); this.pendingBuy = null; this.mergePreviewOpen = false; this.rerender(); } },
-      { label: 'BUY', fill: UI.chip, color: UI.textOnChip, fn: doBuy },
+      { label: 'ADD TO BAG', fill: UI.chip, color: UI.textOnChip, fn: doBuy },
     ];
-    if (mergeTarget) buttons.push({ label: 'MERGE', fill: UI.good, color: UI.textOnChip, fn: doMerge });
+    if (mergeTarget) {
+      buttons.push({ label: 'MERGE', fill: UI.good, color: UI.textOnChip, fn: doMerge });
+      buttons.push({ label: 'PREVIEW', fill: UI.panelMuted, color: UI.textAccent, fn: () => { playSfx('uiClick'); this.mergePreviewOpen = true; this.rerender(); } });
+    }
 
     const margin = 20; const gap = 20;
     const btnW = (bw - margin * 2 - gap * (buttons.length - 1)) / buttons.length;
@@ -1846,9 +1856,14 @@ export class DesktopShopScene extends Phaser.Scene {
     if (!target || !skillId) { this.mergePreviewOpen = false; return; }
     const preview = tierUpgradePreview(skillId, target.fromTier, target.toTier);
     if (!preview.available) { this.mergePreviewOpen = false; return; }
-    const mergePreview = preview;
-    renderCardDetailOverlay(this, mergePreview.toSkill, {
+    renderTierUpgradeDetailOverlay(this, preview, {
       font: F,
+      mode: 'composition',
+      actionWord: 'MERGE',
+      progressLine: tierProgressMergeLine(
+        { tier: target.fromTier, points: target.fromPoints },
+        { tier: target.toTier, points: target.toPoints },
+      ),
       onClose: () => { this.mergePreviewOpen = false; this.rerender(); },
     });
   }
@@ -1876,7 +1891,7 @@ export class DesktopShopScene extends Phaser.Scene {
       this.pendingSell = null;
       this.rerender();
       if (!result.ok) this.showToast('Could not complete sale', UI.bad);
-      else { playSfx('uiClick'); this.showToast(`Sold ${preview.name} · +${result.goldReceived} gold`, UI.good); }
+      else { playSfx('sell'); this.showToast(`Sold ${preview.name} · +${result.goldReceived} gold`, UI.good); }
     };
 
     const margin = 20; const gap = 20;

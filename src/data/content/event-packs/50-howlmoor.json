@@ -119,6 +119,45 @@
           }
         }
       ]
+    },
+    {
+      "id": "howling_cairn",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Howling Cairn",
+            "body": "A cairn of bleached bone and antler stands where Howlmoor's packs gather at dusk, a single fanged trophy wedged into its crown for whoever can call the howl back.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": ["howlmoor"],
+            "story": { "storyId": "howling_cairn", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["howlmoor"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_battle_howl",
+                  "label": "Take Battle Howl",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "battle_howl", "tier": "bronze" }
+                },
+                {
+                  "id": "take_beast_card",
+                  "label": "Take a Beast card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["beast"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Leave the cairn silent", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

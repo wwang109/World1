@@ -11,6 +11,7 @@ export type {
   EventOutcomeSpec,
   EventChoiceDef,
   EventDef,
+  MarketStat,
 } from './eventTypes';
 export type { LoadedEventDefV3 } from './eventContentV3';
 export type { LoadedEventDef, LoadedEventContent } from './eventsContent';

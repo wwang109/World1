@@ -1,6 +1,7 @@
-import type { EventOutcomeSpec } from '../../data/events';
+import type { EventOutcomeSpec, MarketStat } from '../../data/events';
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import type { EventOutcomeV3 } from '../../run/eventsV3';
+import { LIVES_PER_RUN } from '../../run/runState';
 import type { SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook } from '../../data/gems';
@@ -11,6 +12,26 @@ import type { RunEventOutcomeHint } from './runEventViewModel';
  * (should never happen for a live event outcome, but never crash a scene over it). */
 function skillName(skillId: string): string {
   return skillBook[skillId]?.name ?? skillId;
+}
+
+export const MARKET_STAT_LABEL: Record<MarketStat, string> = {
+  attack: '+1 ATTACK',
+  armor: '+1 ARMOR',
+  maxHp: '+5 MAX HP',
+};
+
+/**
+ * Terse in-place confirmation for a market buy that keeps its node OPEN for
+ * another purchase (`isMarketBuyOutcomeKind`, `src/run/market.ts`) — keyed off
+ * the RESOLVED OUTCOME, never the clicked choice or row label, so it reads the
+ * same whether the buy came from a direct rung (`buyLife`) or a picker
+ * (`buyStat`). `null` for every non-market outcome. Reuses `MARKET_STAT_LABEL`,
+ * the one stat-buy wording every other market surface already prints.
+ */
+export function marketPurchaseConfirmText(outcome: EventOutcome | EventOutcomeV3): string | null {
+  if (outcome.kind === 'buyLife') return 'LIFE RESTORED';
+  if (outcome.kind === 'buyStat') return MARKET_STAT_LABEL[outcome.stat];
+  return null;
 }
 
 /** "Shadow Bolt (BOARD 1)" — ONE consumed card, named AND placed. The single
@@ -137,6 +158,7 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     case 'cardChoice': return 'CHOICE OF 3 CARDS';
     case 'gemChoice': return 'CHOICE OF 3 GEMS';
     case 'upgradeCard': return 'UPGRADE';
+    case 'awardCardPoint': return 'ADVANCE A CARD';
     // `sellGem` (2026-08-20) — nets gold, doesn't grant anything; say so up
     // front so this doesn't read like every other "GEM" hint above (a gain),
     // which would misrepresent a choice that spends a gem to earn gold.
@@ -152,6 +174,9 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     // picker screen the tap opens, before anything is spent.
     case 'mergeCards': return '3 CARDS → 1 BETTER';
     case 'grantMapInfo': return `REVEAL ${outcome.bandsAhead} BANDS`;
+    case 'buyLife': return '+1 LIFE';
+    case 'buyStat': return MARKET_STAT_LABEL[outcome.stat];
+    case 'grantStat': return MARKET_STAT_LABEL[outcome.stat];
     case 'nothing': return '—';
     default: return '';
   }
@@ -185,7 +210,11 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
     case 'loseGold': return `-${hint.amount} GOLD`;
     case 'grantLevel': return '+1 LEVEL';
     case 'grantMapInfo': return `REVEAL ${hint.bandsAhead} BANDS`;
+    case 'buyLife': return '+1 LIFE';
+    case 'buyStat': return MARKET_STAT_LABEL[hint.stat];
+    case 'grantStat': return MARKET_STAT_LABEL[hint.stat];
     case 'nothing': return '—';
+    case 'challengeFight': return `BATTLE · ${hint.difficulty.toUpperCase()} · ${hint.rewardChip}`;
     case 'cardChoice':
       return 'offer' in hint
         ? `CHOICE OF ${hint.offer.options.length} CARDS · UP TO ${tierCeiling(hint.offer.options.map((option) => option.tier))}`
@@ -202,6 +231,9 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
       return 'offer' in hint
         ? `UPGRADE · ${hint.offer.optionInstanceIds.length} TARGET${hint.offer.optionInstanceIds.length === 1 ? '' : 'S'}`
         : 'UPGRADE';
+    // Not yet wired to a real picker (see `presentRunEventOutcome`'s
+    // `awardCardPointPick` arm) — no catalog content authors this kind yet.
+    case 'awardCardPoint': return 'ADVANCE A CARD';
     case 'sellGem':
       return 'offer' in hint && hint.offer.status !== 'unavailable'
         ? `SELL 1 OF ${hint.offer.options.length} GEMS`
@@ -210,6 +242,7 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
       return 'offer' in hint && hint.offer.status !== 'unavailable'
         ? mergeTradeLine(hint.offer.consumed.length, hint.offer.from, hint.offer.to)
         : '3 CARDS → 1 BETTER';
+    case 'buyStatPick': return 'CHOICE OF 3 STATS';
     default: {
       const exhaustive: never = hint;
       throw new Error(`eventOutcomeHintText: unknown outcome ${String((exhaustive as RunEventOutcomeHint).kind)}`);
@@ -320,6 +353,15 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
             headline: `Your ${skillName(outcome.skillId!)} is re-tempered — ${outcome.from!.toUpperCase()} → ${outcome.to!.toUpperCase()}.`,
             detail: '',
           };
+    // Unreachable in practice — no catalog content authors `awardCardPoint`
+    // yet (run-layer only, see src/run/events.ts); kept so the exhaustiveness
+    // guard below compiles ahead of the UI/content task that wires it up.
+    case 'awardCardPointPick':
+      return { headline: 'Choose a card to advance', detail: '' };
+    case 'awardCardPoint':
+      return outcome.fellBack
+        ? { headline: 'Nothing eligible to advance — took gold instead', detail: '' }
+        : { headline: `Your ${skillName(outcome.skillId).toUpperCase()} advances`, detail: `${outcome.tier.toUpperCase()} · ${outcome.points} point${outcome.points === 1 ? '' : 's'}` };
     case 'grantMapInfo': {
       const shown = outcome.revealedBands.map((band) => band + 1);
       const detail = shown.length === 0
@@ -329,6 +371,21 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
           : `Revealed bands ${shown.join('–')}.`;
       return { headline: 'Map intel updated', detail };
     }
+    case 'buyLife':
+      return {
+        headline: `Bought back a life — ${outcome.lives}/${LIVES_PER_RUN} lives`,
+        detail: `Paid ${outcome.price} gold`,
+      };
+    case 'buyStat':
+      return { headline: `Bought ${MARKET_STAT_LABEL[outcome.stat]}`, detail: `Paid ${outcome.price} gold` };
+    case 'grantStat':
+      return { headline: `Gained ${MARKET_STAT_LABEL[outcome.stat]}`, detail: '' };
+    // Unreachable in practice — same reason as `cardChoice`/`gemChoice`
+    // above: the scenes render the picker (`presentRunEventOutcome`'s
+    // `buyStatPick` picker case) directly, never through this resolved-
+    // outcome headline. Kept so the exhaustiveness guard below compiles.
+    case 'buyStatPick':
+      return { headline: 'Choose a stat to buy', detail: '' };
     case 'nothing':
       return 'fellBack' in outcome && outcome.fellBack
         ? { headline: 'No eligible reward — nothing happens', detail: '' }
@@ -342,6 +399,11 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
       };
     case 'alreadySettled':
       return { headline: 'Reward already claimed', detail: '' };
+    // The scene intercepts `challengeFight` before it reaches this
+    // resolved-outcome headline (launches the battle instead) — kept only so
+    // this exhaustiveness guard compiles.
+    case 'challengeFight':
+      return { headline: '', detail: '' };
     default: {
       // Exhaustiveness guard (same idiom as `applySpec` in src/run/events.ts):
       // a future `EventOutcome` kind added to the union without a case here

@@ -1,23 +1,52 @@
-import { audioGraph, audioUnlocked, getAudioSettings } from './audioBus';
+import { audioGraph, audioUnlocked, getAudioSettings, onAudioUnlock } from './audioBus';
+import { SFX_FILES } from './sfxAssets';
 import { SFX_RECIPES, type SfxKey, type SfxRecipe } from './sfxRecipes';
 
-/**
- * Procedural SFX playback — renders an `SfxRecipe` through the sfx bus:
- * one oscillator with a pitch glide and an attack/decay gain envelope, plus
- * an optional white-noise onset burst for impact texture. Everything is
- * fire-and-forget and self-stopping; nodes disconnect when done. Safe no-op
- * before the autoplay unlock, when muted, or where WebAudio is unavailable —
- * so call sites never need to guard.
- *
- * Placeholder by design: when real assets land, `playSfx` keeps its
- * signature and plays the loaded file for keys that have one, falling back
- * to the recipe for keys that don't (see docs/audio-design.md).
- */
+const buffers: Partial<Record<SfxKey, AudioBuffer>> = {};
+let prefetchStarted = false;
+
+function prefetchSfxFiles(): void {
+  if (prefetchStarted || typeof fetch === 'undefined') return;
+  const graph = audioGraph();
+  if (!graph) return;
+  prefetchStarted = true;
+  for (const [key, path] of Object.entries(SFX_FILES) as Array<[SfxKey, string]>) {
+    void fetch(path)
+      .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject(new Error(String(res.status)))))
+      .then((data) => graph.ctx.decodeAudioData(data))
+      .then((buffer) => { buffers[key] = buffer; })
+      .catch(() => { /* recipe fallback */ });
+  }
+}
+
+onAudioUnlock(prefetchSfxFiles);
+
+/** Plays the decoded file for `key` when it has one, else its procedural
+ * recipe (docs/audio-design.md). Safe no-op before unlock, muted, or without
+ * WebAudio, so call sites never guard. */
 export function playSfx(key: SfxKey): void {
   if (getAudioSettings().muted || !audioUnlocked()) return;
   const graph = audioGraph();
   if (!graph) return;
-  renderRecipe(graph.ctx, graph.sfx, SFX_RECIPES[key]);
+  prefetchSfxFiles();
+  const recipe = SFX_RECIPES[key];
+  const buffer = buffers[key];
+  try {
+    if (buffer) {
+      playBuffer(graph.ctx, graph.sfx, buffer, recipe.pitchJitterPct);
+      return;
+    }
+  } catch { /* recipe fallback */ }
+  renderRecipe(graph.ctx, graph.sfx, recipe);
+}
+
+function playBuffer(ctx: AudioContext, bus: GainNode, buffer: AudioBuffer, jitterPct: number): void {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.playbackRate.value = 1 + (Math.random() * 2 - 1) * (jitterPct / 100);
+  src.connect(bus);
+  src.onended = () => { src.disconnect(); };
+  src.start();
 }
 
 function renderRecipe(ctx: AudioContext, bus: GainNode, r: SfxRecipe): void {

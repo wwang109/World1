@@ -30,7 +30,11 @@ import {
 } from './encounter';
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import { anchorPoolFor, computeEnemyDepthBands, fillerPoolFor, type DepthBand } from './enemyDepth';
-import { biomeFor, weightIds } from './biome';
+import {
+  bandIndexOf, biomeFor, biomePickOfferIds, resolveBiomeIdForBand, weightIds, type BiomeLedger,
+} from './biome';
+import type { GhostRecord } from './ghost';
+import type { ActiveChallengeFight } from './challengeFight';
 import type { EventTheme } from '../data/eventTypes';
 import type { EventBoundSubjectsV3 } from '../data/eventContentV3';
 import type { EventInstanceRecord, EventInstanceRecordV2 } from './eventInstances';
@@ -53,21 +57,31 @@ import {
   BOSS_EVERY,
   ensureDepthThrough,
   generateRunMap,
+  rebuildMapWithLedger,
   WAVE_COUNT,
   type RunMap,
   type RunNode,
   type RunNodeKind,
 } from './runMap';
-import { Rng } from '../engine/rng';
+import { hashSeed, Rng } from '../engine/rng';
+import { gemBook } from '../data/gems';
 import {
   findMergeTarget,
+  mergeableDuplicatesFor,
+  mergeSlotPriceForWave,
+  pickWeightedGem,
+  pointsOf,
+  previewCardMerge,
   rollShopStock,
   scaledGoldPrice,
   sellPriceOfCard,
   sellPriceOfGem,
+  addTierValue,
   type CardOffer,
   type GemOffer,
   type MergeTarget,
+  type OwnedDuplicate,
+  type TierProgress,
 } from './shop';
 import { bagAsBoardPieces, canPlace } from './loadout';
 
@@ -80,6 +94,7 @@ export interface RunCard {
   instanceId: string;
   skillId: string;
   tier: SkillTier;
+  points?: number;
 }
 
 export type RunBoardPiece = RunCard & { slot: number; gem?: Gem | null };
@@ -93,6 +108,8 @@ export interface RunShopShelf {
   cards: CardOffer[];
   gems: GemOffer[];
   rerollCount: number;
+  // merge slot draws no Rng
+  mergeSlotUsed?: boolean;
 }
 
 /**
@@ -179,6 +196,12 @@ export interface EventResolution {
   instanceId: string;
   choiceId: string;
   pending?: boolean;
+  /** Set only when this rung's outcome is `buyLife`/`buyStat` (the gold
+   * market's stay-open flow, `src/run/market.ts`) — how many purchases this
+   * one node visit has made so far. Absent/on any other outcome means the
+   * node is done after this one rung, same as every event before the market
+   * existed. */
+  marketVisits?: number;
 }
 
 /** One chain-starting route card the player passed in this region. */
@@ -410,6 +433,39 @@ export interface RunStateV3Fields {
   missedEventOpportunities?: readonly MissedEventOpportunity[];
   /** Event ids whose one permitted comeback has already surfaced this run. */
   eventComebackUsedIds?: readonly string[];
+  /** Band index -> the player's chosen biome id (`BiomeLedger`). Absent/empty
+   * band entries fall back to the deal (`resolveBiomeIdForBand`) — an
+   * in-progress save from before biome picking existed loads unchanged. */
+  biomeChoices?: BiomeLedger;
+  // Additive/optional: absent on saves written before this field existed.
+  activeGhostFight?: { nodeId: string; ghost: GhostRecord; role: 'substitute' | 'extra' } | null;
+  // A roll MISS needs no entry (pure function of seed+nodeId); see ghostMatch.ts.
+  ghostSubstituteMissNodeIds?: readonly string[];
+  ghostBossOffer?: { nodeId: string; ghost: GhostRecord } | null;
+  ghostExtraDecidedNodeIds?: readonly string[];
+  // Separate from wins/losses so ghostFightNumberOf stays untouched.
+  extraGhostFights?: { won: number; lost: number };
+  pendingGhostSavePrompt?: { nodeId: string; fightNumber: number; band: number } | null;
+  // `${nodeId}:${role}` keys already reported to the ghost store — a reload-safe once-per-fight guard.
+  ghostResultReportedKeys?: readonly string[];
+  /** Lifetime gold-market purchase counter (2026-09-25) — every buy, life or
+   * stat, shares this ONE ladder (`marketPurchasePriceGold`, `market.ts`):
+   * price is `2 + marketPurchases`, and it never resets during a run. Absent
+   * means 0 (no purchases yet, including every pre-market save). */
+  marketPurchases?: number;
+  /** Permanent hero stat buys from `buyStat`/`grantStat` event outcomes —
+   * folded in after the level allocation (`applyLevelAllocation`, leveling.ts). */
+  purchasedStats?: Allocation;
+  /** The single active off-column battle a `challengeFight` event choice
+   * started (2026-09-25, `src/run/challengeFight.ts`) — never the fight
+   * column, which stays untouched. `recordChallengeFightResult`
+   * (`eventsV3.ts`) clears this on either result. Absent on every save
+   * written before this field existed. */
+  activeChallengeFight?: ActiveChallengeFight | null;
+  /** Lifetime challengeFight tally — separate from `wins`/`losses` exactly
+   * like `extraGhostFights`, so the fight column's own counters/gates stay
+   * untouched by an event-sourced battle. */
+  challengeFights?: { won: number; lost: number };
 }
 
 export type RunState = Omit<RunStateV2, 'eventInstances' | 'eventCallbackQueue'> & RunStateV3Fields & {
@@ -532,14 +588,13 @@ const MODIFIER_PER_OVERFLOW_FIGHTS = 5;
  * drove the title depth ramp: the flat boss package deep in the ladder was
  * WEAKER than its band's optional hard rung (w15 boss 35% win vs the w14 hard
  * rung's 12.5%) — swift moves w15 35%->~20% and w10 25%->~20%, so a milestone
- * boss out-threatens its band's standard fights again. Boss #1 (fight 5) is
- * exempt: the early curve was the inverted half (see TITLE_RAMP in
- * encounter.ts). Distinct-id rule kept: once the deep-run escalation ramp
+ * boss out-threatens its band's standard fights again. Distinct-id rule kept:
+ * once the deep-run escalation ramp
  * unlocks `swift` on its own (past `MAX_LEVEL`), it is NOT added twice, so
  * `battleGoldReward`'s `modifiers.length` difficulty term stays honest —
  * bosses 10..34 pay one tick more gold, which is intended.
  */
-export const BOSS_SWIFT_FROM_FIGHT = 10;
+export const BOSS_SWIFT_FROM_FIGHT = 5;
 
 /** The full fight-spec for a 1-indexed fight number (>= 1; endless — no upper bound). */
 export function fightSpecFor(fightNumber: number): FightSpec {
@@ -709,6 +764,7 @@ export function createRun(seed: number): RunState {
     storyStateV3: { ...INITIAL_EVENT_STORY_STATE_V3 },
     missedEventOpportunities: [],
     eventComebackUsedIds: [],
+    biomeChoices: {},
     gold: 0,
     heroLevel: 1,
     heroAllocation: {},
@@ -895,8 +951,56 @@ export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSet
 export function availableChoices(state: RunState): readonly RunNode[] {
   if (state.status !== 'active') return [];
   if (state.currentNodeId !== null) return [];
-  const map = ensureDepthThrough(state.map, state.depth + 1);
+  if (pendingBiomeBand(state) !== null) return [];
+  const map = ensureDepthThrough(state.map, state.depth + 1, biomeLedgerOf(state));
   return columnAt(map, state.depth + 1);
+}
+
+/** `state.biomeChoices`, normalized: absent (a pre-biome-picker save, or a
+ * fresh `createRun`) reads as "nothing chosen yet". Every reader goes through
+ * this rather than reading the field directly. */
+export function biomeLedgerOf(state: Readonly<RunState>): BiomeLedger {
+  return state.biomeChoices ?? {};
+}
+
+/** The band needing a pick before any further node is choosable, or `null`.
+ * Derived purely from `depth`/`currentNodeId` + the ledger — never touches
+ * `recordBattleResult`. */
+export function pendingBiomeBand(state: Readonly<RunState>): number | null {
+  if (state.status !== 'active' || state.currentNodeId !== null) return null;
+  const ledger = biomeLedgerOf(state);
+  const map = ensureDepthThrough(state.map, state.depth + 1, ledger);
+  const first = columnAt(map, state.depth + 1)[0];
+  if (!first) return null;
+  const band = bandIndexOf(first.wave);
+  return ledger[band] === undefined ? band : null;
+}
+
+/** The 3 biome candidates offered for `band`, excluding the previous band's
+ * resolved biome (band 0 excludes nothing). Pure — safe to call repeatedly
+ * for a preview panel. */
+export function biomeBandOffers(state: Readonly<RunState>, band: number): readonly string[] {
+  const ledger = biomeLedgerOf(state);
+  const prevId = band > 0 ? (ledger[band - 1] ?? resolveBiomeIdForBand(state.seed, band - 1, ledger)) : undefined;
+  return biomePickOfferIds(state.seed, band, prevId);
+}
+
+/**
+ * Record the player's biome pick for `band` and regenerate the map's
+ * already-built (but not-yet-walked) waves against the updated ledger — see
+ * `rebuildMapWithLedger`. Refuses a `band` that isn't currently pending
+ * (already decided, or no pick is due yet) and a `biomeId` the band didn't
+ * actually offer.
+ */
+export function chooseBiome(state: RunState, band: number, biomeId: string): RunState {
+  if (pendingBiomeBand(state) !== band) {
+    throw new Error(`chooseBiome: band ${band} is not awaiting a pick`);
+  }
+  if (!biomeBandOffers(state, band).includes(biomeId)) {
+    throw new Error(`chooseBiome: "${biomeId}" was not offered for band ${band}`);
+  }
+  const biomeChoices: BiomeLedger = { ...biomeLedgerOf(state), [band]: biomeId };
+  return { ...state, biomeChoices, map: rebuildMapWithLedger(state.map, biomeChoices) };
 }
 
 /**
@@ -916,7 +1020,7 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
   if (!node) {
     throw new Error(`chooseNode: "${nodeId}" is not an available choice`);
   }
-  const map = ensureDepthThrough(state.map, node.depth);
+  const map = ensureDepthThrough(state.map, node.depth, biomeLedgerOf(state));
   return {
     ...state,
     map,
@@ -1056,12 +1160,15 @@ export function rollEncounter(state: RunState): EncounterPack {
   const gateOpen = node.kind !== 'boss' && (node.fightNumber ?? 0) >= MIN_PACK_FIGHT_NUMBER;
   let variant: PackVariant = gateOpen ? rollPackVariant(rng) : 'solo';
 
+  // Only a fight-kind node's 'hard' option bumps title to 'boss' (`BUMPED_BOSS_PRESET`).
+  const bumped = node.kind === 'fight';
+
   let memberLevel = entry.level;
   let memberTitle: EnemyTitle = entry.title;
   if (variant !== 'solo') {
     // The node's fight number rides along so the budget is priced at the SAME
     // depth-ramped title package (`titlePresetFor`) the solo build ships.
-    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix, node.fightNumber!, [...anchorPool, ...fillerPool]);
+    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix, node.fightNumber!, [...anchorPool, ...fillerPool], bumped);
     if (solvedLevel === null) {
       // Budget floor-fallback (encounter.ts#resolvePackMemberLevel): even
       // level 1 would exceed this member's taxed share — ship solo instead.
@@ -1074,7 +1181,7 @@ export function rollEncounter(state: RunState): EncounterPack {
   const size = PACK_SIZE[variant];
   // TITLE DEPTH RAMP (2026-09-02): rank comes from the fight-number-ramped
   // package, not the flat preset — see `titlePresetFor` in encounter.ts.
-  const rank = titlePresetFor(memberTitle, node.fightNumber!).rank;
+  const rank = titlePresetFor(memberTitle, node.fightNumber!, bumped).rank;
   // Pack members are mob/normal (`capPackTitle`), so a pack drops the affix
   // with the title it belonged to — no elite packs, no affixed packs, and
   // `resolvePackMemberLevel`'s member-deck term above matches that exactly.
@@ -1096,18 +1203,18 @@ export function rollEncounter(state: RunState): EncounterPack {
     enemyIds.push(drawPool[rng.int(drawPool.length)]!);
   }
   if (size > 1) {
-    memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix, node.fightNumber!) ?? memberLevel;
+    memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix, node.fightNumber!, bumped) ?? memberLevel;
   }
 
   // A pack earns only the milestones of its own clamped effective level.
   // This explicit recipe survives preview, service, and playback reconstruction.
   const growthLevel = size > 1
-    ? Math.max(1, memberLevel + titlePresetFor(memberTitle, node.fightNumber!).levelDelta)
+    ? Math.max(1, memberLevel + titlePresetFor(memberTitle, node.fightNumber!, bumped).levelDelta)
     : entry.level;
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
     units.push(buildEnemyEncounter(
-      enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix, node.fightNumber!, undefined, growthLevel,
+      enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix, node.fightNumber!, undefined, growthLevel, bumped,
     ));
   }
   return { variant, units };
@@ -1128,6 +1235,21 @@ export interface BattleOutcome {
   damageTaken?: number;
   healingDone?: number;
   battleFact?: CombatFactLedgerEntry;
+}
+
+export const BOSS_GOLD_BONUS = 5;
+
+export interface BossReward {
+  bonusGold: number;
+  gemId: string | null;
+}
+
+// own hashSeed domain, no shared Rng — can't perturb the node's encounter roll
+function bossRewardGemId(runSeed: number, node: RunNode): string | null {
+  const pool = Object.values(gemBook);
+  if (pool.length === 0) return null;
+  const rng = new Rng(hashSeed('bossReward', runSeed, node.id));
+  return pickWeightedGem(rng, pool, node.depth).id;
 }
 
 /** The only completion exit for committed fight, shop, and event nodes.
@@ -1161,7 +1283,7 @@ function finishCommittedNode(state: RunState, node: RunNode): RunState {
  * Clears `currentNodeId` either way. Throws if the current node isn't a
  * combat node.
  */
-export function recordBattleResult(state: RunState, outcome: BattleOutcome): RunState {
+export function recordBattleResult(state: RunState, outcome: BattleOutcome): { state: RunState; bossReward: BossReward | null } {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
   if (!node) {
     throw new Error('recordBattleResult: no combat node is currently active');
@@ -1176,13 +1298,18 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
   const won = outcome.won;
   const lives = won ? state.lives : Math.max(0, state.lives - 1);
   const status: RunStatus = lives <= 0 ? 'defeat' : 'active';
-  const goldEarned = won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0;
+  const baseGoldEarned = won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0;
+  const bossReward: BossReward | null = isBoss && won
+    ? { bonusGold: BOSS_GOLD_BONUS, gemId: bossRewardGemId(state.map.seed, node) }
+    : null;
+  const goldEarned = baseGoldEarned + (bossReward?.bonusGold ?? 0);
   const settled = {
     ...state,
     status,
     lives,
     bossesCleared: state.bossesCleared + (isBoss && won ? 1 : 0),
     gold: state.gold + goldEarned,
+    gemInventory: bossReward?.gemId ? [...state.gemInventory, bossReward.gemId] : state.gemInventory,
     wins: state.wins + (won ? 1 : 0),
     losses: state.losses + (won ? 0 : 1),
     heroLevel: Math.min(MAX_LEVEL, state.heroLevel + 1),
@@ -1198,7 +1325,7 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
   const withFacts = outcome.battleFact === undefined
     ? settled
     : recordBattleFacts(settled, outcome.battleFact);
-  return finishCommittedNode(withFacts, node);
+  return { state: finishCommittedNode(withFacts, node), bossReward };
 }
 
 /**
@@ -1251,6 +1378,11 @@ export function leaveShop(state: RunState): RunState {
 export function currentEventNode(state: RunState): RunNode | undefined {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
   return node?.kind === 'event' ? node : undefined;
+}
+
+/** Any node by id, regardless of `currentNodeId`. */
+export function nodeById(state: RunState, nodeId: string): RunNode | undefined {
+  return findNode(state.map, nodeId);
 }
 
 /**
@@ -1469,12 +1601,27 @@ export function buyRunCard(state: RunState, nodeId: string, index: number): RunB
   return { ok: true, state: nextState };
 }
 
-/** The merge target a shop offer of `skillId` would upgrade, or `null` if the
- * player owns no mergeable (non-diamond) instance — the pure query the UI
- * calls to decide whether a card's BUY confirm should offer a MERGE choice,
- * and what tier it would produce. Spends no gold, touches no shelf. */
-export function runMergeTargetFor(state: RunState, skillId: string): MergeTarget | null {
-  return findMergeTarget(skillId, state.pieces, state.bagSlots);
+export function runMergeTargetFor(
+  state: RunState,
+  skillId: string,
+  tier: SkillTier,
+  targetInstanceId?: string,
+): MergeTarget | null {
+  return findMergeTarget(skillId, { tier, points: 0 }, state.pieces, state.bagSlots, targetInstanceId);
+}
+
+export function runMergeableDuplicatesFor(state: RunState, targetInstanceId: string): OwnedDuplicate[] {
+  const target = state.pieces.find((p) => p.instanceId === targetInstanceId)
+    ?? state.bagSlots.find((c): c is RunCard => c != null && c.instanceId === targetInstanceId);
+  if (!target) return [];
+  return mergeableDuplicatesFor(target, state.pieces, state.bagSlots);
+}
+
+export function runPreviewCardMerge(state: RunState, targetInstanceId: string, fed: TierProgress): TierProgress | null {
+  const target = state.pieces.find((p) => p.instanceId === targetInstanceId)
+    ?? state.bagSlots.find((c): c is RunCard => c != null && c.instanceId === targetInstanceId);
+  if (!target || target.tier === 'diamond') return null;
+  return previewCardMerge({ tier: target.tier, points: pointsOf(target) }, fed);
 }
 
 export type RunMergeResult =
@@ -1483,29 +1630,23 @@ export type RunMergeResult =
 
 /**
  * MERGE: buy the card offer at `index` on `nodeId`'s shelf, but instead of
- * adding a new copy, upgrade the player's existing LOWEST-tier owned instance
- * of that skill one tier (`runMergeTargetFor` — board preferred over bag on a
- * tier tie). Same price as a normal buy, same shelf consumption, same
- * `cardsBought`/`goldSpent` stats bump — a merge IS a purchase (locked
- * design). Only `tier` changes on the merged instance: its `instanceId` and
- * (board pieces only) socketed `gem` are untouched. Fails cleanly (no charge,
- * shelf untouched) if the wallet can't afford it or the player owns no
- * mergeable copy of the offered skill (e.g. every owned copy is already
- * diamond, or the player owns none at all).
+ * adding a new copy, feed it into an owned instance of that skill —
+ * `targetInstanceId` if given, otherwise the lowest owned tier (board before
+ * bag). Same price/shelf/stats bump as a normal buy.
  */
-export function mergeRunCard(state: RunState, nodeId: string, index: number): RunMergeResult {
+export function mergeRunCard(state: RunState, nodeId: string, index: number, targetInstanceId?: string): RunMergeResult {
   const shelf = state.shopShelves[nodeId];
   const offer = shelf?.cards[index];
   if (!shelf || !offer) return { ok: false, reason: 'gone', state };
   if (state.gold < offer.price) return { ok: false, reason: 'gold', state };
-  const target = runMergeTargetFor(state, offer.skillId);
+  const target = runMergeTargetFor(state, offer.skillId, offer.tier, targetInstanceId);
   if (!target) return { ok: false, reason: 'no-target', state };
 
   const pieces = target.location === 'board'
-    ? state.pieces.map((piece, i) => (i === target.index ? { ...piece, tier: target.toTier } : piece))
+    ? state.pieces.map((piece, i) => (i === target.index ? { ...piece, tier: target.toTier, points: target.toPoints } : piece))
     : state.pieces;
   const bagSlots = target.location === 'bag'
-    ? state.bagSlots.map((card, i) => (i === target.index && card ? { ...card, tier: target.toTier } : card))
+    ? state.bagSlots.map((card, i) => (i === target.index && card ? { ...card, tier: target.toTier, points: target.toPoints } : card))
     : state.bagSlots;
 
   const nextShelf: RunShopShelf = { ...shelf, cards: shelf.cards.filter((_, i) => i !== index) };
@@ -1525,6 +1666,56 @@ export function mergeRunCard(state: RunState, nodeId: string, index: number): Ru
       },
     },
   };
+}
+
+function ownedNonDiamondInstanceIds(state: RunState): string[] {
+  const ids: string[] = [];
+  for (const piece of state.pieces) if (piece.tier !== 'diamond') ids.push(piece.instanceId);
+  for (const card of state.bagSlots) if (card && card.tier !== 'diamond') ids.push(card.instanceId);
+  return ids;
+}
+
+export function mergeSlotPriceForNode(state: RunState, nodeId: string): number {
+  const node = findNode(state.map, nodeId);
+  return mergeSlotPriceForWave(node?.wave ?? 1);
+}
+
+export function mergeSlotAvailable(state: RunState, nodeId: string): boolean {
+  if (state.shopShelves[nodeId]?.mergeSlotUsed) return false;
+  return ownedNonDiamondInstanceIds(state).length > 0;
+}
+
+export type RunMergeSlotResult =
+  | { ok: true; state: RunState; result: TierProgress }
+  | { ok: false; reason: 'gold' | 'used' | 'target'; state: RunState };
+
+export function buyMergeSlotPoint(state: RunState, nodeId: string, targetInstanceId: string): RunMergeSlotResult {
+  if (state.shopShelves[nodeId]?.mergeSlotUsed) return { ok: false, reason: 'used', state };
+  const price = mergeSlotPriceForNode(state, nodeId);
+  if (state.gold < price) return { ok: false, reason: 'gold', state };
+
+  const boardIndex = state.pieces.findIndex((p) => p.instanceId === targetInstanceId && p.tier !== 'diamond');
+  const bagIndex = boardIndex >= 0 ? -1 : state.bagSlots.findIndex((c) => c != null && c.instanceId === targetInstanceId && c.tier !== 'diamond');
+  if (boardIndex < 0 && bagIndex < 0) return { ok: false, reason: 'target', state };
+
+  const shelf = state.shopShelves[nodeId] ?? { cards: [], gems: [], rerollCount: 0 };
+  const nextShelf: RunShopShelf = { ...shelf, mergeSlotUsed: true };
+  const settle = {
+    gold: state.gold - price,
+    shopShelves: { ...state.shopShelves, [nodeId]: nextShelf },
+    stats: { ...state.stats, goldSpent: state.stats.goldSpent + price },
+  };
+
+  if (boardIndex >= 0) {
+    const target = state.pieces[boardIndex]!;
+    const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+    const pieces = state.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: result.tier, points: result.points } : p));
+    return { ok: true, result, state: { ...state, ...settle, pieces } };
+  }
+  const target = state.bagSlots[bagIndex]!;
+  const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+  const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: result.tier, points: result.points } : c));
+  return { ok: true, result, state: { ...state, ...settle, bagSlots } };
 }
 
 /** Buys the gem offer at `index` on `nodeId`'s current shelf: deducts gold,

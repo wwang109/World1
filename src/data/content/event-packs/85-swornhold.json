@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "garrisons_oath",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Garrison's Oath",
+            "body": "Swornhold's drill yard still musters at the old hours. Two victories won under its banner earn a place in the line — and the oath that comes with it.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": ["swornhold"],
+            "story": { "storyId": "garrisons_oath", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "combat.affinityWin", "args": { "affinityId": "sword", "atLeast": 2, "biomeId": "swornhold" } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "swear_the_oath",
+                  "label": "Swear the garrison's oath",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["sword"] }], "maxTier": "bronze" },
+                  "callback": {
+                    "callbackId": "garrisons_oath_kept",
+                    "eventId": "garrisons_oath_kept",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": ["training"],
+                    "destinationBiomeIds": ["swornhold"],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": { "expiresAfterNodes": 15, "fallback": "discard" }
+                  }
+                },
+                {
+                  "id": "take_the_drill_yards_gear",
+                  "label": "Take the drill yard's gear",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["iron_bulwark_echo", "taunting_sliver", "war_banner_echo"] }] }
+                },
+                { "id": "march_on", "label": "March on", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "garrisons_oath_kept",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Oath Kept",
+            "body": "Word of the oath reaches you again, three roads on: the garrison held its line without you, and the standard-bearer sends word of what your name still earns there.",
+            "theme": "training",
+            "rarity": "rare",
+            "biomeIds": ["swornhold"],
+            "story": { "storyId": "garrisons_oath", "stage": "callback", "role": "callback" },
+            "eligibility": { "fact": "callback.queued", "args": { "callbackId": "garrisons_oath_kept" } },
+            "delivery": { "kind": "queued_callback" },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "take_the_oath_gold", "label": "Take the oath's due", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 }, "mutations": [{ "op": "completeStory", "storyId": "garrisons_oath" }] }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "hold_the_line",
+                    "label": "Hold the line",
+                    "cost": 0,
+                    "outcome": { "kind": "bonusDraft", "filter": [{ "weapons": ["sword"] }] },
+                    "mutations": [{ "op": "completeStory", "storyId": "garrisons_oath" }]
+                  },
+                  {
+                    "id": "temper_the_oath_blade",
+                    "label": "Temper the oath-blade",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": { "filter": { "where": "any", "match": { "weapons": ["sword"] } } },
+                      "fallback": { "kind": "grantGold", "amount": 2 }
+                    },
+                    "mutations": [{ "op": "completeStory", "storyId": "garrisons_oath" }]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "oathsmiths_forge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Oathsmith",
+            "body": "Swornhold's forge never truly cools. Its smith takes no coin, only oaths, and the blade she sets aside today is already promised to whoever swears to carry it into the line.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": ["swornhold"],
+            "story": { "storyId": "oathsmiths_forge", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["swornhold"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_iron_riposte",
+                  "label": "Swear for the Iron Riposte",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "iron_riposte", "tier": "bronze" }
+                },
+                {
+                  "id": "take_sword_card",
+                  "label": "Take a Sword card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["sword"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Leave the forge unsworn", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

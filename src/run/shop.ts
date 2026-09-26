@@ -218,6 +218,12 @@ export function goldPriceOfGemForShop(gemId: string, wave = 1): number {
   return Math.max(sellPriceOfGem(gemId), scaledGoldPrice(goldPriceOfGem(gemId), wave));
 }
 
+export const MERGE_SLOT_BASE_PRICE = 2;
+
+export function mergeSlotPriceForWave(wave = 1): number {
+  return scaledGoldPrice(MERGE_SLOT_BASE_PRICE, wave);
+}
+
 /**
  * Gem gold price, derived from the gem's own PL (`gemPowerLevelDeci`) —
  * monotonic in PL. Thresholds key off the rarity bands (Common 20 · Rare 40
@@ -720,13 +726,105 @@ export function nextSkillTier(tier: SkillTier): SkillTier | null {
   return SKILL_TIER_ORDER[idx + 1]!;
 }
 
-/** A structural (instanceId/skillId/tier)-shaped owned card/piece — the
- * minimum shape `findMergeTarget` needs, satisfied by both `RunBoardPiece`/
- * `RunBagSlot` (src/run) and `OwnedBoardPiece`/`InventorySlot` (src/game). */
 export interface MergeableCard {
   instanceId: string;
   skillId: string;
   tier: SkillTier;
+  points?: number;
+}
+
+export function pointsOf(card: { points?: number }): number {
+  return card.points ?? 0;
+}
+
+export interface TierProgress {
+  tier: SkillTier;
+  points: number;
+}
+
+export const TIER_WORTH: Record<SkillTier, number> = { bronze: 1, silver: 2, gold: 3, diamond: 4 };
+
+export function tierWorth(tier: SkillTier): number {
+  return TIER_WORTH[tier];
+}
+
+export function tierUpgradeCost(tier: SkillTier): number | null {
+  return tier === 'diamond' ? null : TIER_WORTH[tier];
+}
+
+const TIER_CUM: Record<SkillTier, number> = (() => {
+  const cum = {} as Record<SkillTier, number>;
+  let running = 0;
+  for (const tier of SKILL_TIER_ORDER) {
+    cum[tier] = running;
+    running += TIER_WORTH[tier];
+  }
+  return cum;
+})();
+
+export function absoluteTierValue(progress: TierProgress): number {
+  return TIER_CUM[progress.tier] + progress.points;
+}
+
+export function tierProgressFromAbsolute(total: number): TierProgress {
+  for (let i = SKILL_TIER_ORDER.length - 1; i >= 0; i--) {
+    const tier = SKILL_TIER_ORDER[i]!;
+    if (TIER_CUM[tier] <= total) {
+      return { tier, points: tier === 'diamond' ? 0 : total - TIER_CUM[tier] };
+    }
+  }
+  return { tier: 'bronze', points: 0 };
+}
+
+export function addTierValue(progress: TierProgress, amount: number): TierProgress {
+  if (progress.tier === 'diamond') return { tier: 'diamond', points: 0 };
+  return tierProgressFromAbsolute(absoluteTierValue(progress) + amount);
+}
+
+export function mergeTierProgress(target: TierProgress, fed: TierProgress): TierProgress {
+  if (target.tier === 'diamond') return { tier: 'diamond', points: 0 };
+  return addTierValue(target, TIER_WORTH[fed.tier] + fed.points);
+}
+
+export function previewCardMerge(target: TierProgress, fed: TierProgress): TierProgress {
+  return mergeTierProgress(target, fed);
+}
+
+export interface OwnedDuplicate {
+  location: 'board' | 'bag';
+  index: number;
+  instanceId: string;
+  tier: SkillTier;
+  points: number;
+}
+
+export function listOwnedDuplicates<P extends MergeableCard>(
+  skillId: string,
+  board: readonly P[],
+  bag: readonly (P | null)[],
+  excludeInstanceId?: string,
+): OwnedDuplicate[] {
+  const result: OwnedDuplicate[] = [];
+  board.forEach((p, index) => {
+    if (p.skillId === skillId && p.instanceId !== excludeInstanceId) {
+      result.push({ location: 'board', index, instanceId: p.instanceId, tier: p.tier, points: pointsOf(p) });
+    }
+  });
+  bag.forEach((c, index) => {
+    if (c && c.skillId === skillId && c.instanceId !== excludeInstanceId) {
+      result.push({ location: 'bag', index, instanceId: c.instanceId, tier: c.tier, points: pointsOf(c) });
+    }
+  });
+  return result;
+}
+
+export function mergeableDuplicatesFor<P extends MergeableCard>(
+  target: MergeableCard,
+  board: readonly P[],
+  bag: readonly (P | null)[],
+): OwnedDuplicate[] {
+  if (target.tier === 'diamond') return [];
+  return listOwnedDuplicates(target.skillId, board, bag, target.instanceId);
 }
 
 export interface MergeTarget {
@@ -736,33 +834,59 @@ export interface MergeTarget {
   index: number;
   instanceId: string;
   fromTier: SkillTier;
+  fromPoints: number;
   toTier: SkillTier;
+  toPoints: number;
 }
 
-/**
- * The merge target for a shop offer of `skillId`: the LOWEST-tier owned
- * instance of that skill across BOTH `board` and `bag` — on a tier tie, the
- * board copy wins (it's the live one). Returns `null` if the player owns no
- * mergeable (non-diamond) instance of `skillId` (including owning none at
- * all). Deterministic: within a tier, `board` is always checked before `bag`,
- * and `Array#findIndex` always returns the first (lowest-index) match, so the
- * same owned collection always yields the same target.
- */
 export function findMergeTarget<P extends MergeableCard>(
   skillId: string,
+  fed: TierProgress,
   board: readonly P[],
   bag: readonly (P | null)[],
+  targetInstanceId?: string,
 ): MergeTarget | null {
+  if (targetInstanceId !== undefined) {
+    const boardIndex = board.findIndex((p) => p.instanceId === targetInstanceId && p.skillId === skillId);
+    if (boardIndex >= 0) {
+      const piece = board[boardIndex]!;
+      if (piece.tier === 'diamond') return null;
+      const result = mergeTierProgress({ tier: piece.tier, points: pointsOf(piece) }, fed);
+      return {
+        location: 'board', index: boardIndex, instanceId: piece.instanceId,
+        fromTier: piece.tier, fromPoints: pointsOf(piece), toTier: result.tier, toPoints: result.points,
+      };
+    }
+    const bagIndex = bag.findIndex((c) => c != null && c.instanceId === targetInstanceId && c.skillId === skillId);
+    if (bagIndex >= 0) {
+      const card = bag[bagIndex]!;
+      if (card.tier === 'diamond') return null;
+      const result = mergeTierProgress({ tier: card.tier, points: pointsOf(card) }, fed);
+      return {
+        location: 'bag', index: bagIndex, instanceId: card.instanceId,
+        fromTier: card.tier, fromPoints: pointsOf(card), toTier: result.tier, toPoints: result.points,
+      };
+    }
+    return null;
+  }
   for (const tier of MERGEABLE_TIERS) {
     const boardIndex = board.findIndex((p) => p.skillId === skillId && p.tier === tier);
     if (boardIndex >= 0) {
       const piece = board[boardIndex]!;
-      return { location: 'board', index: boardIndex, instanceId: piece.instanceId, fromTier: tier, toTier: nextSkillTier(tier)! };
+      const result = mergeTierProgress({ tier: piece.tier, points: pointsOf(piece) }, fed);
+      return {
+        location: 'board', index: boardIndex, instanceId: piece.instanceId,
+        fromTier: tier, fromPoints: pointsOf(piece), toTier: result.tier, toPoints: result.points,
+      };
     }
     const bagIndex = bag.findIndex((c) => c != null && c.skillId === skillId && c.tier === tier);
     if (bagIndex >= 0) {
       const card = bag[bagIndex]!;
-      return { location: 'bag', index: bagIndex, instanceId: card.instanceId, fromTier: tier, toTier: nextSkillTier(tier)! };
+      const result = mergeTierProgress({ tier: card.tier, points: pointsOf(card) }, fed);
+      return {
+        location: 'bag', index: bagIndex, instanceId: card.instanceId,
+        fromTier: tier, fromPoints: pointsOf(card), toTier: result.tier, toPoints: result.points,
+      };
     }
   }
   return null;

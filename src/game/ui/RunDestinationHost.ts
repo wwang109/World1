@@ -29,7 +29,11 @@ export function renderRunHostButton(
     .setInteractive({ useHandCursor: true });
   text.setPosition(Math.round(rect.x + (width - text.width) / 2), Math.round(rect.y + (height - text.height) / 2));
   scene.children.bringToTop(text);
-  attachButtonFeel(scene, box, { fill: UI.chip, hover: UI.border, follow: [text], lift: 0, onPress });
+  attachButtonFeel(scene, box, {
+    fill: UI.chip, hover: UI.border, follow: [text], lift: 0,
+    sfx: label.startsWith('‹') ? 'uiBack' : undefined,
+    onPress,
+  });
   return rect;
 }
 

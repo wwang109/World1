@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { roundRect } from './roundedRect';
-import { playSfx } from '../audio/sfxSynth';
 import type { SfxKey } from '../audio/sfxRecipes';
 import { ACTIVE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
@@ -318,8 +317,8 @@ export function renderRunChoicePanel(
     hover: UI.slotHover,
     alpha,
     lift: 0,
+    sfx: opts.sfx,
     onPress: () => {
-      playSfx(opts.sfx ?? 'uiClick');
       // The RAIL flashes, not the whole plate: it is the panel's accent
       // element, so the confirmation reads without the plate itself blinking.
       flashConfirm(scene, rail);

@@ -1,6 +1,8 @@
 import { demoState } from './demoState';
-import { currentNode, getActiveRun } from './runStore';
-import { rollEncounter } from '../run/runState';
+import { activeChallengeFight, activeExtraGhostFight, activeSubstituteGhost, currentNode, getActiveRun } from './runStore';
+import { nodeById, rollEncounter } from '../run/runState';
+import { ghostToBattlePieces } from '../run/ghost';
+import { hashSeed } from '../engine/rng';
 import type { BattleTimelineInput } from './battleTimeline';
 
 /**
@@ -58,14 +60,71 @@ function demoBattleInput(): BattleTimelineInput {
  */
 function runBattleInput(): BattleTimelineInput | null {
   const run = getActiveRun();
+  if (!run) return null;
+
+  // Off-column fight from an event's `challengeFight` (`src/run/challengeFight.ts`).
+  const challenge = activeChallengeFight();
+  if (challenge) {
+    return {
+      pieces: run.pieces,
+      heroLevel: run.heroLevel,
+      heroAllocation: run.heroAllocation,
+      heroPurchasedStats: run.purchasedStats,
+      enemyId: challenge.enemyId,
+      enemyLevel: challenge.level,
+      enemyTitle: challenge.title,
+      enemyRank: challenge.rank,
+      enemyFightNumber: challenge.fightNumber,
+      enemyModifiers: challenge.modifiers,
+      enemyTeam: [{
+        enemyId: challenge.enemyId, level: challenge.level, title: challenge.title,
+        rank: challenge.rank, fightNumber: challenge.fightNumber, bumped: challenge.bumped, modifiers: [...challenge.modifiers],
+      }],
+      seed: hashSeed(run.map.seed, 'challengeFight-battle', challenge.instanceId, challenge.choiceId),
+    };
+  }
+
+  // `previewEncounter`'s throwaway-copy idiom: `currentNodeId` already left the boss node.
+  const extra = activeExtraGhostFight();
+  if (extra) {
+    const bossNode = nodeById(run, extra.bossNodeId);
+    if (!bossNode) return null;
+    const pack = rollEncounter({ ...run, currentNodeId: bossNode.id });
+    const primary = pack.units[0]!;
+    const ghost = ghostToBattlePieces(extra.ghost);
+    return {
+      pieces: run.pieces,
+      heroLevel: run.heroLevel,
+      heroAllocation: run.heroAllocation,
+      heroPurchasedStats: run.purchasedStats,
+      enemyId: primary.enemyId,
+      enemyLevel: primary.level,
+      enemyTitle: primary.title,
+      enemyRank: primary.baseRank,
+      enemyGrowthLevel: primary.growthLevel,
+      enemyFightNumber: bossNode.fightNumber,
+      enemyModifiers: primary.modifiers,
+      enemyAffix: primary.affix,
+      enemyTeam: [{
+        enemyId: primary.enemyId, level: primary.level, title: primary.title, rank: primary.baseRank,
+        growthLevel: primary.growthLevel, fightNumber: bossNode.fightNumber, bumped: primary.bumped, modifiers: [...primary.modifiers], affix: primary.affix,
+        ghost,
+      }],
+      seed: bossNode.encounterSeed!,
+    };
+  }
+
   const node = currentNode();
-  if (!run || !node || (node.kind !== 'fight' && node.kind !== 'boss')) return null;
+  if (!node || (node.kind !== 'fight' && node.kind !== 'boss')) return null;
   const pack = rollEncounter(run);
   const primary = pack.units[0]!;
+  const substituteGhost = activeSubstituteGhost();
+  const ghost = substituteGhost ? ghostToBattlePieces(substituteGhost) : null;
   return {
     pieces: run.pieces,
     heroLevel: run.heroLevel,
     heroAllocation: run.heroAllocation,
+    heroPurchasedStats: run.purchasedStats,
     enemyId: primary.enemyId,
     enemyLevel: primary.level,
     enemyTitle: primary.title,
@@ -76,8 +135,9 @@ function runBattleInput(): BattleTimelineInput | null {
     enemyAffix: primary.affix,
     // `u.affix` travels with the unit: the FIGHT button must resolve the same
     // affix RunPrep previewed off this identical `rollEncounter` call.
-    enemyTeam: pack.units.map((u) => ({
-      enemyId: u.enemyId, level: u.level, title: u.title, rank: u.baseRank, growthLevel: u.growthLevel, fightNumber: node.fightNumber, modifiers: [...u.modifiers], affix: u.affix,
+    enemyTeam: pack.units.map((u, i) => ({
+      enemyId: u.enemyId, level: u.level, title: u.title, rank: u.baseRank, growthLevel: u.growthLevel, fightNumber: node.fightNumber, bumped: u.bumped, modifiers: [...u.modifiers], affix: u.affix,
+      ...(i === 0 && ghost ? { ghost } : {}),
     })),
     seed: node.encounterSeed!,
   };

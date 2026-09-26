@@ -68,6 +68,12 @@ function travelModelStub(kind: RunTravelChoiceViewModel['kind'], title = '', eve
 
 type TravelKind = 'FIGHT' | 'EVENT' | 'SHOP' | 'BOSS';
 
+/** `RunBiomePickPanel.ts`'s action button label — hardcoded there (this
+ * script does not modify that file, so this is not sourced). Every option
+ * on the region-choice screen (`CHOOSE YOUR REGION`, `RunBiomePickPanel.ts`)
+ * shares this exact label, so occurrence index distinguishes the cards. */
+const BIOME_PICK_ACTION_LABEL = 'CHOOSE REGION';
+
 /** The interactive action label(s) per node kind, sourced from
  * `runTravelChoiceCardCopy.ts` — a travel card's
  * EYEBROW ("FIGHT"/"SHOP"/"EVENT") is presentation text, not the button;
@@ -658,13 +664,27 @@ async function walkToShop(page: Page, platform: Platform): Promise<boolean> {
     // sleep, so an ACTUALLY stuck/exhausted map still returns promptly.
     let mapTexts = await collectTexts(page);
     let options = findTravelOptions(mapTexts);
-    if (options.length === 0) {
+    let biomePickOptions = mapTexts.filter((t) => t.text === BIOME_PICK_ACTION_LABEL);
+    if (options.length === 0 && biomePickOptions.length === 0) {
       const start = Date.now();
-      while (options.length === 0 && Date.now() - start < 8000) {
+      while (options.length === 0 && biomePickOptions.length === 0 && Date.now() - start < 8000) {
         await page.waitForTimeout(200);
         mapTexts = await collectTexts(page);
         options = findTravelOptions(mapTexts);
+        biomePickOptions = mapTexts.filter((t) => t.text === BIOME_PICK_ACTION_LABEL);
       }
+    }
+    // The region-choice screen (`CHOOSE YOUR REGION`, `RunBiomePickPanel.ts`)
+    // replaces the travel-choice column between waves — `findTravelOptions`
+    // doesn't know this kind, so it's handled first, deterministically
+    // picking the topmost-then-leftmost option, then the loop re-scans.
+    if (biomePickOptions.length > 0) {
+      const sorted = [...biomePickOptions].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      console.log(`  [${platform}] stop ${stop}: region-choice screen shown (${sorted.length} option(s)) -> picking the first`);
+      await clickBound(page, sorted[0]!, platform, `stop ${stop} -> ${BIOME_PICK_ACTION_LABEL} (first option)`);
+      const resolved = await waitUntil(page, async () => !(await collectTexts(page)).some((t) => t.text === BIOME_PICK_ACTION_LABEL), 8000);
+      if (!resolved) { fail(platform, `stop ${stop} -> ${BIOME_PICK_ACTION_LABEL}`, 'region-choice screen still showing 8s after picking the first option'); return false; }
+      continue;
     }
     if (options.length === 0) return false; // stuck / map exhausted — let the caller retry
     const shopChoice = options.find((o) => o.kind === 'SHOP');

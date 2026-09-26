@@ -54,6 +54,93 @@
           }
         }
       ]
+    },
+    {
+      "id": "rootbound_hermit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rootbound Hermit",
+            "body": "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": ["thornwild"],
+            "story": { "storyId": "rootbound_hermit", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["thornwild"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_thorn_bite",
+                  "label": "Take Thorn Bite",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "thorn_bite", "tier": "bronze" }
+                },
+                {
+                  "id": "take_nature_card",
+                  "label": "Take a Nature card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["nature"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Leave the hermit rooted", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "seedvault",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Seedvault",
+            "body": "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": ["thornwild"],
+            "story": { "storyId": "seedvault", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "biome.current", "args": { "ids": ["thornwild"] } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["nature"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "crack_the_seedvault",
+                  "label": "Crack the seedvault",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["bramble_sliver", "second_wind_echo", "renewal_sliver"] }] }
+                },
+                {
+                  "id": "root_nature_card",
+                  "label": "Root a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["nature"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "leave", "label": "Leave the vault rooted shut", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

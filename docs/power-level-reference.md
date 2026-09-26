@@ -20,6 +20,20 @@ rates.
 `TIER_BUDGET_DECI` (`src/engine/balance.ts`): Bronze · Silver · Gold · Diamond,
 each tier a fixed deci-PL budget the card's whole kit must sum to exactly.
 
+## Tier-upgrade preview: three guaranteed-share outcomes
+
+`guaranteedPowerLevelDeci` (`src/engine/balance.ts`) prices a kit with every
+`affinity: true` line stripped — what a copy is worth on the worst board for
+it. `tierUpgradePreview` (`src/game/ui/tierUpgradePreview.ts`) diffs that
+number across a rank-up and reports one of three states, only two of which
+carry a flag: a rising guaranteed share is the unflagged default; a FLAT
+share (`conditionalGain`) means the whole gain sits behind the gate and
+nothing was surrendered; a FALLING share (`conditionalTrade`) means the rank
+spent guaranteed value on a gated payoff — a real trade, by design only at
+the five Diamond capstones. Swept across the shipped catalog (549 steps):
+533 rising, 9 flat, 7 falling. Full derivation and the `wildfire_rite` bug
+this split exists to catch: `guaranteedPowerLevelDeci`'s doc comment.
+
 ## Per-unit price table — read `PRICE`, don't copy it
 
 Every rate is a named constant in `PRICE` with its rationale in a doc comment

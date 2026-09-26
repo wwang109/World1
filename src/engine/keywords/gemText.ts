@@ -9,6 +9,7 @@ import {
   STAT_RULE,
   faceClauseOf,
   ruleEntriesOf,
+  withTermEntries,
   type RenderCtx,
 } from './text';
 
@@ -97,6 +98,7 @@ const GEM_CTX: RenderCtx = {
   property: 'physical',
   element: undefined,
   weapon: undefined,
+  archetypes: [],
   size: 1,
   speedWeight: undefined,
   cooldownTurns: undefined,
@@ -205,9 +207,9 @@ export function gemRuleEntries(gem: Gem): Array<{ title: string; body: string }>
     if (card) {
       for (const key of CARD_MOD_KEYS) if (card[key] !== undefined) push(CARD_MOD_TEXT[key].rule);
     }
-    return entries;
+    return withTermEntries(entries);
   }
   for (const action of orderedActions(gem.actions)) for (const entry of ruleEntriesOf(action)) push(entry);
   if (gem.weightIncreasePct !== undefined) push(STAT_RULE.speed);
-  return entries;
+  return withTermEntries(entries);
 }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import type { SkillDef } from '../../engine/types';
@@ -9,7 +10,10 @@ import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { boardAffinityHeadline } from '../ui/affinityDisplay';
-import { renderRetireConfirm, renderRunHud, renderUnspentPlConfirm, shouldConfirmUnspentPL, snapshotRunProgress } from '../ui/RunProgressStrip';
+import {
+  renderRetireConfirm, renderRunHud, renderUnspentPlConfirm,
+  shouldConfirmUnspentPL, snapshotRunProgress,
+} from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
@@ -96,7 +100,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: true,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('MobileRunMap'); },
       });
     }
     if (this.fightConfirmOpen) {
@@ -225,7 +229,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
   private renderHeroBand(run: NonNullable<ReturnType<typeof getActiveRun>>, top: number): number {
     const h = 30;
     this.add.rectangle(10, top, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
-    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
+    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation, run.purchasedStats).setup;
     // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), each
     // bumped stat getting its own "◆+N" delta (see `capabilityStatRun`).
     const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
@@ -300,7 +304,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }
-    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
+    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation, run.purchasedStats).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
     new BoardColumn(this, {

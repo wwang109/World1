@@ -175,12 +175,12 @@ Every tag listed below appears in it:
  17 ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)
  17  play    Bandit Duelist   sword_slash (slot 1) · weight 10 · target Hero (aggro 0) -> -0 [80 hp]
  17 │  Hero             takes 26 physical (26 blocked; 74 shield left) -> 80 hp
- 17 │  calc             21 -DEF1 +RAMP6 -BLOCK26 = 0 HP (attack 1->1, +0 aura/combo)
+ 17 │  calc             21 -DEF1 +RAMP6 -BLOCK26 = 0 HP (attack 1->1, +0 aura/chain)
  17  cost    Bandit Duelist   readiness 130 -> 120 (paid 10)
  17  cursor  Bandit Duelist   -> empty (slot 2)
  17  play    Hero             sword_slash (slot 5) · weight 10 · target Bandit Duelist (aggro 0) -> -23 [29915 hp]
  17 │  Bandit Duelist   takes 23 physical -> 29915 hp
- 17 │  calc             21 +RAMP2 = 23 HP (attack 1->1, +0 aura/combo)
+ 17 │  calc             21 +RAMP2 = 23 HP (attack 1->1, +0 aura/chain)
  17  cost    Hero             readiness 30 -> 20 (paid 10)
  17  cursor  Hero             -> empty (slot 6)
  17 │  Hero             takes 30 true -> 50 hp [attrition]

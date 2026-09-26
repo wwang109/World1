@@ -224,6 +224,26 @@ export type EventDirectOutcomeSpecV3 =
     kind: 'upgradeCardTargeted';
     target: EventUpgradeTargetV3;
     fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+  }
+  | { kind: 'challengeFight'; difficulty: EventChallengeDifficultyV3; reward: EventChallengeRewardSpecV3 };
+
+/** Risk rung a `challengeFight` outcome fights at — a solo off-column battle,
+ * never the fight column itself (`src/run/challengeFight.ts`). */
+export type EventChallengeDifficultyV3 = 'standard' | 'hard' | 'elite';
+
+/** The closed reward vocabulary a won `challengeFight` resolves — the same
+ * five outcome kinds an ordinary event choice already grants, narrowed to the
+ * ones that need no `filterFrom`/bound-subject door (a challenge fight has no
+ * event node context of its own to derive one from). */
+export type EventChallengeRewardSpecV3 =
+  | { kind: 'cardChoice'; filter: CardFilter; maxTier: SkillTier }
+  | EventGemChoiceSpecV3
+  | { kind: 'grantGold'; amount: number }
+  | { kind: 'grantLevel' }
+  | {
+    kind: 'upgradeCardTargeted';
+    target: EventUpgradeTargetV3;
+    fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
   };
 
 export interface EventWeightedBranchV3 {

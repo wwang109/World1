@@ -1,23 +1,7 @@
-import type { Archetype } from '../../engine/types';
+import type { Archetype, Element, WeaponType } from '../../engine/types';
+import type { StatusName } from '../../engine/combat/events';
 
-/**
- * Placeholder SFX recipes — THE event-key vocabulary the whole game wires
- * sound through. Pure module (no Phaser, no WebAudio; unit-tested in
- * `tests/game/sfxRecipes.test.ts`) — same spec-driven idiom as
- * `battleFxSpec.ts`: scenes call `playSfx('<key>')` and never describe sound
- * themselves. Every recipe is fully procedural (synthesized by
- * `sfxSynth.ts`), so the game is audible today with zero binary assets;
- * swapping in real audio later means loading a file under the SAME key and
- * leaving every call site untouched (see `docs/audio-design.md`).
- *
- * Recipe rules (enforced by the test):
- *   - short and transient: ≤ 400ms, except the two fight-end stingers ≤ 1500ms
- *   - envelope fits inside the duration (attack + decay ≤ duration)
- *   - peak gain is never above the bus (gainDb ≤ 0)
- *   - repeats don't grate: every recipe carries a ±% pitch jitter
- *   - the five cast variants stay audibly distinct (pairwise different
- *     wave or >15% start-frequency spread)
- */
+// THE event-key vocabulary every scene wires sound through — see docs/audio-design.md.
 export interface SfxRecipe {
   /** Oscillator wave shape. */
   wave: 'sine' | 'square' | 'sawtooth' | 'triangle';
@@ -41,9 +25,13 @@ export type SfxKey =
   | 'uiClick' | 'uiBack'
   | `cast:${Archetype}`
   | 'hitPhysical' | 'hitMagical' | 'hitTrue'
+  | `hit:${Element}` | `hit:${WeaponType}`
   | 'heal' | 'shieldGain' | 'shieldBreak' | 'dotTick'
+  | `status:${StatusName}`
+  | 'died' | 'phase' | 'negated' | 'warded'
+  | 'dragPick' | 'dragDrop' | 'sell'
   | 'goldGain' | 'purchase' | 'levelUp'
-  | 'victory' | 'defeat';
+  | 'victory' | 'defeat' | 'runWin' | 'runLose';
 
 export const SFX_RECIPES: Record<SfxKey, SfxRecipe> = {
   // --- UI ------------------------------------------------------------
@@ -66,17 +54,54 @@ export const SFX_RECIPES: Record<SfxKey, SfxRecipe> = {
   shieldBreak: { wave: 'square', freqStart: 420, freqEnd: 110, durationMs: 180, attackMs: 2, decayMs: 170, gainDb: -8, noiseMs: 70, pitchJitterPct: 8 },
   dotTick: { wave: 'sawtooth', freqStart: 240, freqEnd: 200, durationMs: 80, attackMs: 5, decayMs: 70, gainDb: -16, pitchJitterPct: 10 },
 
+  'hit:fire': { wave: 'sawtooth', freqStart: 480, freqEnd: 180, durationMs: 140, attackMs: 2, decayMs: 130, gainDb: -8, noiseMs: 40, pitchJitterPct: 8 },
+  'hit:frost': { wave: 'sine', freqStart: 1100, freqEnd: 650, durationMs: 150, attackMs: 3, decayMs: 140, gainDb: -9, pitchJitterPct: 5 },
+  'hit:lightning': { wave: 'square', freqStart: 1400, freqEnd: 300, durationMs: 90, attackMs: 1, decayMs: 85, gainDb: -8, noiseMs: 15, pitchJitterPct: 6 },
+  'hit:nature': { wave: 'triangle', freqStart: 380, freqEnd: 520, durationMs: 150, attackMs: 10, decayMs: 130, gainDb: -10, pitchJitterPct: 6 },
+  'hit:holy': { wave: 'sine', freqStart: 600, freqEnd: 900, durationMs: 160, attackMs: 15, decayMs: 140, gainDb: -9, pitchJitterPct: 4 },
+  'hit:dark': { wave: 'sawtooth', freqStart: 220, freqEnd: 90, durationMs: 170, attackMs: 5, decayMs: 160, gainDb: -8, noiseMs: 30, pitchJitterPct: 7 },
+
+  'hit:sword': { wave: 'square', freqStart: 900, freqEnd: 400, durationMs: 110, attackMs: 1, decayMs: 105, gainDb: -8, noiseMs: 20, pitchJitterPct: 6 },
+  'hit:axe': { wave: 'sawtooth', freqStart: 260, freqEnd: 120, durationMs: 150, attackMs: 2, decayMs: 140, gainDb: -7, noiseMs: 55, pitchJitterPct: 7 },
+  'hit:lance': { wave: 'triangle', freqStart: 1200, freqEnd: 900, durationMs: 100, attackMs: 1, decayMs: 95, gainDb: -9, pitchJitterPct: 5 },
+  'hit:bow': { wave: 'sine', freqStart: 700, freqEnd: 1050, durationMs: 90, attackMs: 1, decayMs: 85, gainDb: -9, pitchJitterPct: 6 },
+  'hit:beast': { wave: 'square', freqStart: 150, freqEnd: 80, durationMs: 160, attackMs: 3, decayMs: 150, gainDb: -7, noiseMs: 45, pitchJitterPct: 9 },
+
+  'status:poison': { wave: 'sawtooth', freqStart: 220, freqEnd: 160, durationMs: 130, attackMs: 8, decayMs: 115, gainDb: -13, pitchJitterPct: 8 },
+  'status:burn': { wave: 'sawtooth', freqStart: 400, freqEnd: 260, durationMs: 130, attackMs: 3, decayMs: 120, gainDb: -12, noiseMs: 30, pitchJitterPct: 8 },
+  'status:bleed': { wave: 'square', freqStart: 340, freqEnd: 200, durationMs: 90, attackMs: 2, decayMs: 85, gainDb: -13, pitchJitterPct: 8 },
+  'status:stun': { wave: 'square', freqStart: 1300, freqEnd: 1300, durationMs: 70, attackMs: 1, decayMs: 65, gainDb: -9, pitchJitterPct: 3 },
+  'status:buff': { wave: 'sine', freqStart: 500, freqEnd: 760, durationMs: 170, attackMs: 20, decayMs: 145, gainDb: -11, pitchJitterPct: 4 },
+  'status:debuff': { wave: 'sawtooth', freqStart: 460, freqEnd: 260, durationMs: 170, attackMs: 10, decayMs: 155, gainDb: -12, pitchJitterPct: 6 },
+  'status:guard': { wave: 'triangle', freqStart: 260, freqEnd: 340, durationMs: 150, attackMs: 25, decayMs: 120, gainDb: -11, pitchJitterPct: 4 },
+  'status:negate': { wave: 'square', freqStart: 200, freqEnd: 200, durationMs: 90, attackMs: 2, decayMs: 85, gainDb: -10, pitchJitterPct: 3 },
+  'status:expose': { wave: 'sawtooth', freqStart: 520, freqEnd: 300, durationMs: 150, attackMs: 5, decayMs: 140, gainDb: -12, noiseMs: 20, pitchJitterPct: 7 },
+  'status:thorns': { wave: 'triangle', freqStart: 850, freqEnd: 650, durationMs: 100, attackMs: 1, decayMs: 95, gainDb: -10, pitchJitterPct: 5 },
+  'status:ward': { wave: 'sine', freqStart: 620, freqEnd: 940, durationMs: 190, attackMs: 25, decayMs: 160, gainDb: -11, pitchJitterPct: 4 },
+
+  died: { wave: 'sawtooth', freqStart: 300, freqEnd: 60, durationMs: 340, attackMs: 5, decayMs: 320, gainDb: -8, noiseMs: 40, pitchJitterPct: 3 },
+  phase: { wave: 'triangle', freqStart: 220, freqEnd: 440, durationMs: 380, attackMs: 60, decayMs: 300, gainDb: -9, pitchJitterPct: 0 },
+  negated: { wave: 'square', freqStart: 500, freqEnd: 500, durationMs: 60, attackMs: 1, decayMs: 55, gainDb: -8, noiseMs: 15, pitchJitterPct: 3 },
+  warded: { wave: 'sine', freqStart: 700, freqEnd: 1050, durationMs: 170, attackMs: 20, decayMs: 145, gainDb: -10, pitchJitterPct: 4 },
+
+  dragPick: { wave: 'triangle', freqStart: 500, freqEnd: 560, durationMs: 60, attackMs: 3, decayMs: 55, gainDb: -12, pitchJitterPct: 5 },
+  dragDrop: { wave: 'sine', freqStart: 340, freqEnd: 260, durationMs: 100, attackMs: 5, decayMs: 90, gainDb: -11, pitchJitterPct: 5 },
+  sell: { wave: 'triangle', freqStart: 850, freqEnd: 1150, durationMs: 140, attackMs: 5, decayMs: 130, gainDb: -12, pitchJitterPct: 6 },
+
   // --- Run / economy ----------------------------------------------------
   goldGain: { wave: 'triangle', freqStart: 900, freqEnd: 1250, durationMs: 120, attackMs: 5, decayMs: 110, gainDb: -12, pitchJitterPct: 6 },
   purchase: { wave: 'triangle', freqStart: 750, freqEnd: 1000, durationMs: 170, attackMs: 5, decayMs: 150, gainDb: -11, pitchJitterPct: 5 },
   levelUp: { wave: 'sine', freqStart: 420, freqEnd: 840, durationMs: 380, attackMs: 20, decayMs: 320, gainDb: -9, pitchJitterPct: 3 },
 
-  // --- Fight-end stingers (the two allowed long ones) --------------------
+  // --- Fight-end stingers ------------------------------------------------
   victory: { wave: 'sine', freqStart: 392, freqEnd: 784, durationMs: 900, attackMs: 30, decayMs: 700, gainDb: -8, pitchJitterPct: 0 },
   defeat: { wave: 'sawtooth', freqStart: 220, freqEnd: 110, durationMs: 1100, attackMs: 60, decayMs: 900, gainDb: -10, pitchJitterPct: 0 },
+
+  runWin: { wave: 'sine', freqStart: 440, freqEnd: 880, durationMs: 360, attackMs: 20, decayMs: 320, gainDb: -8, pitchJitterPct: 0 },
+  runLose: { wave: 'sawtooth', freqStart: 260, freqEnd: 130, durationMs: 360, attackMs: 20, decayMs: 320, gainDb: -9, pitchJitterPct: 0 },
 };
 
-/** Duration ceiling for everything except the fight-end stingers. */
+/** Duration ceiling for everything except STINGER_KEYS. */
 export const SFX_MAX_MS = 400;
 export const STINGER_MAX_MS = 1500;
-export const STINGER_KEYS: readonly SfxKey[] = ['victory', 'defeat'];
+export const STINGER_KEYS: readonly SfxKey[] = ['victory', 'defeat', 'runWin', 'runLose', 'levelUp'];

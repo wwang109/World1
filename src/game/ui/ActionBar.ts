@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { SfxKey } from '../audio/sfxRecipes';
 import { FONT, UI } from '../theme';
 import { auditControlLabel } from './controlLayoutAudit';
 import { attachButtonFeel, pressedFill } from './motion';
@@ -11,6 +12,8 @@ export interface ActionButton {
   primary?: boolean;
   highlight?: boolean;
   flex?: number;
+  /** null = silent */
+  sfx?: SfxKey | null;
 }
 
 /**
@@ -66,6 +69,7 @@ export function renderActionBar(
       hover: fill,
       press: pressedFill(fill),
       follow: [label],
+      sfx: b.sfx,
       onPress: b.onPress,
     });
     // Shrink-then-ellipsize (shared layout-audit policy — same helper/options

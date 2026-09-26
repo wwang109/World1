@@ -182,7 +182,8 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     }).setOrigin(0.5);
     attachButtonFeel(this, menu, {
       fill: UI.panelAlt, hover: UI.slotHover, follow: [menuLabel],
-      onPress: () => { playSfx('uiBack'); this.scene.start('Start'); },
+      sfx: 'uiBack',
+      onPress: () => { this.scene.start('Start'); },
     });
   }
 

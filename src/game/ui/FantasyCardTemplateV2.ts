@@ -4,7 +4,7 @@ import { FONT, UI } from '../theme';
 import { templateBadgeTextureKey } from './cardArtPresentation';
 import { buildCardArtPlaceholder } from './cardArtPlaceholder';
 import { whenCardArtReady } from './cardArtLoader';
-import { keywordTextColor, parseCardTextMarkup } from './cardTextMarkup';
+import { cardTextWords, keywordTextColor } from './cardTextMarkup';
 import {
   archetypeEntry,
   propertyEntry,
@@ -24,6 +24,7 @@ import {
 } from './fantasyCardTemplateModel';
 import { FANTASY_CARD_TEMPLATE_SPEC, fantasyTitleLayout, type RegionBox } from './fantasyCardTemplateSpec';
 import { isAoeSkill } from './skillPresentation';
+import type { TierProgress } from '../../run/shop';
 
 export interface FantasyCardTemplateV2Options {
   width?: number;
@@ -32,6 +33,9 @@ export interface FantasyCardTemplateV2Options {
   artAnchor?: FantasyArtAnchor;
   /** Hover/tap explanations on badges, weight, slots, and rules text. Default on. */
   glossary?: boolean;
+  /** This instance's merge progress toward the next tier; renders as pips
+   * above the tier diamond. Omitted (or Diamond tier) shows no pips. */
+  progress?: TierProgress;
 }
 
 /**
@@ -95,6 +99,8 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     this.add(this.makeBadges(scene, model, halfW, halfH));
     this.add(this.makeWtPlate(scene, model, halfW, halfH));
     this.add(this.makeTierDiamond(scene, model, halfW, halfH));
+    const pips = this.makeTierProgressPips(scene, model, halfW, halfH);
+    if (pips) this.add(pips);
     this.add(this.makeSlotDisplay(scene, model, halfW, halfH));
     this.add(this.makeTitle(scene, model, halfW, halfH));
     this.add(this.makeDivider(scene, model, halfW, halfH));
@@ -571,6 +577,26 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     return g;
   }
 
+  /** Pips above the tier diamond, showing merge progress toward the next
+   * tier. `null` when `model.progressPips` is `null` (no `progress` passed,
+   * or the tier is Diamond). */
+  private makeTierProgressPips(
+    scene: Phaser.Scene,
+    model: ReturnType<typeof buildFantasyCardTemplateModel>,
+    halfW: number,
+    halfH: number,
+  ): Phaser.GameObjects.Text | null {
+    if (!model.progressPips) return null;
+    const region = this.region(model.regions.tierDiamond);
+    const cx = -halfW + region.x + region.w / 2;
+    const cy = -halfH + region.y - region.h * 0.55;
+    return scene.add.text(cx, cy, model.progressPips, {
+      fontFamily: FONT.body,
+      fontSize: `${Math.max(7, this.px(9))}px`,
+      color: '#f4ead0',
+    }).setOrigin(0.5);
+  }
+
   private makeSlotDisplay(
     scene: Phaser.Scene,
     model: ReturnType<typeof buildFantasyCardTemplateModel>,
@@ -717,26 +743,27 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     // enemy Attack (2 turns)") never splits mid-clause unless the clause is
     // longer than a full line.
     const clauses: Phaser.GameObjects.Text[][] = [[]];
-    for (const segment of parseCardTextMarkup(model.body)) {
-      const color = segment.keyword ? keywordTextColor(segment.keyword) ?? '#ffd98a' : '#f1efe8';
-      for (const word of segment.text.split(/\s+/).filter(Boolean)) {
-        const wordText = scene.add.text(0, 0, word, {
-          fontFamily: FONT.body,
-          fontStyle: segment.keyword ? 'bold' : 'normal',
-          fontSize: `${fontSize}px`,
-          color,
-          stroke: '#111722',
-          strokeThickness,
-        }).setOrigin(0, 0);
-        if (word === '·') {
-          // Separator closes the current clause and stays with it.
-          clauses[clauses.length - 1]!.push(wordText);
-          clauses.push([]);
-        } else {
-          clauses[clauses.length - 1]!.push(wordText);
-        }
+    const glued = new Set<Phaser.GameObjects.Text>();
+    for (const word of cardTextWords(model.body)) {
+      const color = word.keyword ? keywordTextColor(word.keyword) ?? '#ffd98a' : '#f1efe8';
+      const wordText = scene.add.text(0, 0, word.text, {
+        fontFamily: FONT.body,
+        fontStyle: word.keyword ? 'bold' : 'normal',
+        fontSize: `${fontSize}px`,
+        color,
+        stroke: '#111722',
+        strokeThickness,
+      }).setOrigin(0, 0);
+      if (word.glued) glued.add(wordText);
+      if (word.text === '·') {
+        // Separator closes the current clause and stays with it.
+        clauses[clauses.length - 1]!.push(wordText);
+        clauses.push([]);
+      } else {
+        clauses[clauses.length - 1]!.push(wordText);
       }
     }
+    const gapBefore = (wordText: Phaser.GameObjects.Text): number => (glued.has(wordText) ? -strokeThickness : spaceWidth);
 
     let cursorX = 0;
     let line = 0;
@@ -782,13 +809,14 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     let lastPlaced: Phaser.GameObjects.Text | undefined;
     for (const clause of clauses) {
       if (clause.length === 0) continue;
-      const clauseWidth = clause.reduce((sum, word) => sum + word.width, 0) + spaceWidth * (clause.length - 1);
-      if (cursorX > 0 && cursorX + clauseWidth > region.w && clauseWidth <= region.w) {
+      const clauseWidth = clause.reduce((sum, word, i) => sum + word.width + (i > 0 ? gapBefore(word) : 0), 0);
+      if (cursorX > 0 && cursorX + spaceWidth + clauseWidth > region.w && clauseWidth <= region.w) {
         cursorX = 0;
         line += 1;
       }
       for (const wordText of clause) {
-        if (cursorX > 0 && cursorX + wordText.width > region.w) {
+        const gap = cursorX > 0 ? gapBefore(wordText) : 0;
+        if (cursorX > 0 && gap > 0 && cursorX + gap + wordText.width > region.w) {
           cursorX = 0;
           line += 1;
         }
@@ -796,10 +824,11 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
           clipped.push(wordText);
           continue;
         }
-        wordText.setPosition(left + cursorX, top + line * lineHeight);
+        const x = cursorX > 0 ? cursorX + gap : 0;
+        wordText.setPosition(left + x, top + line * lineHeight);
         container.add(wordText);
         lastPlaced = wordText;
-        cursorX += wordText.width + spaceWidth;
+        cursorX = x + wordText.width;
       }
     }
     for (const wordText of clipped) wordText.destroy();

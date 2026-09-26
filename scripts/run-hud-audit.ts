@@ -876,6 +876,15 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   await shot(page, `${platform}-03-map-active`, platform);
   await auditScreen(page, 'map-active', platform, REQUIRED_STATS.filter(Boolean));
 
+  // ---- 3b. Band 0's biome pick ----
+  await clickUntil(
+    page, platform, 'map-active -> CHOOSE REGION',
+    (attempt) => clickExactText(page, 'CHOOSE REGION', platform, `map-active -> CHOOSE REGION (attempt ${attempt})`),
+    async () => (await collectTexts(page)).some((t) => NODE_ACTIONS.includes(t.text)),
+    'no travel-card action appeared after picking a region',
+  );
+  await shot(page, `${platform}-03b-map-region-chosen`, platform);
+
   // ---- 4. Pick the first available node -> Prep / Shop / Event ----
   // Travel-card eyebrows/titles are not interactive. Exact action-label
   // centres lie inside the renderer's interactive bottom rectangles.

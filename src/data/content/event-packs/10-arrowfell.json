@@ -431,6 +431,45 @@
           }
         }
       ]
+    },
+    {
+      "id": "fletchers_tithe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Fletcher's Tithe",
+            "body": "A fletcher's stall stands unmanned at an Arrowfell crossroads, its ledger open to a page marked \"tithe.\" One fine arrow rests beside it, already fletched for a hand that never came to claim it.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": ["arrowfell"],
+            "story": { "storyId": "fletchers_tithe", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["arrowfell"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piercing_arrow",
+                  "label": "Take the Piercing Arrow",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "piercing_arrow", "tier": "bronze" }
+                },
+                {
+                  "id": "take_bow_card",
+                  "label": "Take a Bow card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["bow"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Pay the tithe with your absence", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

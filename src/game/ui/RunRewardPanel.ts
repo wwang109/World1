@@ -5,6 +5,10 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
+import type { MarketStat } from '../../data/eventTypes';
+import type { MarketStatPickOption } from '../../run/market';
+import { MARKET_STAT_LABEL } from './eventOutcomeText';
+import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from './RunChoicePanel';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, TEXT_SHRINK_FLOOR_PX, TIER_COLOR, textRoleFor, UI } from '../theme';
 import { CardToken } from './CardToken';
@@ -31,7 +35,10 @@ import {
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
-import { tierUpgradePreview } from './tierUpgradePreview';
+import { tierUpgradePreview, type AvailableTierUpgradePreview } from './tierUpgradePreview';
+import { buildTierUpgradeDiff, formatTierUpgradeDiffLine } from './tierUpgradeDiff';
+import { renderTierUpgradeDetailOverlay } from './tierUpgradeDetailOverlay';
+import type { SkillFaceMode } from './skillPresentation';
 
 // Local to the persistent event outcome pane: brighter teal-navy, warm gold and
 // ivory. Do not propagate this treatment to choosing, shop or global chrome.
@@ -406,7 +413,7 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
     fill: colors.chip,
     hover: colors === UI ? UI.chipDark : 0xe4bd72,
     follow: [label],
-    onPress: () => { playSfx('uiClick'); onContinue(); },
+    onPress: onContinue,
   });
 }
 
@@ -521,7 +528,7 @@ function renderPickerPager(
       fill: colors.panelAlt,
       hover: colors.chipDark,
       follow: [label],
-      onPress: () => { playSfx('uiClick'); onPageChange(page); },
+      onPress: () => onPageChange(page),
     });
   };
 
@@ -689,6 +696,22 @@ export type RunRewardUpgradeOption =
  * past what its bounded page already fits inside `feature`. */
 const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22, mobile: 18 };
 
+/** A second reserved strip directly under `UPGRADE_TIER_LABEL_H`'s tier-jump
+ * line, for the one-line diff headline (`tierUpgradeDiff.ts`'s `headline`,
+ * e.g. `"DMG 40 > 56"`) — folded into the grid's ideal height the same way,
+ * never as an unscaled overlay (see `UPGRADE_TIER_LABEL_H`'s own doc comment
+ * for why that matters). */
+const UPGRADE_HEADLINE_H: Record<RunTemplatePlatform, number> = { desktop: 16, mobile: 14 };
+
+/** Card-face number treatment for a tier-upgrade preview's headline/diff —
+ * no live caster stats exist at this seam, so this only picks between the
+ * bare summed number (mobile) and the base+stat formula (desktop), same
+ * platform split `CardToken`'s own `defaultFaceMode` uses for the card face
+ * sharing this cell. */
+function upgradePreviewFaceMode(platform: RunTemplatePlatform): SkillFaceMode {
+  return platform === 'desktop' ? 'composition' : 'summed';
+}
+
 /**
  * The "CHOOSE A CARD TO UPGRADE" picker — `upgradeCard`'s counterpart to
  * `renderRunBonusDraftPicker` above, called by both `DesktopRunEventScene`/
@@ -726,10 +749,12 @@ export function renderRunUpgradeCardPicker(
   const { feature } = template.contentSlots.reward;
   const cardIdeal = cardRowIdeal(feature, template.platform);
   const labelH = UPGRADE_TIER_LABEL_H[template.platform];
-  const idealH = cardIdeal.h + labelH;
+  const headlineH = UPGRADE_HEADLINE_H[template.platform];
+  const idealH = cardIdeal.h + labelH + headlineH;
   const pickerWindow = layoutRewardPickerWindow('upgradeCard', template.platform, feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform], opts.page);
   renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
-  let inspecting: SkillDef | undefined;
+  const faceMode = upgradePreviewFaceMode(template.platform);
+  let inspecting: AvailableTierUpgradePreview | undefined;
   pickerWindow.cells.forEach((cell, localIndex) => {
     const i = pickerWindow.startIndex + localIndex;
     const option = options[i];
@@ -761,10 +786,16 @@ export function renderRunUpgradeCardPicker(
     // strip itself shrank alongside the card sharing its cell.
     const scale = cell.h / idealH;
     const cellLabelH = labelH * scale;
-    const cardH = cell.h - cellLabelH;
+    const cellHeadlineH = headlineH * scale;
+    const cardH = cell.h - cellLabelH - cellHeadlineH;
     const cx = cell.x + cell.w / 2;
     const tierStep = `${option.from.toUpperCase()} → ${option.to.toUpperCase()}`;
-    const previewCue = preview.conditionalTrade ? 'CONDITIONAL PREVIEW' : 'PREVIEW';
+    // Three states, one cue each — `conditionalTrade`/`conditionalGain` never
+    // overlap (see `tierUpgradePreview.ts`'s doc comment): a trade surrendered
+    // guaranteed value (red, matching the existing alarm treatment) while a
+    // gated-only gain surrendered nothing, so it reads in the SAME neutral
+    // tone as a plain preview — only the word changes.
+    const previewCue = preview.conditionalTrade ? 'CONDITIONAL PREVIEW' : preview.conditionalGain ? 'GATED PREVIEW' : 'PREVIEW';
 
     const tierLabel = scene.add.text(cx, cell.y + cellLabelH / 2, `${previewCue} · ${tierStep}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(8, Math.round(11 * scale))}px`,
@@ -772,17 +803,30 @@ export function renderRunUpgradeCardPicker(
     }).setOrigin(0.5);
     auditTextBlock(tierLabel, { name: 'Run reward upgrade tier label', maxWidth: cell.w, maxHeight: Math.max(1, cellLabelH), minFontSize: 7 });
 
-    // The card is the CARD sub-rect of the cell (the tier-label strip above it
-    // is not part of the row), while the PICK surface stays the whole cell so
-    // the label is tappable too.
-    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH, w: cell.w, h: cardH };
+    // The single most significant before/after line (`tierUpgradeDiff.ts`'s
+    // `pickHeadline`) — e.g. "DMG 40 > 56" — in its own reserved strip right
+    // under the tier-jump label, so the picker shows the CHANGE up front
+    // rather than only the resulting card.
+    const diff = buildTierUpgradeDiff(preview.fromSkill, preview.toSkill, faceMode);
+    if (diff.headline) {
+      const headlineText = scene.add.text(cx, cell.y + cellLabelH + cellHeadlineH / 2, formatTierUpgradeDiffLine(diff.headline), {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(7, Math.round(10 * scale))}px`,
+        color: rewardColors(template).textBright, align: 'center',
+      }).setOrigin(0.5);
+      auditTextBlock(headlineText, { name: 'Run reward upgrade headline', maxWidth: cell.w, maxHeight: Math.max(1, cellHeadlineH), minFontSize: 7 });
+    }
+
+    // The card is the CARD sub-rect of the cell (the tier-label and headline
+    // strips above it are not part of the row), while the PICK surface stays
+    // the whole cell so the label is tappable too.
+    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH + cellHeadlineH, w: cell.w, h: cardH };
     const hit = renderPickableCardRow(scene, cell, cardCell, preview.toSkill, () => opts.onPick(option),
       opts.onInspect ? () => opts.onInspect?.(i) : undefined);
     attachCellHoverTip(scene, template, hit, cardCell, preview.toSkill);
-    if (opts.inspectedIndex === i) inspecting = preview.toSkill;
+    if (opts.inspectedIndex === i) inspecting = preview;
   });
   if (inspecting) {
-    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+    renderTierUpgradeDetailOverlay(scene, inspecting, { font: opts.font, mode: faceMode, onClose: () => opts.onInspect?.(null) });
   }
 }
 
@@ -913,6 +957,55 @@ export function renderRunSellGemPicker(
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
     attachGemCellInspect(scene, template, hit, box, gem);
+  });
+}
+
+/**
+ * The market's "PICK A STAT TO BUY" picker for `buyStatPick` — reuses
+ * `renderRunChoicePanel`'s existing SELECT/LOCKED row shell (`RunChoicePanel.ts`,
+ * the same component the event's own choice list draws with) rather than a
+ * bespoke chip, so an unaffordable row already dims and reads LOCKED exactly
+ * like every other unaffordable event choice. A trailing CANCEL row backs out
+ * of the picker for free (`cancelBuyStatPickV3`, `src/run/eventsV3.ts`)
+ * without spending anything.
+ */
+export function renderRunStatPickPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  options: readonly MarketStatPickOption[],
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    onPick: (stat: MarketStat) => void;
+    onCancel: () => void;
+  } & RewardPickerPagingOptions,
+): void {
+  renderPickHeader(scene, template, choiceArtKey('buyStatPick'), 'PICK A STAT TO BUY', opts.eventTitle, opts.font, 'Run reward stat pick title');
+
+  const { feature } = template.contentSlots.reward;
+  const rowH = runChoicePanelMinHeight(opts.font);
+  const ideal = rowIdeal(feature, rowH);
+  const rowCount = options.length + 1;
+  const pickerWindow = layoutRewardPickerWindow('buyStatPick', template.platform, feature, rowCount, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const index = pickerWindow.startIndex + localIndex;
+    const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
+    if (index === options.length) {
+      const model: RunChoiceViewModel = {
+        nodeId: 'market-stat-pick-cancel', kind: 'event', title: 'CANCEL',
+        detail: 'Back to the event', footer: '', accent: UI.bad, enabled: true,
+      };
+      renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'uiClick', onSelect: opts.onCancel });
+      return;
+    }
+    const option = options[index];
+    if (!option) return;
+    const model: RunChoiceViewModel = {
+      nodeId: `market-stat-${option.stat}`, kind: 'event', title: MARKET_STAT_LABEL[option.stat],
+      detail: '', footer: `COST ${option.price} GOLD`, accent: UI.chip, enabled: option.affordable,
+    };
+    renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'purchase', onSelect: () => opts.onPick(option.stat) });
   });
 }
 

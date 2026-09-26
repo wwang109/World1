@@ -496,7 +496,129 @@ const defs: ShopTypeDef[] = [
   },
 ];
 
-export const shopCatalog: Record<string, ShopTypeDef> = Object.fromEntries(defs.map((d) => [d.id, d]));
+// ---- Biome-exclusive stalls (2026-09-25) — ONE per biome, never drawn
+// outside it. NOT part of `shopTypeIds`/`shopCatalog`'s shared 21-theme bag:
+// `src/run/runMap.ts` swaps one of a band's region-shop draws to its biome's
+// own `exclusiveShop` id (`src/data/biomes.ts`), on a stamped map only. Kept
+// in their own list so the shared bag's Rng consumption (`sampleDistinct`
+// over `shopTypeIds`) is untouched by their existence. ----
+const biomeShopDefs: ShopTypeDef[] = [
+  {
+    id: 'hunters_blind',
+    name: "The Hunters' Blind",
+    tagline: 'Wait for the shot that counts.',
+    cardFilter: [{ weapons: ['bow'] }],
+    gemFilter: [{ ids: ['concussive_shot_echo', 'weak_point_sliver', 'opening_sliver', 'swift_charm'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+  {
+    id: 'grave_goods_fence',
+    name: 'Grave-Goods Fence',
+    tagline: 'Everything here was somebody else\'s.',
+    cardFilter: [{ elements: ['dark'] }],
+    gemFilter: [{ ids: ['hex_of_frailty_echo', 'blunting_sliver', 'slow_hex_echo', 'resonant_echo'] }],
+    shelf: SHELF,
+    priceDelta: -1,
+  },
+  {
+    id: 'cinder_kiln',
+    name: 'The Cinder Kiln',
+    tagline: 'Still warm from the last one.',
+    cardFilter: [{ elements: ['fire'] }],
+    gemFilter: [{ ids: ['fireball_echo', 'empowering_core', 'war_banner_echo'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+  {
+    id: 'rimebound_cache',
+    name: 'The Rimebound Cache',
+    tagline: 'Frozen in, not frozen out.',
+    cardFilter: [{ elements: ['frost'] }],
+    gemFilter: [{ ids: ['frost_ward_echo', 'mana_ward_echo', 'stunning_shard', 'concussive_shard'] }],
+    shelf: SHELF,
+    priceDelta: -1,
+  },
+  {
+    id: 'pilgrims_almonry',
+    name: "The Pilgrims' Almonry",
+    tagline: 'Alms for the road ahead.',
+    cardFilter: [{ elements: ['holy'] }],
+    gemFilter: [{ ids: ['mending_light_echo', 'renewal_sliver', 'sanctuary_sliver', 'purify_echo'] }],
+    shelf: SHELF,
+    priceDelta: -1,
+  },
+  {
+    id: 'moorfang_trophy_hall',
+    name: 'The Moorfang Trophy Hall',
+    tagline: 'Every trophy still has its fangs.',
+    cardFilter: [{ weapons: ['beast'] }],
+    gemFilter: [{ ids: ['venom_fang_echo', 'leeching_fang_echo', 'bloodscent_sliver', 'battle_howl_echo'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+  {
+    id: 'warband_quartermaster',
+    name: 'The Warband Quartermaster',
+    tagline: 'Issued once. Sharpened often.',
+    cardFilter: [{ weapons: ['axe'] }],
+    gemFilter: [{ ids: ['rending_sliver', 'bloodscent_sliver', 'armor_break_echo', 'shield_splitter_echo'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+  {
+    id: 'drill_yard_armoury',
+    name: 'The Drill-Yard Armoury',
+    tagline: 'The line holds because the gear does.',
+    cardFilter: [{ weapons: ['lance'] }],
+    gemFilter: [{ ids: ['ward_of_silence_echo', 'millstone_sliver', 'crippling_strike_echo', 'ballast_sliver'] }],
+    shelf: SHELF,
+    priceDelta: -1,
+  },
+  {
+    id: 'lightning_rod_exchange',
+    name: 'The Lightning-Rod Exchange',
+    tagline: 'Sold before the thunder arrives.',
+    cardFilter: [{ elements: ['lightning'] }],
+    gemFilter: [{ ids: ['quickening_sliver', 'swift_charm', 'battle_howl_echo', 'time_crystal_echo'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+  {
+    id: 'oathkeepers_armoury',
+    name: "The Oathkeepers' Armoury",
+    tagline: 'Every oath, forged twice.',
+    cardFilter: [{ weapons: ['sword'] }],
+    gemFilter: [{ ids: ['follow_through_echo', 'iron_bulwark_echo', 'taunting_sliver', 'war_banner_echo'] }],
+    shelf: SHELF,
+    priceDelta: -1,
+  },
+  {
+    id: 'rootmarket',
+    name: 'The Rootmarket',
+    tagline: 'Grown here, sold here.',
+    cardFilter: [{ elements: ['nature'] }],
+    gemFilter: [{ ids: ['bramble_sliver', 'second_wind_echo', 'renewal_sliver', 'venom_sliver'] }],
+    shelf: SHELF,
+    priceDelta: 1,
+    tierBias: 'silver',
+  },
+];
 
-/** Deterministic display/roll order. */
+export const shopCatalog: Record<string, ShopTypeDef> = Object.fromEntries(
+  [...defs, ...biomeShopDefs].map((d) => [d.id, d]),
+);
+
+/** Deterministic display/roll order — the SHARED 21-theme bag only. Never
+ * includes a `biomeShopIds` entry: growing this array would change
+ * `sampleDistinct`'s Rng consumption over it (`src/run/runMap.ts`). */
 export const shopTypeIds: readonly string[] = defs.map((d) => d.id);
+
+/** The 11 biome-exclusive stall ids, one per biome (`BiomeDef.exclusiveShop`,
+ * `src/data/biomes.ts`) — never a member of `shopTypeIds`. */
+export const biomeShopIds: readonly string[] = biomeShopDefs.map((d) => d.id);

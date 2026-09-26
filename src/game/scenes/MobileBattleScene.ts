@@ -8,12 +8,22 @@ import { type CursorSlotSnap,
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
-import { currentBankedPL, currentHeroLevel, getActiveRun, resolveRunBattleResult } from '../runStore';
+import {
+  activeChallengeFight, activeExtraGhostFight, currentBankedPL, currentBossReward, currentHeroLevel, getActiveRun,
+  offerGhostSave, resolveChallengeFightResult, resolveExtraGhostFightResult, resolveRunBattleResult, saveGhost, skipGhostSave,
+  type GhostSaveOfferViewModel,
+} from '../runStore';
+import { GHOST_NAME_MAX } from '../../run/ghost';
+import { normalizeGhostName } from '../../run/ghostValidate';
+import { describeGhostSaveFailure } from '../ghostApi';
+import { GemToken } from '../ui/GemToken';
+import { promptForLine } from '../ui/textPrompt';
 import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { playSfx } from '../audio/sfxSynth';
+import { sfxKeyForFx } from '../audio/sfxSpec';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { footerY, renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
@@ -171,6 +181,12 @@ export class MobileBattleScene extends Phaser.Scene {
    * `focusedFoe`/`autoFollow` above) since a fresh fight should start from
    * the same auto default rather than inherit the last fight's pin. */
   private summaryOverride: boolean | null = null;
+  private isExtraGhostFight = false;
+  private isChallengeFight = false;
+  private ghostOffer: GhostSaveOfferViewModel | null = null;
+  private ghostSaveName = '';
+  private ghostSaveStatus: 'idle' | 'saving' | 'done' | 'error' = 'idle';
+  private ghostSaveErrorReason: string | null = null;
 
   constructor() { super('MobileBattle'); }
 
@@ -184,6 +200,12 @@ export class MobileBattleScene extends Phaser.Scene {
     this.goldCreditedLog = null;
     this.goldPayout = 0;
     this.summaryOverride = null;
+    this.isExtraGhostFight = false;
+    this.isChallengeFight = false;
+    this.ghostOffer = null;
+    this.ghostSaveName = '';
+    this.ghostSaveStatus = 'idle';
+    this.ghostSaveErrorReason = null;
     // Phaser reuses this instance across fights — without this reset, a row
     // expanded in fight A renders pre-expanded at the same turn:line key in
     // fight B (Desktop resets it in init(); this scene has no init()).
@@ -205,9 +227,24 @@ export class MobileBattleScene extends Phaser.Scene {
       // SAME log object (no re-fetch), so the identity check skips it.
       if (this.goldCreditedLog !== log) {
         this.goldCreditedLog = log;
-        this.goldPayout = getBattleContext() === 'run'
-          ? resolveRunBattleResult(input, log)
-          : creditBattleGold(input, log);
+        const runContext = getBattleContext() === 'run';
+        this.isExtraGhostFight = runContext && activeExtraGhostFight() !== null;
+        this.isChallengeFight = runContext && activeChallengeFight() !== null;
+        if (this.isExtraGhostFight) {
+          resolveExtraGhostFightResult(log);
+          this.goldPayout = 0;
+        } else if (this.isChallengeFight) {
+          resolveChallengeFightResult(log);
+          this.goldPayout = 0;
+        } else {
+          this.goldPayout = runContext ? resolveRunBattleResult(input, log) : creditBattleGold(input, log);
+          playSfx('goldGain');
+        }
+        const offer = runContext ? offerGhostSave() : null;
+        if (offer) {
+          this.ghostOffer = offer;
+          this.ghostSaveName = offer.defaultName.slice(0, GHOST_NAME_MAX);
+        }
       }
       this.idx = 0;
       this.render();
@@ -266,7 +303,8 @@ export class MobileBattleScene extends Phaser.Scene {
     // used for the primary CTA on MobileDraftScene/MobilePrepScene.
     const primaryFlex = 1.6;
     if (getBattleContext() === 'run') {
-      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start('MobileRunMap') }];
+      const dest = this.isChallengeFight ? 'MobileRunEvent' : 'MobileRunMap';
+      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start(dest) }];
     }
     // The primary slot is stage-aware: END fast-forwards playback, then
     // becomes the way OUT once the outcome is on screen.
@@ -472,7 +510,7 @@ export class MobileBattleScene extends Phaser.Scene {
     let ly = headerBottom;
     let prevTurn = -1;
     for (const { item: { t, local, line }, wrapped } of rows) {
-      if (ly > dockBottom - 16) break;
+      if (ly + (wrapped.length - 1) * rowH > dockBottom - 16) break;
       const key = `${t}:${local}`;
       this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
@@ -493,7 +531,7 @@ export class MobileBattleScene extends Phaser.Scene {
       }
       ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < dockBottom - 12) {
-        const d = this.boundedText(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }, this.W - textX - 14);
+        const d = this.add.text(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, wordWrap: { width: this.W - textX - 14 } });
         ly += d.height + 4;
       }
     }
@@ -616,21 +654,17 @@ export class MobileBattleScene extends Phaser.Scene {
           // DoT ticks float in their ailment's color (poison green, burn orange…)
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
           this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
-          // fx.source is set for un-attributed damage (poison/burn/bleed/
-          // fatigue/attrition ticks) — those get one shared "tick" cue;
-          // a skill hit's own property picks its impact voice.
-          playSfx(fx.source ? 'dotTick' : fx.property === 'magical' ? 'hitMagical' : fx.property === 'true' ? 'hitTrue' : 'hitPhysical');
         } else if (fx.kind === 'heal') {
           // Anti-heal world rule tax — visibly taxed float: the sickly
           // (debuff/expose) tint carries a small "−N%" suffix so a reduced
           // heal never reads as a plain, un-taxed number.
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
             fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
-          playSfx('heal');
         } else if (fx.kind === 'shield') {
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
-          playSfx('shieldGain');
         }
+        const key = sfxKeyForFx(fx);
+        if (key) playSfx(key);
       }
     }
 
@@ -694,7 +728,12 @@ export class MobileBattleScene extends Phaser.Scene {
       const summaryColumns = 2;
       const summaryRowH = 34;
       const summaryH = 74 + Math.max(1, Math.ceil(summaryRows.length / summaryColumns)) * summaryRowH;
-      const bannerH = isOutcomeStep ? (getBattleContext() === 'run' ? 66 : 52) + (this.mutualWipe ? 16 : 0) : 0;
+      const bossReward = getBattleContext() === 'run' && !this.isExtraGhostFight && !this.isChallengeFight
+        ? currentBossReward() : null;
+      const ghostBlockH = isOutcomeStep && this.ghostOffer ? 54 : 0;
+      const bannerH = isOutcomeStep
+        ? (getBattleContext() === 'run' ? 66 : 52) + (this.mutualWipe ? 16 : 0) + (bossReward ? 26 : 0) + ghostBlockH
+        : 0;
       const bannerGap = isOutcomeStep ? 8 : 0;
       const blockH = summaryH + bannerGap + bannerH;
       const summaryBy = top + (colH - blockH) / 2;
@@ -735,23 +774,110 @@ export class MobileBattleScene extends Phaser.Scene {
       if (isOutcomeStep) {
         this.add.rectangle(deckX, by, this.W - 20, bannerH, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
         this.add.text(this.W / 2 - 10, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(1, 0.5).setDepth(D);
-        this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: `${F.label}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
-        if (getBattleContext() === 'run') {
+        if (!this.isExtraGhostFight && !this.isChallengeFight) {
+          const goldLabel = bossReward ? `+${this.goldPayout} GOLD (+${bossReward.bonusGold} BOSS)` : `+${this.goldPayout} GOLD`;
+          this.add.text(this.W / 2 + 6, by + 30, goldLabel, { fontSize: `${F.label}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
+        }
+        if (getBattleContext() === 'run' && !this.isExtraGhostFight && !this.isChallengeFight) {
           // The hero levels after EVERY fight, win or lose (locked design) —
           // `resolveRunBattleResult` already applied it before this renders.
           this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
             fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
           }).setOrigin(0.5).setDepth(D);
         }
+        if (bossReward?.gem) {
+          const gemY = by + 66;
+          new GemToken(this, this.W / 2 - 60, gemY, bossReward.gem, { width: 16, height: 16 }).setDepth(D);
+          this.add.text(this.W / 2 - 50, gemY, `BOSS GEM · ${bossReward.gem.name}`, {
+            fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+          }).setOrigin(0, 0.5).setDepth(D);
+        }
         if (this.mutualWipe) {
           // Same-step mutual kill: without this line the survivor-less
           // "VICTORY"/"DEFEAT" reads like a bug (playtest report 2026-08-04).
-          this.add.text(this.W / 2, by + (getBattleContext() === 'run' ? 68 : 52), 'BOTH FELL — the faster side takes it', {
+          this.add.text(this.W / 2, by + (getBattleContext() === 'run' ? 68 : 52) + (bossReward ? 26 : 0), 'BOTH FELL — the faster side takes it', {
             fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold',
           }).setOrigin(0.5).setDepth(D);
         }
+        if (this.ghostOffer) {
+          this.renderGhostSavePrompt(deckX, by + bannerH - ghostBlockH + 6, this.W - 20, D);
+        }
       }
     }
+  }
+
+  private renderGhostSavePrompt(deckX: number, y: number, width: number, depth: number): void {
+    const status = this.ghostSaveStatus;
+    const statusLabel = status === 'saving' ? 'SAVING…'
+      : status === 'done' ? 'BUILD SAVED — others may face it'
+      : status === 'error' ? `SAVE FAILED — ${describeGhostSaveFailure(this.ghostSaveErrorReason ?? '')}`
+      : 'SAVE THIS BUILD? OTHERS MAY FACE IT';
+    const statusColor = status === 'error' ? '#f08a7a' : status === 'done' ? '#7fe08a' : UI.textMuted;
+    this.boundedText(deckX + 12, y, statusLabel, { fontSize: `${F.tiny}px`, color: statusColor, fontFamily: FONT.body, fontStyle: 'bold' }, width - 24).setDepth(depth);
+
+    const rowY = y + 18;
+    const btnH = 24;
+    const fieldW = 150;
+    const btnW = 55;
+    const gap = 8;
+    let cx = deckX + 12;
+
+    const editable = status === 'idle' || status === 'error';
+    const field = this.add.rectangle(cx, rowY, fieldW, btnH, UI.panelMuted, 1).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setDepth(depth);
+    if (editable) {
+      field.setInteractive({ useHandCursor: true });
+      field.on('pointerdown', () => {
+        playSfx('uiClick');
+        void promptForLine({
+          title: 'BUILD NAME',
+          initial: this.ghostSaveName,
+          hint: `Shown to other players who face this build. Max ${GHOST_NAME_MAX} characters.`,
+          validate: (value) => (normalizeGhostName(value) === null ? 'name cannot be empty' : null),
+        }).then((value) => {
+          if (value === null) return;
+          this.ghostSaveName = normalizeGhostName(value) ?? this.ghostSaveName;
+          this.render();
+        });
+      });
+    }
+    this.boundedText(cx + 6, rowY + btnH / 2, `${this.ghostSaveName} (${this.ghostSaveName.length}/${GHOST_NAME_MAX})`, {
+      fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body,
+    }, fieldW - 12, 0, 0.5).setDepth(depth);
+    cx += fieldW + gap;
+
+    const drawBtn = (label: string, active: boolean, onPress: () => void): void => {
+      const fill = active ? UI.chip : UI.panelAlt;
+      const color = active ? UI.textOnChip : UI.textMuted;
+      const r = this.add.rectangle(cx, rowY, btnW, btnH, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, active ? 1 : 0.6).setDepth(depth);
+      if (active) {
+        r.setInteractive({ useHandCursor: true });
+        r.on('pointerdown', onPress);
+      }
+      this.add.text(cx + btnW / 2, rowY + btnH / 2, label, { fontSize: `${F.tiny}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(depth);
+      cx += btnW + gap;
+    };
+    drawBtn('SAVE', status === 'idle' || status === 'error', () => this.pressGhostSave());
+    drawBtn('SKIP', status !== 'saving' && status !== 'done', () => {
+      skipGhostSave();
+      this.ghostOffer = null;
+      this.render();
+    });
+  }
+
+  private pressGhostSave(): void {
+    if (!this.ghostOffer) return;
+    this.ghostSaveStatus = 'saving';
+    this.render();
+    void saveGhost(this.ghostSaveName).then((result) => {
+      if (!this.scene.isActive()) return;
+      if (result.ok) {
+        this.ghostSaveStatus = 'done';
+      } else {
+        this.ghostSaveStatus = 'error';
+        this.ghostSaveErrorReason = result.reason;
+      }
+      this.render();
+    });
   }
 
   /**
@@ -1022,7 +1148,8 @@ export class MobileBattleScene extends Phaser.Scene {
           const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
           if (recipe) {
             this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
-            if (cast?.archetype) playSfx(`cast:${cast.archetype}`);
+            const key = cast ? sfxKeyForFx(cast) : null;
+            if (key) playSfx(key);
           } else {
             token.setScale(1);
             this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });

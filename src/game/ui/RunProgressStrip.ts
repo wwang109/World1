@@ -70,7 +70,7 @@ export interface RunProgressSnapshot {
 export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapshot {
   const calendar = runCalendar(run);
   const pieces = run.pieces.map((piece) => ({ ...piece }));
-  const heroSetup = buildAutoHeroSetup(run.heroLevel, pieces, run.heroAllocation).setup;
+  const heroSetup = buildAutoHeroSetup(run.heroLevel, pieces, run.heroAllocation, run.purchasedStats).setup;
   const heroGemAdds = gemHeroStats(pieces);
   return {
     day: calendar.stop,
@@ -180,6 +180,7 @@ function drawSlotButton(
       fill,
       hover: hoverFillFor(role === 'primary' ? 'primary' : 'default', UI),
       follow: [label],
+      sfx: role === 'back' ? 'uiBack' : undefined,
       onPress: spec.onPress,
     });
   }

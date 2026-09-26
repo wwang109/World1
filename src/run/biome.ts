@@ -70,31 +70,74 @@ export function bossWaveOfBand(band: number): number {
  * band 0 is O(band) with band <= runLength/5 — trivially cheap, and it is what
  * makes the rule stateless (no ledger to persist, so a reload re-derives it).
  */
-export function biomeIdForBand(seed: number, band: number): string {
+/** Band index -> the player's chosen biome id, sparse (absent falls back to the deal). */
+export type BiomeLedger = Readonly<Record<number, string>>;
+
+function ledgerPick(ledger: BiomeLedger | undefined, band: number): string | undefined {
+  const id = ledger?.[band];
+  return id !== undefined && biomeCatalog[id] !== undefined ? id : undefined;
+}
+
+/** Band `band`'s biome id: the ledger pick when present, otherwise the dealt id (no-immediate-repeat walk, see `biomeIdForBand`). */
+export function resolveBiomeIdForBand(seed: number, band: number, ledger?: BiomeLedger): string {
   const n = biomeIds.length;
-  if (n === 0) throw new Error('biomeIdForBand: the biome catalog is empty');
+  if (n === 0) throw new Error('resolveBiomeIdForBand: the biome catalog is empty');
   const target = Math.max(0, Math.floor(band));
   let prev = -1;
   let idx = 0;
   for (let i = 0; i <= target; i++) {
-    const h = hashSeed('biome', seed, i);
-    if (prev < 0 || n === 1) {
-      idx = h % n;
+    const picked = ledgerPick(ledger, i);
+    if (picked !== undefined) {
+      idx = biomeIds.indexOf(picked);
     } else {
-      const r = h % (n - 1);
-      idx = r >= prev ? r + 1 : r;
+      const h = hashSeed('biome', seed, i);
+      if (prev < 0 || n === 1) {
+        idx = h % n;
+      } else {
+        const r = h % (n - 1);
+        idx = r >= prev ? r + 1 : r;
+      }
     }
     prev = idx;
   }
   return biomeIds[idx]!;
 }
 
-/** The `BiomeDef` dealt to `band` of run `seed`. */
-export function biomeForBand(seed: number, band: number): BiomeDef {
-  const id = biomeIdForBand(seed, band);
+/** The dealt id, ignoring any ledger — legacy map stamp fallback. */
+export function biomeIdForBand(seed: number, band: number): string {
+  return resolveBiomeIdForBand(seed, band);
+}
+
+/** The `BiomeDef` dealt/chosen for `band` of run `seed`. */
+export function resolveBiomeForBand(seed: number, band: number, ledger?: BiomeLedger): BiomeDef {
+  const id = resolveBiomeIdForBand(seed, band, ledger);
   const def = biomeCatalog[id];
-  if (!def) throw new Error(`biomeForBand: unknown biome id "${id}"`);
+  if (!def) throw new Error(`resolveBiomeForBand: unknown biome id "${id}"`);
   return def;
+}
+
+/** The dealt `BiomeDef`, ignoring any ledger. */
+export function biomeForBand(seed: number, band: number): BiomeDef {
+  return resolveBiomeForBand(seed, band);
+}
+
+/** How many distinct biome candidates a band's picker offers. */
+export const BIOME_PICK_OFFER_COUNT = 3;
+
+/** The picker's `BIOME_PICK_OFFER_COUNT` candidates for `band`, own `hashSeed` domain (`'biomePick'`), excluding `excludeBiomeId` when given. */
+export function biomePickOfferIds(seed: number, band: number, excludeBiomeId?: string): readonly string[] {
+  const filtered = excludeBiomeId !== undefined ? biomeIds.filter((id) => id !== excludeBiomeId) : biomeIds;
+  const source = filtered.length >= BIOME_PICK_OFFER_COUNT ? filtered : biomeIds;
+  const remaining = [...source];
+  const count = Math.min(BIOME_PICK_OFFER_COUNT, remaining.length);
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const h = hashSeed('biomePick', seed, band, i);
+    const idx = h % remaining.length;
+    out.push(remaining[idx]!);
+    remaining.splice(idx, 1);
+  }
+  return out;
 }
 
 /** The `BiomeDef` covering a 1-indexed wave of run `seed`. */

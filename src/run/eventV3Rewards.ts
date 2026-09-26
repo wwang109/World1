@@ -264,7 +264,7 @@ function upgradeOwnedInstance(state: RunState, instanceId: string, to: SkillTier
   if (boardIndex >= 0) {
     return {
       ...state,
-      pieces: state.pieces.map((card, index) => (index === boardIndex ? { ...card, tier: to } : card)),
+      pieces: state.pieces.map((card, index) => (index === boardIndex ? { ...card, tier: to, points: 0 } : card)),
     };
   }
   const bagIndex = state.bagSlots.findIndex((card) => card?.instanceId === instanceId);
@@ -272,11 +272,11 @@ function upgradeOwnedInstance(state: RunState, instanceId: string, to: SkillTier
     return {
       ...state,
       bagSlots: state.bagSlots.map((card, index) => (
-        index === bagIndex && card !== null ? { ...card, tier: to } : card
+        index === bagIndex && card !== null ? { ...card, tier: to, points: 0 } : card
       )),
     };
   }
-  if (state.held?.instanceId === instanceId) return { ...state, held: { ...state.held, tier: to } };
+  if (state.held?.instanceId === instanceId) return { ...state, held: { ...state.held, tier: to, points: 0 } };
   return state;
 }
 

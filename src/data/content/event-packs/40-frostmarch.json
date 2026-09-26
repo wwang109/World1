@@ -107,6 +107,93 @@
           }
         }
       ]
+    },
+    {
+      "id": "rime_locked_sledge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Rime-Locked Sledge",
+            "body": "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": ["frostmarch"],
+            "story": { "storyId": "rime_locked_sledge", "stage": "setup", "role": "setup" },
+            "eligibility": { "fact": "biome.current", "args": { "ids": ["frostmarch"] } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_frost_shackle",
+                  "label": "Take Frost Shackle",
+                  "cost": 0,
+                  "outcome": { "kind": "grantCard", "cardId": "frost_shackle", "tier": "bronze" }
+                },
+                {
+                  "id": "take_frost_card",
+                  "label": "Take a Frost card",
+                  "cost": 0,
+                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["frost"] }], "maxTier": "bronze" }
+                },
+                { "id": "leave", "label": "Leave the sledge frozen", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hoarfrost_reliquary",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Hoarfrost Reliquary",
+            "body": "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": ["frostmarch"],
+            "story": { "storyId": "hoarfrost_reliquary", "stage": "setup", "role": "setup" },
+            "eligibility": {
+              "all": [
+                { "fact": "biome.current", "args": { "ids": ["frostmarch"] } },
+                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["frost"] } } }
+              ]
+            },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_reliquary_ware",
+                  "label": "Browse the reliquary's wares",
+                  "cost": 0,
+                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["frost_ward_echo", "mana_ward_echo", "stunning_shard"] }] }
+                },
+                {
+                  "id": "rime_a_frost_card",
+                  "label": "Rime a Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": { "filter": { "where": "any", "match": { "elements": ["frost"] } } },
+                    "fallback": { "kind": "grantGold", "amount": 2 }
+                  }
+                },
+                { "id": "leave", "label": "Walk past the stall", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

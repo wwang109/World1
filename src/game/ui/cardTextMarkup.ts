@@ -60,6 +60,33 @@ export function parseCardTextMarkup(text: string): CardTextSegment[] {
   return segments;
 }
 
+export interface CardTextWord {
+  text: string;
+  keyword?: string;
+  glued: boolean;
+}
+
+export function cardTextWords(text: string): CardTextWord[] {
+  const words: CardTextWord[] = [];
+  let gap = false;
+  for (const segment of parseCardTextMarkup(text)) {
+    for (const piece of segment.text.split(/(\s+)/)) {
+      if (piece === '') continue;
+      if (/^\s+$/.test(piece)) {
+        gap = true;
+        continue;
+      }
+      words.push({
+        text: piece,
+        ...(segment.keyword !== undefined ? { keyword: segment.keyword } : {}),
+        glued: words.length > 0 && !gap,
+      });
+      gap = false;
+    }
+  }
+  return words;
+}
+
 /** Plain rendering: `{{poison}}` -> `poison`; `{{Shield|attuned}}` -> `Shield`. */
 export function stripCardTextMarkup(text: string): string {
   return text.replace(MARKUP_PATTERN, (_match, token: string) => splitMarkupToken(token).display);
@@ -185,18 +212,14 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // grey-ness now carries the distinction alone. This is as deep as a
   // WCAG-clean violet gets here.
   curse: '#bcaad4',
+  // `comboBonus` (archetype axis) and `chainBonus` (type axis) are the same
+  // player-facing keyword, Chain, since the 2026-09-23 merge — `comboBonus`'s
+  // own `displayToken` now points at this `chain` entry too, so `combo` below
+  // is unreferenced.
   combo: '#e8c060',
-  // CHAIN is `combo` one axis over — same "your previous cast decides whether
-  // this pays" promise, gated on the previous cast's TYPE (a weapon or an
-  // element) instead of its archetype. Deliberately a NEAR-SIBLING of combo's
-  // warm gold rather than a new family: a player who has learned that gold means
-  // "sequence-dependent bonus" should read this the same way at a glance. Shifted
-  // warmer and slightly deeper (36 deg -> 28 deg, a touch more saturation) so the
-  // two are still tellable apart side by side on one card face, which is a real
-  // case — nothing stops a card carrying both riders.
   chain: '#e8a850',
-  // The third member of the gated-payoff family, one step warmer again than
-  // chain so combo/chain/affinity read as siblings without collapsing together.
+  // The next member of the gated-payoff family, one step warmer again than
+  // chain so chain/affinity read as siblings without collapsing together.
   // 4.53 / 5.41. Was `#e89040` (3.89): lifted to L64 with the family's highest
   // saturation (85% vs chain's 77%), so "warmest and most vivid" stays its
   // slot in the ladder.

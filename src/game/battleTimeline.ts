@@ -1,17 +1,18 @@
 import { resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import { boardAffinities, boardEffectAffinities, cardType, type BoardIdentity } from '../engine/combat/typeIdentity';
-import type { CombatEvent } from '../engine/combat/events';
+import type { CombatEvent, StatusName } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
 import type { Archetype, BuffableStat, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
+import { buildGhostFoeSetup } from '../run/ghostFoeSetup';
 import type { EnemyTitle } from '../run/encounter';
 import type { BattleLog } from '../run/resolveBattle';
 import type { Allocation } from '../run/leveling';
 import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
-import { ruleEntryByKind } from '../engine/keywords/text';
+import { ruleEntryByKind, withTermEntries } from '../engine/keywords/text';
 import { cooldownRemainingClause, emptySlotClause } from '../engine/keywords/compose';
 import type { BattleLogTextRole, BattleLogTextSegment } from './ui/battleLogLine';
 
@@ -74,7 +75,8 @@ export interface GuardSnap { player: GuardBadgeEntry[]; enemy: GuardBadgeEntry[]
  */
 export interface TurnFx {
   side: 'player' | 'enemy';
-  kind: 'damage' | 'heal' | 'shield' | 'cast';
+  kind: 'damage' | 'heal' | 'shield' | 'cast'
+    | 'shieldBroken' | 'negated' | 'warded' | 'statusApplied' | 'died' | 'phase';
   amount: number;
   source?: string;
   unit?: number;
@@ -88,6 +90,7 @@ export interface TurnFx {
    * event carried a nonzero `antiHeal` reduction; undefined heals render
    * byte-identically to before this field existed. */
   antiHealPct?: number;
+  status?: StatusName;
 }
 /** A single playback position: one IMPORTANT log line (or a turn's fallback
  * anchor line when it has no important lines) — `lineIndex` into that turn's
@@ -160,6 +163,8 @@ export interface BattleTimelineInput {
   pieces: OwnedBoardPiece[];
   heroLevel: number;
   heroAllocation: Allocation;
+  /** Permanent gold-market/free-boon stat buys (`RunState.purchasedStats`). */
+  heroPurchasedStats?: Allocation;
   enemyId: string;
   enemyLevel: number;
   enemyTitle: EnemyTitle;
@@ -572,7 +577,12 @@ function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): stri
     case 'debuff': kind = 'debuffStat'; break;
     case 'thorns': kind = 'thorns'; break;
   }
-  return ruleEntryByKind(kind)?.body;
+  return withTermSentences(ruleEntryByKind(kind));
+}
+
+function withTermSentences(entry: { title: string; body: string } | undefined): string | undefined {
+  if (!entry) return undefined;
+  return withTermEntries([entry]).map((e, i) => (i === 0 ? e.body : `${e.title}: ${e.body}`)).join('\n');
 }
 
 /**
@@ -714,18 +724,17 @@ export function formatShield(e: Extract<CombatEvent, { kind: 'shieldGain' }>): s
  * names, stats, and boards.
  */
 export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog): BattleTimeline {
-  const heroEncounter = buildAutoHeroSetup(input.heroLevel, input.pieces.map((p) => ({ ...p })), input.heroAllocation);
+  const heroEncounter = buildAutoHeroSetup(
+    input.heroLevel, input.pieces.map((p) => ({ ...p })), input.heroAllocation, input.heroPurchasedStats,
+  );
   const hero = heroEncounter.setup;
   const teamConfigs: readonly EnemyFightConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam
     : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, growthLevel: input.enemyGrowthLevel, fightNumber: input.enemyFightNumber, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
-  // `cfg.affix` is the elite affix (see `EnemyFightConfig`): the board rendered
-  // mid-battle must contain the affix card the service actually resolved with,
-  // or the enemy's card column would disagree with its own event log. Same
-  // rule for `cfg.deck` (sandbox custom foe deck): the rendered board must be
-  // the SAME custom board the service re-resolved from this identical config.
-  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, cfg.fightNumber, cfg.deck ?? null, cfg.growthLevel));
-  const foeSetups = encs.map((e) => e.setup);
+  // `cfg.affix`/`cfg.deck`/`cfg.bumped` must resolve the SAME package the service resolved.
+  const foeSetups = teamConfigs.map((cfg) => cfg.ghost
+    ? buildGhostFoeSetup(cfg.ghost)
+    : buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, cfg.fightNumber, cfg.deck ?? null, cfg.growthLevel, cfg.bumped ?? false).setup);
   const heroName = hero.name;
   const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
 
@@ -1376,6 +1385,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const last = stepRecords[stepRecords.length - 1];
     if (last) last.fx.push({ side, kind, amount, source, unit, antiHealPct, ...fxIdentity(skill) });
   };
+  const pushSoundFx = (
+    side: 'player' | 'enemy',
+    kind: 'shieldBroken' | 'negated' | 'warded' | 'statusApplied' | 'died' | 'phase',
+    unit: number,
+    status?: StatusName,
+  ): void => {
+    const last = stepRecords[stepRecords.length - 1];
+    if (last) last.fx.push({ side, kind, amount: 0, unit, status });
+  };
 
   // Step 0 — the pre-battle baseline. Without it, playback would open on the
   // first HIT with its damage already applied to the HP snapshot; this line
@@ -1737,6 +1755,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // had already been shattered.
         breakPoints(e.side, u, e.amount, e.totalAfter);
         pushSegments(e.turn, 'DEBUFF', [actorSegment(e), neutral(' · shield '), colored(`−${e.amount}`, 'shield')]);
+        pushSoundFx(e.side, 'shieldBroken', u);
         break;
       }
       // Magical Negate fully nullifying a hit: `dealDamage` (interpreter.ts)
@@ -1754,6 +1773,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // `negateChargesByUnit`'s doc). Keeps the NGT chip's number honest.
         const neg = negateChargesFor(e.side, unitOf(e));
         neg[e.property] = Math.max(0, neg[e.property] - 1);
+        pushSoundFx(e.side, 'negated', unitOf(e));
         break;
       }
       // Ward spending a charge to prevent an incoming affliction: the affliction
@@ -1771,6 +1791,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // `chargesLeft` is the holder TOTAL after this spend — authoritative,
         // so the WRD chip re-syncs to it rather than decrementing on its own.
         wardChargesByUnit.set(unitKey(e.side, unitOf(e)), e.chargesLeft);
+        pushSoundFx(e.side, 'warded', unitOf(e));
         break;
       }
       // The VOLUNTEERED mirror of `warded`: the holder cashed its own charges in
@@ -1960,7 +1981,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // nothing pending to attach to a later PLAY row — the effect is already
       // fully described the moment it fires.
       case 'disrupted': {
-        pushActor(e.turn, 'DEBUFF', e, ` · Disrupt −${e.amount} readiness → ${e.readinessAfter}`);
+        const rule = ruleEntryByKind('disrupt');
+        pushActor(e.turn, 'DEBUFF', e, ` · Disrupt −${e.amount} Readiness → ${e.readinessAfter}`,
+          withTermSentences(rule && { ...rule, body: rule.body.replace(/\bX\b/, String(e.amount)) }));
         break;
       }
       // The `wait` event kind already existed for two reasons that read very
@@ -2113,6 +2136,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const piles = statModPilesFor(e.status === 'buff' ? buffPilesByUnit : debuffPilesByUnit, e.side, unitOf(e));
           piles.push({ stat: e.stat, pct: e.pct ?? 0, amount: e.amount ?? 0, expiresAtTurn: e.turn + e.turns });
         }
+        pushSoundFx(e.side, 'statusApplied', unitOf(e), e.status);
         break;
       }
       case 'statusExpired': {
@@ -2235,10 +2259,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // `fatigueStart` carry no number at all (the ramp %, and the fatigue
       // base amount, are combat constants — not per-event data) so those two
       // name only the phase, nothing more.
-      case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); break;
-      case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); break;
-      case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); break;
-      case 'died': pushActor(e.turn, 'DOWN', e, ' falls'); break;
+      case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); pushSoundFx('player', 'phase', 0); break;
+      case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); pushSoundFx('player', 'phase', 0); break;
+      case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); pushSoundFx('player', 'phase', 0); break;
+      // died fx precedes DOWN: lethalStep truncates at the fatal hit
+      case 'died': pushSoundFx(e.side, 'died', unitOf(e)); pushActor(e.turn, 'DOWN', e, ' falls'); break;
       // Mirrors the engine's own end-of-turn clear (simulate.ts:
       // `for (const c of units) c.nextWeightPenalty = 0` runs right before
       // this very `end` event is pushed) — exit #2 of the two exits described

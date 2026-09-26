@@ -570,16 +570,15 @@ export class MobilePrepScene extends Phaser.Scene {
     renderActionBar(this, this.W, this.H, [
       // Share codes (spec §3.7): CODE opens the copy/paste menu. Row fit at
       // the 412px design width is pinned by tests/game/actionBarFit.test.ts.
-      { label: 'CODE', flex: 0.8, onPress: () => { playSfx('uiClick'); this.codeMenu = true; this.rerender(); } },
+      { label: 'CODE', flex: 0.8, onPress: () => { this.codeMenu = true; this.rerender(); } },
       {
         label: `SEED ${demoState.seed}`,
         onPress: () => {
-          playSfx('uiClick');
           demoState.seed = 1 + Math.floor(Math.abs(Math.sin(demoState.seed * 97.13)) * 999999);
           this.rerender();
         },
       },
-      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); this.pressFight(); } },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { this.pressFight(); } },
     ]);
   }
 

@@ -1,8 +1,11 @@
 // Run Map — seeded node-graph generator for Run Mode's ENDLESS "wave rhythm"
 // shape (see docs/release-game-plan.md and the 2026-07-30 endless-run redesign
 // in CLAUDE.md/tests). A run no longer has a fixed wave count: waves keep
-// coming forever, each wave w = 2-3 "stop" columns (each a 2-3 choice of
-// `event`/`shop` nodes) followed by ONE mandatory fight/boss column (`fight`
+// coming forever, each wave w = EXACTLY 2 "stop" columns on a STAMPED map
+// (USER DECISION 2026-09-25, "every 2 events is a fight" — see
+// `STAMPED_STOPS_PER_WAVE`; an unstamped legacy map keeps its original 2-3
+// roll), each stop a 3-choice column of `event`/`shop` nodes, followed by ONE
+// mandatory fight/boss column (`fight`
 // for w % BOSS_EVERY !== 0, `boss` for w % BOSS_EVERY === 0 — see
 // `isBossWave`). Pure TS, fully deterministic — no Date.now/Math.random, all
 // randomness flows through the engine's seeded `Rng` in a fixed call order.
@@ -29,7 +32,7 @@
 import { hashSeed, Rng } from '../engine/rng';
 import { shopCatalog, shopTypeIds } from '../data/shopTypes';
 import type { EventTheme } from '../data/eventTypes';
-import { bandIndexOf, biomeForBand } from './biome';
+import { BAND_WAVES, bandIndexOf, resolveBiomeForBand, type BiomeLedger } from './biome';
 
 /** `'event'`/`'shop'` are the two stop-column choice kinds; `'fight'` is the
  * mandatory single-node-or-3-option column ending every non-boss wave (see
@@ -102,14 +105,29 @@ export interface RunNode {
   biomeId?: string;
 }
 
+/** Current map-gen format version — bumped for the biome-exclusive-shop pass
+ * (2026-09-25). A map only gets the exclusive-shop swap (see
+ * `exclusiveShopWaveInBand`) when it is STAMPED at this version; a map built
+ * before this feature existed has no `mapGenVersion` at all and must keep
+ * regenerating byte-identically forever (never retro-fitted with a swap it
+ * didn't have when the player first walked it). */
+export const MAP_GEN_VERSION = 2;
+
 export interface RunMap {
   seed: number;
   /** `depths[0]` is always empty (unused placeholder); `depths[1..totalColumns]`
    * are the columns generated SO FAR, in traversal order — a stop column has
-   * 2-3 event/shop choices, a fight/boss column always has 1-2 nodes. An
+   * 3 event/shop choices (2 stop columns per wave on a stamped map, 2-3 on a
+   * legacy unstamped one — see `STAMPED_STOPS_PER_WAVE`), a fight/boss column
+   * always has 1-2 nodes. An
    * endless run's map only ever holds as many columns as have been generated
    * (see `ensureWavesThrough`/`ensureDepthThrough`) — NOT the whole run. */
   depths: RunNode[][];
+  /** Present and equal to `MAP_GEN_VERSION` iff this map was (re)built with
+   * the exclusive-shop pass active; absent for a map generated before it
+   * existed. Threaded forward by every extend/rebuild call so a map's
+   * stamped-ness, once set, never changes mid-run. */
+  mapGenVersion?: number;
 }
 
 /** Number of columns in a `RunMap` (excludes the unused `depths[0]` slot). */
@@ -141,25 +159,25 @@ export const WAVE_COUNT = BOSS_EVERY;
  * first couple of waves". */
 export const INITIAL_WAVES = 2;
 
+/** Legacy (unstamped) stop-column range — 2-3, rolled. Kept only so a
+ * pre-`MAP_GEN_VERSION`-2 map keeps regenerating byte-identically. */
 const MIN_STOPS_PER_WAVE = 2;
 const MAX_STOPS_PER_WAVE = 3;
+/** USER DECISION 2026-09-25 ("every 2 events is a fight"): on a STAMPED map,
+ * every wave is EXACTLY `STAMPED_STOPS_PER_WAVE` stop columns, no roll —
+ * `MIN_STOPS_PER_WAVE`/`MAX_STOPS_PER_WAVE` above stay a live branch (not
+ * deleted) purely to keep an unstamped map's old 2-3 roll byte-identical. */
+const STAMPED_STOPS_PER_WAVE = 2;
 /** USER-LOCKED (2026-07-31): every stop column offers exactly THREE choices —
  * a 2-choice stop read as a coin flip. With at most one shop per column (below)
  * that always leaves at least two events, so a shop-avoiding player still gets
  * a real decision. */
 const MIN_CHOICES = 3;
 const MAX_CHOICES = 3;
-/**
- * Per-wave shop rate — USER-LOCKED (2026-07-30): the old "2-4 shops per whole
- * run" cap was a WHOLE-RUN number and makes no sense once a run is endless;
- * converted to a per-wave ROLLING rate instead. Chosen rate: each wave rolls
- * 0 or 1 shop-column (uniform, `rng.int(2)`), capped by that wave's actual
- * stop-column count (so it can never ask for more shop columns than the wave
- * has stop columns) — average 0.5 shop column/wave, i.e. ~2.5 shops per 5
- * waves, matching the old 2-4/run band's density almost exactly while
- * staying well-defined forever.
- */
 const MAX_SHOP_COLUMNS_PER_WAVE = 1;
+/** Shops guaranteed per `BAND_WAVES`-wave region — USER DECISION 2026-09-23
+ * (was 1/wave, i.e. 5/region; now 3/region, WHICH waves seed-varied). */
+const REGION_SHOP_COUNT = 3;
 
 /** The 6-theme event catalog grouping (`EventTheme` in data/eventTypes.ts) — kept
  * as a local literal list rather than importing the catalog's ids, since
@@ -179,6 +197,29 @@ function sampleDistinct<T>(rng: Rng, pool: readonly T[], count: number): T[] {
     remaining.splice(idx, 1);
   }
   return result;
+}
+
+/** Which `BAND_WAVES` in-band positions host `band`'s `REGION_SHOP_COUNT`
+ * shops — own `hashSeed` domain (mirrors `biomeForBand`), no wave Rng spent. */
+function regionShopWavePositions(seed: number, band: number): Set<number> {
+  const positions: number[] = [];
+  for (let i = 0; i < BAND_WAVES; i++) positions.push(i);
+  const rng = new Rng(hashSeed('regionShops', seed, band));
+  return new Set(sampleDistinct(rng, positions, Math.min(REGION_SHOP_COUNT, BAND_WAVES)));
+}
+
+/** Which of `band`'s `REGION_SHOP_COUNT` shop-wave positions gets its shared
+ * draw REPLACED by the band's biome's `exclusiveShop` — own `hashSeed`
+ * domain (`'biomeShop'`, never `'wave'`), so choosing it spends nothing from
+ * `generateWave`'s Rng and every existing roll (stop count, choice counts,
+ * shop placement, node ids/seeds) stays byte-identical. `-1` when the band
+ * has no shop wave at all (degenerate `BAND_WAVES`/`REGION_SHOP_COUNT`
+ * configs only — never true today). */
+function exclusiveShopWaveInBand(seed: number, band: number): number {
+  const positions = [...regionShopWavePositions(seed, band)].sort((a, b) => a - b);
+  if (positions.length === 0) return -1;
+  const h = hashSeed('biomeShop', seed, band);
+  return positions[h % positions.length]!;
 }
 
 /** Cross-wave bag state threaded through the wave-by-wave build loop — plain
@@ -207,7 +248,7 @@ interface WaveResult {
  * RNG call order within a wave:
  *   1. stop-column count (2-3),
  *   2. per-stop-column choice count (2-3), in column order,
- *   3. this wave's shop-column count (0-1, capped by stop count),
+ *   3. this wave's shop-column count (region-dealt 0 or 1, capped by stop count),
  *   4. which stop column(s) (by in-wave index) host that shop,
  *   5. per shop column: which slot is the shop, then its theme (bag draw,
  *      reshuffling via THIS wave's rng if exhausted),
@@ -224,12 +265,38 @@ interface WaveResult {
  * lands on moves. `hashSeed('wave', seed, wave)` is deliberately NOT mixed with
  * the biome (proposal §2.3).
  */
-function generateWave(seed: number, wave: number, startDepth: number, bagsIn: MapGenBags): WaveResult {
+function generateWave(
+  seed: number,
+  wave: number,
+  startDepth: number,
+  bagsIn: MapGenBags,
+  ledger?: BiomeLedger,
+  stamped = false,
+): WaveResult {
   const rng = new Rng(hashSeed('wave', seed, wave));
-  const biome = biomeForBand(seed, bandIndexOf(wave));
+  const band = bandIndexOf(wave);
+  const biome = resolveBiomeForBand(seed, band, ledger);
+  const waveInBand = wave - 1 - band * BAND_WAVES;
+  const hasShopWave = regionShopWavePositions(seed, band).has(waveInBand);
+  // Exclusive-shop swap only ever applies on a STAMPED map (see
+  // `RunMap.mapGenVersion`) — an unstamped map's `-1` never matches any
+  // `waveInBand`, so its shop draws stay exactly what they were before this
+  // feature existed.
+  const exclusiveWaveInBand = stamped ? exclusiveShopWaveInBand(seed, band) : -1;
 
-  // 1) Stop-column count (2 or 3).
-  const stopCount = MIN_STOPS_PER_WAVE + rng.int(MAX_STOPS_PER_WAVE - MIN_STOPS_PER_WAVE + 1);
+  // 1) Stop-column count. STAMPED: fixed at `STAMPED_STOPS_PER_WAVE` (2), no
+  // roll at all — `Rng#int` always calls `next()` regardless of its argument
+  // (even `int(1)` consumes a draw and would just waste one for a
+  // known-constant result), so skipping the call outright is both simpler and
+  // cheaper, not merely equivalent. This shifts every later draw in the wave
+  // by one Rng call relative to the unstamped shape below — allowed, since a
+  // stamped map's own byte-identity only has to hold seed-to-seed against
+  // ITSELF, never against an unstamped map (see the module doc + `stamped`
+  // param). UNSTAMPED (legacy): unchanged 2-3 roll, so a pre-existing save
+  // keeps regenerating byte-identically forever.
+  const stopCount = stamped
+    ? STAMPED_STOPS_PER_WAVE
+    : MIN_STOPS_PER_WAVE + rng.int(MAX_STOPS_PER_WAVE - MIN_STOPS_PER_WAVE + 1);
 
   // 2) Per-stop-column choice count (2 or 3), in column order.
   const choiceCounts: number[] = [];
@@ -237,8 +304,8 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
     choiceCounts.push(MIN_CHOICES + rng.int(MAX_CHOICES - MIN_CHOICES + 1));
   }
 
-  // 3) This wave's shop-column count (0 or 1, capped by stop count).
-  const shopColumnCount = Math.min(stopCount, rng.int(MAX_SHOP_COLUMNS_PER_WAVE + 1));
+  // 3) This wave's shop-column count — region-dealt, capped by stop count.
+  const shopColumnCount = hasShopWave ? Math.min(stopCount, MAX_SHOP_COLUMNS_PER_WAVE) : 0;
 
   // 4) Which stop column(s) (in-wave index) host a shop.
   const columnIndices: number[] = [];
@@ -323,10 +390,16 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
     for (let slot = 0; slot < count; slot++) {
       const id = `d${depth}-${slot}`;
       if (slot === shopSlot) {
+        // ONE `nextShopTheme` call either way — the shared bag's splice/
+        // refill (and its Rng consumption) is identical whether or not this
+        // wave is the band's exclusive-shop wave; only which id ends up on
+        // the node differs.
+        const drawnTheme = nextShopTheme(wave);
+        const isExclusiveWave = waveInBand === exclusiveWaveInBand;
         nodes.push({
           id, depth, wave, kind: 'shop',
           biomeId: biome.id,
-          shopId: nextShopTheme(wave),
+          shopId: isExclusiveWave ? biome.exclusiveShop : drawnTheme,
           shopSeed: hashSeed('shop', seed, id),
         });
       } else {
@@ -398,20 +471,20 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
  * whether this is a fresh build to exactly w, or a build that continues past
  * it — the "eager vs. lazy" equality invariant.
  */
-function buildMapThroughWave(seed: number, throughWave: number): RunMap {
+function buildMapThroughWave(seed: number, throughWave: number, ledger?: BiomeLedger, stamped = false): RunMap {
   const depths: RunNode[][] = [[]];
   let depth = 0;
   let bags: MapGenBags = EMPTY_BAGS;
   const target = Math.max(1, Math.floor(throughWave));
   for (let w = 1; w <= target; w++) {
-    const result = generateWave(seed, w, depth, bags);
+    const result = generateWave(seed, w, depth, bags, ledger, stamped);
     for (const column of result.columns) {
       depth += 1;
       depths.push(column);
     }
     bags = result.bags;
   }
-  return { seed, depths };
+  return stamped ? { seed, depths, mapGenVersion: MAP_GEN_VERSION } : { seed, depths };
 }
 
 /**
@@ -423,8 +496,8 @@ function buildMapThroughWave(seed: number, throughWave: number): RunMap {
  * discarding nothing that matters since it's deterministic, but callers
  * should prefer extending their existing `RunMap` value).
  */
-export function generateRunMap(seed: number, throughWave: number = INITIAL_WAVES): RunMap {
-  return buildMapThroughWave(seed, throughWave);
+export function generateRunMap(seed: number, throughWave: number = INITIAL_WAVES, ledger?: BiomeLedger): RunMap {
+  return buildMapThroughWave(seed, throughWave, ledger, true);
 }
 
 /**
@@ -433,11 +506,14 @@ export function generateRunMap(seed: number, throughWave: number = INITIAL_WAVES
  * rebuilds the whole map from wave 1 through `waveIndex` — cheap for any
  * depth a real run ever reaches, and the only way to guarantee the "same
  * seed -> same wave N, eager or lazy" invariant without threading live Rng
- * state across calls (see the module doc comment).
+ * state across calls (see the module doc comment). `ledger` must be the
+ * caller's CURRENT biome ledger — a picked band never changes its own
+ * resolution, so extending with the same ledger a run already carries never
+ * disturbs already-walked content.
  */
-export function ensureWavesThrough(map: RunMap, waveIndex: number): RunMap {
+export function ensureWavesThrough(map: RunMap, waveIndex: number, ledger?: BiomeLedger): RunMap {
   if (generatedWaveCount(map) >= waveIndex) return map;
-  return buildMapThroughWave(map.seed, waveIndex);
+  return buildMapThroughWave(map.seed, waveIndex, ledger, map.mapGenVersion === MAP_GEN_VERSION);
 }
 
 /**
@@ -448,12 +524,23 @@ export function ensureWavesThrough(map: RunMap, waveIndex: number): RunMap {
  * column count varies 3-4, so the mapping isn't known in advance). Grows one
  * wave at a time until satisfied; a no-op (same reference) if already deep enough.
  */
-export function ensureDepthThrough(map: RunMap, minDepth: number): RunMap {
+export function ensureDepthThrough(map: RunMap, minDepth: number, ledger?: BiomeLedger): RunMap {
   let next = map;
   let waveIndex = generatedWaveCount(next);
   while (totalColumns(next) < minDepth) {
     waveIndex += 1;
-    next = ensureWavesThrough(next, waveIndex);
+    next = ensureWavesThrough(next, waveIndex, ledger);
   }
   return next;
+}
+
+/**
+ * Force a full rebuild of `map`'s currently-generated waves against a NEW
+ * `ledger` — the one case `ensureWavesThrough`'s short-circuit must not
+ * apply, since a fresh biome pick can change content in waves already built
+ * (but not yet walked). Never extends past what was already generated.
+ */
+export function rebuildMapWithLedger(map: RunMap, ledger: BiomeLedger): RunMap {
+  const throughWave = Math.max(1, generatedWaveCount(map));
+  return buildMapThroughWave(map.seed, throughWave, ledger, map.mapGenVersion === MAP_GEN_VERSION);
 }

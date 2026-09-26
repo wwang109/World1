@@ -95,7 +95,7 @@ export function renderMobileMapIntelOverlay(
   const closeLabel = scene.add.text(close.x + close.width / 2, close.y + close.height / 2, 'CLOSE', {
     ...textRole('kicker', { ink: 'primary' }),
   }).setOrigin(0.5).setDepth(5503);
-  attachButtonFeel(scene, closeButton, { fill: UI.panelMuted, hover: UI.chipDark, follow: [closeLabel], onPress: onClose });
+  attachButtonFeel(scene, closeButton, { fill: UI.panelMuted, hover: UI.chipDark, follow: [closeLabel], sfx: 'uiBack', onPress: onClose });
 
   if (layout.cards.length === 0) {
     scene.add.text(mask.x + mask.width / 2, mask.y + mask.height / 2, 'NO MAP INTEL YET', {
@@ -172,14 +172,14 @@ export function renderRunRouteBoard(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },
   route: RunRouteSnapshot,
-  opts: { mode: 'desktop' | 'mobile'; regionName: string; track?: Phaser.GameObjects.GameObject[] },
+  opts: { mode: 'desktop' | 'mobile'; regionName?: string; track?: Phaser.GameObjects.GameObject[] },
 ): void {
   if (route.columns.length === 0) return;
   const model = expeditionRouteTrackModel(route);
   const inset = opts.mode === 'desktop' ? 12 : 8;
   const compact = opts.mode === 'mobile';
   const header = scene.add.text(bounds.x + inset, bounds.y + 2,
-    compact
+    !opts.regionName ? 'EXPEDITION ROUTE' : compact
       ? `EXPEDITION ROUTE · ${opts.regionName.toUpperCase().replace(/^THE\s+/, '')}`
       : `EXPEDITION ROUTE · CROSSING ${opts.regionName.toUpperCase()}`, {
       ...textRole('kicker'),
@@ -350,11 +350,25 @@ export function renderEmbeddedBandRead(
     const heading = scene.add.text(x + 10, y + 8, section.title, textRole('label', { ink: 'accent' }));
     auditTextBlock(heading, { name: `Region guide ${section.title}`, maxWidth: cellW - 20, maxHeight: 20, minFontSize: 10 });
     const textY = y + 10 + heading.height;
+    // Accent split mirrors the BIOME EXCLUSIVE tag in RunTravelChoiceCard.ts.
+    const accentLineH = section.accent ? 16 : 0;
     const body = scene.add.text(x + 10, textY, section.body, {
       ...textRole('body'), lineSpacing: 2, wordWrap: { width: cellW - 20 },
     });
     auditTextBlock(body, { name: `Region guide ${section.title} content`, maxWidth: cellW - 20,
-      maxHeight: Math.max(16, y + cellH - textY - 7), minFontSize: 10 });
+      maxHeight: Math.max(16, y + cellH - textY - 7 - accentLineH), minFontSize: 10 });
+    if (section.accent) {
+      const swatchSize = 10;
+      const accentY = textY + body.height + 4;
+      const swatch = scene.add.rectangle(x + 10, accentY + 2, swatchSize, swatchSize, section.accent.swatchColor, 1).setOrigin(0, 0);
+      if (compact) roundRect(swatch, 2);
+      const accentTextX = x + 10 + swatchSize + 5;
+      const accentText = scene.add.text(accentTextX, accentY, section.accent.text, {
+        ...textRole('micro', { ink: 'accent' }), wordWrap: { width: Math.max(1, x + cellW - 10 - accentTextX) },
+      });
+      auditTextBlock(accentText, { name: `Region guide ${section.title} accent`, maxWidth: Math.max(1, x + cellW - 10 - accentTextX),
+        maxHeight: Math.max(12, y + cellH - accentY - 7), minFontSize: 9 });
+    }
   });
   const noteY = bodyY + rows * (cellH + gap);
   const note = scene.add.text(bounds.x + pad, noteY, vm.guideNote, {
@@ -554,5 +568,5 @@ export function renderBandReadOverlay(
   const closeLabel = scene.add.text(innerX + innerW / 2, cursor + btnH / 2, 'CLOSE', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${body + 1}px`, color: UI.text,
   }).setOrigin(0.5).setDepth(5502);
-  attachButtonFeel(scene, closeBtn, { fill: UI.panelMuted, hover: UI.chipDark, follow: [closeLabel], onPress: () => { opts.onClose(); } });
+  attachButtonFeel(scene, closeBtn, { fill: UI.panelMuted, hover: UI.chipDark, follow: [closeLabel], sfx: 'uiBack', onPress: opts.onClose });
 }

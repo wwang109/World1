@@ -233,6 +233,50 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Bell Beneath the Ice",
+            "theme": "cache",
+            "artId": "bell_beneath_ice",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "body": "Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it.",
+            "choices": [
+              {
+                "id": "prise_it_free",
+                "label": "Prise the frost bell free",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "ring_it_here",
+                "label": "Ring it beneath the ice",
+                "outcome": {
+                  "kind": "awardCardPoint"
+                }
+              },
+              {
+                "id": "leave_it_sleeping",
+                "label": "Leave it sleeping",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -292,6 +336,32 @@
                 "cost": 5,
                 "outcome": {
                   "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "watch",
+                "label": "Just watch, and walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Regrinding Wheel",
+            "theme": "forge",
+            "body": "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
+            "choices": [
+              {
+                "id": "regrind",
+                "label": "Pay 5 gold to regrind your gear",
+                "cost": 5,
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               },
               {
@@ -495,6 +565,43 @@
                 "label": "Feed three matched pieces to the coals",
                 "outcome": {
                   "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "2026-09-26 T2: the mergeCards trio trade retired for new draws in favor of awardCardPoint (a free +1 stored tier-up point on one owned card) — version 1 stays live for any save with a pending trio already offered."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Feed one piece of your gear to the coals and it comes back a step further tempered toward its next grade — you choose which piece takes the heat.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 1
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed one piece to the coals",
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               }
             ]
@@ -1058,6 +1165,32 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Smith's Last Commission",
+            "theme": "forge",
+            "body": "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
+            "choices": [
+              {
+                "id": "commission",
+                "label": "Pay 6 gold for one last commission",
+                "cost": 6,
+                "outcome": {
+                  "kind": "awardCardPoint"
+                }
+              },
+              {
+                "id": "let_her_go",
+                "label": "Let her go",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1099,6 +1232,46 @@
                 "label": "Beat three matched pieces into one",
                 "outcome": {
                   "kind": "mergeCards"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "schemaVersion": 1,
+          "def": {
+            "title": "Ruined Anvil",
+            "theme": "forge",
+            "notes": [
+              "2026-09-26 T2: the mergeCards trio trade retired for new draws in favor of awardCardPoint (a free +1 stored tier-up point on one owned card) — version 1 stays live for any save with a pending trio already offered."
+            ],
+            "body": "One of the Cinderworks' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go. The anvil will still take a heavier job for nothing: lay one piece of your gear across it and it beats down a step further along its own grade.",
+            "choices": [
+              {
+                "id": "take_rough",
+                "label": "Take the rough blade as-is",
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "retemper",
+                "label": "Pay 3 gold to retemper it",
+                "cost": 3,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "sword_slash",
+                  "tier": "silver"
+                }
+              },
+              {
+                "id": "beat_together",
+                "label": "Beat one piece into shape",
+                "outcome": {
+                  "kind": "awardCardPoint"
                 }
               }
             ]
@@ -1937,6 +2110,1873 @@
       ]
     },
     {
+      "id": "roadside_wager",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Roadside Wager",
+            "body": "A drill instructor at the practice yard slaps a coin on the rail: stake it against your own form, and you might walk off richer — or just walk off.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "roadside_wager",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "stake_form",
+                  "label": "Stake 3 gold on your form",
+                  "cost": 3,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "clean_form",
+                        "label": "Clean form (70%)",
+                        "weight": 7,
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 7
+                        }
+                      },
+                      {
+                        "id": "sloppy_form",
+                        "label": "Sloppy form (30%)",
+                        "weight": 3,
+                        "outcome": {
+                          "kind": "nothing"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "skip_wager",
+                  "label": "Keep your coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cold_iron_drill",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Cold Iron Drill",
+            "body": "A sergeant drills recruits through iron forms at the yard's edge. Two gold buys a place in the line and a weapon fresh off the rack; free, you can only watch from the fence.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "cold_iron_drill",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "join_drill",
+                  "label": "Join the drill (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "watch_only",
+                  "label": "Watch from the fence",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "underdogs_stand",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Underdog's Stand",
+            "body": "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat three matched pieces of your gear into something that might hold better next time.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "underdogs_stand",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "lte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Beat three pieces together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Underdog's Stand",
+            "body": "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat one piece of your gear into something that might hold better next time.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "underdogs_stand",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "lte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Beat one piece into shape",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "veterans_wisdom",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Veteran's Wisdom",
+            "body": "Three wins in, and the yard's old veterans finally wave you into their circle. What they teach next won't come from any drill.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "veterans_wisdom",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "toast_growth",
+                  "label": "Toast to hard-won growth",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  }
+                },
+                {
+                  "id": "take_defensive_lesson",
+                  "label": "Learn a defensive lesson (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "defensive",
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "crooked_dice",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Crooked Dice",
+            "body": "A gambler beneath the crossroads shrine rattles a cup of black dice, promising the road pays double to the bold — or nothing at all to the unlucky.",
+            "theme": "omen",
+            "rarity": "common",
+            "story": {
+              "storyId": "crooked_dice",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 4
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "roll_the_dice",
+                  "label": "Stake 4 gold on the dice",
+                  "cost": 4,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "lucky_roll",
+                        "label": "Lucky roll (60%)",
+                        "weight": 6,
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 9
+                        }
+                      },
+                      {
+                        "id": "unlucky_roll",
+                        "label": "Unlucky roll (40%)",
+                        "weight": 4,
+                        "outcome": {
+                          "kind": "loseGold",
+                          "amount": 2
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "keep_the_coin",
+                  "label": "Keep your coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "silent_augury",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Silent Augury",
+            "body": "A hush falls at the crossroads shrine as an augur reads smoke rising off cold coals — a glimpse of the road ahead, if you'll trade a moment's patience for it.",
+            "theme": "omen",
+            "rarity": "common",
+            "story": {
+              "storyId": "silent_augury",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "read_the_smoke",
+                  "label": "Read the smoke",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  }
+                },
+                {
+                  "id": "move_on",
+                  "label": "Move on unread",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hanged_stranger",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Hanged Stranger",
+            "body": "A stranger hangs a lantern at the shrine's foot, trading omens for anything bright you're willing to part with.",
+            "theme": "omen",
+            "rarity": "common",
+            "story": {
+              "storyId": "hanged_stranger",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 1,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "sell_a_stone",
+                  "label": "Sell her a stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "sellGem"
+                  }
+                },
+                {
+                  "id": "keep_your_stones",
+                  "label": "Keep your stones",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_omens_toll",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Omen's Toll",
+            "body": "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "last_omens_toll",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "bossesCleared",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 260,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_purse",
+                  "label": "Take the champion's purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "read_your_fortune",
+                  "label": "Read your fortune (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "debuff"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "quiet_muster",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Quiet Muster",
+            "body": "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "quiet_muster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "join_circle",
+                  "label": "Join the circle (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "support"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "pass_by",
+                  "label": "Pass by",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "banner_of_five",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Banner of Five",
+            "body": "Two wins in and a recruiter's banner catches your eye — five weapons laid out for anyone who's proven they can use one.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "banner_of_five",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "toast_to_wins",
+                  "label": "Take a toast and a coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 2
+                  }
+                },
+                {
+                  "id": "browse_the_banner",
+                  "label": "Browse the banner rack",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "bonusDraft",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword",
+                          "axe",
+                          "lance",
+                          "bow",
+                          "beast"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sworn_company",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Sworn Company",
+            "body": "A sworn company drills three-deep at the roadside, offering to beat your gear together the way they beat their ranks into shape.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "sworn_company",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Drill three pieces together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Sworn Company",
+            "body": "A sworn company drills three-deep at the roadside, offering to temper one piece of your gear the way they beat their own ranks into shape.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "sworn_company",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Drill one piece into shape",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "temper_or_break",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Temper or Break",
+            "body": "A forge-hand offers to temper your gear over open coals — three gold gets you a real chance at something better, or nothing but scorch marks.",
+            "theme": "forge",
+            "rarity": "common",
+            "story": {
+              "storyId": "temper_or_break",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "brave_the_coals",
+                  "label": "Brave the coals (3 gold)",
+                  "cost": 3,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "true_temper",
+                        "label": "True temper (65%)",
+                        "weight": 13,
+                        "outcome": {
+                          "kind": "upgradeCard"
+                        }
+                      },
+                      {
+                        "id": "scorched",
+                        "label": "Scorched (35%)",
+                        "weight": 7,
+                        "outcome": {
+                          "kind": "nothing"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "skip_the_coals",
+                  "label": "Skip the coals",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Temper or Break",
+            "body": "A forge-hand offers to temper your gear over open coals — three gold gets you a real chance at something better, or nothing but scorch marks.",
+            "theme": "forge",
+            "rarity": "common",
+            "story": {
+              "storyId": "temper_or_break",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "brave_the_coals",
+                  "label": "Brave the coals (3 gold)",
+                  "cost": 3,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "true_temper",
+                        "label": "True temper (65%)",
+                        "weight": 13,
+                        "outcome": {
+                          "kind": "awardCardPoint"
+                        }
+                      },
+                      {
+                        "id": "scorched",
+                        "label": "Scorched (35%)",
+                        "weight": 7,
+                        "outcome": {
+                          "kind": "nothing"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "skip_the_coals",
+                  "label": "Skip the coals",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "scrap_reclaimer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Scrap Reclaimer",
+            "body": "A reclaimer picks through scrap at the forge's edge, trading facets no one else wants for the ones that ward, cleanse, and taunt.",
+            "theme": "forge",
+            "rarity": "common",
+            "story": {
+              "storyId": "scrap_reclaimer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 1,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_a_stone",
+                  "label": "Trade a stone of your own",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "sellGem"
+                  }
+                },
+                {
+                  "id": "browse_the_scrap",
+                  "label": "Browse the warded scrap (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "ward",
+                          "cleanse",
+                          "taunt"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "capstone_reforge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Capstone Reforge",
+            "body": "Two champions felled, and the master forge itself opens to you — one true piece of your kit, reforged past its old limit.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "capstone_reforge",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "bossesCleared",
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_reforge",
+                  "label": "Take the reforge",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "board",
+                        "match": {
+                          "archetypes": [
+                            "offense",
+                            "defensive",
+                            "healing",
+                            "support",
+                            "debuff"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  }
+                },
+                {
+                  "id": "decline_reforge",
+                  "label": "Decline the reforge",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "toll_of_plenty",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Toll of Plenty",
+            "body": "A tollkeeper on the Tolling Road offers a wager instead of a toll: stake five gold and the gate might swing wide with more than you paid — or simply take your coin and go.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "toll_of_plenty",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 5
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "stake_the_toll",
+                  "label": "Stake 5 gold at the gate",
+                  "cost": 5,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "gate_swings_wide",
+                        "label": "Gate swings wide (55%)",
+                        "weight": 11,
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 12
+                        }
+                      },
+                      {
+                        "id": "gate_holds",
+                        "label": "Gate holds (45%)",
+                        "weight": 9,
+                        "outcome": {
+                          "kind": "loseGold",
+                          "amount": 3
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "pay_no_toll",
+                  "label": "Pay no toll",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "quiet_ledger",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Quiet Ledger",
+            "body": "A quiet ledger-keeper flags you down before the next stall. Eight gold through her books earns a courtesy the regulars get.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "quiet_ledger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "goldSpent",
+                "op": "gte",
+                "value": 8
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 210,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_courtesy_gem",
+                  "label": "Take the courtesy stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice"
+                  }
+                },
+                {
+                  "id": "place_bulk_order",
+                  "label": "Place a bulk order (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sellswords_bazaar",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Sellsword's Bazaar",
+            "body": "A bazaar stall at the market's edge sells warding charms to anyone passing, one gold and no haggling.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "sellswords_bazaar",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_a_charm",
+                  "label": "Buy a warding charm (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "ward",
+                          "cleanse",
+                          "taunt"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "keep_walking",
+                  "label": "Keep walking",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "silt_reliquary",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Silt Reliquary",
+            "body": "A half-sunk reliquary in the Silt Hollows holds three matched relics, ready to be beaten into one truer piece.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "silt_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "beat_the_relics",
+                  "label": "Beat the relics together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "leave_the_reliquary",
+                  "label": "Leave the reliquary shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Silt Reliquary",
+            "body": "A half-sunk reliquary in the Silt Hollows holds one true relic, waiting to be beaten a step further.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "silt_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "beat_the_relics",
+                  "label": "Beat the relic true",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "leave_the_reliquary",
+                  "label": "Leave the reliquary shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hollow_stash",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Hollow Stash",
+            "body": "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "hollow_stash",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "dig_it_out",
+                  "label": "Dig it out properly (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave_the_log",
+                  "label": "Leave the log alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "forgotten_ledger",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Forgotten Ledger",
+            "body": "A forgotten ledger surfaces from an old cache, its pages full of every road you've already walked.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "forgotten_ledger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "journey.visitedBiomes",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_findings",
+                  "label": "Take the road findings",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "chart_further",
+                  "label": "Chart the road ahead",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bandit_toll",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bandit's Toll",
+            "body": "A ragged band blocks the road, spears low and grins lower. Their captain names a toll in gold — or, failing that, in blood. Either way, they say, you are paying something before you pass.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "bandit_toll",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "fight_bandits",
+                  "label": "Fight through",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": {
+                      "kind": "cardChoice",
+                      "filter": [
+                        {
+                          "archetypes": [
+                            "offense"
+                          ]
+                        }
+                      ],
+                      "maxTier": "bronze"
+                    }
+                  }
+                },
+                {
+                  "id": "pay_toll",
+                  "label": "Pay the toll (3 gold)",
+                  "cost": 3,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "turn_back",
+                  "label": "Turn back",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arena_pit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Arena Pit",
+            "body": "A sunken ring of packed earth waits behind a curtain of oiled canvas, ringed by a crowd that has already placed its bets. The pit-master waves you toward the rope. \"Tougher bout, tougher purse,\" he says, and grins at the fighter already stretching in the sand.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "arena_pit",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "enter_pit",
+                  "label": "Enter the pit",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": {
+                      "kind": "cardChoice",
+                      "filter": [
+                        {
+                          "archetypes": [
+                            "defensive",
+                            "healing"
+                          ]
+                        }
+                      ],
+                      "maxTier": "bronze"
+                    }
+                  }
+                },
+                {
+                  "id": "watch_the_bout",
+                  "label": "Watch from the rail",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "champions_duel",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Champion's Duel",
+            "body": "A traveling champion plants a banner at the crossroads and calls out anyone who thinks their steel is worth testing. The crowd that gathers already knows this one is no easy bout — but a champion's duel tempers whatever you carry into it.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": {
+              "storyId": "champions_duel",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "accept_duel",
+                  "label": "Accept the duel",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "elite",
+                    "reward": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "archetypes": [
+                              "offense",
+                              "defensive",
+                              "healing",
+                              "support",
+                              "debuff"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 4
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "decline_duel",
+                  "label": "Decline with a bow",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "barrow_guardian",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Barrow Guardian",
+            "body": "The cairn stones over this barrow have been disturbed, and something under them has noticed. It rises slow and huge from the broken earth, hoard-marks still ground into its knuckles — whatever it was set to guard, it means to keep guarding.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "barrow_guardian",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "face_guardian",
+                  "label": "Face the guardian",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "elite",
+                    "reward": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "shield",
+                            "guard",
+                            "ward"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "reseal_barrow",
+                  "label": "Reseal the barrow",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sellswords_wager",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Sellswords' Wager",
+            "body": "A band of sellswords has pooled a purse and is offering it to anyone who can put their toughest down. Odds are chalked on a barrel head, and the crowd is already loud about which way they think this goes.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "sellswords_wager",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_wager",
+                  "label": "Take the wager",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": {
+                      "kind": "grantGold",
+                      "amount": 6
+                    }
+                  }
+                },
+                {
+                  "id": "side_bet",
+                  "label": "Place a side bet (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "walk_past",
+                  "label": "Walk past",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duskroad_challenger",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Duskroad Challenger",
+            "body": "A masked figure waits where the road dims toward dusk, testing every traveler who passes with the same plain offer: a fair fight, a fair prize, no names asked either way.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "duskroad_challenger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "answer_challenge",
+                  "label": "Answer the challenge",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "slow",
+                            "disrupt"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "refuse",
+                  "label": "Refuse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "feathered_cairn",
       "versions": [
         {
@@ -2319,6 +4359,81 @@
       ]
     },
     {
+      "id": "fletchers_tithe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Fletcher's Tithe",
+            "body": "A fletcher's stall stands unmanned at an Arrowfell crossroads, its ledger open to a page marked \"tithe.\" One fine arrow rests beside it, already fletched for a hand that never came to claim it.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "fletchers_tithe",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "arrowfell"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piercing_arrow",
+                  "label": "Take the Piercing Arrow",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "piercing_arrow",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_bow_card",
+                  "label": "Take a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Pay the tithe with your absence",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "gilded_detour",
       "versions": [
         {
@@ -2379,6 +4494,84 @@
                     "cost": 8,
                     "outcome": {
                       "kind": "upgradeCard"
+                    }
+                  },
+                  {
+                    "id": "buy_premium_gem",
+                    "label": "Choose a premium gem",
+                    "cost": 6,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "all": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Gilded Detour",
+            "body": "A broker's bright pavilion blocks the road. The richest travelers are invited to turn a little fortune into something rarer.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "gilded_detour",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 15
+                  }
+                },
+                {
+                  "fact": "run.tally",
+                  "args": {
+                    "stat": "goldSpent",
+                    "op": "gte",
+                    "value": 10
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "keep_fortune",
+                  "label": "Keep your fortune",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "buy_gold_upgrade",
+                    "label": "Commission an advance",
+                    "cost": 8,
+                    "outcome": {
+                      "kind": "awardCardPoint"
                     }
                   },
                   {
@@ -3732,6 +5925,225 @@
       ]
     },
     {
+      "id": "brokers_scale",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Broker's Scale",
+            "body": "A broker has set her scale up at the crossroads, weighing coin against whatever the road has worn thin — a limb still healing, an edge gone dull. She never carries the same goods twice, but she is never far from the road either, and her prices climb a little with every trade she strikes.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "brokers_scale",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 100,
+            "once": "node",
+            "cooldownNodes": 10,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_stat_pick",
+                  "label": "Buy a stat",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "buyStatPick"
+                  }
+                },
+                {
+                  "id": "buy_life",
+                  "label": "Buy back a life",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "buyLife"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Step away from the scale",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duelists_grip",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Old Duelist's Grip",
+            "body": "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "duelists_grip",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_grip",
+                  "label": "Learn his grip",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "attack"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Thank him and walk on",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "standing_stone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Standing Stone",
+            "body": "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "standing_stone",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "press_palm",
+                  "label": "Press your palm to the stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Leave the stone be",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "smiths_temper",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "A Smith's Tempering",
+            "body": "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "smiths_temper",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "temper_gear",
+                  "label": "Let her temper your gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "armor"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Keep moving",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "names_under_stone",
       "versions": [
         {
@@ -3940,6 +6352,185 @@
       ]
     },
     {
+      "id": "last_acolyte",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Acolyte",
+            "body": "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "last_acolyte",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_siphon_life",
+                  "label": "Take Siphon Life",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "siphon_life",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_dark_card",
+                  "label": "Take a Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the acolyte to the rot",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grave_wax_seals",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Grave-Wax Seals",
+            "body": "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "grave_wax_seals",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "duskbarrow"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_grave_seals",
+                  "label": "Break the grave-wax seals",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "hex_of_frailty_echo",
+                          "blunting_sliver",
+                          "slow_hex_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "anoint_dark_card",
+                  "label": "Anoint a Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "dark"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the seals unbroken",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "cinderheart_crucible",
       "versions": [
         {
@@ -4049,6 +6640,185 @@
                   }
                 ]
               }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ash_oracle",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ash Oracle",
+            "body": "An oracle sits cross-legged in the Emberwaste's drifting soot, reading futures out of the way embers curl and die. She presses a warm brand into your palm before you have asked a single question.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "ash_oracle",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "emberwaste"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_scorching_brand",
+                  "label": "Take the Scorching Brand",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "scorching_brand",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_fire_card",
+                  "label": "Take a Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on unread",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "slag_glass_cache",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Slag-Glass Cache",
+            "body": "Fused slag has cooled into a glassy shell around a hoard from some earlier traveler, its contents visible but sealed. Only fire-tempered hands can crack it open.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "slag_glass_cache",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "emberwaste"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "fire"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "crack_the_slag",
+                  "label": "Crack the slag-glass",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "fireball_echo",
+                          "empowering_core",
+                          "war_banner_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "temper_fire_card",
+                  "label": "Temper a Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "fire"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the glass sealed",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
             }
           }
         }
@@ -4238,6 +7008,456 @@
                       "storyId": "whiteout_pilgrim"
                     }
                   ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rime_locked_sledge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Rime-Locked Sledge",
+            "body": "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "rime_locked_sledge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "frostmarch"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_frost_shackle",
+                  "label": "Take Frost Shackle",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "frost_shackle",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_frost_card",
+                  "label": "Take a Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the sledge frozen",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hoarfrost_reliquary",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Hoarfrost Reliquary",
+            "body": "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "hoarfrost_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "frostmarch"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_reliquary_ware",
+                  "label": "Browse the reliquary's wares",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "frost_ward_echo",
+                          "mana_ward_echo",
+                          "stunning_shard"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "rime_a_frost_card",
+                  "label": "Rime a Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "frost"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past the stall",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sanctum_vigil",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Sanctum Vigil",
+            "body": "Past Hallowfield's consecrated line, a keeper still holds a vigil no map explains. The ward has stood since before the road, and it has never once let anything back out.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "sanctum_vigil",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "combat.affinityWin",
+              "args": {
+                "affinityId": "holy",
+                "atLeast": 1,
+                "biomeId": "hallowfield"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "keep_the_vigil",
+                  "label": "Keep the vigil",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "callback": {
+                    "callbackId": "sanctum_vigil_answer",
+                    "eventId": "sanctum_vigil_answer",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "destinationBiomeIds": [
+                      "hallowfield"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 15,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_relic_ward",
+                  "label": "Take a relic ward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "mending_light_echo",
+                          "renewal_sliver",
+                          "sanctuary_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "sanctum_vigil_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "What the Ward Kept Out",
+            "body": "The vigil answers: a wisp of dark magic, held at the boundary since long before you crossed it, still restless against the consecrated line. The keeper offers you the choosing of what becomes of it.",
+            "theme": "omen",
+            "rarity": "rare",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "sanctum_vigil",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "sanctum_vigil_answer"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "consecrate_the_dark",
+                  "label": "Consecrate what it kept out",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "dark"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "sanctum_vigil"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_the_sanctum_toll",
+                  "label": "Take the sanctum's toll",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "sanctum_vigil"
+                    }
+                  ]
+                },
+                {
+                  "id": "let_it_rest",
+                  "label": "Let it rest behind the ward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "sanctum_vigil"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "penitents_road",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Penitent's Road",
+            "body": "A stretch of Hallowfield's road runs bare of grass, worn smooth by knees rather than boots. At its end a plain altar holds one blade of consecrated light, left for whoever finishes the walk.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "penitents_road",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "hallowfield"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_judgment_light",
+                  "label": "Take the consecrated blade",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "judgment_light",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_holy_card",
+                  "label": "Take a Holy card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past unmarked",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
                 }
               ]
             }
@@ -4464,6 +7684,81 @@
       ]
     },
     {
+      "id": "howling_cairn",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Howling Cairn",
+            "body": "A cairn of bleached bone and antler stands where Howlmoor's packs gather at dusk, a single fanged trophy wedged into its crown for whoever can call the howl back.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "howling_cairn",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "howlmoor"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_battle_howl",
+                  "label": "Take Battle Howl",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "battle_howl",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_beast_card",
+                  "label": "Take a Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the cairn silent",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "red_standard",
       "versions": [
         {
@@ -4550,6 +7845,185 @@
                   }
                 ]
               }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "blood_price_muster",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Blood-Price Muster",
+            "body": "An Ironmoot recruiter has nailed a muster notice to a splintered post: axes wanted, blood-price paid in kind. A single notched blade hangs beneath it, already claimed by no one.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "blood_price_muster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "ironmoot"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_hemorrhage",
+                  "label": "Take Hemorrhage",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "hemorrhage",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_axe_card",
+                  "label": "Take an Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Pass the notice by",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "whetting_pit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Whetting Pit",
+            "body": "A stone pit worn smooth by generations of axe-edges sits at Ironmoot's heart, its grindstones still turning under no visible hand.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "whetting_pit",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "ironmoot"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "weapons": [
+                        "axe"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "grind_the_pit",
+                  "label": "Set an edge against the grindstones",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "rending_sliver",
+                          "bloodscent_sliver",
+                          "armor_break_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "hone_axe_card",
+                  "label": "Hone an Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "axe"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the stones turning",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
             }
           }
         }
@@ -4658,6 +8132,185 @@
       ]
     },
     {
+      "id": "pike_forge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pike-Forge",
+            "body": "A field-forge still glows at Pikewold's rear line, its bellows worked by no one and its rack holding a single braced shaft, cooling from the last quench.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pike_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_braced_pike",
+                  "label": "Take the Braced Pike",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "braced_pike",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_lance_card",
+                  "label": "Take a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Let the forge cool",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "drill_sergeant_chest",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Drill-Sergeant's Chest",
+            "body": "A locked chest sits at the foot of a drill yard long since abandoned, stamped with a dead sergeant's seal and heavy with a lance-hand's due.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "drill_sergeant_chest",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "pikewold"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "weapons": [
+                        "lance"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "open_the_chest",
+                  "label": "Open the drill-sergeant's chest",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "ward_of_silence_echo",
+                          "millstone_sliver",
+                          "crippling_strike_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "drill_lance_card",
+                  "label": "Drill a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "lance"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the chest locked",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "thunder_in_a_bottle",
       "versions": [
         {
@@ -4748,6 +8401,468 @@
                   }
                 ]
               }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lightning_struck_spire",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lightning-Struck Spire",
+            "body": "A shattered spire juts from Stormreach's ridgeline, its stone still smoking from a strike that split it top to base. A single blackened arc still crawls the crack, waiting for a hand that can hold it.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "lightning_struck_spire",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_chain_spark",
+                  "label": "Take Chain Spark",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "chain_spark",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_lightning_card",
+                  "label": "Take a Lightning card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the spire smoking",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "capacitor_vault",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Capacitor Vault",
+            "body": "A tinker's vault hums behind a door of copper and glass, charged decades ago and never discharged. Only a lightning-tempered hand can draw on it without earthing the whole store.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "capacitor_vault",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "stormreach"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "lightning"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "draw_the_vault",
+                  "label": "Draw on the capacitor vault",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "quickening_sliver",
+                          "swift_charm",
+                          "battle_howl_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "charge_lightning_card",
+                  "label": "Charge a Lightning card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the vault charged",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "garrisons_oath",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Garrison's Oath",
+            "body": "Swornhold's drill yard still musters at the old hours. Two victories won under its banner earn a place in the line — and the oath that comes with it.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "swornhold"
+            ],
+            "story": {
+              "storyId": "garrisons_oath",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "combat.affinityWin",
+              "args": {
+                "affinityId": "sword",
+                "atLeast": 2,
+                "biomeId": "swornhold"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 200,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "swear_the_oath",
+                  "label": "Swear the garrison's oath",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  },
+                  "callback": {
+                    "callbackId": "garrisons_oath_kept",
+                    "eventId": "garrisons_oath_kept",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training"
+                    ],
+                    "destinationBiomeIds": [
+                      "swornhold"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 15,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_the_drill_yards_gear",
+                  "label": "Take the drill yard's gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "iron_bulwark_echo",
+                          "taunting_sliver",
+                          "war_banner_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "march_on",
+                  "label": "March on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "garrisons_oath_kept",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Oath Kept",
+            "body": "Word of the oath reaches you again, three roads on: the garrison held its line without you, and the standard-bearer sends word of what your name still earns there.",
+            "theme": "training",
+            "rarity": "rare",
+            "biomeIds": [
+              "swornhold"
+            ],
+            "story": {
+              "storyId": "garrisons_oath",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "garrisons_oath_kept"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_oath_gold",
+                  "label": "Take the oath's due",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "garrisons_oath"
+                    }
+                  ]
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "hold_the_line",
+                    "label": "Hold the line",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "bonusDraft",
+                      "filter": [
+                        {
+                          "weapons": [
+                            "sword"
+                          ]
+                        }
+                      ]
+                    },
+                    "mutations": [
+                      {
+                        "op": "completeStory",
+                        "storyId": "garrisons_oath"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "temper_the_oath_blade",
+                    "label": "Temper the oath-blade",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "weapons": [
+                              "sword"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    },
+                    "mutations": [
+                      {
+                        "op": "completeStory",
+                        "storyId": "garrisons_oath"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "oathsmiths_forge",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Oathsmith",
+            "body": "Swornhold's forge never truly cools. Its smith takes no coin, only oaths, and the blade she sets aside today is already promised to whoever swears to carry it into the line.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "swornhold"
+            ],
+            "story": {
+              "storyId": "oathsmiths_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "swornhold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_iron_riposte",
+                  "label": "Swear for the Iron Riposte",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "iron_riposte",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_sword_card",
+                  "label": "Take a Sword card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the forge unsworn",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
             }
           }
         }
@@ -4850,6 +8965,185 @@
                 {
                   "id": "leave",
                   "label": "Leave the bloom sleeping",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rootbound_hermit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rootbound Hermit",
+            "body": "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "rootbound_hermit",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_thorn_bite",
+                  "label": "Take Thorn Bite",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "thorn_bite",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_nature_card",
+                  "label": "Take a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the hermit rooted",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "seedvault",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Seedvault",
+            "body": "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "seedvault",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "thornwild"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "nature"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "crack_the_seedvault",
+                  "label": "Crack the seedvault",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "bramble_sliver",
+                          "second_wind_echo",
+                          "renewal_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "root_nature_card",
+                  "label": "Root a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the vault rooted shut",
                   "cost": 0,
                   "outcome": {
                     "kind": "nothing"

@@ -6,11 +6,23 @@ import { BAND_WAVES, biomeFor } from '../../run/biome';
 import { battleGoldReward } from '../../run/shop';
 import type { EncounterPack } from '../../run/encounter';
 import { eventRequirementReceipt } from '../../run/eventRequirementReceipt';
+import { summarizeEventReward } from '../../run/eventRewardSummary';
 import type { RunNode, RunNodeKind, RunState } from '../../run/runState';
-import { UI, type InkRole } from '../theme';
+import { GEM_RARITY_COLOR, INK, UI, type InkRole } from '../theme';
+import { counterTypeColor } from './bandBannerViewModel';
 import { eventThemeBlurb } from './eventThemeBlurb';
 import { biomeArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
 import { shopMapFooter } from './shopMapFooter';
+
+export interface RunTravelChoiceFooterSegment {
+  text: string;
+  /** Always an audited `INK` role value — legible on its own. */
+  textColor: string;
+  /** A small colour patch beside the text (never the text colour itself) —
+   * the card-type or biome-lean identity, straight from `theme.ts`'s fill
+   * palettes with no legibility obligation of its own. */
+  swatchColor?: number;
+}
 
 export interface RunTravelChoiceViewModel {
   nodeId: string;
@@ -19,6 +31,10 @@ export interface RunTravelChoiceViewModel {
   detail: string;
   footer?: string;
   footerInk?: InkRole;
+  /** Present only for an event's reward/biome-exclusive callout — each
+   * segment carries its own colour, so the renderer draws one `Text` per
+   * segment instead of tinting `footer` as a single run. */
+  footerSegments?: readonly RunTravelChoiceFooterSegment[];
   artKey?: string;
   accent: number;
   enabled: boolean;
@@ -129,10 +145,24 @@ export function buildRunTravelChoiceViewModel(
   const detail = eventThemeBlurb(node.eventTheme);
   if (previewEvent) {
     const requirementLines = eventRequirementReceipt(state, previewEvent);
+    const reward = summarizeEventReward(previewEvent);
+    const footerSegments: RunTravelChoiceFooterSegment[] = [];
+    if (reward.rewardChip) {
+      footerSegments.push({ text: reward.rewardChip, textColor: INK.secondary });
+    }
+    if (reward.biomeExclusive) {
+      const biome = biomeFor(state.seed, node.wave, node.biomeId);
+      footerSegments.push({ text: 'BIOME EXCLUSIVE', textColor: INK.accent, swatchColor: counterTypeColor(biome.lean.type) });
+    }
+    if (reward.rare) {
+      footerSegments.push({ text: 'RARE', textColor: INK.accent, swatchColor: GEM_RARITY_COLOR.rare });
+    }
     return {
       ...common,
       title: `EVENT · ${previewEvent.title.toUpperCase()}`,
       detail,
+      footer: footerSegments.length > 0 ? footerSegments.map((segment) => segment.text).join(' · ') : undefined,
+      footerSegments: footerSegments.length > 0 ? footerSegments : undefined,
       artKey: eventArtKey(previewEvent.theme, previewEvent.artId),
       event: { eventId: previewEvent.id, chainUnlocked: requirementLines.length > 0, requirementLines },
     };

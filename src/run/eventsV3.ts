@@ -31,9 +31,26 @@ import {
 } from './eventV3Rewards';
 import type { RunNode } from './runMap';
 import { bandIndexOf } from './biome';
-import { MAX_LEVEL, runBagHasRoomFor, tryInsertPersistedEventRunCard, type EventResolution, type RunState } from './runState';
+import {
+  LIVES_PER_RUN,
+  MAX_LEVEL,
+  runBagHasRoomFor,
+  tryInsertPersistedEventRunCard,
+  type EventResolution,
+  type RunState,
+} from './runState';
+import { startChallengeFight } from './challengeFight';
 import { scheduleEventCallbackV3, type EventDefinitionLookup } from './eventCallbacks';
 import { resolveEventOutcomeSpec, type EventOutcome } from './events';
+import {
+  canBuyMarketLife,
+  isMarketBuyOutcomeKind,
+  MARKET_VISITS_PER_NODE,
+  marketPurchasePriceGold,
+  withMarketPurchaseCharged,
+  withStatPurchased,
+} from './market';
+import type { MarketStat } from '../data/eventTypes';
 
 type PendingEventOfferV3<K extends EventDeferredOfferV3['kind']> =
   Extract<Extract<EventDeferredOfferV3, { kind: K }>, { status: 'pending' }>;
@@ -45,6 +62,10 @@ export type EventOutcomeV3 =
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel'; level: number }
   | { kind: 'grantMapInfo'; bandsAhead: 2 | 3; revealedBands: readonly number[] }
+  | { kind: 'buyLife'; price: number; lives: number }
+  | { kind: 'buyStat'; stat: MarketStat; price: number }
+  | { kind: 'buyStatPick'; offer: PendingEventOfferV3<'buyStatPick'> }
+  | { kind: 'grantStat'; stat: MarketStat }
   | { kind: 'nothing'; fellBack?: boolean }
   | { kind: 'cardChoice'; offer: PendingEventOfferV3<'cardChoice'> }
   | { kind: 'upgradeCardTargeted'; offer: PendingEventOfferV3<'upgradeCardTargeted'> }
@@ -53,6 +74,7 @@ export type EventOutcomeV3 =
   | { kind: 'upgradeCard'; offer: PendingEventOfferV3<'upgradeCard'> }
   | { kind: 'sellGem'; offer: PendingEventOfferV3<'sellGem'> }
   | { kind: 'mergeCards'; offer: PendingEventOfferV3<'mergeCards'> }
+  | { kind: 'challengeFight' }
   | EventRewardSettlementV3;
 
 export type MaterializeReachedEventV3Result =
@@ -89,6 +111,7 @@ export function eventOutcomeForPendingOfferV3(
     case 'upgradeCard': return { kind: 'upgradeCard', offer };
     case 'sellGem': return { kind: 'sellGem', offer };
     case 'mergeCards': return { kind: 'mergeCards', offer };
+    case 'buyStatPick': return { kind: 'buyStatPick', offer };
     case 'grantCard':
     case 'grantGem':
       throw new Error(`eventOutcomeForPendingOfferV3: ${offer.kind} is immediate, not a picker`);
@@ -161,11 +184,26 @@ export function correlatedMaterializedChoiceV3(
   const outcome = choice.outcome.kind === 'weighted' ? weightedBranch?.outcome : choice.outcome;
   if (outcome === undefined) return undefined;
   const offer = materialization.deferredOffersByChoiceId[choiceId];
+  // `buyStatPick` is the one legacy-family kind whose offer is NEVER built at
+  // materialization time (see `legacyCommitment`'s own exclusion below) — it
+  // is created fresh by `applyDirectOutcome` on the FIRST choice resolve and
+  // reset on every later one, so both "not yet taken" (offer undefined) and
+  // "already taken at least once" (offer present, same kind) correlate.
+  // `challengeFight` never has an offer at materialization (the fight has not
+  // happened yet), but a WON fight whose reward is itself a further pick
+  // (cardChoice/gemChoice/upgradeCardTargeted) persists one under this same
+  // choiceId via `recordChallengeFightResult` — so the offer's kind is
+  // compared against the reward's, not the choice's own `challengeFight` kind.
   const correlated = outcome.kind === 'grantGold' || outcome.kind === 'loseGold'
     || outcome.kind === 'grantLevel' || outcome.kind === 'grantMapInfo'
     || outcome.kind === 'nothing'
+    || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'grantStat'
     ? offer === undefined
-    : offer?.kind === outcome.kind;
+    : outcome.kind === 'buyStatPick'
+      ? offer === undefined || offer.kind === 'buyStatPick'
+      : outcome.kind === 'challengeFight'
+        ? offer === undefined || offer.kind === outcome.reward.kind
+        : offer?.kind === outcome.kind;
   if (!correlated) return undefined;
   return {
     choice,
@@ -187,7 +225,9 @@ function legacyCommitment(
   if (outcome.kind === 'cardChoice' || outcome.kind === 'upgradeCardTargeted'
     || outcome.kind === 'grantGold' || outcome.kind === 'loseGold'
     || outcome.kind === 'grantLevel' || outcome.kind === 'grantMapInfo'
-    || outcome.kind === 'nothing') return undefined;
+    || outcome.kind === 'nothing' || outcome.kind === 'challengeFight'
+    || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'buyStatPick'
+    || outcome.kind === 'grantStat') return undefined;
   if (outcome.kind === 'sellGem' && state.gemInventory.length === 0) {
     return { kind: 'sellGem', status: 'unavailable' };
   }
@@ -530,8 +570,60 @@ function applyDirectOutcome(
         pending: false,
       };
     }
+    case 'buyLife': {
+      if (!canBuyMarketLife(state)) return undefined;
+      const price = marketPurchasePriceGold(state);
+      if (price > state.gold) return undefined;
+      const charged = withMarketPurchaseCharged(state, price);
+      const lives = Math.min(LIVES_PER_RUN, charged.lives + 1);
+      return { state: { ...charged, lives }, outcome: { kind: 'buyLife', price, lives }, pending: false };
+    }
+    case 'buyStat': {
+      const price = marketPurchasePriceGold(state);
+      if (price > state.gold) return undefined;
+      const charged = withMarketPurchaseCharged(state, price);
+      return {
+        state: withStatPurchased(charged, outcome.stat),
+        outcome: { kind: 'buyStat', stat: outcome.stat, price },
+        pending: false,
+      };
+    }
+    case 'grantStat':
+      return {
+        state: withStatPurchased(state, outcome.stat),
+        outcome: { kind: 'grantStat', stat: outcome.stat },
+        pending: false,
+      };
+    case 'buyStatPick': {
+      // Opens (or re-opens, for a second buy at the same node) the picker —
+      // free and visit-less by itself. Reset unconditionally rather than
+      // reused: a leftover `settled` offer from a prior buy at this node must
+      // never block taking this choice again (`correlatedMaterializedChoiceV3`
+      // accepts either shape). The actual price/charge/stat/visit-count only
+      // happen at `finalizeBuyStatPickV3`.
+      const pendingOffer: EventDeferredOfferV3 = { kind: 'buyStatPick', status: 'pending' };
+      return {
+        state: updateOffer(state, instanceId, choiceId, pendingOffer),
+        outcome: { kind: 'buyStatPick', offer: pendingOffer },
+        pending: true,
+      };
+    }
     case 'nothing':
       return { state, outcome: { kind: 'nothing' }, pending: false };
+    case 'challengeFight': {
+      // No persisted offer to correlate (see `correlatedMaterializedChoiceV3`'s
+      // exemption above) — the enemy is rolled fresh from (instanceId,
+      // choiceId) right here. `pending: false`: the CHOICE is fully resolved
+      // (this rung can never be taken again); the battle itself is tracked
+      // entirely off to the side via `RunState.activeChallengeFight`, the same
+      // "not part of the deferred-offer ledger" shape `activeGhostFight`
+      // already uses. `recordChallengeFightResult` (below) re-opens this
+      // node's resolution as pending ONLY if the reward it wins is itself a
+      // further pick (cardChoice/gemChoice/upgradeCardTargeted) — see its own
+      // doc comment.
+      const next = startChallengeFight(state, node.wave, node.id, instanceId, choiceId, outcome.difficulty, outcome.reward);
+      return { state: next, outcome: { kind: 'challengeFight' }, pending: false };
+    }
     case 'cardChoice': {
       const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
       return offer?.kind === 'cardChoice' && offer.status === 'pending'
@@ -625,7 +717,20 @@ export function resolveEventChoiceV3(
   if (materialization.unavailableChoiceReasonsByChoiceId?.[choiceId] !== undefined) {
     return { ok: false, state, reason: 'gate' };
   }
-  if (state.eventResolutions?.[located.nodeId] !== undefined) return { ok: false, state, reason: 'choice' };
+  const existingResolution = state.eventResolutions?.[located.nodeId];
+  if (existingResolution !== undefined) {
+    // The gold market's stay-open flow (2026-09-25): a rung normally resolves
+    // exactly once forever, but a market visit buys up to
+    // `MARKET_VISITS_PER_NODE` times before it locks — allowed only while the
+    // PREVIOUS rung taken here was itself a market buy (a `leave`/`nothing`
+    // exit, or hitting the cap, closes the node for good, same as before).
+    const previousChoice = allChoices(event).find((candidate) => candidate.id === existingResolution.choiceId);
+    const previousWasMarketBuy = previousChoice !== undefined && isMarketBuyOutcomeKind(previousChoice.outcome.kind);
+    const visits = existingResolution.marketVisits ?? 1;
+    if (!previousWasMarketBuy || visits >= MARKET_VISITS_PER_NODE) {
+      return { ok: false, state, reason: 'choice' };
+    }
+  }
   if (!choiceGateMet(state, choice)) return { ok: false, state, reason: 'gate' };
   const cost = choice.cost ?? 0;
   if (cost > state.gold) return { ok: false, state, reason: 'cost' };
@@ -671,12 +776,22 @@ export function resolveEventChoiceV3(
     working = scheduled.state;
   }
 
+  // `buyStatPick` spends no visit merely by being opened/reopened — only
+  // `finalizeBuyStatPickV3` bumps it (2026-09-25). Its resolve here must
+  // still CARRY FORWARD whatever count `finalizeBuyStatPickV3` already
+  // wrote, rather than dropping it: `existingResolution?.marketVisits` (not
+  // `undefined`) preserves a completed first buy across the second
+  // `buy_stat_pick` reselect this same function call handles.
+  const marketVisits = isMarketBuyOutcomeKind(direct.kind) && direct.kind !== 'buyStatPick'
+    ? (existingResolution?.marketVisits ?? 0) + 1
+    : existingResolution?.marketVisits;
   const resolution: EventResolution = {
     eventId: instance.eventId,
     contentVersion: instance.contentVersion,
     instanceId,
     choiceId,
     ...(applied.pending ? { pending: true } : {}),
+    ...(marketVisits !== undefined ? { marketVisits } : {}),
   };
   return {
     ok: true,
@@ -712,6 +827,21 @@ export function reopenEventChoiceV3(
   if (materialization.unavailableChoiceReasonsByChoiceId?.[resolution.choiceId] !== undefined) return undefined;
   const offer = materialization.deferredOffersByChoiceId[resolution.choiceId];
   return offer?.status === 'pending' ? { choiceId: resolution.choiceId, offer } : undefined;
+}
+
+/** Backs out of an open `buyStatPick` picker for free — no gold charged, no
+ * purchase-ladder bump, and `marketVisits` untouched (a completed buy earlier
+ * this same node visit, if any, survives), so cancelling reads exactly like
+ * never having taken the `buy_stat_pick` rung. A no-op unless that picker is
+ * genuinely open right now. */
+export function cancelBuyStatPickV3(state: RunState, instanceId: string): RunState {
+  const located = nodeAndInstance(state, instanceId);
+  if (located === undefined) return state;
+  const resolution = state.eventResolutions?.[located.nodeId];
+  if (resolution?.instanceId !== instanceId || resolution.pending !== true) return state;
+  const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[resolution.choiceId];
+  if (offer?.kind !== 'buyStatPick' || offer.status !== 'pending') return state;
+  return clearPending(state, instanceId);
 }
 
 type FinalizerTransactionV3<K extends EventDeferredOfferV3['kind']> =
@@ -768,6 +898,24 @@ function clearPending(state: RunState, instanceId: string): RunState {
   if (resolution?.instanceId !== instanceId || resolution.pending !== true) return state;
   const { pending: _pending, ...settled } = resolution;
   return { ...state, eventResolutions: { ...(state.eventResolutions ?? {}), [located.nodeId]: settled } };
+}
+
+/** The inverse of `clearPending` — flips an already-settled resolution back
+ * to `pending: true`. `recordChallengeFightResult`'s ONLY caller: a won
+ * `challengeFight` choice resolves to `pending: false` at commit time (see
+ * `applyDirectOutcome`'s `challengeFight` case), then re-opens here IF AND
+ * ONLY IF its reward is itself a further pick — in the SAME state update that
+ * persists the offer, so `isV3EventTopology`'s "pending resolution needs a
+ * pending offer" invariant never observes one without the other. */
+function reopenAsPending(state: RunState, instanceId: string): RunState {
+  const located = nodeAndInstance(state, instanceId);
+  if (located === undefined) return state;
+  const resolution = state.eventResolutions?.[located.nodeId];
+  if (resolution?.instanceId !== instanceId || resolution.pending === true) return state;
+  return {
+    ...state,
+    eventResolutions: { ...(state.eventResolutions ?? {}), [located.nodeId]: { ...resolution, pending: true } },
+  };
 }
 
 export function finalizeEventCardChoiceV3(
@@ -859,6 +1007,51 @@ export function finalizeBonusDraftV3(
   }
   return finishLegacy(inserted.state, instanceId, choiceId, offer,
     { kind: 'grantCard', skillId: selected.skillId, tier: selected.tier }, selectedSkillId);
+}
+
+/**
+ * Settle the market's stat picker: charge the CURRENT ladder price (read
+ * fresh here, never carried from when the picker opened — a second buy in
+ * the same visit charges the incremented price), bump the shared
+ * `marketPurchases` counter, apply the stat, and bump THIS node's
+ * `marketVisits` (`src/run/market.ts`) — deferred from the choice-open in
+ * `applyDirectOutcome` to here, so opening/cancelling the picker is free.
+ * Resolves to the SAME `buyStat` outcome kind a direct (non-picker) stat buy
+ * already produces (`eventOutcomeText.ts`'s `marketPurchaseConfirmText`/
+ * `outcomeHeadline` already read either origin identically) — the picker
+ * only changes HOW the stat is chosen, never what buying one means.
+ */
+export function finalizeBuyStatPickV3(
+  state: RunState, instanceId: string, choiceId: string, stat: MarketStat,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' | 'cost' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'buyStatPick', lookup);
+  if (transaction.status === 'invalid') return { ok: false, state, reason: 'choice' };
+  if (transaction.status === 'settled') {
+    return transaction.offer.selectedId === stat
+      ? { ok: true, state, outcome: { kind: 'alreadySettled' } }
+      : { ok: false, state, reason: 'offer' };
+  }
+  const price = marketPurchasePriceGold(state);
+  if (price > state.gold) return { ok: false, state, reason: 'cost' };
+  const located = nodeAndInstance(state, instanceId);
+  if (located === undefined) return { ok: false, state, reason: 'choice' };
+  const resolution = state.eventResolutions?.[located.nodeId];
+  if (resolution === undefined) return { ok: false, state, reason: 'choice' };
+  const charged = withStatPurchased(withMarketPurchaseCharged(state, price), stat);
+  const { pending: _pending, ...settled } = resolution;
+  const next: RunState = {
+    ...charged,
+    eventResolutions: {
+      ...(charged.eventResolutions ?? {}),
+      [located.nodeId]: { ...settled, marketVisits: (resolution.marketVisits ?? 0) + 1 },
+    },
+  };
+  return {
+    ok: true,
+    state: updateOffer(next, instanceId, choiceId, { kind: 'buyStatPick', status: 'settled', selectedId: stat }),
+    outcome: { kind: 'buyStat', stat, price },
+  };
 }
 
 export function finalizeGemChoiceV3(
@@ -987,4 +1180,121 @@ export function finalizeMergeCardsV3(
   if (inserted === null) return { ok: false, state, reason: 'offer' };
   return finishLegacy(inserted.state, instanceId, choiceId, offer,
     { kind: 'grantCard', skillId: selected.skillId, tier: selected.tier }, selectedSkillId);
+}
+
+/**
+ * Settle the run's ONE active `challengeFight` off-column battle
+ * (`RunState.activeChallengeFight`, `challengeFight.ts`) — a LOSS costs
+ * exactly one life, the same floor-at-0/`'defeat'` rule
+ * `recordBattleResult` (runState.ts) applies to a fight-column loss, but
+ * neither `wins`/`losses`/`bossesCleared` nor `heroLevel` move: this is not a
+ * fight-column node (`recordBattleResult` itself refuses one), so it is
+ * tallied on its own `challengeFights` counter instead — the SAME carve-out
+ * `recordExtraGhostFightResult` (`ghostMatch.ts`) already uses for the ghost
+ * boss's extra off-column fight.
+ *
+ * A WIN resolves the choice's authored `reward` through the SAME reward
+ * machinery an ordinary event choice uses — `eventCardChoiceV3`/
+ * `targetedUpgradeV3` for the V3-native kinds, the legacy `gemChoice` roll via
+ * `resolveEventOutcomeSpec` for gems (mirroring `legacyCommitment`'s own
+ * split) — and, for the three kinds that need a further pick, PERSISTS the
+ * offer under the exact (instanceId, choiceId) the challenge choice already
+ * owns. That is what lets the existing pending-picker finalizers
+ * (`finalizeEventCardChoiceV3`/`finalizeGemChoiceV3`/`finalizeTargetedUpgradeV3`)
+ * apply completely unmodified — this function never re-implements a picker,
+ * it only seeds the ONE persisted fact (the offer) they already read.
+ */
+export function recordChallengeFightResult(
+  state: RunState,
+  won: boolean,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { state: RunState } {
+  const active = state.activeChallengeFight;
+  if (!active) throw new Error('recordChallengeFightResult: no challenge fight is active');
+  const { nodeId, instanceId, choiceId, reward } = active;
+  const lives = won ? state.lives : Math.max(0, state.lives - 1);
+  const settled: RunState = {
+    ...state,
+    status: lives <= 0 ? 'defeat' : state.status,
+    lives,
+    activeChallengeFight: null,
+    challengeFights: {
+      won: (state.challengeFights?.won ?? 0) + (won ? 1 : 0),
+      lost: (state.challengeFights?.lost ?? 0) + (won ? 0 : 1),
+    },
+    stats: { ...state.stats, livesLost: state.stats.livesLost + (state.lives - lives) },
+  };
+  if (!won) return { state: clearPending(settled, instanceId) };
+
+  const located = nodeAndInstance(settled, instanceId);
+  const instance = settled.eventInstances[nodeId];
+  const event = instance !== undefined ? lookup(instance.eventId, instance.contentVersion) : undefined;
+
+  switch (reward.kind) {
+    case 'grantGold': {
+      const next = {
+        ...settled,
+        gold: settled.gold + reward.amount,
+        stats: { ...settled.stats, goldEarned: settled.stats.goldEarned + reward.amount },
+      };
+      return { state: clearPending(next, instanceId) };
+    }
+    case 'grantLevel': {
+      const level = Math.min(MAX_LEVEL, settled.heroLevel + 1);
+      return { state: clearPending({ ...settled, heroLevel: level }, instanceId) };
+    }
+    case 'cardChoice': {
+      if (located === undefined || event === undefined || !isEventDefV3(event)) {
+        // Unreachable for catalog content (the node/event that started this
+        // fight cannot vanish mid-run) — fall back to the fallback coin
+        // rather than lose the reward outright.
+        const next = {
+          ...settled,
+          gold: settled.gold + EVENT_CARD_FALLBACK_GOLD,
+          stats: { ...settled.stats, goldEarned: settled.stats.goldEarned + EVENT_CARD_FALLBACK_GOLD },
+        };
+        return { state: clearPending(next, instanceId) };
+      }
+      const offer = eventCardChoiceV3(
+        settled,
+        located.node,
+        { eventId: event.id, rarity: event.rarity, story: event.story },
+        choiceId,
+        { kind: 'cardChoice', filter: reward.filter, maxTier: reward.maxTier },
+      );
+      return { state: reopenAsPending(updateOffer(settled, instanceId, choiceId, offer), instanceId) };
+    }
+    case 'gemChoice': {
+      const wave = located?.node.wave ?? 1;
+      const previewNode: RunNode = {
+        id: nodeId, depth: located?.node.depth ?? 0, wave, kind: 'event', biomeId: located?.node.biomeId ?? 'unknown',
+        eventSeed: hashSeed(settled.map.seed, 'challenge-reward', instanceId, choiceId),
+      };
+      const preview = resolveEventOutcomeSpec(
+        settled, previewNode, choiceId, { kind: 'gemChoice', filter: reward.filter }, instanceId,
+      ).outcome;
+      // Same width guard `legacyCommitment`'s own `gemChoice` case applies at
+      // materialization time: depth-gating (`pickWeightedGems`, shop.ts) can
+      // narrow an already-filtered pool below `EVENT_CHOICE_SIZE` (a single
+      // legendary in the pool excludes itself below its gate depth), which a
+      // won challenge fight cannot re-roll around — fall back to gold, the
+      // same "reward undeliverable" degrade `applyLegacyCommitment` uses.
+      if (preview.kind !== 'gemChoicePick' || preview.options.length !== 3) {
+        return { state: clearPending(fallbackGold(settled, EVENT_CARD_FALLBACK_GOLD).state, instanceId) };
+      }
+      return {
+        state: reopenAsPending(updateOffer(settled, instanceId, choiceId, {
+          kind: 'gemChoice', status: 'pending', optionGemIds: preview.options as [string, string, string],
+        }), instanceId),
+      };
+    }
+    case 'upgradeCardTargeted': {
+      const offer = targetedUpgradeV3(
+        settled,
+        { kind: 'upgradeCardTargeted', target: reward.target, fallback: reward.fallback },
+        {},
+      );
+      return { state: reopenAsPending(updateOffer(settled, instanceId, choiceId, offer), instanceId) };
+    }
+  }
 }

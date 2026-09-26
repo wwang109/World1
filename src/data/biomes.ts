@@ -69,6 +69,14 @@ export interface BiomeDef {
   shops: readonly string[];
   /** Event themes this biome PREFERS. Sorted. */
   eventThemes: readonly EventTheme[];
+  /**
+   * The ONE stall id (`biomeShopIds`, `src/data/shopTypes.ts`) that never
+   * appears outside this biome — `src/run/runMap.ts` swaps one of the band's
+   * region-shop draws to it, on a stamped map only (see `RunMap.mapGenVersion`).
+   * Never a member of `shops`/`shopTypeIds` — `scripts/validateContent.ts`
+   * asserts the 1-biome-per-exclusive-shop membership and reachability.
+   */
+  exclusiveShop: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +180,7 @@ const defs: BiomeDef[] = [
     bosses: ['deadeye_stalker', 'greenwood_sovereign'],
     shops: ['fletchers_loft', 'wildworks', 'assassins_den'],
     eventThemes: ['cache', 'market'],
+    exclusiveShop: 'hunters_blind',
   },
   {
     id: 'duskbarrow',
@@ -188,6 +197,7 @@ const defs: BiomeDef[] = [
     bosses: ['barrow_wight', 'hollow_crown'],
     shops: ['umbral_stall', 'sanctum', 'alchemist', 'relic_vault'],
     eventThemes: ['omen', 'recruit'],
+    exclusiveShop: 'grave_goods_fence',
   },
   {
     id: 'emberwaste',
@@ -213,6 +223,7 @@ const defs: BiomeDef[] = [
     bosses: ['cinder_monarch', 'furnace_elemental'],
     shops: ['emberworks', 'arcanum', 'alchemist'],
     eventThemes: ['forge', 'omen'],
+    exclusiveShop: 'cinder_kiln',
   },
   {
     id: 'frostmarch',
@@ -231,6 +242,7 @@ const defs: BiomeDef[] = [
     bosses: ['glacial_warden', 'rime_tyrant'],
     shops: ['frosthold', 'arcanum', 'alchemist', 'bulwark'],
     eventThemes: ['cache', 'omen'],
+    exclusiveShop: 'rimebound_cache',
   },
   {
     id: 'hallowfield',
@@ -251,6 +263,7 @@ const defs: BiomeDef[] = [
     bosses: ['dawn_arbiter', 'vigil_keeper'],
     shops: ['reliquary', 'sanctum', 'bulwark'],
     eventThemes: ['omen', 'training'],
+    exclusiveShop: 'pilgrims_almonry',
   },
   {
     id: 'howlmoor',
@@ -273,6 +286,7 @@ const defs: BiomeDef[] = [
     bosses: ['moorfang_alpha', 'wolf_king'],
     shops: ['beastmoot', 'wildworks', 'assassins_den'],
     eventThemes: ['cache', 'recruit'],
+    exclusiveShop: 'moorfang_trophy_hall',
   },
   {
     id: 'ironmoot',
@@ -295,6 +309,7 @@ const defs: BiomeDef[] = [
     bosses: ['blood_duelist', 'ruin_warlord'],
     shops: ['cleaving_yard', 'armory', 'caravan'],
     eventThemes: ['forge', 'market'],
+    exclusiveShop: 'warband_quartermaster',
   },
   {
     id: 'pikewold',
@@ -314,6 +329,7 @@ const defs: BiomeDef[] = [
     bosses: ['hedgerow_captain', 'thornpike_marshal'],
     shops: ['lancers_rest', 'armory', 'bulwark', 'caravan'],
     eventThemes: ['forge', 'training'],
+    exclusiveShop: 'drill_yard_armoury',
   },
   {
     id: 'stormreach',
@@ -330,6 +346,7 @@ const defs: BiomeDef[] = [
     bosses: ['galewright', 'tempest_herald'],
     shops: ['stormspire', 'arcanum', 'caravan'],
     eventThemes: ['forge', 'omen'],
+    exclusiveShop: 'lightning_rod_exchange',
   },
   {
     id: 'swornhold',
@@ -352,6 +369,7 @@ const defs: BiomeDef[] = [
     bosses: ['sworn_colossus', 'warded_sentinel'],
     shops: ['swordwright', 'armory', 'bulwark'],
     eventThemes: ['forge', 'training'],
+    exclusiveShop: 'oathkeepers_armoury',
   },
   {
     id: 'thornwild',
@@ -390,6 +408,7 @@ const defs: BiomeDef[] = [
     bosses: ['bramble_matriarch', 'greenwood_sovereign'],
     shops: ['grovekeep', 'wildworks', 'alchemist'],
     eventThemes: ['cache', 'recruit'],
+    exclusiveShop: 'rootmarket',
   },
 ];
 

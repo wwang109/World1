@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { playSfx } from '../audio/sfxSynth';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { getLifetimeStats } from '../metaStore';
 import { SCREEN, START_SCENE_INK, startSceneTextRole, UI } from '../theme';
@@ -91,6 +90,8 @@ export class StartScene extends Phaser.Scene {
       });
     }
 
+    this.creditsButton();
+
     this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
     this.ornamentalRule(layout.centerX, layout.lowerRuleY, mobile ? 245 : 460);
 
@@ -132,7 +133,7 @@ export class StartScene extends Phaser.Scene {
     target.on('pointerup', () => plate.setTint(0xffe1c9));
     attachButtonFeel(this, target, {
       fill: 0x000000, hover: 0x000000, alpha: 0.001, follow: [plate, labelText, subText], lift: 2,
-      onPress: () => { playSfx('uiClick'); onPress(); },
+      onPress,
     });
   }
 
@@ -150,7 +151,7 @@ export class StartScene extends Phaser.Scene {
       .setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
     attachButtonFeel(this, target, {
       fill, hover: 0x1d3950, alpha: 0.18, follow: [label, sub], lift: 1,
-      onPress: () => { playSfx('uiClick'); onPress(); },
+      onPress,
     });
   }
 
@@ -164,7 +165,25 @@ export class StartScene extends Phaser.Scene {
     }).setOrigin(0.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
     attachButtonFeel(this, target, {
       fill: UI.bg, hover: 0x1d3950, alpha: 0.001, follow: [label], lift: 1,
-      onPress: () => { playSfx('uiClick'); onPress(); },
+      onPress,
+    });
+  }
+
+  private creditsButton(): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const margin = mobile ? 14 : 24;
+    const width = mobile ? 88 : 112;
+    const height = mobile ? 28 : 32;
+    const x = SCREEN.width - margin - width / 2;
+    const y = margin + height / 2;
+    const target = this.add.rectangle(x, y, width, height, UI.bg, 0.001)
+      .setInteractive({ useHandCursor: true });
+    const label = this.add.text(x, y, 'CREDITS', {
+      ...startSceneTextRole('sandboxDetail'), letterSpacing: 1,
+    }).setOrigin(0.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, {
+      fill: UI.bg, hover: 0x1d3950, alpha: 0.001, follow: [label], lift: 1,
+      onPress: () => { this.scene.start('Credits'); },
     });
   }
 
@@ -209,7 +228,6 @@ export class StartScene extends Phaser.Scene {
     attachButtonFeel(this, target, {
       fill, hover: 0x1d3950, alpha: 0.001, follow: [plate, icon, divider, label],
       onPress: () => {
-        playSfx('uiClick');
         rerollPendingSeed();
         label.setText(seedLabel());
       },

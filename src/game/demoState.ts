@@ -4,6 +4,7 @@ import { clampTierToCard } from '../engine/types';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
 import type { EncounterUnit, EnemyTitle, FoeDeckCard } from '../run/encounter';
 import type { Allocation } from '../run/leveling';
+import type { BattleGhostConfig } from '../run/resolveBattle';
 import type { CardOffer, GemOffer } from '../run/shop';
 
 export type PrepView = 'loadout' | 'bag' | 'codex' | 'opponents' | 'balance';
@@ -13,6 +14,7 @@ export interface OwnedCard {
   instanceId: string;
   skillId: string;
   tier: SkillTier;
+  points?: number;
 }
 
 export type OwnedBoardPiece = Omit<BoardPiece, 'tier'> & OwnedCard;
@@ -32,6 +34,7 @@ export interface ShopShelfState {
   cards: CardOffer[];
   gems: GemOffer[];
   rerollCount: number;
+  mergeSlotUsed?: boolean;
 }
 
 export interface EnemyFightConfig {
@@ -44,6 +47,10 @@ export interface EnemyFightConfig {
   growthLevel?: number;
   /** Run ladder rung for depth-ramped elite/boss title packages. */
   fightNumber?: number;
+  /** Structural twin of `BattleFoeConfig.bumped` (src/run/resolveBattle.ts):
+   * is a `'boss'` title a `'hard'`-bumped elite rather than a milestone boss
+   * node? Omitted/false = milestone (`buildEnemyEncounter`'s default). */
+  bumped?: boolean;
   modifiers: string[];
   /**
    * The ONE behavioural ELITE AFFIX this foe carries (`EncounterUnit.affix`),
@@ -65,6 +72,11 @@ export interface EnemyFightConfig {
    * `buildEnemyEncounter`.
    */
   deck?: FoeDeckCard[] | null;
+  /** A saved player build fought on the hero chassis in place of this foe's
+   * own board — Run Mode's ghost boss substitute/extra fight. Structural twin
+   * of `BattleFoeConfig.ghost` (src/run/resolveBattle.ts); `enemyId` still
+   * keys art/name, its chassis is ignored. null/omitted = ordinary encounter. */
+  ghost?: BattleGhostConfig | null;
 }
 
 export interface DemoState {

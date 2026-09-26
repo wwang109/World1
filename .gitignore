@@ -41,3 +41,6 @@ tmp/
 /docs/superpowers/
 /docs/run-structure-patterns.md
 /art-src/manga-staging/
+
+# Downloaded sound packs — only curated audio-src/<key>.* masters are committed.
+/audio-src/_packs/

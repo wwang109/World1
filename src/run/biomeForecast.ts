@@ -28,15 +28,15 @@ import { enemies } from '../data/enemies';
 import { enemyDerivedAffinity } from '../data/enemyAffinity';
 import { shopCatalog } from '../data/shopTypes';
 import {
-  bandIndexOf, biomeForBand, bossWaveOfBand, counterTypeFor, counterTypesFor, firstWaveOfBand,
-  leanLabel, type BiomeDef, type BiomeLean,
+  bandIndexOf, bossWaveOfBand, counterTypeFor, counterTypesFor, firstWaveOfBand,
+  leanLabel, resolveBiomeForBand, type BiomeDef, type BiomeLean,
 } from './biome';
 import {
   BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
   type BandForecastClaim, type BandForecastRow,
 } from './bandForecastRows';
 import { ensureWavesThrough } from './runMap';
-import { rollEncounter, type RunState } from './runState';
+import { biomeLedgerOf, rollEncounter, type RunState } from './runState';
 
 export interface BandForecastEntry {
   id: string;
@@ -189,11 +189,12 @@ export function forecastNextBand(state: RunState, currentWave: number): BandFore
 export function forecastBand(state: RunState, band: number): BandForecast {
   const b = Math.max(0, Math.floor(band));
   const seed = state.map.seed;
-  const biome = biomeForBand(seed, b);
+  const ledger = biomeLedgerOf(state);
+  const biome = resolveBiomeForBand(seed, b, ledger);
   const bossWave = bossWaveOfBand(b);
 
   let boss: BandForecast['boss'] = null;
-  const map = ensureWavesThrough(state.map, bossWave);
+  const map = ensureWavesThrough(state.map, bossWave, ledger);
   for (const column of map.depths) {
     for (const node of column) {
       if (node.kind !== 'boss' || node.wave !== bossWave) continue;

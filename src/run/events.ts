@@ -36,10 +36,12 @@ import {
   type EventTallyGate,
   type EventTheme,
   type FilterFromSource,
+  type MarketStat,
 } from '../data/events';
+import { canBuyMarketLife, isMarketBuyOutcomeKind, marketPurchasePriceGold, withMarketPurchaseCharged, withStatPurchased } from './market';
 import { eventContentMeta, eventDefAtVersion } from '../data/eventsContent';
 import { isEventDefV2, type EventChoiceV2 } from '../data/eventContentV2';
-import { isEventDefV3, type EventOutcomeSpecV3, type LoadedEventDefV3 } from '../data/eventContentV3';
+import { isEventDefV3, type EventOutcomeSpecV3, type EventRequirementV3, type LoadedEventDefV3 } from '../data/eventContentV3';
 import type { LoadedEventDef } from '../data/eventsContent';
 import { eventRequirementMet } from './eventEligibility';
 import { eventRequirementMetV3 } from './eventEligibilityV3';
@@ -241,11 +243,12 @@ import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
 import { bandIndexOf, biomeFor, counterTypeFor, leanLabel } from './biome';
 import { applyGrantMapInfo, mapInfoRevealsAnything, mapIntelRecords } from './eventMapInfo';
-import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, sellPriceOfGem } from './shop';
+import { addTierValue, cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, pointsOf, sellPriceOfGem } from './shop';
 import {
   availableChoices,
   chooseNode,
   currentEventNode,
+  LIVES_PER_RUN,
   MAX_LEVEL,
   runBagHasRoomFor,
   sellRunGem,
@@ -348,6 +351,13 @@ export interface UpgradeCardOption {
   to: SkillTier;
 }
 
+export interface AwardCardPointOption {
+  instanceId: string;
+  skillId: string;
+  tier: SkillTier;
+  points: number;
+}
+
 /** One sellable pouch gem offered by a `sellGem` outcome's deferred pick —
  * enough to both DISPLAY the option (`gemId`/`price`) and unambiguously
  * re-identify it later (`pouchIndex` into `RunState.gemInventory`, the same
@@ -426,6 +436,11 @@ export type EventOutcome =
       | { fellBack: true; skillId?: undefined; from?: undefined; to?: undefined }
       | { fellBack?: false; skillId: string; from: SkillTier; to: SkillTier }
     ))
+  | ({ kind: 'awardCardPoint' } & (
+      | { fellBack: true; skillId?: undefined; tier?: undefined; points?: undefined; tieredUp?: undefined }
+      | { fellBack?: false; skillId: string; tier: SkillTier; points: number; tieredUp: boolean }
+    ))
+  | { kind: 'awardCardPointPick'; options: readonly AwardCardPointOption[] }
   // `mergeCards`'s deferred offer (2026-08-26 run layer, PROMOTED INTO THIS
   // UNION 2026-08-28 by the UI phase) — the FIFTH deferred picker, and shaped
   // exactly like the four above it: roll/derive the question now, resolve the
@@ -456,6 +471,14 @@ export type EventOutcome =
   | ({ kind: 'mergeCardsPick' } & MergeCardsOffer)
   /** The exact persisted bands newly revealed by a typed map-info outcome. */
   | { kind: 'grantMapInfo'; bandsAhead: 2 | 3; revealedBands: readonly number[] }
+  // The gold market's two paid outcomes (2026-09-25, `src/run/market.ts`) —
+  // dead in practice for schema-v1/v2 content (today's market event is
+  // schema-v3 only, resolved through `eventsV3.ts`'s `applyDirectOutcome`),
+  // kept here only so this union stays the single closed vocabulary
+  // `EventOutcomeSpec` promises.
+  | { kind: 'buyLife'; price: number; lives: number }
+  | { kind: 'buyStat'; stat: MarketStat; price: number }
+  | { kind: 'grantStat'; stat: MarketStat }
   | { kind: 'nothing' };
 
 // ---------------------------------------------------------------------------
@@ -493,6 +516,7 @@ function recordEventResolution(state: RunState, nodeId: string, resolution: Even
 function isDeferredOutcome(outcome: EventOutcome): boolean {
   return outcome.kind === 'bonusDraft'
     || outcome.kind === 'upgradeCardPick'
+    || outcome.kind === 'awardCardPointPick'
     || outcome.kind === 'gemChoicePick'
     || outcome.kind === 'sellGemPick'
     || outcome.kind === 'mergeCardsPick';
@@ -601,6 +625,7 @@ function offerableBook(tier: SkillTier): SkillDef[] {
  * contract ("cost <= gold, nothing else") stays simple and doesn't grow a
  * special case per outcome kind. */
 export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef): boolean {
+  if (isMarketBuyOutcomeKind(choice.outcome.kind)) return marketPurchasePriceGold(state) <= state.gold;
   return (choice.cost ?? 0) <= state.gold;
 }
 
@@ -673,20 +698,82 @@ function gatesMet(
   return eventRequirementsMet(state, gated.requiresAll);
 }
 
+/** Whether `fact` is a point-in-run resource read (wallet, lives, depth/wave,
+ * owned counts) rather than a narrative/history predicate (`run.tally`,
+ * `event.choice`, `story.flag`, `chain.completed`, `callback.queued`,
+ * `biome.current`, `board.*`, `combat.*`, `journey.*` — any of those means the
+ * event is answering a payoff, a callback, or a biome signature, and stays on
+ * the pre-bag scan). A plain function, not a module-level `Set`: this is
+ * reached from `ORDINARY_EVENT_SELECTION_IDS`'s own top-level initializer
+ * (line ~141), before a `const` declared further down this file would be
+ * initialized — a hoisted function declaration has no such ordering hazard. */
+function isOrdinaryV3FactKind(fact: string): boolean {
+  return fact === 'wallet.current'
+    || fact === 'lives.current'
+    || fact === 'node.depth'
+    || fact === 'node.wave'
+    || fact === 'owned.card.count'
+    || fact === 'owned.gem.count';
+}
+
+function eligibilityIsOrdinaryV3(requirement: EventRequirementV3): boolean {
+  if ('all' in requirement) return requirement.all.every(eligibilityIsOrdinaryV3);
+  if ('any' in requirement) return requirement.any.every(eligibilityIsOrdinaryV3);
+  if ('not' in requirement) return eligibilityIsOrdinaryV3(requirement.not);
+  return isOrdinaryV3FactKind(requirement.fact);
+}
+
+/** The ORDINARY-v3 LANE (2026-09-25): a schema-v3 event joins a legacy-style
+ * no-repeat bag, rather than the pre-bag conditional scan, exactly when its
+ * eligibility is trivially/simply satisfied — `priority === 0` (never
+ * out-competing a real payoff/callback/signature event's tie-break),
+ * `visibility: 'visible'` (never a hidden or teased door), no `biomeIds`
+ * restriction (a biome-locked resident would starve its theme's bag the same
+ * way `ordinaryEventIdsForCatalog`'s doc comment already proves for legacy
+ * content), delivery `ambient` (a `queued_callback` has no free-standing
+ * eligibility to judge), and every fact its eligibility AST touches is in
+ * `ORDINARY_V3_FACT_KINDS`. */
+function isOrdinaryV3Event(event: LoadedEventDefV3): boolean {
+  return event.delivery.kind === 'ambient'
+    && event.priority === 0
+    && event.visibility === 'visible'
+    && event.biomeIds === undefined
+    && eligibilityIsOrdinaryV3(event.eligibility);
+}
+
 /** A CONDITIONAL event — one that must never enter an ordinary bag (see
  * `rollEventForNode`'s pre-bag scan for the starvation proof). */
 export function isConditionalEvent(event: LoadedEventDef): boolean {
-  if (isEventDefV3(event)) {
-    // Schema-v3 definitions always carry an explicit eligibility AST. Until
-    // a later content plan authors a separately tagged ordinary-v3 lane, they
-    // are conditional/special content and never participate in legacy bags.
-    return true;
-  }
+  if (isEventDefV3(event)) return !isOrdinaryV3Event(event);
   return isEventDefV2(event)
     || event.biomeIds !== undefined
     || event.requires !== undefined
     || event.requiresTally !== undefined
     || event.requiresAll !== undefined;
+}
+
+/** Whether a `once: 'run'` event has already been drawn somewhere this run —
+ * the ordinary-v3 lane's own guard against re-entering a no-repeat bag after
+ * its one legitimate draw (the pre-bag scan already reads `once`/`eventInstances`
+ * itself; this is the bag lane's equivalent, since a bag pool is a static id
+ * list with no per-draw eligibility check of its own). `once: 'node'` needs no
+ * such guard here: it only disambiguates a REPLAY of the same node (handled by
+ * `rollEventForNode`'s memo at the top), never which id a fresh node's bag
+ * draw may pick. */
+function excludedByOnceRun(state: RunState, event: LoadedEventDef): boolean {
+  return isEventDefV3(event) && event.once === 'run' && isDrawnThisRun(state, event.id);
+}
+
+/** `ids` with any already-drawn `once: 'run'` id removed — applied at every
+ * point an ordinary pool becomes bag contents (a fresh refill) or a widen
+ * candidate, so a run-once ordinary-v3 event can win its bag slot at most once
+ * per run, the same guarantee the pre-bag scan gives conditional content. */
+function withoutDrawnOnceRun(
+  state: RunState,
+  ids: readonly string[],
+  catalog: Readonly<Record<string, LoadedEventDef>>,
+): readonly string[] {
+  return ids.filter((id) => !excludedByOnceRun(state, catalog[id]!));
 }
 
 /** Build an ordinary-only pool from an explicit catalog and ordered ID list.
@@ -1007,7 +1094,10 @@ function cardOutcomeCanDeliver(state: RunState, choice: EventChoiceDef): boolean
  * one line of the choice panel's detail row on the mobile profile.
  */
 export function choiceLockReason(state: RunState, choice: EventChoiceDef): string | null {
-  if (!isEventChoiceAffordable(state, choice)) return `needs ${choice.cost ?? 0} gold`;
+  if (!isEventChoiceAffordable(state, choice)) {
+    return `needs ${isMarketBuyOutcomeKind(choice.outcome.kind) ? marketPurchasePriceGold(state) : choice.cost ?? 0} gold`;
+  }
+  if (choice.outcome.kind === 'buyLife' && !canBuyMarketLife(state)) return 'already at full lives';
   if (choice.requires && !eventGateMet(state, choice.requires)) return gateLockReason(choice.requires);
   if (choice.requiresTally && !eventTallyMet(state, choice.requiresTally)) return tallyLockReason(state, choice.requiresTally);
   const source = filterFromOf(choice.outcome);
@@ -1021,6 +1111,7 @@ export function choiceLockReason(state: RunState, choice: EventChoiceDef): strin
     return 'no room in your bag';
   }
   if (choice.outcome.kind === 'upgradeCard' && upgradeCardOptions(state).length === 0) return 'nothing left to upgrade';
+  if (choice.outcome.kind === 'awardCardPoint' && awardCardPointOptions(state).length === 0) return 'nothing to advance';
   if (choice.outcome.kind === 'sellGem' && state.gemInventory.length === 0) return 'nothing in your pouch';
   if (choice.outcome.kind === 'mergeCards' && mergeCardsPlan(state) === null) return 'need 3 cards of one grade';
   if (choice.outcome.kind === 'grantMapInfo') {
@@ -1161,7 +1252,7 @@ export function eventIdFromOrdinaryWiden(
   orderedIds: readonly string[],
   node?: RunNode,
 ): string | undefined {
-  const widenPool = ordinaryEventIdsForCatalog(catalog, orderedIds);
+  const widenPool = withoutDrawnOnceRun(state, ordinaryEventIdsForCatalog(catalog, orderedIds), catalog);
   const eligibleId = widenPool.find((id) => hasAffordableChoice(state, catalog[id]!, node));
   return eligibleId ?? themedBag[0] ?? widenPool[0];
 }
@@ -1444,9 +1535,9 @@ export function rollEventForNode(
     let bag = state.eventBag;
     let refills = state.eventBagRefills;
     if (bag.length === 0) {
-      const pool = content === ACTIVE_EVENT_SELECTION_CONTENT
+      const pool = withoutDrawnOnceRun(state, content === ACTIVE_EVENT_SELECTION_CONTENT
         ? ORDINARY_EVENT_SELECTION_IDS
-        : ordinaryEventIdsForCatalog(content.catalog, content.orderedIds);
+        : ordinaryEventIdsForCatalog(content.catalog, content.orderedIds), content.catalog);
       const rng = new Rng(hashSeed('eventBag', state.seed, refills));
       bag = sampleEventBag(rng, pool, content);
       refills += 1;
@@ -1493,7 +1584,7 @@ export function rollEventForNode(
   let refills = themeRefills[theme] ?? 0;
   if (bag.length === 0) {
     const rng = new Rng(hashSeed('eventBag', state.seed, theme, refills));
-    bag = sampleEventBag(rng, themePool, content);
+    bag = sampleEventBag(rng, withoutDrawnOnceRun(state, themePool, content.catalog), content);
     refills += 1;
   }
 
@@ -2354,6 +2445,8 @@ function applySpec(
       return { state, outcome: gemChoiceOutcome(rng, spec, depth) };
     case 'upgradeCard':
       return upgradeCardOutcome(state);
+    case 'awardCardPoint':
+      return awardCardPointOutcome(state);
     case 'sellGem':
       return { state, outcome: sellGemOutcome(state) };
     case 'mergeCards':
@@ -2372,6 +2465,30 @@ function applySpec(
         },
       };
     }
+    // Dead in practice — no schema-v1/v2 content authors these; the live
+    // gold market is schema-v3 and resolves through `eventsV3.ts`'s
+    // `applyDirectOutcome`. Kept honest with that path's own gates (lives
+    // cap, affordability) rather than assuming a caller already checked.
+    case 'buyLife': {
+      const price = marketPurchasePriceGold(state);
+      if (!canBuyMarketLife(state) || price > state.gold) return { state, outcome: { kind: 'nothing' } };
+      const charged = withMarketPurchaseCharged(state, price);
+      const lives = Math.min(LIVES_PER_RUN, charged.lives + 1);
+      return { state: { ...charged, lives }, outcome: { kind: 'buyLife', price, lives } };
+    }
+    case 'buyStat': {
+      const price = marketPurchasePriceGold(state);
+      if (price > state.gold) return { state, outcome: { kind: 'nothing' } };
+      const charged = withMarketPurchaseCharged(state, price);
+      return { state: withStatPurchased(charged, spec.stat), outcome: { kind: 'buyStat', stat: spec.stat, price } };
+    }
+    case 'grantStat':
+      return { state: withStatPurchased(state, spec.stat), outcome: { kind: 'grantStat', stat: spec.stat } };
+    // Dead in practice, same as `buyLife`/`buyStat` above — the picker only
+    // resolves through `eventsV3.ts`'s `applyDirectOutcome`/
+    // `finalizeBuyStatPickV3`. No spec-v1/v2 content authors it.
+    case 'buyStatPick':
+      return { state, outcome: { kind: 'nothing' } };
     case 'nothing':
       return { state, outcome: { kind: 'nothing' } };
     default: {
@@ -2643,17 +2760,75 @@ function upgradeCardPickResult(state: RunState, instanceId: string): { state: Ru
   if (boardIndex >= 0) {
     const target = state.pieces[boardIndex]!;
     const to = TIER_UP[target.tier as Exclude<SkillTier, 'diamond'>];
-    const pieces = state.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: to } : p));
+    const pieces = state.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: to, points: 0 } : p));
     return { state: { ...state, pieces }, outcome: { kind: 'upgradeCard', skillId: target.skillId, from: target.tier, to } };
   }
   const bagIndex = state.bagSlots.findIndex((c) => c && c.instanceId === instanceId && c.tier !== 'diamond');
   if (bagIndex >= 0) {
     const target = state.bagSlots[bagIndex]!;
     const to = TIER_UP[target.tier as Exclude<SkillTier, 'diamond'>];
-    const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: to } : c));
+    const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: to, points: 0 } : c));
     return { state: { ...state, bagSlots }, outcome: { kind: 'upgradeCard', skillId: target.skillId, from: target.tier, to } };
   }
   return upgradeCardFallback(state);
+}
+
+function awardCardPointOptions(state: RunState): AwardCardPointOption[] {
+  const options: AwardCardPointOption[] = [];
+  for (const piece of [...state.pieces].sort((a, b) => a.slot - b.slot)) {
+    if (piece.tier === 'diamond') continue;
+    options.push({ instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier, points: pointsOf(piece) });
+  }
+  for (const card of state.bagSlots) {
+    if (!card || card.tier === 'diamond') continue;
+    options.push({ instanceId: card.instanceId, skillId: card.skillId, tier: card.tier, points: pointsOf(card) });
+  }
+  return options;
+}
+
+function awardCardPointFallback(state: RunState): { state: RunState; outcome: EventOutcome } {
+  return {
+    state: {
+      ...state,
+      gold: state.gold + CARD_FALLBACK_GOLD,
+      stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
+    },
+    outcome: { kind: 'awardCardPoint', fellBack: true },
+  };
+}
+
+function awardCardPointOutcome(state: RunState): { state: RunState; outcome: EventOutcome } {
+  const options = awardCardPointOptions(state);
+  if (options.length === 0) return awardCardPointFallback(state);
+  return { state, outcome: { kind: 'awardCardPointPick', options } };
+}
+
+function awardCardPointPickResult(state: RunState, instanceId: string): { state: RunState; outcome: EventOutcome } {
+  const boardIndex = state.pieces.findIndex((p) => p.instanceId === instanceId && p.tier !== 'diamond');
+  if (boardIndex >= 0) {
+    const target = state.pieces[boardIndex]!;
+    const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+    const pieces = state.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: result.tier, points: result.points } : p));
+    return {
+      state: { ...state, pieces },
+      outcome: { kind: 'awardCardPoint', skillId: target.skillId, tier: result.tier, points: result.points, tieredUp: result.tier !== target.tier },
+    };
+  }
+  const bagIndex = state.bagSlots.findIndex((c) => c && c.instanceId === instanceId && c.tier !== 'diamond');
+  if (bagIndex >= 0) {
+    const target = state.bagSlots[bagIndex]!;
+    const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+    const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: result.tier, points: result.points } : c));
+    return {
+      state: { ...state, bagSlots },
+      outcome: { kind: 'awardCardPoint', skillId: target.skillId, tier: result.tier, points: result.points, tieredUp: result.tier !== target.tier },
+    };
+  }
+  return awardCardPointFallback(state);
+}
+
+export function applyAwardCardPointPick(state: RunState, instanceId: string): { state: RunState; outcome: EventOutcome } {
+  return delivered(awardCardPointPickResult(state, instanceId));
 }
 
 /**

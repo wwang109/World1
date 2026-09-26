@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
+import { setBattleContext } from '../battleContext';
 import { RunDestinationHost } from '../ui/RunDestinationHost';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
@@ -20,12 +22,18 @@ import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderEmbeddedRunLedger, renderRunStatsGrid, runStatsGridHeight, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
+  acceptExtraGhostFightOffer,
+  activeChallengeFight,
   choices,
+  chooseRunBiome,
   clearRun,
   currentMapIntel,
   currentEncounter,
   currentNode,
+  declineExtraGhostFightOffer,
+  extraGhostFightOffer,
   getActiveRun,
+  pendingBiomePick,
   pickNode,
   previewEncounter,
   previewRunEvent,
@@ -34,6 +42,8 @@ import {
 } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
 import { desktopRunMapPanelColumns } from '../ui/desktopRunMapPanelLayout';
+import { renderRunBiomePickPanel } from '../ui/RunBiomePickPanel';
+import { renderRunGhostFightOfferPanel } from '../ui/RunGhostFightOfferPanel';
 
 const F = DESKTOP_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
@@ -125,6 +135,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
       this.scene.start('DesktopDraft');
       return;
     }
+    // Resume-safety: a save loaded mid-`challengeFight` restarts that battle.
+    if (activeChallengeFight()) {
+      setBattleContext('run');
+      this.scene.start('DesktopBattle');
+      return;
+    }
     if (run.status === 'defeat' || run.status === 'retired') {
       // Overlay panel over the map, not a full-page takeover (2026-09-21).
       this.renderHud(run, false);
@@ -165,7 +181,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.rerender(); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.rerender(); },
       });
     }
     // Embedded destinations are separate Phaser scenes and normally sit above
@@ -202,12 +218,13 @@ export class DesktopRunMapScene extends Phaser.Scene {
     );
     const band = this.desktopBand(bandBannerForWave(run, snapshotRunProgress(run).wave));
     this.band = band;
+    const regionPending = pendingBiomePick() !== null;
 
     const bottom = content.y + content.height;
     const records = currentMapIntel();
     const intel = mapIntelLayoutModel(records, { width: SCREEN.width, height: SCREEN.height });
     const regionH = records.length > 0 ? intel.rail.y - slot.y - 16 : bottom - slot.y;
-    this.renderRegionPane(columns.region.x, slot.y, columns.region.width, regionH, band, snapshotRunProgress(run).wave, records.length);
+    this.renderRegionPane(columns.region.x, slot.y, columns.region.width, regionH, band, snapshotRunProgress(run).wave, records.length, regionPending);
     // Earned snapshots retain their existing rail geometry below the pane.
     // Its empty state is now the approved footer's NO DISCOVERIES YET.
     if (records.length > 0) {
@@ -225,7 +242,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const routeTop = slot.y + 12;
     const routeH = 82;
     renderRunRouteBoard(this, { x: columns.planner.x + 16, y: routeTop, w: columns.planner.width - 32, h: routeH }, snapshotRunRoute(run), {
-      mode: 'desktop', regionName: band.name,
+      mode: 'desktop', regionName: regionPending ? undefined : band.name,
     });
     const choicesTop = routeTop + routeH + 12;
     this.renderChoiceColumn(columns.planner.x + 16, choicesTop, columns.planner.width - 32, bottom - 16 - choicesTop);
@@ -233,10 +250,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
   /** The approved region pane leads with the real biome painting. The lower
    * summary is deliberately short; EXPLORE REGION still owns the full read. */
-  private renderRegionPane(x: number, y: number, w: number, h: number, band: BandBannerViewModel, wave: number, intelCount: number): void {
+  private renderRegionPane(x: number, y: number, w: number, h: number, band: BandBannerViewModel, wave: number, intelCount: number, pending: boolean): void {
+    const artKey = pending ? RUN_ART_KEYS.runMap : band.artKey;
+    const name = pending ? 'CHOOSE YOUR REGION' : band.name;
     if (this.regionPaneCollapsed) {
       this.add.rectangle(x, y, w, h, UI.panel, 0.98).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.7);
-      addRunArt(this, band.artKey, { x: x + 1, y: y + 1, width: w - 2, height: h - 2 });
+      addRunArt(this, artKey, { x: x + 1, y: y + 1, width: w - 2, height: h - 2 });
       this.add.rectangle(x + 1, y + h - 132, w - 2, 131, UI.panelMuted, 0.94).setOrigin(0, 0);
       const expand = this.add.rectangle(x + w - 44, y + 12, 32, 32, UI.chip, 1).setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
@@ -245,10 +264,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
         fill: UI.chip, hover: UI.border, follow: [expandLabel], lift: 0,
         onPress: () => this.setRegionPaneCollapsed(false),
       });
-      const name = this.add.text(x + 12, y + h - 116, band.name, {
+      const nameText = this.add.text(x + 12, y + h - 116, name, {
         ...textRole('section'), wordWrap: { width: w - 24 }, maxLines: 2,
       });
-      auditTextBlock(name, { name: 'Desktop collapsed region name', maxWidth: w - 24, maxHeight: 48, minFontSize: 9 });
+      auditTextBlock(nameText, { name: 'Desktop collapsed region name', maxWidth: w - 24, maxHeight: 48, minFontSize: 9 });
       const countdown = runBossCountdownModel(wave);
       this.add.text(x + 12, y + h - 48, countdown.headline, textRole('micro', {
         ink: countdown.bossNow ? 'alarm' : 'resource',
@@ -259,7 +278,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const artH = h - footerH;
     const footerY = y + artH;
     this.add.rectangle(x, y, w, h, UI.panel, 0.98).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.7);
-    addRunArt(this, band.artKey, { x: x + 1, y: y + 1, width: w - 2, height: artH - 1 });
+    addRunArt(this, artKey, { x: x + 1, y: y + 1, width: w - 2, height: artH - 1 });
     const collapse = this.add.rectangle(x + w - 44, y + 12, 32, 32, UI.panelAlt, 0.98).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
     const collapseLabel = this.add.text(x + w - 28, y + 28, '‹', textRole('section', { ink: 'accent' })).setOrigin(0.5);
@@ -277,14 +296,17 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const copyY = footerY - 168;
     const outline = (text: Phaser.GameObjects.Text): Phaser.GameObjects.Text => text
       .setStroke(BRIGHT_ART_TREATMENT.biome.textStroke, BRIGHT_ART_TREATMENT.biome.textStrokeThickness);
-    const name = outline(this.add.text(copyX, copyY, band.name, textRole('title')));
-    auditTextBlock(name, { name: 'Desktop region identity', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
-    const facts = outline(this.add.text(copyX, copyY + 48, `${band.leanChip} · ${band.waveRange}`, textRole('kicker')));
+    const nameText = outline(this.add.text(copyX, copyY, name, textRole('title')));
+    auditTextBlock(nameText, { name: 'Desktop region identity', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
+    const factsLine = pending ? band.waveRange : `${band.leanChip} · ${band.waveRange}`;
+    const facts = outline(this.add.text(copyX, copyY + 48, factsLine, textRole('kicker')));
     auditTextBlock(facts, { name: 'Desktop region lean and days', maxWidth: copyW, maxHeight: 22, minFontSize: 9 });
-    const destination = outline(this.add.text(copyX, copyY + 78, `DESTINATION · ${band.boss.headline}`, {
-      ...textRole('label', { ink: 'secondary' }), wordWrap: { width: copyW },
-    }));
-    auditTextBlock(destination, { name: 'Desktop region destination', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
+    if (!pending) {
+      const destination = outline(this.add.text(copyX, copyY + 78, `DESTINATION · ${band.boss.headline}`, {
+        ...textRole('label', { ink: 'secondary' }), wordWrap: { width: copyW },
+      }));
+      auditTextBlock(destination, { name: 'Desktop region destination', maxWidth: copyW, maxHeight: 42, minFontSize: 9 });
+    }
     const countdown = runBossCountdownModel(wave);
     const countdownText = outline(this.add.text(copyX, copyY + 132, countdown.headline,
       textRole('kicker', { ink: countdown.bossNow ? 'alarm' : 'resource' })));
@@ -292,17 +314,19 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
     this.add.rectangle(x + 1, footerY, w - 2, footerH - 1, UI.panelMuted, 0.98).setOrigin(0, 0);
     const buttonW = Math.min(220, w * 0.52);
-    const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
-      .setStrokeStyle(1, UI.chip, 0.75);
-    const label = this.add.text(x + 16 + buttonW / 2, footerY + 32,
-      this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
-    auditControlLabel(button, label, { name: 'Desktop explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
-    if (!this.bandReadOpen) {
-      button.setInteractive({ useHandCursor: true });
-      attachButtonFeel(this, button, {
-        fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
-        onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
-      });
+    if (!pending) {
+      const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
+        .setStrokeStyle(1, UI.chip, 0.75);
+      const label = this.add.text(x + 16 + buttonW / 2, footerY + 32,
+        this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+      auditControlLabel(button, label, { name: 'Desktop explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+      if (!this.bandReadOpen) {
+        button.setInteractive({ useHandCursor: true });
+        attachButtonFeel(this, button, {
+          fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
+          onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
+        });
+      }
     }
     const status = this.add.text(x + w - 16, footerY + 32, intelCount > 0 ? `MAP INTEL · ${intelCount}` : 'NO DISCOVERIES YET',
       textRole('micro', { ink: 'secondary' })).setOrigin(1, 0.5);
@@ -310,18 +334,36 @@ export class DesktopRunMapScene extends Phaser.Scene {
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {
+    const ghostOffer = this.ledgerOpen || this.bandReadOpen ? null : extraGhostFightOffer();
+    const biomePick = this.ledgerOpen || this.bandReadOpen || ghostOffer ? null : pendingBiomePick();
     const pending = currentNode();
     const options = this.destination.choices(pending ? [pending] : choices());
     const boss = pending?.kind === 'boss' ? pending : options.length === 1 && options[0]?.kind === 'boss' ? options[0] : undefined;
     const arrival = boss ? bossArrivalViewModel(getActiveRun()!, boss, pending ? currentEncounter() ?? null : previewEncounter(boss)) : null;
-    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE' : 'CHOOSE YOUR NEXT STOP';
+    const plannerTitle = this.ledgerOpen ? 'RUN LEDGER' : this.bandReadOpen ? 'REGION GUIDE'
+      : ghostOffer ? 'EXTRA FIGHT' : biomePick ? 'CHOOSE YOUR REGION' : 'CHOOSE YOUR NEXT STOP';
     const planner = this.add.text(x, top, plannerTitle, textRole('section'));
     auditTextBlock(planner, { name: 'Desktop run map choice planner', maxWidth: w - 160, maxHeight: 30, minFontSize: 9 });
-    const status = this.ledgerOpen || this.bandReadOpen ? '' : arrival ? '' : pending ? 'STOP IN PROGRESS'
+    const status = this.ledgerOpen || this.bandReadOpen || ghostOffer ? '' : biomePick ? 'CHOOSE 1 OF 3' : arrival ? '' : pending ? 'STOP IN PROGRESS'
       : options.length === 1 && options[0]?.kind === 'boss' ? 'MANDATORY'
         : options.length === 3 ? 'CHOOSE 1 OF 3' : '';
     const statusText = this.add.text(x + w, top + 4, status, textRole('micro', { ink: 'label' })).setOrigin(1, 0);
     auditTextBlock(statusText, { name: 'Desktop route choice count', maxWidth: 148, maxHeight: 20, minFontSize: 9 });
+    if (ghostOffer) {
+      renderRunGhostFightOfferPanel(this, { x, y: top + 38, width: w, height: availableH - 38 }, ghostOffer, {
+        compact: false,
+        onFace: () => { acceptExtraGhostFightOffer(); setBattleContext('run'); this.scene.start('DesktopBattle'); },
+        onDecline: () => { declineExtraGhostFightOffer(); this.rerender(); },
+      });
+      return;
+    }
+    if (biomePick) {
+      renderRunBiomePickPanel(this, { x, y: top + 38, width: w, height: availableH - 38 }, biomePick, {
+        compact: false,
+        onChoose: (biomeId) => { chooseRunBiome(biomeId); this.rerender(); },
+      });
+      return;
+    }
     if (this.ledgerOpen) {
       renderEmbeddedRunLedger(this, { x, y: top + 38, width: w, height: availableH - 38 }, getActiveRun()!, {
         compact: false, onBack: () => { this.ledgerOpen = false; this.rerender(); },

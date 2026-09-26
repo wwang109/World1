@@ -1,3 +1,4 @@
+import type { SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import { isEventDefV3 } from '../data/eventContentV3';
@@ -6,9 +7,11 @@ import type { DraftCard, DraftSetKey, StartDraft } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
 import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, chooseNodeWithEventOpportunities, currentEventResolution as eventResolutionOf, reopenEventChoice, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
 import {
+  cancelBuyStatPickV3,
   correlatedMaterializedChoiceV3,
   eventOutcomeForPendingOfferV3,
   finalizeBonusDraftV3,
+  finalizeBuyStatPickV3,
   finalizeEventCardChoiceV3,
   finalizeGemChoiceV3,
   finalizeMergeCardsV3,
@@ -16,10 +19,13 @@ import {
   finalizeTargetedUpgradeV3,
   finalizeUpgradeCardV3,
   materializeReachedEventV3,
+  recordChallengeFightResult,
   reopenEventChoiceV3,
   resolveEventChoiceV3,
   type EventOutcomeV3,
 } from '../run/eventsV3';
+import type { MarketStat } from '../data/eventTypes';
+import type { ActiveChallengeFight } from '../run/challengeFight';
 import type { EventDefinitionLookup } from '../run/eventCallbacks';
 import { previewEventForNode } from '../run/eventPreview';
 import { bankedPL, type Allocation } from '../run/leveling';
@@ -37,11 +43,13 @@ import {
   type StorageDriver,
 } from '../meta/runSave';
 import type { BattleTimelineInput } from './battleTimeline';
-import { buildRunEventViewModel, type RunEventViewModel } from './ui/runEventViewModel';
+import { buildRunEventViewModel, marketVisitStillOpen, type RunEventViewModel } from './ui/runEventViewModel';
 export { encounterHintDetail, FIGHT_TIER_LABEL } from './ui/runTravelChoiceViewModel';
 import {
   applyStartDraft,
+  chooseBiome,
   currentStartDraft,
+  pendingBiomeBand,
   pickStartDraftCard,
   rerollStartDraft,
   startDraftPicks,
@@ -66,6 +74,7 @@ import {
   WAVE_COUNT,
   rollEncounter,
   runBagHasRoomFor,
+  type BossReward,
   type BuyDestination,
   type MergeTarget,
   type RunBagSlot,
@@ -77,6 +86,28 @@ import {
   type RunShopShelf,
   type RunState,
 } from '../run/runState';
+import { biomePickViewModelFor, type BiomePickViewModel } from '../run/biomePickViewModel';
+import { gemBook, type GemDef } from '../data/gems';
+import { ghostBandOf, ghostCodeOf, ghostToBattlePieces, type GhostRecord } from '../run/ghost';
+import {
+  acceptExtraGhostFight,
+  canOfferExtraGhostFight,
+  clearGhostSavePrompt,
+  declineExtraGhostFight,
+  ghostResultReportKey,
+  ghostSavePromptOf,
+  hasReportedGhostResult,
+  markExtraGhostUnavailable,
+  markGhostResultReported,
+  markGhostSubstituteMiss,
+  offerExtraGhostFight,
+  offerGhostSavePrompt,
+  pinSubstituteGhost,
+  recordExtraGhostFightResult,
+  shouldRollGhostSubstitute,
+} from '../run/ghostMatch';
+import { getOrCreateLocalId } from '../meta/localId';
+import { fetchGhost, reportGhostResult, uploadGhost } from './ghostApi';
 
 /**
  * Run store — the Run Mode counterpart of `demoState`: a module-level
@@ -321,6 +352,45 @@ export function currentNode(): RunNode | undefined {
 export function pickNode(nodeId: string): void {
   if (!activeRun) return;
   setActiveRun(chooseNodeWithEventOpportunities(activeRun, nodeId));
+  const node = currentNode();
+  if (node && node.kind === 'boss') void maybeSubstituteBoss(node);
+}
+
+const ghostSubstituteFetchesInFlight = new Set<string>();
+
+async function maybeSubstituteBoss(node: RunNode): Promise<void> {
+  if (ghostSubstituteFetchesInFlight.has(node.id)) return;
+  const run = activeRun;
+  if (!run || !shouldRollGhostSubstitute(run, node.id)) return;
+  ghostSubstituteFetchesInFlight.add(node.id);
+  try {
+    const localId = getOrCreateLocalId(localStorageDriver);
+    const result = await fetchGhost(ghostBandOf(node.fightNumber!), localId);
+    const latest = activeRun;
+    if (!latest || latest.currentNodeId !== node.id) return;
+    if (!result.ok) return;
+    setActiveRun(result.ghost ? pinSubstituteGhost(latest, node.id, result.ghost) : markGhostSubstituteMiss(latest, node.id));
+  } finally {
+    ghostSubstituteFetchesInFlight.delete(node.id);
+  }
+}
+
+export function activeSubstituteGhost(): GhostRecord | null {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'boss') return null;
+  const active = activeRun.activeGhostFight;
+  return active && active.nodeId === node.id && active.role === 'substitute' ? active.ghost : null;
+}
+
+export function pendingBiomePick(): BiomePickViewModel | null {
+  return activeRun ? biomePickViewModelFor(activeRun) : null;
+}
+
+export function chooseRunBiome(biomeId: string): void {
+  if (!activeRun) return;
+  const band = pendingBiomeBand(activeRun);
+  if (band === null) return;
+  setActiveRun(chooseBiome(activeRun, band, biomeId));
 }
 
 /**
@@ -390,6 +460,22 @@ export function packMemberLines(pack: EncounterPack): string[] {
 // `creditBattleGold` pays `base` on a loss too.
 // ---------------------------------------------------------------------------
 
+export interface BossRewardInfo {
+  bonusGold: number;
+  gem: GemDef | null;
+}
+
+let lastBossReward: BossRewardInfo | null = null;
+
+export function currentBossReward(): BossRewardInfo | null {
+  return lastBossReward;
+}
+
+function bossRewardInfoOf(reward: BossReward | null): BossRewardInfo | null {
+  if (!reward) return null;
+  return { bonusGold: reward.bonusGold, gem: reward.gemId ? gemBook[reward.gemId] ?? null : null };
+}
+
 /** Settles the active run's current combat node from a fetched `BattleLog`:
  * computes `battleGoldReward` from the EXACT foe config the request was built
  * from + the run's hero level, then calls `recordBattleResult` (win -> base +
@@ -424,9 +510,130 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
     boss: node.kind === 'boss',
     ...(log.playerAffinityId === undefined ? {} : { affinityId: log.playerAffinityId }),
   }, log);
-  setActiveRun(recordBattleResult(state, { won, goldEarned: payout, ...battleStats, battleFact }));
+  const substituteFight = state.activeGhostFight;
+  const { state: nextState, bossReward } = recordBattleResult(state, { won, goldEarned: payout, ...battleStats, battleFact });
+  setActiveRun(nextState);
+  lastBossReward = bossRewardInfoOf(bossReward);
+  if (substituteFight && substituteFight.nodeId === node.id && substituteFight.role === 'substitute' && activeRun) {
+    const key = ghostResultReportKey(node.id, 'substitute');
+    if (!hasReportedGhostResult(activeRun, key)) {
+      setActiveRun(markGhostResultReported(activeRun, key));
+      void reportGhostResult(substituteFight.ghost.id, !won);
+    }
+  }
+  if (bossReward && activeRun) {
+    setActiveRun(offerGhostSavePrompt(activeRun, node.id, node.fightNumber!, ghostBandOf(node.fightNumber!)));
+    void maybeOfferExtraGhostFight(node);
+  }
   if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
-  return payout;
+  return payout + (bossReward?.bonusGold ?? 0);
+}
+
+const ghostExtraOfferFetchesInFlight = new Set<string>();
+
+async function maybeOfferExtraGhostFight(node: RunNode): Promise<void> {
+  if (ghostExtraOfferFetchesInFlight.has(node.id)) return;
+  const run = activeRun;
+  if (!run || !canOfferExtraGhostFight(run, node.id)) return;
+  ghostExtraOfferFetchesInFlight.add(node.id);
+  try {
+    const localId = getOrCreateLocalId(localStorageDriver);
+    const result = await fetchGhost(ghostBandOf(node.fightNumber!), localId);
+    const latest = activeRun;
+    if (!latest || !canOfferExtraGhostFight(latest, node.id)) return;
+    if (!result.ok) return;
+    setActiveRun(result.ghost ? offerExtraGhostFight(latest, node.id, result.ghost) : markExtraGhostUnavailable(latest, node.id));
+  } finally {
+    ghostExtraOfferFetchesInFlight.delete(node.id);
+  }
+}
+
+export interface GhostExtraFightOffer {
+  displayName: string;
+  level: number;
+}
+
+export function extraGhostFightOffer(): GhostExtraFightOffer | null {
+  if (!activeRun) return null;
+  const offer = activeRun.ghostBossOffer;
+  if (!offer) return null;
+  const pieces = ghostToBattlePieces(offer.ghost);
+  return { displayName: offer.ghost.displayName, level: pieces.level };
+}
+
+export function acceptExtraGhostFightOffer(): void {
+  if (!activeRun) return;
+  setActiveRun(acceptExtraGhostFight(activeRun));
+}
+
+export function declineExtraGhostFightOffer(): void {
+  if (!activeRun) return;
+  setActiveRun(declineExtraGhostFight(activeRun));
+}
+
+export function activeExtraGhostFight(): { bossNodeId: string; ghost: GhostRecord } | null {
+  const active = activeRun?.activeGhostFight;
+  return active && active.role === 'extra' ? { bossNodeId: active.nodeId, ghost: active.ghost } : null;
+}
+
+/** The run's one active `challengeFight` off-column battle (`src/run/challengeFight.ts`). */
+export function activeChallengeFight(): ActiveChallengeFight | null {
+  return activeRun?.activeChallengeFight ?? null;
+}
+
+/** Settle the run's active challenge fight — the challenge-fight twin of
+ * `resolveExtraGhostFightResult`. No battle gold/level; those are fight-column-only. */
+export function resolveChallengeFightResult(log: BattleLog): void {
+  if (!activeRun) return;
+  const won = log.result === 'win';
+  const { state } = recordChallengeFightResult(activeRun, won);
+  setActiveRun(state);
+  if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
+}
+
+export function resolveExtraGhostFightResult(log: BattleLog): void {
+  if (!activeRun) return;
+  const active = activeRun.activeGhostFight;
+  const won = log.result === 'win';
+  const { state } = recordExtraGhostFightResult(activeRun, won);
+  let nextState = state;
+  if (active && active.role === 'extra') {
+    const key = ghostResultReportKey(active.nodeId, 'extra');
+    if (!hasReportedGhostResult(nextState, key)) {
+      nextState = markGhostResultReported(nextState, key);
+      void reportGhostResult(active.ghost.id, !won);
+    }
+  }
+  setActiveRun(nextState);
+  if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
+}
+
+export interface GhostSaveOfferViewModel {
+  fightNumber: number;
+  band: number;
+  defaultName: string;
+}
+
+export function offerGhostSave(): GhostSaveOfferViewModel | null {
+  if (!activeRun) return null;
+  const prompt = ghostSavePromptOf(activeRun);
+  return prompt ? { fightNumber: prompt.fightNumber, band: prompt.band, defaultName: 'Hero' } : null;
+}
+
+export async function saveGhost(name: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!activeRun) return { ok: false, reason: 'no active run' };
+  const prompt = ghostSavePromptOf(activeRun);
+  if (!prompt) return { ok: false, reason: 'no save prompt pending' };
+  const code = ghostCodeOf(activeRun);
+  const localId = getOrCreateLocalId(localStorageDriver);
+  const result = await uploadGhost({ code, displayName: name, fightNumber: prompt.fightNumber, ownerLocalId: localId });
+  if (activeRun) setActiveRun(clearGhostSavePrompt(activeRun));
+  return result.ok ? { ok: true } : { ok: false, reason: result.reason };
+}
+
+export function skipGhostSave(): void {
+  if (!activeRun) return;
+  setActiveRun(clearGhostSavePrompt(activeRun));
 }
 
 // ---------------------------------------------------------------------------
@@ -483,15 +690,15 @@ export function buyCurrentShopCard(index: number): ShopBuyResult {
 
 export type ShopMergeResult = { ok: true } | { ok: false; reason: 'gold' | 'no-target' | 'gone' };
 
-/** Merge target preview for a shop card offer's `skillId` — null if the
- * player owns no mergeable (non-diamond) instance of it. The BUY confirm
+/** Merge target preview for a shop card offer's `skillId` at `tier` — null if
+ * the player owns no mergeable (non-diamond) instance of it. The BUY confirm
  * dialog calls this to decide whether to surface the MERGE choice. */
-export function currentShopMergeTarget(skillId: string): MergeTarget | null {
-  return activeRun ? runMergeTargetFor(activeRun, skillId) : null;
+export function currentShopMergeTarget(skillId: string, tier: SkillTier): MergeTarget | null {
+  return activeRun ? runMergeTargetFor(activeRun, skillId, tier) : null;
 }
 
 /** MERGE: buys the card offer at `index` on the current shop node's shelf,
- * upgrading an owned instance one tier instead of adding a copy. */
+ * feeding it into an owned instance instead of adding a copy. */
 export function mergeCurrentShopCard(index: number): ShopMergeResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
@@ -550,7 +757,8 @@ export type RunEventOfferSelection =
   | { kind: 'upgrade'; instanceId: string }
   | { kind: 'gem'; gemId: string }
   | { kind: 'sellGem'; pouchIndex: number }
-  | { kind: 'mergeCards'; skillId: string };
+  | { kind: 'mergeCards'; skillId: string }
+  | { kind: 'statPick'; stat: MarketStat };
 
 interface CurrentCommittedEvent {
   node: RunNode;
@@ -639,7 +847,12 @@ export function resolveCurrentRunEventChoice(
   choiceId: string,
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): RunEventOutcome | undefined {
-  if (!activeRun || eventResolutionOf(activeRun)) return undefined;
+  if (!activeRun) return undefined;
+  const priorResolution = eventResolutionOf(activeRun);
+  if (priorResolution !== undefined) {
+    const priorEvent = currentCommittedEvent(lookup)?.event;
+    if (priorEvent === undefined || !marketVisitStillOpen(priorEvent, priorResolution)) return undefined;
+  }
   const rolled = rollCurrentEvent(lookup);
   if (!rolled || !activeRun) return undefined;
   const committed = currentCommittedEvent(lookup);
@@ -719,7 +932,9 @@ function finishCurrentV3Offer(
               ? finalizeSellGemV3(activeRun, committed.instanceId, resolution.choiceId, selection.pouchIndex, lookup)
               : selection.kind === 'mergeCards' && offer.kind === 'mergeCards'
                 ? finalizeMergeCardsV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
-                : undefined;
+                : selection.kind === 'statPick' && offer.kind === 'buyStatPick'
+                  ? finalizeBuyStatPickV3(activeRun, committed.instanceId, resolution.choiceId, selection.stat, lookup)
+                  : undefined;
   if (result === undefined || !result.ok) return undefined;
   if (result.state !== activeRun) setActiveRun(result.state);
   return result.outcome;
@@ -785,6 +1000,17 @@ export function finalizeCurrentRunEventOffer(
   return isEventDefV3(committed.event)
     ? finishCurrentV3Offer(selection, committed, lookup)
     : finishCurrentLegacyOffer(selection, lookup);
+}
+
+/** Backs out of an open `buyStatPick` picker for free (no gold charged). */
+export function cancelCurrentBuyStatPick(
+  lookup: RunEventDefinitionLookup = eventDefAtVersion,
+): void {
+  if (!activeRun) return;
+  const committed = currentCommittedEvent(lookup);
+  if (!committed || !isEventDefV3(committed.event)) return;
+  const next = cancelBuyStatPickV3(activeRun, committed.instanceId);
+  if (next !== activeRun) setActiveRun(next);
 }
 
 /** Legacy compatibility view for a schema-v1/v2 event at the current node.
@@ -1075,6 +1301,11 @@ export function currentHeroLevel(): number {
  * stat panel seeds its scratch edit from this. */
 export function currentHeroAllocation(): Allocation {
   return activeRun?.heroAllocation ?? {};
+}
+
+/** The run's gold-market/free-boon stat buys (`RunState.purchasedStats`). */
+export function currentPurchasedStats(): Allocation {
+  return activeRun?.purchasedStats ?? {};
 }
 
 /** PL banked (earned but unspent) at the run's current hero level. Drives the

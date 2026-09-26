@@ -4,7 +4,6 @@ import { BAND_WAVES, biomeFor, leanLabel } from '../../run/biome';
 import type { EncounterPack } from '../../run/encounter';
 import type { RunNode, RunState } from '../../run/runState';
 import { textRoleFor, UI, type InkRole, type TextRole } from '../theme';
-import { playSfx } from '../audio/sfxSynth';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import { attachButtonFeel } from './motion';
@@ -149,6 +148,6 @@ export function renderRunBossArrivalPanel(
   auditControlLabel(action, label, { name: 'Face the boss', horizontalPadding: 12, verticalPadding: 8, minFontSize: 9 });
   attachButtonFeel(scene, action, {
     fill: UI.bad, hover: UI.bad, lift: 1, follow: [label],
-    onPress: () => { playSfx('uiClick'); opts.onFaceBoss(); },
+    onPress: opts.onFaceBoss,
   });
 }

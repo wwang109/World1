@@ -11,6 +11,7 @@ import type {
   EventTallyGate,
   EventTheme,
   FilterFromSource,
+  MarketStat,
 } from './eventTypes';
 import { gemBook } from './gems';
 import { skillBook } from './skills';
@@ -30,6 +31,7 @@ const RARITIES = enumValues<EventRarity>({ common: true, uncommon: true, rare: t
 const EVENT_ART_IDS = enumValues<EventArtId>({ bell_beneath_ice: true, second_toll: true, bell_unbound: true });
 const TIERS = enumValues<SkillTier>({ bronze: true, silver: true, gold: true, diamond: true });
 const FILTER_FROM = enumValues<FilterFromSource>({ biomeLean: true, biomeCounter: true, boardIdentity: true });
+const MARKET_STATS = enumValues<MarketStat>({ attack: true, armor: true, maxHp: true });
 const TALLY_STATS = enumValues<EventTallyGate['stat']>({
   goldSpent: true,
   cardsBought: true,
@@ -55,9 +57,14 @@ const OUTCOME_KINDS: Readonly<Record<EventOutcomeSpec['kind'], true>> = {
   grantLevel: true,
   bonusDraft: true,
   upgradeCard: true,
+  awardCardPoint: true,
   sellGem: true,
   mergeCards: true,
   grantMapInfo: true,
+  buyLife: true,
+  buyStat: true,
+  buyStatPick: true,
+  grantStat: true,
   nothing: true,
 };
 
@@ -354,6 +361,10 @@ function validateUpgradeCard(raw: Record<string, unknown>, where: string, proble
   rejectUnknownFields(raw, ['kind'], where, problems);
 }
 
+function validateAwardCardPoint(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  rejectUnknownFields(raw, ['kind'], where, problems);
+}
+
 function validateSellGem(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
   rejectUnknownFields(raw, ['kind'], where, problems);
 }
@@ -369,6 +380,19 @@ function validateGrantMapInfo(raw: Record<string, unknown>, where: string, probl
 
 function validateNothing(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
   rejectUnknownFields(raw, ['kind'], where, problems);
+}
+
+function validateBuyLife(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  rejectUnknownFields(raw, ['kind'], where, problems);
+}
+
+function validateBuyStatPick(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  rejectUnknownFields(raw, ['kind'], where, problems);
+}
+
+function validateMarketStat(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  rejectUnknownFields(raw, ['kind', 'stat'], where, problems);
+  required(raw, 'stat', (v) => MARKET_STATS.includes(v as MarketStat), MARKET_STATS.join('|'), where, problems);
 }
 
 function assertNeverOutcome(value: never, where: string, problems: ContentProblem[]): void {
@@ -395,9 +419,14 @@ function validateOutcome(value: unknown, where: string, problems: ContentProblem
     case 'grantLevel': validateGrantLevel(value, where, problems); return;
     case 'bonusDraft': validateBonusDraft(value, where, problems); return;
     case 'upgradeCard': validateUpgradeCard(value, where, problems); return;
+    case 'awardCardPoint': validateAwardCardPoint(value, where, problems); return;
     case 'sellGem': validateSellGem(value, where, problems); return;
     case 'mergeCards': validateMergeCards(value, where, problems); return;
     case 'grantMapInfo': validateGrantMapInfo(value, where, problems); return;
+    case 'buyLife': validateBuyLife(value, where, problems); return;
+    case 'buyStat': validateMarketStat(value, where, problems); return;
+    case 'buyStatPick': validateBuyStatPick(value, where, problems); return;
+    case 'grantStat': validateMarketStat(value, where, problems); return;
     case 'nothing': validateNothing(value, where, problems); return;
     default: assertNeverOutcome(kind, `${where}.kind`, problems);
   }
@@ -1209,6 +1238,45 @@ function validateV3TargetedUpgrade(raw: Record<string, unknown>, where: string, 
   }
 }
 
+const CHALLENGE_DIFFICULTIES = ['standard', 'hard', 'elite'];
+const CHALLENGE_REWARD_KINDS = ['cardChoice', 'gemChoice', 'grantGold', 'grantLevel', 'upgradeCardTargeted'];
+
+function validateV3ChallengeFightReward(
+  raw: unknown,
+  where: string,
+  problems: ContentProblem[],
+  context: V3OutcomeContext,
+): void {
+  if (!isObj(raw)) {
+    problems.push({ where, message: 'reward must be an object' });
+    return;
+  }
+  if (typeof raw.kind !== 'string' || !CHALLENGE_REWARD_KINDS.includes(raw.kind)) {
+    problems.push({ where: `${where}.kind`, message: `reward kind must be one of ${CHALLENGE_REWARD_KINDS.join('|')}` });
+    return;
+  }
+  switch (raw.kind) {
+    case 'cardChoice': validateV3CardChoice(raw, where, problems, context); return;
+    case 'gemChoice': validateV3BoundGemChoice(raw, where, problems); return;
+    case 'grantGold': validateGrantGold(raw, where, problems); return;
+    case 'grantLevel': validateGrantLevel(raw, where, problems); return;
+    case 'upgradeCardTargeted': validateV3TargetedUpgrade(raw, where, problems); return;
+    default: return;
+  }
+}
+
+function validateV3ChallengeFight(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: ContentProblem[],
+  context: V3OutcomeContext,
+): void {
+  rejectUnknownFields(raw, ['kind', 'difficulty', 'reward'], where, problems);
+  required(raw, 'difficulty', (v) => CHALLENGE_DIFFICULTIES.includes(v as string), CHALLENGE_DIFFICULTIES.join('|'), where, problems);
+  if (!Object.hasOwn(raw, 'reward')) problems.push({ where: `${where}.reward`, message: 'missing required field reward' });
+  else validateV3ChallengeFightReward(raw.reward, `${where}.reward`, problems, context);
+}
+
 function validateV3DirectOutcome(
   value: unknown,
   where: string,
@@ -1229,6 +1297,10 @@ function validateV3DirectOutcome(
   }
   if (value.kind === 'upgradeCardTargeted') {
     validateV3TargetedUpgrade(value, where, problems);
+    return;
+  }
+  if (value.kind === 'challengeFight') {
+    validateV3ChallengeFight(value, where, problems, context);
     return;
   }
   if (value.kind === 'weighted') {

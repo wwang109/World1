@@ -8,12 +8,22 @@ import { type CursorSlotSnap,
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
-import { currentBankedPL, currentHeroLevel, getActiveRun, resolveRunBattleResult } from '../runStore';
+import {
+  activeChallengeFight, activeExtraGhostFight, currentBankedPL, currentBossReward, currentHeroLevel, getActiveRun,
+  offerGhostSave, resolveChallengeFightResult, resolveExtraGhostFightResult, resolveRunBattleResult, saveGhost, skipGhostSave,
+  type GhostSaveOfferViewModel,
+} from '../runStore';
+import { GHOST_NAME_MAX } from '../../run/ghost';
+import { normalizeGhostName } from '../../run/ghostValidate';
+import { describeGhostSaveFailure } from '../ghostApi';
+import { GemToken } from '../ui/GemToken';
+import { promptForLine } from '../ui/textPrompt';
 import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { playSfx } from '../audio/sfxSynth';
+import { sfxKeyForFx } from '../audio/sfxSpec';
 import { renderDesktopBackground } from '../ui/DesktopNav';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
@@ -172,6 +182,12 @@ export class DesktopBattleScene extends Phaser.Scene {
    * it; a fresh scene entry (init() runs) re-fetches a new log and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
+  private isExtraGhostFight = false;
+  private isChallengeFight = false;
+  private ghostOffer: GhostSaveOfferViewModel | null = null;
+  private ghostSaveName = '';
+  private ghostSaveStatus: 'idle' | 'saving' | 'done' | 'error' = 'idle';
+  private ghostSaveErrorReason: string | null = null;
 
   constructor() { super('DesktopBattle'); }
 
@@ -218,6 +234,12 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.goldCreditedLog = null;
     this.goldPayout = 0;
     this.summaryOverride = null;
+    this.isExtraGhostFight = false;
+    this.isChallengeFight = false;
+    this.ghostOffer = null;
+    this.ghostSaveName = '';
+    this.ghostSaveStatus = 'idle';
+    this.ghostSaveErrorReason = null;
   }
 
   create(): void {
@@ -238,9 +260,24 @@ export class DesktopBattleScene extends Phaser.Scene {
       // SAME log object (no re-fetch), so the identity check skips it.
       if (this.goldCreditedLog !== log) {
         this.goldCreditedLog = log;
-        this.goldPayout = getBattleContext() === 'run'
-          ? resolveRunBattleResult(input, log)
-          : creditBattleGold(input, log);
+        const runContext = getBattleContext() === 'run';
+        this.isExtraGhostFight = runContext && activeExtraGhostFight() !== null;
+        this.isChallengeFight = runContext && activeChallengeFight() !== null;
+        if (this.isExtraGhostFight) {
+          resolveExtraGhostFightResult(log);
+          this.goldPayout = 0;
+        } else if (this.isChallengeFight) {
+          resolveChallengeFightResult(log);
+          this.goldPayout = 0;
+        } else {
+          this.goldPayout = runContext ? resolveRunBattleResult(input, log) : creditBattleGold(input, log);
+          playSfx('goldGain');
+        }
+        const offer = runContext ? offerGhostSave() : null;
+        if (offer) {
+          this.ghostOffer = offer;
+          this.ghostSaveName = offer.defaultName.slice(0, GHOST_NAME_MAX);
+        }
       }
       this.idx = 0;
       this.render();
@@ -550,21 +587,17 @@ export class DesktopBattleScene extends Phaser.Scene {
           if (bar) this.shakeBar(bar.shakeTargets);
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
           this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
-          // fx.source is set for un-attributed damage (poison/burn/bleed/
-          // fatigue/attrition ticks) — those get one shared "tick" cue;
-          // a skill hit's own property picks its impact voice.
-          playSfx(fx.source ? 'dotTick' : fx.property === 'magical' ? 'hitMagical' : fx.property === 'true' ? 'hitTrue' : 'hitPhysical');
         } else if (fx.kind === 'heal') {
           // Anti-heal world rule tax — visibly taxed float: the sickly
           // (debuff/expose) tint carries a small "−N%" suffix so a reduced
           // heal never reads as a plain, un-taxed number.
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
             fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
-          playSfx('heal');
         } else if (fx.kind === 'shield') {
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
-          playSfx('shieldGain');
         }
+        const key = sfxKeyForFx(fx);
+        if (key) playSfx(key);
       }
     }
 
@@ -691,7 +724,8 @@ export class DesktopBattleScene extends Phaser.Scene {
       onPress: () => { this.summaryOverride = !summaryVisible; this.render(); },
     };
     if (getBattleContext() === 'run') {
-      return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('DesktopRunMap') }];
+      const dest = this.isChallengeFight ? 'DesktopRunEvent' : 'DesktopRunMap';
+      return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start(dest) }];
     }
     // The primary slot is stage-aware: END fast-forwards playback, then
     // becomes the way OUT once the outcome is on screen.
@@ -768,12 +802,14 @@ export class DesktopBattleScene extends Phaser.Scene {
     const rowH = 34;
     const gridRows = Math.max(1, Math.ceil(summaryRows.length / columns));
 
+    const bossReward = getBattleContext() === 'run' && !this.isExtraGhostFight && !this.isChallengeFight
+      ? currentBossReward() : null;
     const pw = 640;
-    const bannerH = isOutcomeStep ? 52 + (this.mutualWipe ? 16 : 0) : 0;
+    const bannerH = isOutcomeStep ? 52 + (this.mutualWipe ? 16 : 0) + (bossReward ? 26 : 0) : 0;
     const bannerGap = isOutcomeStep ? 10 : 0;
     const pad = 16;
-    // banner (if any) + totals row + CARD OUTPUT label + grid + padding
-    const ph = bannerH + bannerGap + 20 + 18 + gridRows * rowH + pad;
+    const ghostBlockH = isOutcomeStep && this.ghostOffer ? 54 : 0;
+    const ph = bannerH + bannerGap + 20 + 18 + gridRows * rowH + pad + ghostBlockH;
     const px = x + (w - pw) / 2;
     const py = y + (h - ph) / 2;
 
@@ -781,12 +817,22 @@ export class DesktopBattleScene extends Phaser.Scene {
     if (isOutcomeStep) {
       this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
       this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
-      this.add.text(px + pw / 2 + 8, py + bannerH / 2 - (getBattleContext() === 'run' ? 6 : 0), `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
-      if (getBattleContext() === 'run') {
+      if (!this.isExtraGhostFight && !this.isChallengeFight) {
+        const goldLabel = bossReward ? `+${this.goldPayout} GOLD (+${bossReward.bonusGold} BOSS)` : `+${this.goldPayout} GOLD`;
+        this.add.text(px + pw / 2 + 8, py + bannerH / 2 - (getBattleContext() === 'run' ? 6 : 0), goldLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
+      }
+      if (getBattleContext() === 'run' && !this.isExtraGhostFight && !this.isChallengeFight) {
         // Run Mode: the hero levels after EVERY fight, win or lose (locked
         // design) — `resolveRunBattleResult` already applied it before this
         // renders, so this is a pure readout, never a second mutation.
         this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 12, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+        }).setOrigin(0, 0.5);
+      }
+      if (bossReward?.gem) {
+        const gemY = py + bannerH / 2 + 26;
+        new GemToken(this, px + pw / 2 + 16, gemY, bossReward.gem, { width: 16, height: 16 });
+        this.add.text(px + pw / 2 + 26, gemY, `BOSS GEM · ${bossReward.gem.name}`, {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
         }).setOrigin(0, 0.5);
       }
@@ -833,6 +879,83 @@ export class DesktopBattleScene extends Phaser.Scene {
       ].filter(Boolean).join(' · ');
       this.boundedText(cellX + cellW - 8, cellY + 3, metrics, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8b446' }, cellW * 0.4, 1);
       void rowIndex;
+    });
+    if (isOutcomeStep && this.ghostOffer) {
+      this.renderGhostSavePrompt(px, cy + gridRows * rowH + 8, pw, pad);
+    }
+  }
+
+  private renderGhostSavePrompt(px: number, y: number, pw: number, pad: number): void {
+    const status = this.ghostSaveStatus;
+    const statusLabel = status === 'saving' ? 'SAVING…'
+      : status === 'done' ? 'BUILD SAVED — other players may face it'
+      : status === 'error' ? `SAVE FAILED — ${describeGhostSaveFailure(this.ghostSaveErrorReason ?? '')}`
+      : 'SAVE THIS BUILD? OTHER PLAYERS MAY FACE IT';
+    const statusColor = status === 'error' ? '#f08a7a' : status === 'done' ? '#7fe08a' : UI.textDim;
+    this.boundedText(px + pad, y, statusLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: statusColor }, pw - pad * 2);
+
+    const rowY = y + 18;
+    const btnH = 24;
+    const fieldW = 220;
+    const btnW = 70;
+    const gap = 8;
+    let cx = px + pad;
+
+    const editable = status === 'idle' || status === 'error';
+    const field = this.add.rectangle(cx, rowY, fieldW, btnH, UI.panelMuted, 1).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
+    if (editable) {
+      field.setInteractive({ useHandCursor: true });
+      field.on('pointerdown', () => {
+        playSfx('uiClick');
+        void promptForLine({
+          title: 'BUILD NAME',
+          initial: this.ghostSaveName,
+          hint: `Shown to other players who face this build. Max ${GHOST_NAME_MAX} characters.`,
+          validate: (value) => (normalizeGhostName(value) === null ? 'name cannot be empty' : null),
+        }).then((value) => {
+          if (value === null) return;
+          this.ghostSaveName = normalizeGhostName(value) ?? this.ghostSaveName;
+          this.render();
+        });
+      });
+    }
+    this.add.text(cx + 8, rowY + btnH / 2, `${this.ghostSaveName} (${this.ghostSaveName.length}/${GHOST_NAME_MAX})`, {
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.text,
+    }).setOrigin(0, 0.5);
+    cx += fieldW + gap;
+
+    const drawBtn = (label: string, active: boolean, onPress: () => void): void => {
+      const fill = active ? UI.chip : UI.panelAlt;
+      const color = active ? UI.textOnChip : UI.textMuted;
+      const r = this.add.rectangle(cx, rowY, btnW, btnH, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, active ? 1 : 0.6);
+      if (active) {
+        r.setInteractive({ useHandCursor: true });
+        r.on('pointerdown', onPress);
+      }
+      this.add.text(cx + btnW / 2, rowY + btnH / 2, label, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color }).setOrigin(0.5);
+      cx += btnW + gap;
+    };
+    drawBtn('SAVE', status === 'idle' || status === 'error', () => this.pressGhostSave());
+    drawBtn('SKIP', status !== 'saving' && status !== 'done', () => {
+      skipGhostSave();
+      this.ghostOffer = null;
+      this.render();
+    });
+  }
+
+  private pressGhostSave(): void {
+    if (!this.ghostOffer) return;
+    this.ghostSaveStatus = 'saving';
+    this.render();
+    void saveGhost(this.ghostSaveName).then((result) => {
+      if (!this.scene.isActive()) return;
+      if (result.ok) {
+        this.ghostSaveStatus = 'done';
+      } else {
+        this.ghostSaveStatus = 'error';
+        this.ghostSaveErrorReason = result.reason;
+      }
+      this.render();
     });
   }
 
@@ -1071,7 +1194,8 @@ export class DesktopBattleScene extends Phaser.Scene {
           const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
           if (recipe) {
             this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
-            if (cast?.archetype) playSfx(`cast:${cast.archetype}`);
+            const key = cast ? sfxKeyForFx(cast) : null;
+            if (key) playSfx(key);
           } else {
             token.setScale(1);
             this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });

@@ -1,6 +1,6 @@
 import { tierResolved, type Archetype, type Element, type Property, type SkillDef, type SkillTier, type WeaponType } from '../../engine/types';
 import { weightOf } from '../../engine/types';
-import { AURA_RULE_ENTRY, HEAVY_RULE_ENTRY, LIGHTWEIGHT_RULE_ENTRY, MULTI_HIT_RULE_ENTRY, TRUE_RULE_ENTRY, ruleEntriesOf } from '../../engine/keywords/text';
+import { AURA_RULE_ENTRY, HEAVY_RULE_ENTRY, LIGHTWEIGHT_RULE_ENTRY, MULTI_HIT_RULE_ENTRY, TRUE_RULE_ENTRY, ruleEntriesOf, withTermEntries } from '../../engine/keywords/text';
 
 /**
  * CARD GLOSSARY — the short, mid-decision explanations for the parts of a
@@ -257,7 +257,7 @@ export function skillKeywordEntries(raw: SkillDef): GlossaryEntry[] {
   for (const action of skill.effects) {
     for (const entry of ruleEntriesOf(action)) push(entry);
   }
-  return entries;
+  return withTermEntries(entries);
 }
 
 /** The tooltip for the type badge: element or weapon matchup, else property. */

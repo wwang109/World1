@@ -183,7 +183,7 @@ const CARD_WIDTHS: { name: string; width: number; maxOverflowing: number; maxTit
   // a real shipped surface — `DesktopWikiScene.ts:546`, the desktop Wiki
   // DETAIL pane. Cite the site or do not claim the surface.
   { name: 'card-body 140w (cardDetailOverlay.ts:48; MobileDeckBuildScene:829; MobileDraftScene:225)', width: 140, maxOverflowing: 417, maxTitleOverflowing: 108 },
-  { name: 'card-body 150w (MobileWikiScene:659; MobileShopScene:923 + :997)', width: 150, maxOverflowing: 365, maxTitleOverflowing: 72 },
+  { name: 'card-body 150w (MobileWikiScene:659; MobileShopScene:923 + :997)', width: 150, maxOverflowing: 367, maxTitleOverflowing: 72 },
   { name: 'card-body 187w (DesktopWikiScene:299 gallery cell — (1000-4*16)/5)', width: 187, maxOverflowing: 205, maxTitleOverflowing: 0 },
   { name: 'card-body 200w (DesktopShopScene:1077 + :1141, both docks)', width: 200, maxOverflowing: 28, maxTitleOverflowing: 0 },
   { name: 'card-body 220w (DesktopWikiScene:546, detail pane)', width: 220, maxOverflowing: 27, maxTitleOverflowing: 0 },

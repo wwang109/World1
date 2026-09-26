@@ -372,7 +372,7 @@ export class MobileDraftScene extends Phaser.Scene {
           hover: fill,
           press: pressedFill(fill),
           follow: [label],
-          onPress: () => { playSfx('uiClick'); press(action.id); },
+          onPress: () => { press(action.id); },
         });
       }
     });

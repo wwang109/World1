@@ -72,6 +72,6 @@ export function fmtDamage(c: DamageCalculation): string {
   add('GUARD', -c.guardReduction);
   add('EXPOSE', c.exposeBonus ?? 0);
   add('BLOCK', -c.shieldBlocked);
-  const bonusLabel = `+${c.effectBonusDamage} aura/combo`;
+  const bonusLabel = `+${c.effectBonusDamage} aura/chain`;
   return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat}, ${bonusLabel})`;
 }

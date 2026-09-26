@@ -2,13 +2,19 @@ import { skillBook } from '../data/skills';
 import { bagAsBoardPieces, canPlace, moveWithinStrip, shiftInsert } from '../run/loadout';
 import type { Gem, SkillBook, SkillTier } from '../engine/types';
 import {
+  addTierValue,
   findMergeTarget,
   goldPriceOfCard,
   goldPriceOfGem,
+  mergeableDuplicatesFor,
+  mergeSlotPriceForWave,
+  pointsOf,
   rollShopStock,
   sellPriceOfCard,
   sellPriceOfGem,
   type MergeTarget,
+  type OwnedDuplicate,
+  type TierProgress,
 } from '../run/shop';
 import { createOwnedCard, demoState, MAX_GOLD, type ShopShelfState } from './demoState';
 
@@ -96,33 +102,73 @@ export function buyCard(shopId: string, index: number): BuyResult {
   return { ok: true };
 }
 
-/** Merge target preview for a shop card offer's `skillId` — null if the
- * player owns no mergeable (non-diamond) instance of it. The BUY confirm
- * dialog calls this to decide whether to surface the MERGE choice. */
-export function mergeTargetFor(skillId: string): MergeTarget | null {
-  return findMergeTarget(skillId, demoState.pieces, demoState.bagSlots);
+export function mergeTargetFor(skillId: string, tier: SkillTier, targetInstanceId?: string): MergeTarget | null {
+  return findMergeTarget(skillId, { tier, points: 0 }, demoState.pieces, demoState.bagSlots, targetInstanceId);
+}
+
+export function mergeableDuplicatesForInstance(targetInstanceId: string): OwnedDuplicate[] {
+  const target = demoState.pieces.find((p) => p.instanceId === targetInstanceId)
+    ?? demoState.bagSlots.find((c) => c != null && c.instanceId === targetInstanceId);
+  if (!target) return [];
+  return mergeableDuplicatesFor(target, demoState.pieces, demoState.bagSlots);
 }
 
 export type MergeResult = { ok: true } | { ok: false; reason: 'gold' | 'no-target' | 'gone' };
 
-/** MERGE: buys the card offer at `index` on `shopId`'s current shelf,
- * upgrading the player's existing lowest-tier owned instance of that skill
- * one tier instead of adding a copy — same price/shelf-consumption as
- * `buyCard`. Fails cleanly (no charge) if the wallet can't afford it or the
- * player owns no mergeable copy of the offered skill. */
-export function mergeCard(shopId: string, index: number): MergeResult {
+export function mergeCard(shopId: string, index: number, targetInstanceId?: string): MergeResult {
   const shelf = demoState.shopShelves[shopId];
   const offer = shelf?.cards[index];
   if (!shelf || !offer) return { ok: false, reason: 'gone' };
-  const target = findMergeTarget(offer.skillId, demoState.pieces, demoState.bagSlots);
+  const target = findMergeTarget(offer.skillId, { tier: offer.tier, points: 0 }, demoState.pieces, demoState.bagSlots, targetInstanceId);
   if (!target) return { ok: false, reason: 'no-target' };
   if (target.location === 'board') {
-    demoState.pieces = demoState.pieces.map((p, i) => (i === target.index ? { ...p, tier: target.toTier } : p));
+    demoState.pieces = demoState.pieces.map((p, i) => (i === target.index ? { ...p, tier: target.toTier, points: target.toPoints } : p));
   } else {
-    demoState.bagSlots = demoState.bagSlots.map((c, i) => (i === target.index && c ? { ...c, tier: target.toTier } : c));
+    demoState.bagSlots = demoState.bagSlots.map((c, i) => (i === target.index && c ? { ...c, tier: target.toTier, points: target.toPoints } : c));
   }
   shelf.cards = shelf.cards.filter((_, i) => i !== index);
   return { ok: true };
+}
+
+function ownedNonDiamondInstanceIds(): string[] {
+  const ids: string[] = [];
+  for (const p of demoState.pieces) if (p.tier !== 'diamond') ids.push(p.instanceId);
+  for (const c of demoState.bagSlots) if (c && c.tier !== 'diamond') ids.push(c.instanceId);
+  return ids;
+}
+
+export function mergeSlotPrice(): number {
+  return mergeSlotPriceForWave();
+}
+
+export function mergeSlotAvailable(shopId: string): boolean {
+  if (demoState.shopShelves[shopId]?.mergeSlotUsed) return false;
+  return ownedNonDiamondInstanceIds().length > 0;
+}
+
+export type MergeSlotResult = { ok: true; result: TierProgress } | { ok: false; reason: 'used' | 'target' };
+
+// sandbox wallet is unlimited (USER-LOCKED) — never gates on gold
+export function buyMergeSlotPoint(shopId: string, targetInstanceId: string): MergeSlotResult {
+  const shelf = demoState.shopShelves[shopId];
+  if (shelf?.mergeSlotUsed) return { ok: false, reason: 'used' };
+  const boardIndex = demoState.pieces.findIndex((p) => p.instanceId === targetInstanceId && p.tier !== 'diamond');
+  const bagIndex = boardIndex >= 0 ? -1 : demoState.bagSlots.findIndex((c) => c != null && c.instanceId === targetInstanceId && c.tier !== 'diamond');
+  if (boardIndex < 0 && bagIndex < 0) return { ok: false, reason: 'target' };
+
+  if (shelf) shelf.mergeSlotUsed = true;
+  else demoState.shopShelves[shopId] = { cards: [], gems: [], rerollCount: 0, mergeSlotUsed: true };
+
+  if (boardIndex >= 0) {
+    const target = demoState.pieces[boardIndex]!;
+    const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+    demoState.pieces = demoState.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: result.tier, points: result.points } : p));
+    return { ok: true, result };
+  }
+  const target = demoState.bagSlots[bagIndex]!;
+  const result = addTierValue({ tier: target.tier, points: pointsOf(target) }, 1);
+  demoState.bagSlots = demoState.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: result.tier, points: result.points } : c));
+  return { ok: true, result };
 }
 
 /** Buys the gem offer at `index` on `shopId`'s current shelf: deducts gold,

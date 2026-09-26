@@ -39,11 +39,14 @@ const BASE_URL = battleApiBaseUrl(
 export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
   const foes: BattleFoeConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam.map((c) => ({
-      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, growthLevel: c.growthLevel, fightNumber: c.fightNumber, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
+      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, growthLevel: c.growthLevel, fightNumber: c.fightNumber, bumped: c.bumped ?? false, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
       // Custom foe deck (sandbox): the recipe rides the request like every
       // other dial — the service re-resolves it, the client never ships a
       // resolved board. Copied so the payload is detached from live state.
       deck: c.deck?.map((card) => ({ ...card })) ?? null,
+      // Ghost boss (Run Mode): same rule — the recipe rides the request, the
+      // service re-resolves it via `buildGhostFoeSetup`.
+      ghost: c.ghost ? { ...c.ghost, pieces: c.ghost.pieces.map((card) => ({ ...card })), allocation: { ...c.ghost.allocation } } : null,
     }))
     : [{
       enemyId: input.enemyId,
@@ -56,9 +59,11 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
       affix: input.enemyAffix ?? null,
     }];
   return {
-    pieces: input.pieces.map((p) => ({ ...p })),
+    // points never reach combat
+    pieces: input.pieces.map(({ points: _points, ...rest }) => ({ ...rest })),
     heroLevel: input.heroLevel,
     heroAllocation: input.heroAllocation,
+    ...(input.heroPurchasedStats === undefined ? {} : { heroPurchasedStats: { ...input.heroPurchasedStats } }),
     foes,
     seed: input.seed,
   };

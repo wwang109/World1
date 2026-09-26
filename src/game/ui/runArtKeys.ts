@@ -119,6 +119,8 @@ export function choiceArtKey(kind: string): string {
     case 'upgradeCard':
     case 'upgradeCardTargeted':
     case 'upgradeCardPick':
+    case 'awardCardPoint':
+    case 'awardCardPointPick':
     // `cardChoice` (2026-08-18 agency pass) is the pre-resolution SPEC kind
     // shown on the event's own choice row (`choiceArtKey(choice.outcome.kind)`
     // in both `RunEventScene`s) — same card icon as its `grantCard`/

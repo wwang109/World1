@@ -17,6 +17,7 @@ import { buildMergeSpentEntries, buildRunMergeViewModel, type RunMergeViewModel 
 import { runScreenTemplate, type RunTemplatePlatform } from './runScreenTemplate';
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
+import { marketStatPickOptions, type MarketStatPickOption } from '../../run/market';
 
 export interface RunEventSceneLayout {
   platform: RunTemplatePlatform;
@@ -273,8 +274,9 @@ export type MergePicker = {
   consumed: readonly MergeInputCard[];
   optionCount: number;
 };
+export type StatPicker = { kind: 'buyStatPick'; options: readonly MarketStatPickOption[]; optionCount: number };
 
-export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker;
+export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker;
 export type RunEventPresentableOutcome = EventOutcome | EventOutcomeV3;
 export type RunEventOutcomePresentation =
   | { kind: 'picker'; picker: RunEventPickerPresentation }
@@ -364,10 +366,29 @@ export function presentRunEventOutcome(
     case 'loseGold':
     case 'grantLevel':
     case 'grantMapInfo':
+    case 'buyLife':
+    case 'buyStat':
+    case 'grantStat':
     case 'nothing':
     case 'cardGranted':
     case 'cardUpgraded':
       return { kind: 'result', outcome };
+    // Not yet wired to a real picker — no catalog content authors
+    // `awardCardPoint` yet (run-layer only, see src/run/events.ts); a later
+    // task adds both the content and this picker's real rendering. Routed as
+    // a plain result for now so the exhaustiveness guard compiles.
+    case 'awardCardPoint':
+    case 'awardCardPointPick':
+      return { kind: 'result', outcome };
+    case 'buyStatPick': {
+      const options = marketStatPickOptions(state);
+      return { kind: 'picker', picker: { kind: 'buyStatPick', options, optionCount: options.length } };
+    }
+    // The scene intercepts `challengeFight` before it ever reaches
+    // `presentRunEventOutcome` (launches the battle instead) — this arm only
+    // keeps the exhaustiveness guard compiling.
+    case 'challengeFight':
+      return { kind: 'ignored' };
     default: {
       const exhaustive: never = outcome;
       throw new Error(`presentRunEventOutcome: unknown outcome ${(exhaustive as RunEventPresentableOutcome).kind}`);

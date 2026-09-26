@@ -34,6 +34,8 @@
 // draft of this file used, and it did not actually accept a real `Phaser.Scene`.
 import type Phaser from 'phaser';
 import type { UI } from '../theme';
+import { playSfx } from '../audio/sfxSynth';
+import type { SfxKey } from '../audio/sfxRecipes';
 
 /** The scene whose tween manager drives all of this. */
 export type MotionScene = Phaser.Scene;
@@ -166,6 +168,8 @@ export interface ButtonFeelOpts {
   follow?: readonly MoveTarget[];
   /** Override the lift distance (0 disables it — for controls whose origin makes translation wrong). */
   lift?: number;
+  /** null = silent */
+  sfx?: SfxKey | null;
   /** Called on press, after the visual state is applied. */
   onPress?: () => void;
 }
@@ -255,6 +259,8 @@ export function attachButtonFeel(scene: MotionScene, target: FillTarget, opts: B
     current = pressFill;
     target.setFillStyle(pressFill, alpha);
     if (lift) moveTo(MOTION.pressSink, 0);
+    const sfx = opts.sfx ?? 'uiClick';
+    if (sfx) playSfx(sfx);
     opts.onPress?.();
   }) as never);
 

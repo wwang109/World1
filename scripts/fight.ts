@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtAffinity, fmtDamage } from './logFormat';
 import { cooldownRemainingClause, emptySlotClause } from '../src/engine/keywords/compose';
-import { parsePieceList, withStatOverrides } from './boardSpec';
+import { parsePieceList, parseStatOverrideSpec, withStatOverrides } from './boardSpec';
 import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook as shippedSkillBook } from '../src/data/skills';
@@ -24,7 +24,10 @@ import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
 import { enemies as shippedEnemies } from '../src/data/enemies';
 import { enemyDefOfDocument, validateEnemyDocument } from '../src/data/validateEnemyContent';
 import { gemBook } from '../src/data/gems';
-import { resolveEncounterForEnemy } from '../src/run/encounter';
+import { buildAutoHeroSetup, resolveEncounterForEnemy, type EnemyTitle } from '../src/run/encounter';
+import type { Allocation } from '../src/run/leveling';
+import { fightSpecFor } from '../src/run/runState';
+import { buildGhostFoeSetup } from '../src/run/resolveBattle';
 
 /**
  * Local copy of the foe cap (the shared constant lives in `src/game`, which the
@@ -144,6 +147,35 @@ function foeEnemyLevel(): number | null {
   return Number(spec.trim());
 }
 const enemyLevel = foeEnemyLevel();
+
+// FIGHT_FIGHT_NUMBER=5 FIGHT_ENEMY_TITLE=boss npm run fight -- cinder_monarch 5
+function foeEnemyTitleOverride(): EnemyTitle | null {
+  const spec = process.env['FIGHT_ENEMY_TITLE'];
+  if (spec === undefined || spec.trim() === '') return null;
+  const title = spec.trim();
+  if (title !== 'mob' && title !== 'normal' && title !== 'elite' && title !== 'boss') {
+    console.error(`FIGHT_ENEMY_TITLE: expected mob|normal|elite|boss, got '${spec}'.`);
+    process.exit(1);
+  }
+  return title;
+}
+function foeFightNumber(): number | undefined {
+  const spec = process.env['FIGHT_FIGHT_NUMBER'];
+  if (spec === undefined || spec.trim() === '') return undefined;
+  if (!/^[0-9]+$/.test(spec.trim()) || Number(spec.trim()) < 1) {
+    console.error(`FIGHT_FIGHT_NUMBER: expected a positive integer, got '${spec}'.`);
+    process.exit(1);
+  }
+  return Number(spec.trim());
+}
+const fightNumber = foeFightNumber();
+const fightSpec = fightNumber === undefined ? null : fightSpecFor(fightNumber);
+const enemyTitle = foeEnemyTitleOverride() ?? fightSpec?.title ?? null;
+const resolvedLevel = enemyLevel ?? fightSpec?.level ?? null;
+const enemyModifiers = fightSpec?.modifiers ?? [];
+// `FIGHT_ENEMY_BUMPED=1` — milestone boss vs bumped hard-elite (`BUMPED_BOSS_PRESET`,
+// src/run/encounter.ts). Unset = milestone, byte-identical to before this dial existed.
+const enemyBumped = process.env['FIGHT_ENEMY_BUMPED'] === '1';
 
 
 /**
@@ -325,29 +357,112 @@ function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPie
  * that module's header). This script's own behavior is unchanged: same env
  * var names, same error text, same passthrough on an absent/blank value.
  */
-function heroStats(): typeof BASE_HERO_STATS {
-  const stats = { ...BASE_HERO_STATS };
+function heroStats(base: typeof BASE_HERO_STATS): typeof BASE_HERO_STATS {
+  const stats = { ...base };
   const hp = process.env['FIGHT_HERO_HP'];
   if (hp !== undefined && /^[0-9]+$/.test(hp)) stats.hp = Math.min(Number(hp), stats.maxHp);
   return withStatOverrides(stats, 'FIGHT_HERO_STATS');
 }
 
+/**
+ * HERO LEVEL — `FIGHT_HERO_LEVEL=6 [FIGHT_HERO_ALLOC=attack:2,speed:1] npm run
+ * fight`. Routes the hero's base stats through the SAME `buildAutoHeroSetup`
+ * the run itself uses (auto-balanced spend against `DEFAULT_PROFILE` unless
+ * `FIGHT_HERO_ALLOC` names one), so a probe can show a run-realistic hero
+ * instead of the level-1 floor. Absent env = byte-identical to before
+ * (`BASE_HERO_STATS`, unleveled).
+ */
+function heroLevel(): number | null {
+  const spec = process.env['FIGHT_HERO_LEVEL'];
+  if (spec === undefined || spec.trim() === '') return null;
+  if (!/^[0-9]+$/.test(spec.trim()) || Number(spec.trim()) < 1) {
+    console.error(`FIGHT_HERO_LEVEL: expected a positive integer, got '${spec}'.`);
+    process.exit(1);
+  }
+  return Number(spec.trim());
+}
+const heroLevelOverride = heroLevel();
+
+function heroAllocation(): Allocation | undefined {
+  const spec = process.env['FIGHT_HERO_ALLOC'];
+  if (spec === undefined || spec.trim() === '') return undefined;
+  const zero = { maxHp: 0, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0 };
+  return parseStatOverrideSpec(spec, 'FIGHT_HERO_ALLOC', zero);
+}
+
+/**
+ * PURCHASED STATS — `FIGHT_HERO_PURCHASED=attack:3,armor:1,maxHp:2 npm run
+ * fight`. Same buy-count shape/parser as `FIGHT_HERO_ALLOC`, folded in AFTER
+ * the level allocation (`buildAutoHeroSetup`'s 4th param) — the gold
+ * market's/free-boon's stat buys (`src/run/market.ts`), never PL-budget-
+ * checked. Absent = byte-identical to before it existed.
+ */
+function heroPurchasedStats(): Allocation | undefined {
+  const spec = process.env['FIGHT_HERO_PURCHASED'];
+  if (spec === undefined || spec.trim() === '') return undefined;
+  const zero = { maxHp: 0, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0 };
+  return parseStatOverrideSpec(spec, 'FIGHT_HERO_PURCHASED', zero);
+}
+const heroPurchasedOverride = heroPurchasedStats();
+
+const heroBaseStats = heroLevelOverride === null && heroPurchasedOverride === undefined
+  ? BASE_HERO_STATS
+  : buildAutoHeroSetup(heroLevelOverride ?? 1, [], heroAllocation(), heroPurchasedOverride).setup.stats;
+
 const playerTeam: CombatantSetup[] = [
   {
     name: heroName,
-    stats: heroStats(),
+    stats: heroStats(heroBaseStats),
     boardSize: HERO_BOARD_SLOTS,
     pieces: heroPieces(),
   },
 ];
+/**
+ * GHOST FOE — `FIGHT_FOE_GHOST_BOARD=a,b@silver,c#gem FIGHT_FOE_GHOST_LEVEL=5
+ * FIGHT_FOE_GHOST_ALLOC=attack:3,speed:2 [FIGHT_FOE_GHOST_NAME=...]`: every foe
+ * is built by `buildGhostFoeSetup`, the same path `resolveBattle` uses.
+ */
+function ghostFoe(): CombatantSetup | null {
+  const spec = process.env['FIGHT_FOE_GHOST_BOARD'];
+  if (spec === undefined || spec.trim() === '') return null;
+  const { pieces } = parsePieceList(spec, 'FIGHT_FOE_GHOST_BOARD', skillBook, gemBook);
+  const levelSpec = process.env['FIGHT_FOE_GHOST_LEVEL'] ?? '1';
+  if (!/^[0-9]+$/.test(levelSpec.trim())) {
+    console.error(`FIGHT_FOE_GHOST_LEVEL: expected a positive integer, got '${levelSpec}'.`);
+    process.exit(1);
+  }
+  const zero = { maxHp: 0, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0 };
+  const allocation = parseStatOverrideSpec(process.env['FIGHT_FOE_GHOST_ALLOC'] ?? '', 'FIGHT_FOE_GHOST_ALLOC', zero);
+  try {
+    return buildGhostFoeSetup({
+      pieces: pieces.map((pc) => ({
+        skillId: pc.skillId,
+        slot: pc.slot,
+        ...(pc.tier === undefined ? {} : { tier: pc.tier }),
+        ...(pc.gem ? { gemId: pc.gem.id } : {}),
+      })),
+      level: Number(levelSpec.trim()),
+      allocation,
+      displayName: process.env['FIGHT_FOE_GHOST_NAME'] ?? 'Ghost',
+    });
+  } catch (err) {
+    console.error(`FIGHT_FOE_GHOST_BOARD: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+}
+const ghostSetup = ghostFoe();
 const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => {
+  if (ghostSetup !== null) return { ...ghostSetup, pieces: ghostSetup.pieces.map((pc) => ({ ...pc })) };
   // FIGHT_ENEMY_LEVEL (see `foeEnemyLevel`'s doc comment): grow the board
   // through the real resolver FIRST, so FIGHT_FOE_STATS/BOARD/SLOTS below
   // still compose exactly as they always have, now on top of a grown base
   // instead of the catalog floor.
-  const base = enemyLevel === null
+  const useResolver = resolvedLevel !== null || enemyTitle !== null;
+  const base = !useResolver
     ? enemy
-    : resolveEncounterForEnemy(enemy, enemyLevel, 'normal', undefined, [], null, undefined, null, enemyLevel).setup;
+    : resolveEncounterForEnemy(
+      enemy, resolvedLevel ?? 1, enemyTitle ?? 'normal', undefined, enemyModifiers, null, fightNumber, null, resolvedLevel ?? 1, enemyBumped,
+    ).setup;
   return {
     name: enemy.name,
     stats: withStatOverrides({ ...base.stats }, 'FIGHT_FOE_STATS'),
@@ -473,6 +588,12 @@ for (const side of ['player', 'enemy'] as const) {
   for (let i = 0; i < team.length; i += 1) {
     const u = team[i]!;
     console.log(`  ${side === 'player' ? 'you' : 'foe'} unit ${i}  ${tag(side, i)} ${u.stats.maxHp} hp`);
+    if (side === 'enemy' && ghostSetup !== null) {
+      console.log(`    ghost: hero chassis`);
+      console.log(`    atk ${u.stats.attack} · mag ${u.stats.magicPower}`);
+      console.log(`    def ${u.stats.armor} · res ${u.stats.magicResist}`);
+      console.log(`    spd ${u.stats.speed}`);
+    }
   }
 }
 console.log('');

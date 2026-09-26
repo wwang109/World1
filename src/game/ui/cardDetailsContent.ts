@@ -3,16 +3,21 @@ import type { GemDef } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { applyTier, gemCardMods, resolveDisplaySkill } from '../../engine/cards';
 import { cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
-import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN } from '../../engine/keywords/text';
+import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN, withTermEntries } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
 import { typeBadgeEntries } from './cardGlossary';
 import { stripCardTextMarkup } from './cardTextMarkup';
+import type { TierProgress } from '../../run/shop';
+import { tierProgressLine } from './tierProgressDisplay';
 export interface CardDetailsEntry { title: string; body: string }
 export interface CardDetailsContent {
   weight: number;
   roles: string[];
   entries: CardDetailsEntry[];
   gem?: CardDetailsEntry;
+  /** "1/2 to Gold"-style merge progress line, or `null` when no `progress`
+   * was supplied or the tier is Diamond. */
+  progressLine: string | null;
 }
 const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 export function cardDetailsPreviewTiers(skill: SkillDef): readonly SkillTier[] { return skillBook[skill.id] ? TIER_ORDER : [skill.tier]; }
@@ -103,16 +108,17 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
   // TRUE sink quantities already appear in their exact generated clauses;
   // parameterized glossary definitions would reintroduce generic X amounts.
   entries.push(...typeBadgeEntries(skill).filter(entry => !/\bX\b/.test(entry.body) && (skill.property !== 'true' || entry.title.startsWith('(T)'))).map(entry => ({ ...entry, body: entry.body.replace(' Has no other weapon matchup.', '') })));
-  return entries;
+  return withTermEntries(entries);
 }
 
 /** One inspector projection for Shop, Deck and Draft; catalogs remain read-only. */
-export function buildCardDetailsContent(skill: SkillDef, opts: { gem?: GemDef | null } = {}): CardDetailsContent {
+export function buildCardDetailsContent(skill: SkillDef, opts: { gem?: GemDef | null; progress?: TierProgress } = {}): CardDetailsContent {
   const entries = entriesFor(skill, opts.gem);
   return {
     weight: ownWeight(skill, opts.gem),
     roles: skill.archetypes.map(titleCase),
     entries,
     gem: opts.gem ? { title: 'Gem effect', body: `${opts.gem.name} — ${stripCardTextMarkup(renderGemText(opts.gem))}` } : undefined,
+    progressLine: opts.progress ? tierProgressLine(opts.progress) : null,
   };
 }

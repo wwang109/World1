@@ -41,6 +41,8 @@
  * claims for other consumers, but Explore deliberately omits those rows.
  */
 
+import { biomeCatalog } from '../../data/biomes';
+import { shopCatalog } from '../../data/shopTypes';
 import { forecastWave, type BandForecast } from '../../run/biomeForecast';
 import {
   BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
@@ -111,7 +113,17 @@ export interface BandBannerViewModel {
   /** The whole forecast card, as lines — see `bandForecastCardLines` below. It
    * is the card, not the banner, that NAMES THE MOBS: see `bandBannerBlocks`. */
   card: readonly string[];
-  guideSections: readonly { title: string; body: string }[];
+  guideSections: readonly {
+    title: string;
+    body: string;
+    /** The one section-scoped fact that gets the band's own colour instead of
+     * plain body text — currently only PREFERRED SHOPS' exclusive stall,
+     * which `f.shops` never lists (it is drawn from `biomeCatalog`, not the
+     * persisted forecast). Same swatch-plus-safe-ink treatment as the travel
+     * card's BIOME EXCLUSIVE tag: `swatchColor` is a fill patch, never the
+     * text colour, so it carries no legibility obligation of its own. */
+    accent?: { text: string; swatchColor: number };
+  }[];
   guideNote: string;
 }
 
@@ -214,6 +226,17 @@ export function rowToCardLines(row: BandForecastRow): string[] {
   }
 }
 
+/** The band's exclusive stall, if the biome names one — derived from
+ * `f.biomeId` (already part of the persisted `BandForecast`) rather than a
+ * new field on it, the same derivation `bandForecastRows.ts` uses. `f.shops`
+ * never lists it: it is a distinct, always-present-per-biome catalog fact,
+ * not one of the biome's ordinary preferred stalls. */
+function exclusiveShopName(f: Pick<BandForecast, 'biomeId'>): string | undefined {
+  const exclusiveShopId = biomeCatalog[f.biomeId]?.exclusiveShop;
+  if (exclusiveShopId === undefined) return undefined;
+  return shopCatalog[exclusiveShopId]?.name ?? exclusiveShopId;
+}
+
 /** Compose the player-facing Explore read from the shared forecast rows. */
 function bandForecastCardLines(f: BandForecast): readonly string[] {
   const lines: string[] = [];
@@ -223,6 +246,7 @@ function bandForecastCardLines(f: BandForecast): readonly string[] {
 
 /** The banner model for one forecast. Pure. */
 export function bandBannerViewModel(f: BandForecast): BandBannerViewModel {
+  const exclusiveShop = exclusiveShopName(f);
   return {
     biomeId: f.biomeId,
     artKey: biomeArtKey(f.biomeId),
@@ -239,7 +263,11 @@ export function bandBannerViewModel(f: BandForecast): BandBannerViewModel {
         ? `${f.boss.name} · LV ${f.boss.level}`
         : f.bossCandidates.map((boss) => boss.name).join(' · ') || 'Not revealed' },
       { title: 'REGIONAL ENEMIES', body: f.mobs.map((mob) => mob.name).join(' · ') },
-      { title: 'PREFERRED SHOPS', body: f.shops.map((shop) => shop.name).join(' · ') },
+      {
+        title: 'PREFERRED SHOPS',
+        body: f.shops.map((shop) => shop.name).join(' · '),
+        ...(exclusiveShop ? { accent: { text: `EXCLUSIVE · ${exclusiveShop}`, swatchColor: counterTypeColor(f.lean.type) } } : {}),
+      },
       { title: 'COMMON EVENT THEMES', body: f.eventThemes.map((theme) => theme.charAt(0).toUpperCase() + theme.slice(1)).join(' · ') },
     ],
     guideNote: 'Listed shops and themes are not exclusive or guaranteed. Other stops can appear. Individual events may have region requirements.',

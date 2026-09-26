@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": { "kind": "boolean", "default": false },
+    "grave_path": { "kind": "enum", "values": ["none", "opened", "answered"], "default": "none" },
+    "honorable_choice": { "kind": "boolean", "default": false },
+    "reliquary_oath": { "kind": "boolean", "default": false },
+    "oath_gate": { "kind": "enum", "values": ["none", "sworn", "kept", "released"], "default": "none" },
+    "venom_bloom": { "kind": "enum", "values": ["none", "cultivated"], "default": "none" },
+    "rival_spared": { "kind": "boolean", "default": false },
+    "moon_quarry_released": { "kind": "boolean", "default": false }
+  },
+  "events": [
+    {
+      "id": "duelists_grip",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Old Duelist's Grip",
+            "body": "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": { "storyId": "duelists_grip", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "take_grip", "label": "Learn his grip", "cost": 0, "outcome": { "kind": "grantStat", "stat": "attack" } },
+                { "id": "decline", "label": "Thank him and walk on", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "standing_stone",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Standing Stone",
+            "body": "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": { "storyId": "standing_stone", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "press_palm", "label": "Press your palm to the stone", "cost": 0, "outcome": { "kind": "grantStat", "stat": "maxHp" } },
+                { "id": "decline", "label": "Leave the stone be", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "smiths_temper",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "A Smith's Tempering",
+            "body": "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": { "storyId": "smiths_temper", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "temper_gear", "label": "Let her temper your gear", "cost": 0, "outcome": { "kind": "grantStat", "stat": "armor" } },
+                { "id": "decline", "label": "Keep moving", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

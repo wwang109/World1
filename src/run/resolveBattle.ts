@@ -1,9 +1,13 @@
 import { simulate } from '../engine/combat/simulate';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
-import type { BoardPiece, CombatOutcome, Element, WeaponType } from '../engine/types';
-import { buildAutoHeroSetup, buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encounter';
+import type { BoardPiece, CombatantSetup, CombatOutcome, Element, WeaponType } from '../engine/types';
+import { buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encounter';
+import { buildRequestHeroSetup } from './battleRequestValidation';
 import type { Allocation } from './leveling';
+import { assertKnownGhostEnemyId, buildGhostFoeSetup, type BattleGhostConfig } from './ghostFoeSetup';
+
+export { buildGhostFoeSetup } from './ghostFoeSetup';
 
 /**
  * The battle boundary: prep information in, event log out.
@@ -56,6 +60,24 @@ export interface BattleFoeConfig {
   growthLevel?: number;
   /** Run ladder rung for depth-ramped elite/boss title packages. */
   fightNumber?: number;
+  /** `'boss'`-title bump vs milestone — see `EncounterUnit.bumped`
+   * (encounter.ts) and `BUMPED_BOSS_PRESET`. Omitted/false = milestone. */
+  bumped?: boolean;
+  /** A saved player build fought on the hero chassis; `enemyId` still keys art/name, its chassis is ignored. */
+  ghost?: BattleGhostConfig | null;
+}
+
+export type { BattleGhostConfig };
+
+function buildFoeSetup(f: BattleFoeConfig): CombatantSetup {
+  if (f.ghost == null) {
+    return buildEnemyEncounter(
+      f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null, f.fightNumber, f.deck ?? null, f.growthLevel, f.bumped ?? false,
+    ).setup;
+  }
+  assertKnownGhostEnemyId(f.enemyId);
+  if (f.deck != null || f.affix != null) throw new Error('ghost foe: a ghost owns its board (deck and affix are not allowed)');
+  return buildGhostFoeSetup(f.ghost);
 }
 
 /** The prep information a battle is resolved from — the request payload. */
@@ -63,6 +85,10 @@ export interface BattleRequest {
   pieces: readonly BoardPiece[];
   heroLevel: number;
   heroAllocation: Allocation;
+  /** Permanent gold-market/free-boon stat buys (`RunState.purchasedStats`),
+   * folded in AFTER `heroAllocation` via `buildAutoHeroSetup`'s unguarded
+   * allocation. Omitted is byte-identical to no purchases ever made. */
+  heroPurchasedStats?: Allocation;
   /** One entry per foe, in event `unit` order. */
   foes: readonly BattleFoeConfig[];
   seed: number;
@@ -86,16 +112,8 @@ export interface BattleLog {
 
 /** Resolves setups from the request, simulates, and returns the log. */
 export function resolveBattle(request: BattleRequest): BattleLog {
-  const hero = buildAutoHeroSetup(
-    request.heroLevel,
-    request.pieces.map((p) => ({ ...p })),
-    request.heroAllocation,
-  ).setup;
-  const foeSetups = request.foes.map(
-    (f) => buildEnemyEncounter(
-      f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null, f.fightNumber, f.deck ?? null, f.growthLevel,
-    ).setup,
-  );
+  const hero = buildRequestHeroSetup(request);
+  const foeSetups = request.foes.map(buildFoeSetup);
   const { result, turns, events, finalState } = simulate(
     { playerTeam: [hero], enemyTeam: foeSetups, skillBook },
     request.seed,

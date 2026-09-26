@@ -55,7 +55,7 @@ export function eventOutcomePaneTemplate(
 
 export interface Box { x: number; y: number; w: number; h: number }
 export type FeatureGridVerticalAlignment = 'center' | 'top';
-export type RewardPickerKind = 'bonusDraft' | 'upgradeCard' | 'gemChoice' | 'sellGem' | 'mergeSpent' | 'mergeCandidates';
+export type RewardPickerKind = 'bonusDraft' | 'upgradeCard' | 'gemChoice' | 'sellGem' | 'mergeSpent' | 'mergeCandidates' | 'buyStatPick';
 
 export interface RewardPickerWindow {
   /** Visible cell boxes for this page, in local page order. */
@@ -83,6 +83,7 @@ const REWARD_PICKER_MIN_ROW_H: Record<RewardPickerKind, number> = {
   sellGem: 64,
   mergeSpent: 32,
   mergeCandidates: 56,
+  buyStatPick: 64,
 };
 
 /** Pager controls use the platform's real tap floor, not a retyped pixel

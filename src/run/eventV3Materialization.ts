@@ -60,6 +60,14 @@ export type EventDeferredOfferV3 =
   | ({ kind: 'grantGem'; gemId: string } & PendingOrSettledV3)
   | ({ kind: 'bonusDraft'; options: readonly EventCardOfferV3[] } & PendingOrSettledV3)
   | ({ kind: 'gemChoice'; optionGemIds: readonly [string, string, string] } & PendingOrSettledV3)
+  // The market's stat picker (2026-09-25) — options are the closed
+  // `MarketStat` enum, never rolled, so there is nothing to persist beyond
+  // the pick itself: `selectedId` (from `PendingOrSettledV3`) carries the
+  // bought `MarketStat` once settled. `src/run/eventsV3.ts`'s
+  // `applyDirectOutcome` resets this to a fresh `pending` offer every time
+  // the `buyStatPick` choice is taken, so a settled offer never blocks a
+  // second buy at the same node.
+  | ({ kind: 'buyStatPick' } & PendingOrSettledV3)
   | ({ kind: 'upgradeCard'; optionInstanceIds: readonly string[]; fallback: { kind: 'grantGold'; amount: number } } & PendingOrSettledV3)
   | { kind: 'sellGem'; status: 'unavailable' }
   | ({ kind: 'sellGem'; options: readonly EventSellGemOfferV3[] } & PendingOrSettledV3)

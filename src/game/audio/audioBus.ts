@@ -76,6 +76,14 @@ export function audioUnlocked(): boolean {
   return ctx?.state === 'running';
 }
 
+const unlockListeners: Array<() => void> = [];
+let unlockFired = false;
+
+export function onAudioUnlock(listener: () => void): void {
+  if (unlockFired) listener();
+  else unlockListeners.push(listener);
+}
+
 /** Arm the one-shot unlock on the first user gesture. Idempotent. */
 export function installUnlock(): void {
   if (typeof window === 'undefined') return;
@@ -84,6 +92,11 @@ export function installUnlock(): void {
     if (graph && graph.ctx.state === 'suspended') void graph.ctx.resume();
     window.removeEventListener('pointerdown', unlock);
     window.removeEventListener('keydown', unlock);
+    if (unlockFired) return;
+    unlockFired = true;
+    for (const listener of unlockListeners.splice(0)) {
+      try { listener(); } catch { /* never break the unlock */ }
+    }
   };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);

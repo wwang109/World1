@@ -68,21 +68,21 @@ export interface CardTokenOptions {
    */
   onInspect?: () => void;
   /**
-   * Battle-playback-only live state for this token's COMBO segment (the
+   * Battle-playback-only live state for this token's CHAIN segment (the
    * `comboBonus` face token, `case 'comboBonus'` in `skillPresentation.ts`) —
-   * user-ruled 2026-08-20: the token may say COMBO only paired with this
+   * user-ruled 2026-08-20: the token may say CHAIN only paired with this
    * indicator. `false` greys the segment (`UI.textDisabled`, the same tone
    * `textDisabled` already names for a disabled control) because the owner's
    * most recent resolved cast does NOT share an archetype with this card (or
    * nothing has been cast yet this fight — the engine's own initial
    * `lastCastArchetypes: []`, combat/state.ts). `true` or omitted renders the
-   * segment in its normal `KEYWORD_TEXT_COLOR.combo` color — omitted is the
+   * segment in its normal `KEYWORD_TEXT_COLOR.chain` color — omitted is the
    * ONLY value every non-battle caller (draft/shop/deck build/wiki/prep)
    * ever passes, because outside a fight there is no "previous cast" to be
    * live or not live against. Battle boards derive `true`/`false` from
    * `battleTimeline.ts`'s `isComboLive` + `comboArchetypesByTurn`; a token
-   * with no `comboBonus` action simply ignores this (no 'combo' segment to
-   * tint).
+   * with no `comboBonus` action simply ignores this (no `comboSegment` to
+   * tint — see `EffectSegment.comboSegment`, `skillPresentation.ts`).
    */
   comboLive?: boolean;
   /**
@@ -137,6 +137,8 @@ function defaultFaceMode(): SkillFaceMode {
 }
 
 /** A rendered effect segment: the token's text plus its RESOLVED color —
+ * `EffectSegment.color` when the segment carries an explicit override (e.g.
+ * the affinity badge's per-type tint, `cardTypeBadge`), else
  * `KEYWORD_TEXT_COLOR[keyword]` (cardTextMarkup.ts) when the token has one,
  * else `UI.textCalculated` when the segment's own number folded in a live
  * stat (`EffectSegment.calculated` — see that field's doc comment for the
@@ -157,9 +159,9 @@ function defaultFaceMode(): SkillFaceMode {
  * exact gap the feature was written to close.
  *
  * `EffectSegment.gateClosed` (2026-09-06 — see `CardTokenOptions.affinityOpen`)
- * WINS OVER EVERYTHING ELSE, same precedence as the COMBO override right
- * below it: a shut affinity gate's payload must read as "not live" no matter
- * which keyword it carries. */
+ * WINS OVER EVERYTHING ELSE, same precedence as the `comboSegment` override
+ * right below it: a shut affinity gate's payload must read as "not live" no
+ * matter which keyword it carries. */
 function effectFaceSegments(
   skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0', comboLive?: boolean, affinityOpen?: boolean,
 ): { text: string; color: string; joinWithPrevious?: boolean }[] {
@@ -167,20 +169,25 @@ function effectFaceSegments(
     text: segment.text,
     ...(segment.joinWithPrevious ? { joinWithPrevious: true } : {}),
     // A shut affinity gate's payload dims regardless of keyword (checked
-    // first — see the doc comment above). The COMBO segment overrides its
-    // keyword color to the disabled tone when battle playback says it isn't
-    // live right now (see `CardTokenOptions.comboLive`'s doc comment for the
-    // full rule) — every other segment, and COMBO itself when `comboLive` is
-    // `true`/omitted, keeps the ordinary keyword-color lookup.
+    // first — see the doc comment above). The CHAIN segment produced by a
+    // `comboBonus` action (`segment.comboSegment`, NOT `keyword` — a
+    // `chainBonus` segment shares the same `chain` keyword/colour but gates
+    // on type, not archetype) overrides its color to the disabled tone when
+    // battle playback says it isn't live right now (see
+    // `CardTokenOptions.comboLive`'s doc comment for the full rule) — every
+    // other segment, and this one when `comboLive` is `true`/omitted, keeps
+    // the ordinary keyword-color lookup.
     color: segment.gateClosed
       ? UI.textDisabled
-      : segment.keyword === 'combo' && comboLive === false
+      : segment.comboSegment === true && comboLive === false
         ? UI.textDisabled
-        : segment.keyword
-          ? keywordTextColor(segment.keyword) ?? fallbackColor
-          : segment.calculated
-            ? UI.textCalculated
-            : fallbackColor,
+        : segment.color
+          ? segment.color
+          : segment.keyword
+            ? keywordTextColor(segment.keyword) ?? fallbackColor
+            : segment.calculated
+              ? UI.textCalculated
+              : fallbackColor,
   }));
 }
 

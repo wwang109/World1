@@ -2,7 +2,12 @@ import { OFFENSIVE_KINDS } from '../../engine/balance';
 import { renderCtxOf } from '../../engine/keywords/compose';
 import { attunedShieldLabel, CARD_MOD_KEYS, CARD_MOD_TEXT, faceTokenOf, HEADLINE_LABEL, multiHitPowersEqual } from '../../engine/keywords/text';
 import { tierResolved, weightOf, type BuffableStat, type SkillDef } from '../../engine/types';
+import { cardTypeBadge } from './cardArtPresentation';
 import { STAT_TOKEN } from './statLabels';
+
+function packedColorToHex(color: number): string {
+  return `#${color.toString(16).padStart(6, '0')}`;
+}
 
 interface AuraModifierShape {
   damageFlat?: number;
@@ -265,6 +270,8 @@ function multiHitEffectLine(
 export interface EffectSegment {
   text: string;
   keyword?: string;
+  /** CSS hex color that wins over the `keyword` lookup in CardToken.ts's ink resolution, e.g. the affinity badge's per-type tint (`cardTypeBadge`, `cardArtPresentation.ts`). */
+  color?: string;
   /**
    * Render this segment as a differently colored continuation of the previous
    * segment, separated by one space instead of the normal middle dot. This is
@@ -328,6 +335,15 @@ export interface EffectSegment {
    * already uses for "not live right now" — ahead of every other colour rule.
    */
   gateClosed?: boolean;
+  /**
+   * True only for a `comboBonus` action's segment. `comboBonus` and
+   * `chainBonus` share one player-facing keyword/colour (`chain`, the
+   * 2026-09-23 Combo->Chain merge) but gate on different facts — archetype
+   * match vs type match — so `CardToken.ts`'s `comboLive` dimming must target
+   * this flag, not `keyword`, or a `chainBonus` segment would dim by the
+   * wrong (archetype) rule.
+   */
+  comboSegment?: boolean;
 }
 
 /** Visible joiner before a rich effect segment. */
@@ -489,7 +505,11 @@ export function summarizeEffectSegments(
       }
       default: {
         const token = faceTokenOf(action, ctx);
-        extras.push(token.keyword === undefined ? { text: token.text } : { text: token.text, keyword: token.keyword });
+        extras.push({
+          text: token.text,
+          ...(token.keyword === undefined ? {} : { keyword: token.keyword }),
+          ...(action.kind === 'comboBonus' ? { comboSegment: true } : {}),
+        });
         break;
       }
     }
@@ -505,12 +525,16 @@ export function summarizeEffectSegments(
       for (let i = beforeExtras; i < extras.length; i += 1) parts.push(extras[i]!.text);
       extras.length = beforeExtras;
       const ownType = skill.element ?? skill.weapon;
-      // TWO segments, not one: the `TYPE:` label (never dims — the gate's NAME
+      // TWO segments, not one: the `AFFIN:` label (never dims — the gate's NAME
       // isn't what closed) and the payload (dims when `affinityOpen === false`
       // — see `EffectSegment.gateClosed`'s doc comment for the exact rule and
       // why this is a caller-supplied boolean rather than something computed
       // here from `skill.element`/`skill.weapon` alone).
-      extras.push({ text: `${ownType === undefined ? HEADLINE_LABEL.affinity : ownType.toUpperCase()}:`, keyword: 'affinity' });
+      extras.push({
+        text: `${HEADLINE_LABEL.affinity}:`,
+        keyword: 'affinity',
+        ...(ownType === undefined ? {} : { color: packedColorToHex(cardTypeBadge(skill).color) }),
+      });
       extras.push({
         text: parts.join(' '),
         keyword: 'affinity',

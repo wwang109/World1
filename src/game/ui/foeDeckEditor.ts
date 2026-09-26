@@ -404,14 +404,15 @@ export function renderFoeDeckEditor(scene: Phaser.Scene, opts: FoeDeckEditorOpti
     scene.add.text(b.x, b.y + b.h / 2, 'AUTO returns the authored board', role('micro')).setOrigin(0, 0.5);
   } else {
     renderActionBar(scene, opts.screenW, opts.screenH, [
-      { label: 'AUTO', onPress: () => { playSfx('uiClick'); opts.onAuto(); } },
-      { label: 'CANCEL', onPress: () => { playSfx('uiBack'); opts.onCancel(); } },
+      { label: 'AUTO', onPress: opts.onAuto },
+      { label: 'CANCEL', sfx: 'uiBack', onPress: opts.onCancel },
       // Disabled APPLY still renders (dim) so the row never reflows; its
       // press is a no-op until the deck has a card.
       {
         label: applyEnabled ? 'APPLY' : 'APPLY (0)',
         primary: applyEnabled,
         flex: 1.4,
+        sfx: null,
         onPress: () => {
           if (!applyEnabled) return;
           playSfx('uiClick');
@@ -578,7 +579,8 @@ function editorButton(
     hover: hoverFillFor(kind === 'primary' ? 'primary' : 'default', UI),
     press: pressedFill(fill),
     follow: [text],
-    onPress: () => { playSfx('uiClick'); onPress(); },
+    sfx: label === 'CANCEL' ? 'uiBack' : undefined,
+    onPress,
   });
 }
 

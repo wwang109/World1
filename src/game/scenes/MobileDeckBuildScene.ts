@@ -27,7 +27,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { roundRect } from '../ui/roundedRect';
 import {
-  currentHeroAllocation, currentHeroLevel,
+  currentHeroAllocation, currentHeroLevel, currentPurchasedStats,
   commitRunDeckEdit,
   currentCooldownWarningDismissedFor, currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
   setCooldownWarningDismissedFor, setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
@@ -120,6 +120,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   private set gemInventory(next: string[]) { if (this.runContext) setCurrentRunGemInventory(next); else demoState.gemInventory = next; }
   private get heroLevel(): number { return this.runContext ? currentHeroLevel() : demoState.heroLevel; }
   private get heroAllocation() { return this.runContext ? currentHeroAllocation() : demoState.heroAllocation; }
+  private get purchasedStats() { return this.runContext ? currentPurchasedStats() : undefined; }
   /** The TEMP HOLDING card — run state in run context, scene state in the
    *  Sandbox. Same context split as `pieces`/`bagSlots` above, and the reason
    *  it exists: a card on the strip is still OWNED, so in a run it has to be
@@ -132,7 +133,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.draggables = [];
     this.runContext = getDeckBuildContext() === 'run';
-    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
+    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation, this.purchasedStats).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
     this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
@@ -164,7 +165,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: true,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('MobileRunMap'); },
       });
     }
   }
@@ -196,6 +197,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     let ghost: Phaser.GameObjects.Container | null = null;
     let totalMove = 0;
     let start = { x: 0, y: 0 };
+    let dragPickPlayedThisGesture = false;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // CONFIRMED INSTANCE (audit 2026-08, previously unguarded): this scene
       // has NO manual pointer-consumption field of its own (same as the shop
@@ -214,6 +216,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       if (!hit) { this.detailActivation.reset(); return; }
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
       totalMove = 0;
+      dragPickPlayedThisGesture = false;
       start = { x: p.worldX, y: p.worldY };
       ghost = hit.token.spawnGhost(); // dimmed copy + dashed outline stays in the source slot
       hit.token.setDepth(1000).setAlpha(0.9);
@@ -222,7 +225,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
       totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
-      if (totalMove >= 8) this.detailActivation.reset();
+      if (totalMove >= 8) {
+        this.detailActivation.reset();
+        if (!dragPickPlayedThisGesture) { dragPickPlayedThisGesture = true; playSfx('dragPick'); }
+      }
       dragging.token.setPosition(p.worldX, p.worldY);
       // gold drop-target highlight (mockup "drop to place") on the hovered slot
       if (dropHint) {
@@ -263,7 +269,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         return;
       }
       this.detailActivation.reset();
-      this.resolveDrop(src, p.worldX, p.worldY);
+      if (this.tryResolveDrop(src, p.worldX, p.worldY)) playSfx('dragDrop');
       this.rerender(); // mutations applied above; re-render (snaps back if no move)
     });
   }
@@ -423,7 +429,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // context-routed accessor, so both the run pouch (event/shop grants) and
     // the Sandbox pouch (WIKI › ADD TO POUCH) count — see `DeckMetaFacts`.
     const gemsSocketed = this.pieces.filter((p) => p.gem).length;
-    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
+    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation, this.purchasedStats).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const s = resolveDisplayHeroStats(hero.stats, hero.pieces);
     const gemAdds = gemHeroStats(hero.pieces);
@@ -646,14 +652,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.draggables.push({ token: tok, bounds: new Phaser.Geom.Rectangle(tok.x - tok.width / 2, tok.y - tok.height / 2, tok.width, tok.height), src });
   }
 
-  private resolveDrop(src: Source, px: number, py: number): void {
+  private tryResolveDrop(src: Source, px: number, py: number): boolean {
     // TRASH strip (bottom)
-    if (py >= this.H - 48) { this.pendingTrash = src; return; }
+    if (py >= this.H - 48) { this.pendingTrash = src; return true; }
     // TEMP HOLDING strip (top) — the band `renderHolding` actually drew,
     // plus the same 4px grab margin the old hardcoded 62..104 band had.
-    if (py >= this.holdingTop - HOLD_GRAB_PAD && py < this.holdingTop + this.holdingH + HOLD_GRAB_PAD) { this.toHold(src); return; }
+    if (py >= this.holdingTop - HOLD_GRAB_PAD && py < this.holdingTop + this.holdingH + HOLD_GRAB_PAD) return this.toHold(src);
     const { top, colH, rowH, gap, bagX } = this.layout;
-    if (py < top || py > top + colH) return; // dropped nowhere valid → snaps back
+    if (py < top || py > top + colH) return false; // dropped nowhere valid → snaps back
     const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((py - top) / (rowH + gap))));
     const where: 'deck' | 'bag' = px >= bagX ? 'bag' : 'deck';
 
@@ -667,11 +673,11 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         : this.bagOccupantAsSource(row);
       if (occupant && canStackMerge(occupant.card, src.card)) {
         this.pendingMerge = { target: occupant, dragged: src };
-        return;
+        return true;
       }
     }
 
-    if (where === 'bag') this.toBag(src, row); else this.toDeck(src, row);
+    return where === 'bag' ? this.toBag(src, row) : this.toDeck(src, row);
   }
 
   /** The deck occupant covering `row`, reshaped as a `MergeSource` (or

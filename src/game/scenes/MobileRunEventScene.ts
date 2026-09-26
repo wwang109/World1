@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { roundRect } from '../ui/roundedRect';
 import { positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
@@ -7,7 +8,8 @@ import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
-import { mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
+import { marketPurchaseConfirmText, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
+import { isMarketBuyOutcomeKind } from '../../run/market';
 import { buildMergeSpentEntries, mergeConfirmPreviewForChoice } from '../ui/runMergeViewModel';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import {
@@ -25,7 +27,9 @@ import {
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
+import { setBattleContext } from '../battleContext';
 import {
+  cancelCurrentBuyStatPick,
   currentRunEventViewModel,
   finalizeCurrentRunEventOffer,
   getActiveRun,
@@ -120,6 +124,11 @@ export class MobileRunEventScene extends Phaser.Scene {
    * the shared pane's sell callback; nothing is sold until it is
    * confirmed. */
   private sellGemConfirmOption: SellGemOption | null = null;
+  /** The last market buy's terse confirmation ("+1 ATTACK", "LIFE RESTORED"),
+   * or `null` — the node stays OPEN after a buy (`marketVisitStillOpen`) with
+   * no receipt pane in between, so this is the only feedback a second buy in
+   * the same visit gets. Survives a rerender (only `init()` clears it). */
+  private marketConfirmText: string | null = null;
 
   constructor() { super('MobileRunEvent'); }
 
@@ -133,6 +142,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.mergeConfirmChoiceId = null;
     this.costConfirmChoiceId = null;
     this.sellGemConfirmOption = null;
+    this.marketConfirmText = null;
   }
 
   private rerender(): void { rebuildScene(this); this.embedded?.onChanged(); }
@@ -197,6 +207,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       onContinue: () => this.continueToMap(),
       onFinalize: (selection, receipt) => this.finalizePicker(finalizeCurrentRunEventOffer(selection), receipt),
       onSell: option => { this.sellGemConfirmOption = option; this.rerender(); },
+      onCancel: () => { cancelCurrentBuyStatPick(); this.pane.reset(); this.rerender(); },
       onChange: () => this.rerender(),
     });
     this.renderRetirementConfirm();
@@ -272,11 +283,36 @@ export class MobileRunEventScene extends Phaser.Scene {
    * behind. */
   private resolveAndEnter(choiceId: string): void {
     const outcome = resolveCurrentRunEventChoice(choiceId);
+    // A `challengeFight` choice resolves straight to a battle, not a pane —
+    // the reward/loss it settles into plays out back on THIS same node
+    // (`resolveChallengeFightResult`, `src/game/runStore.ts`), which the
+    // battle scene's CONTINUE returns to.
+    if (outcome?.kind === 'challengeFight') {
+      setBattleContext('run');
+      this.scene.start('MobileBattle');
+      return;
+    }
+    this.marketConfirmText = outcome && isMarketBuyOutcomeKind(outcome.kind) ? marketPurchaseConfirmText(outcome) : null;
     if (outcome) {
       const run = getActiveRun();
-      if (run) this.enterOutcome(outcome, run);
+      if (run) this.enterOutcomeOrReopenMarket(outcome, run);
     }
     this.rerender();
+  }
+
+  /** See `DesktopRunEventScene`'s twin — a settled market buy that
+   * `marketVisitStillOpen` still allows a second purchase for goes back to
+   * `choices` instead of the outcome's terminal receipt. */
+  private enterOutcomeOrReopenMarket(
+    outcome: RunEventOutcome,
+    run: NonNullable<ReturnType<typeof getActiveRun>>,
+    receipt?: MergeCardsReceipt,
+  ): boolean {
+    if (currentRunEventViewModel()?.phase.kind === 'open') {
+      this.pane.reset();
+      return true;
+    }
+    return this.enterOutcome(outcome, run, receipt);
   }
 
   /**
@@ -323,8 +359,9 @@ export class MobileRunEventScene extends Phaser.Scene {
       this.rerender();
       return;
     }
+    this.marketConfirmText = isMarketBuyOutcomeKind(outcome.kind) ? marketPurchaseConfirmText(outcome) : null;
     const run = getActiveRun();
-    if (!run || !this.enterOutcome(outcome, run, receipt)) return;
+    if (!run || !this.enterOutcomeOrReopenMarket(outcome, run, receipt)) return;
     this.rerender();
   }
 
@@ -349,7 +386,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     renderRetireConfirm(this, {
       compact: true,
       onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-      onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+      onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('MobileRunMap'); },
     });
   }
 
@@ -429,11 +466,22 @@ export class MobileRunEventScene extends Phaser.Scene {
     choiceRows: MobileEventChoosingRect[],
     totalChoices = event.choices.length,
   ): void {
-    const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${totalChoices}`, {
-      ...textRole('kicker'),
-      color: UI.textSoft,
-    }).setOrigin(1, 0);
-    auditTextBlock(count, { name: 'Compact event outcome choice count', maxWidth: outcomes.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 8 });
+    // See `DesktopRunEventScene`'s twin: the static "EVENT OUTCOME" label
+    // already sits at `outcomeHeader`'s left edge, so a market confirmation
+    // replaces the right-aligned choice count instead of overlapping it.
+    if (this.marketConfirmText) {
+      const confirm = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, this.marketConfirmText, {
+        ...textRole('kicker'),
+        color: UI.textGem,
+      }).setOrigin(1, 0);
+      auditTextBlock(confirm, { name: 'Compact market purchase confirmation', maxWidth: outcomes.width * 0.55, maxHeight: outcomeHeader.height, minFontSize: 8 });
+    } else {
+      const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${totalChoices}`, {
+        ...textRole('kicker'),
+        color: UI.textSoft,
+      }).setOrigin(1, 0);
+      auditTextBlock(count, { name: 'Compact event outcome choice count', maxWidth: outcomes.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 8 });
+    }
 
     event.choices.forEach((choice, choiceIndex: number) => {
       const row = choiceRows[choiceIndex];

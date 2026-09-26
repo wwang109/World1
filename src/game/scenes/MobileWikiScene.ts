@@ -18,7 +18,6 @@ import { captionCell, captionCellHeight, MOBILE_WIKI_TOKEN_H, WIKI_PL_ROW_H, WIK
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { CardInfoBoxHandle } from '../ui/cardInfoBox';
-import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { currentRunGemInventory, isRunInProgress } from '../runStore';
 import { renderGemText } from '../../engine/keywords/gemText';
@@ -43,13 +42,8 @@ const ROW_GAP = 8;
 const FILTER_BAND_H = 82;
 const GEM_ROW_H = 78;
 const GEM_ROW_GAP = 8;
-/**
- * Catalogue rows kept live above and below the viewport (`ui/gridWindow.ts`).
- * Two rows of a two-column grid is four cards of slack in each direction — more
- * than one drag frame can cross at the ~92px row stride, so a fast flick never
- * exposes an unbuilt cell.
- */
-const OVERSCAN_ROWS = 2;
+const PAGE_CONTROLS_H = 40;
+const PAGE_CONTROLS_GAP = 10;
 type WikiCardFilter = 'all' | 'weapon' | 'magic';
 type WikiView = 'cards' | 'gems';
 const TIERS: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -79,36 +73,11 @@ interface GemGrid {
   mask?: Phaser.Display.Masks.GeometryMask;
 }
 
-/**
- * Mobile Wiki — a scrollable read-only catalog of every card in skillBook,
- * built for playtesting: tap a card to inspect it (with a tier selector) and
- * ADD TO BAG on demand. A CARDS | GEMS tab switches the same scrollable
- * viewport to the gem catalog (tap a gem for its detail + ADD TO POUCH).
- * Reachable at ?scene=mwiki.
- *
- * Cards use the same spec-driven fantasy template as the main Wiki. The
- * gallery is repositioned directly in world space on scroll so its geometry
- * mask stays aligned to the mobile viewport.
- */
 export class MobileWikiScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
   private viewport = { top: 0, height: 0 };
-  private scrollY = 0;
-  private maxScroll = 0;
-  /**
-   * The catalogue is WINDOWED — `rows[i]` exists only once cell `i` has been
-   * scrolled within `OVERSCAN_ROWS` of the viewport, so the array is SPARSE
-   * until the reader has been everywhere. See `ui/gridWindow.ts` for the
-   * measurements that forced this; the short version is that Phaser does not
-   * frustum-cull, so all 166 cards used to be drawn (and stencil-masked) every
-   * frame no matter where they were scrolled to.
-   *
-   * Cells leaving the window are HIDDEN, never destroyed: `visible` is the one
-   * thing `willRender` checks, so hiding is the whole frame-rate win, while
-   * keeping the object means a card's art streams once and a fast drag never
-   * pays to rebuild a `CardToken`.
-   */
+  private page = 0;
   private rows: Array<CatalogRow | undefined> = [];
   /** The filtered catalogue `rows` indexes into. */
   private catalogSkills: SkillDef[] = [];
@@ -116,11 +85,9 @@ export class MobileWikiScene extends Phaser.Scene {
   private cellMask?: Phaser.Display.Masks.GeometryMask;
   /** Column centres / card width / row stride — what `ensureRow` places from. */
   private grid = { cardW: 0, colX: [0, 0] as [number, number], rowStride: CELL_H + ROW_GAP };
-  /** Windowed exactly like `rows` — 53 gem rows, ~9 on screen. */
   private gemRows: Array<GemRow | undefined> = [];
   private catalogGems: GemDef[] = [];
   private gemGrid: GemGrid = { rowStride: GEM_ROW_H + GEM_ROW_GAP };
-  private indicator?: Phaser.GameObjects.Rectangle;
   private detailOpen = false;
   private detailSkill?: SkillDef;
   private detailTier: SkillTier = 'bronze';
@@ -150,6 +117,7 @@ export class MobileWikiScene extends Phaser.Scene {
    * matching DesktopWikiScene.init(); rebuilds within a visit keep the
    * current tab, filter, and tier (rebuildScene re-runs create() only). */
   init(): void {
+    this.page = 0;
     this.view = 'cards';
     this.cardFilter = 'all';
     this.detailTier = 'bronze';
@@ -158,7 +126,6 @@ export class MobileWikiScene extends Phaser.Scene {
   create(): void {
     this.W = SCREEN.width;
     this.H = SCREEN.height;
-    this.scrollY = 0;
     this.detailOpen = false;
     this.detailSkill = undefined;
     this.detailGem = undefined;
@@ -175,7 +142,7 @@ export class MobileWikiScene extends Phaser.Scene {
     this.renderFilterBand();
     if (this.view === 'cards') this.renderCardCatalog();
     else this.renderGemCatalog();
-    this.wireScroll();
+    this.wireCatalogTap();
   }
 
   private renderTabs(): void {
@@ -224,6 +191,7 @@ export class MobileWikiScene extends Phaser.Scene {
         playSfx('uiClick');
         if (this.view === v) return;
         this.view = v;
+        this.page = 0;
         this.rerender();
       });
       tx += w + 6;
@@ -255,6 +223,7 @@ export class MobileWikiScene extends Phaser.Scene {
           playSfx('uiClick');
           if (this.cardFilter === value) return;
           this.cardFilter = value;
+          this.page = 0;
           this.rerender();
         });
         x += w + 6;
@@ -265,11 +234,39 @@ export class MobileWikiScene extends Phaser.Scene {
     }
   }
 
-  // ---------- card catalog + scroll ----------
+  // ---------- catalog pages ----------
+
+  private catalogPage<T>(items: readonly T[], rowHeight: number, rowGap: number, columns: number): T[] {
+    const pageSize = Math.max(1, Math.floor((this.viewport.height + rowGap) / (rowHeight + rowGap))) * columns;
+    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+    this.page = Phaser.Math.Clamp(this.page, 0, pageCount - 1);
+    const y = this.H - 10 - PAGE_CONTROLS_H;
+    const buttonW = 100;
+    const addButton = (x: number, label: string, delta: number, enabled: boolean) => {
+      const button = this.add.rectangle(x, y, buttonW, PAGE_CONTROLS_H, enabled ? 0x18263a : 0x101a2a)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, enabled ? 0.9 : 0.4);
+      this.add.text(x + buttonW / 2, y + PAGE_CONTROLS_H / 2, label, {
+        fontFamily: FONT.body, fontSize: `${F.label}px`, fontStyle: 'bold',
+        color: enabled ? UI.textBright : UI.textDisabled,
+      }).setOrigin(0.5);
+      if (!enabled) return;
+      button.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        playSfx('uiClick');
+        this.page += delta;
+        this.rerender();
+      });
+    };
+    addButton(10, '‹ PREV', -1, this.page > 0);
+    addButton(this.W - 10 - buttonW, 'NEXT ›', 1, this.page < pageCount - 1);
+    this.add.text(this.W / 2, y + PAGE_CONTROLS_H / 2, `${this.page + 1} / ${pageCount}`, {
+      fontFamily: FONT.body, fontSize: `${F.label}px`, color: UI.textMuted,
+    }).setOrigin(0.5);
+    return items.slice(this.page * pageSize, (this.page + 1) * pageSize);
+  }
 
   private renderCardCatalog(): void {
     const top = 142;
-    const bottom = this.H - 10;
+    const bottom = this.H - 10 - PAGE_CONTROLS_H - PAGE_CONTROLS_GAP;
     const height = bottom - top;
     this.viewport = { top, height };
 
@@ -286,29 +283,18 @@ export class MobileWikiScene extends Phaser.Scene {
       rowStride: CELL_H + ROW_GAP,
     };
 
-    const skills = this.filteredSkills();
+    const skills = this.catalogPage(this.filteredSkills(), CELL_H, ROW_GAP, 2);
     this.catalogSkills = skills;
     this.rows = new Array<CatalogRow | undefined>(skills.length);
-    const contentHeight = Math.max(0, Math.ceil(skills.length / 2) * this.grid.rowStride - ROW_GAP);
-    this.maxScroll = Math.max(0, contentHeight - height);
-
-    // Depth 1 so the thumb stays above cells, which are now appended to the
-    // display list LATER than it is — a windowed cell is built the first time
-    // it scrolls into range, not in this pass.
-    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0).setDepth(1);
-    this.updateIndicator();
     if (skills.length === 0) {
       this.add.text(this.W / 2, top + 40, 'No cards in the catalog.', { fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5, 0);
     }
-    this.syncWindow();
+    for (let index = 0; index < skills.length; index++) {
+      const row = this.ensureRow(index);
+      if (row) this.placeRow(row, top + row.baseY);
+    }
   }
 
-  /**
-   * Builds catalogue cell `index` if it does not exist yet, and returns it.
-   * The ONE place a catalogue `CardToken` is constructed — cells arrive as the
-   * reader scrolls to them, which is also what keeps the wiki from resolving
-   * all 72 card-art textures on entry.
-   */
   private ensureRow(index: number): CatalogRow | undefined {
     const existing = this.rows[index];
     if (existing) return existing;
@@ -334,39 +320,6 @@ export class MobileWikiScene extends Phaser.Scene {
     return row;
   }
 
-  /**
-   * Brings the live set of cells in line with the current scroll offset:
-   * everything inside the window is built (if new), placed and shown;
-   * everything outside it is hidden. Cheap enough to run every drag frame —
-   * the loop is over 166 array slots, not over 166 game objects.
-   */
-  private syncWindow(): void {
-    const { top, height } = this.viewport;
-    const win = gridWindow({
-      count: this.catalogSkills.length,
-      columns: 2,
-      rowStride: this.grid.rowStride,
-      cellH: CELL_H,
-      viewportHeight: height,
-      scrollY: this.scrollY,
-      overscanRows: OVERSCAN_ROWS,
-    });
-    for (let index = 0; index < this.rows.length; index++) {
-      if (inGridWindow(win, index)) {
-        const row = this.ensureRow(index);
-        if (!row) continue;
-        this.placeRow(row, top + this.scrollY + row.baseY);
-        row.token.setVisible(true);
-        row.plText.setVisible(true);
-        continue;
-      }
-      const row = this.rows[index];
-      if (!row) continue;
-      row.token.setVisible(false);
-      row.plText.setVisible(false);
-    }
-  }
-
   /** The LIVE catalogue cell under a point, in scene x / content-space y. */
   private rowAt(worldX: number, localY: number): CatalogRow | undefined {
     for (const row of this.rows) {
@@ -380,7 +333,7 @@ export class MobileWikiScene extends Phaser.Scene {
   /** Single-column gem catalog: rarity diamond + name/rarity + prominent bonus text. */
   private renderGemCatalog(): void {
     const top = 142;
-    const bottom = this.H - 10;
+    const bottom = this.H - 10 - PAGE_CONTROLS_H - PAGE_CONTROLS_GAP;
     const height = bottom - top;
     this.viewport = { top, height };
 
@@ -388,18 +341,11 @@ export class MobileWikiScene extends Phaser.Scene {
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(0, top, this.W, height);
 
-    const gems = gemCatalogOrder(Object.values(gemBook));
+    const gems = this.catalogPage(gemCatalogOrder(Object.values(gemBook)), GEM_ROW_H, GEM_ROW_GAP, 1);
     this.catalogGems = gems;
     this.gemRows = new Array<GemRow | undefined>(gems.length);
     this.gemGrid = { rowStride: GEM_ROW_H + GEM_ROW_GAP, mask: maskShape.createGeometryMask() };
-    const contentHeight = Math.max(0, gems.length * this.gemGrid.rowStride - GEM_ROW_GAP);
-    this.maxScroll = Math.max(0, contentHeight - height);
-
-    // Depth 1: same reason as the card catalogue's thumb — rows are appended
-    // to the display list as they scroll into range, after this line runs.
-    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0).setDepth(1);
-    this.updateIndicator();
-    this.syncGemWindow();
+    for (let index = 0; index < gems.length; index++) this.ensureGemRow(index);
   }
 
   /** Builds gem row `index` if it does not exist yet. Twin of `ensureRow`. */
@@ -410,7 +356,7 @@ export class MobileWikiScene extends Phaser.Scene {
     const mask = this.gemGrid.mask;
     if (!gem || !mask) return undefined;
     const baseY = index * this.gemGrid.rowStride;
-    const container = this.add.container(0, this.viewport.top + this.scrollY + baseY);
+    const container = this.add.container(0, this.viewport.top + baseY);
     const bg = this.add.rectangle(10, 0, this.W - 20, GEM_ROW_H, 0x101a2a, 0.9)
       .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7);
     const diamond = this.add.rectangle(28, 20, 13, 13, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
@@ -436,32 +382,6 @@ export class MobileWikiScene extends Phaser.Scene {
     return row;
   }
 
-  /** `syncWindow` for the single-column gem list. */
-  private syncGemWindow(): void {
-    const { top, height } = this.viewport;
-    const win = gridWindow({
-      count: this.catalogGems.length,
-      columns: 1,
-      rowStride: this.gemGrid.rowStride,
-      cellH: GEM_ROW_H,
-      viewportHeight: height,
-      scrollY: this.scrollY,
-      overscanRows: OVERSCAN_ROWS,
-    });
-    for (let index = 0; index < this.gemRows.length; index++) {
-      if (inGridWindow(win, index)) {
-        const row = this.ensureGemRow(index);
-        if (!row) continue;
-        row.container.setY(top + this.scrollY + row.baseY);
-        row.container.setVisible(true);
-        continue;
-      }
-      const row = this.gemRows[index];
-      if (!row) continue;
-      row.container.setVisible(false);
-    }
-  }
-
   /** The LIVE gem row at a content-space y. */
   private gemRowAt(localY: number): GemRow | undefined {
     for (const row of this.gemRows) {
@@ -475,16 +395,6 @@ export class MobileWikiScene extends Phaser.Scene {
     return `#${GEM_RARITY_COLOR[gem.rarity].toString(16).padStart(6, '0')}`;
   }
 
-  /**
-   * Places ONE catalogue row's token and PL label for a cell whose top edge is
-   * at `worldTop`. The ONE definition of that geometry, called by BOTH the
-   * initial render and `applyScroll` — which is precisely the bug this closes:
-   * `renderCardCatalog` used to drop the PL chip 24px on a multi-slot card to
-   * dodge `CardToken`'s `xN SLOTS` badge while `applyScroll` re-placed it at a
-   * flat +8, so the dodge survived exactly until the player scrolled one
-   * pixel. There is no offset left to keep in sync — the strip is reserved,
-   * and both call sites now derive it from the same `captionCell` split.
-   */
   private placeRow(row: CatalogRow, worldTop: number): void {
     const cell: CellBox = { x: row.baseX - row.w / 2, y: worldTop, w: row.w, h: row.h };
     const { token, caption } = captionCell(cell, WIKI_PL_ROW_H);
@@ -492,67 +402,29 @@ export class MobileWikiScene extends Phaser.Scene {
     row.plText.setPosition(row.baseX, caption.y + WIKI_PL_ROW_INSET);
   }
 
-  /** Re-windows and repositions the catalogue for the current scroll offset. */
-  private applyScroll(): void {
-    this.syncWindow();
-    this.updateIndicator();
-  }
-
-  private updateIndicator(): void {
-    if (!this.indicator) return;
-    const { top, height } = this.viewport;
-    const contentHeight = height + this.maxScroll;
-    const thumbH = this.maxScroll > 0 ? Math.max(24, (height / contentHeight) * height) : height;
-    const progress = this.maxScroll > 0 ? (-this.scrollY) / this.maxScroll : 0;
-    const thumbY = top + progress * (height - thumbH);
-    this.indicator.setSize(3, thumbH);
-    this.indicator.setPosition(this.W - 4, thumbY + thumbH / 2);
-  }
-
-  private wireScroll(): void {
+  private wireCatalogTap(): void {
     let dragging = false;
     let startY = 0;
     let startX = 0;
-    let startScroll = 0;
     let totalMove = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — the CARDS/GEMS
-      // and ALL/WEAPON/MAGIC filter chips (`renderFilterBand`) call
-      // `rerender()` from their own pointerdown handler; without this, a
-      // rebuild-timed click landing inside the (freshly laid out) catalog
-      // viewport would immediately start a phantom scroll-drag / tap-select.
-      // (`this.detailOpen` below is a plain, correctly-timed guard — opening/
-      // closing the detail overlay does NOT rebuild the scene, so this
-      // listener is never re-registered mid-click for that flow; the veil's
-      // own pointerdown separately guards THAT case with
-      // `event.stopPropagation()` — see `renderCardDetail`/`renderGemDetail`.)
       if (wasPointerConsumedByRebuild(this, p)) return;
       if (this.detailOpen) return;
       const { top, height } = this.viewport;
       if (p.worldY < top || p.worldY > top + height) return;
       dragging = true;
-      startY = p.worldY; startX = p.worldX; startScroll = this.scrollY; totalMove = 0;
+      startY = p.worldY; startX = p.worldX; totalMove = 0;
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
-      const dy = p.worldY - startY;
       totalMove = Math.max(totalMove, Math.hypot(p.worldX - startX, p.worldY - startY));
-      this.scrollY = Phaser.Math.Clamp(startScroll + dy, -this.maxScroll, 0);
-      if (this.view === 'cards') this.applyScroll();
-      else this.applyGemScroll();
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
-      // Symmetric with the `pointerdown` guard above — `processUpEvents` has
-      // the SAME two-phase (per-object then scene-level) dispatch as
-      // `processDownEvents` (see `wasPointerConsumedByRebuild`'s doc comment,
-      // sceneRebuild.ts). No object-level `pointerup` handler rebuilds today,
-      // so `dragging` being null already protects this listener in practice —
-      // this guard is defense-in-depth against the first one that does.
       if (wasPointerConsumedByRebuild(this, p)) return;
       if (!dragging) return;
       dragging = false;
       if (totalMove < 8) {
-        const localY = p.worldY - this.viewport.top - this.scrollY;
+        const localY = p.worldY - this.viewport.top;
         if (this.view === 'cards') {
           // The tap region is the CELL, not the token — a tap on the PL row under
           // a card opens that card, which is what a reader aiming at the card's
@@ -565,12 +437,6 @@ export class MobileWikiScene extends Phaser.Scene {
         }
       }
     });
-  }
-
-  /** Re-windows and repositions the gem list for the current scroll offset. */
-  private applyGemScroll(): void {
-    this.syncGemWindow();
-    this.updateIndicator();
   }
 
   // ---------- bag insertion ----------
@@ -632,14 +498,6 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!skill) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    // ADJACENT FINDING (audit 2026-08, same sweep as `wasPointerConsumedByRebuild`):
-    // this handler mutates `detailOpen` to false WITHOUT a scene rebuild — the
-    // scene-level `wireScroll` pointerdown listener is the SAME (never
-    // re-registered) one, but it re-evaluates `this.detailOpen` for THIS same
-    // click right after this handler runs, now sees it false, and can start a
-    // phantom scroll-drag that reopens a detail panel on release. The
-    // sibling `close` button below already guards this correctly via
-    // `event.stopPropagation()` — mirror it here.
     veil.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
       playSfx('uiBack');
@@ -760,14 +618,6 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!gem) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    // ADJACENT FINDING (audit 2026-08, same sweep as `wasPointerConsumedByRebuild`):
-    // this handler mutates `detailOpen` to false WITHOUT a scene rebuild — the
-    // scene-level `wireScroll` pointerdown listener is the SAME (never
-    // re-registered) one, but it re-evaluates `this.detailOpen` for THIS same
-    // click right after this handler runs, now sees it false, and can start a
-    // phantom scroll-drag that reopens a detail panel on release. The
-    // sibling `close` button below already guards this correctly via
-    // `event.stopPropagation()` — mirror it here.
     veil.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
       playSfx('uiBack');

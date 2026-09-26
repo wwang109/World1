@@ -1,4 +1,4 @@
-import type { Action, BuffableStat, Element, Property, SkillSize, WeaponType } from '../types';
+import type { Action, Archetype, BuffableStat, Element, Property, SkillSize, WeaponType } from '../types';
 
 /**
  * KEYWORD TEXT — the TEXT facet of the keyword document, as DATA.
@@ -61,6 +61,7 @@ export interface RenderCtx {
   property: Property;
   element?: Element | undefined;
   weapon?: WeaponType | undefined;
+  archetypes: Archetype[];
   size: SkillSize;
   speedWeight?: number | undefined;
   cooldownTurns?: number | undefined;
@@ -98,14 +99,15 @@ export interface RenderCtx {
   /**
    * HOST-LESS MODE — this clause belongs to a GEM being shown on its own.
    *
-   * `RenderCtx` otherwise assumes a host card, because the three facts a
+   * `RenderCtx` otherwise assumes a host card, because the facts a
    * defensive/offensive clause needs (which property, which type, which stat
-   * scales it) belong to the card, not to the action. A gem's `shield 4` has
-   * NO property of its own: socketed, it takes the host's; in the pouch, in
-   * the shop and in the wiki there is no host at all. So `'gem'` drops exactly
-   * those three host-owned terms — the type word, the `(+ATK)`/`(+MDEF)`
-   * suffix, and the `physical`/`magical` property word — and nothing else. No
-   * number and no keyword token is ever dropped.
+   * scales it, which archetypes it carries) belong to the card, not to the
+   * action. A gem's `shield 4` has NO property of its own: socketed, it takes
+   * the host's; in the pouch, in the shop and in the wiki there is no host at
+   * all. So `'gem'` drops exactly those host-owned terms — the type word, the
+   * `(+ATK)`/`(+MDEF)` suffix, the `physical`/`magical` property word, and the
+   * `comboBonus` archetype-list suffix — and nothing else. No number and no
+   * keyword token is ever dropped.
    *
    * A gem therefore reads IDENTICALLY standalone and socketed (`renderGemText`
    * passes `'gem'` in both cases), which is the point: one gem, one sentence.
@@ -211,7 +213,7 @@ export const STAT_RULE: Record<StatLabelKey, { title: string; body: string }> = 
   },
   speed: {
     title: `${STAT_TOKEN.speed} — ${STAT_LONG_NAME.speed}`,
-    body: 'Adds readiness each turn.',
+    body: 'Adds Readiness each turn.',
   },
 };
 
@@ -236,6 +238,11 @@ export function statRuleByToken(label: string): { title: string; body: string } 
 /** `sword` -> `Sword`, `lightning` -> `Lightning`. */
 export function typeName(type: Element | WeaponType): string {
   return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+/** `offense` -> `Offense`. */
+function archetypeName(archetype: Archetype): string {
+  return archetype.charAt(0).toUpperCase() + archetype.slice(1);
 }
 
 /**
@@ -474,8 +481,8 @@ export const HEADLINE_LABEL = {
   shieldFull: 'SHIELD',
   /** A card whose cast fans out to every living foe (`isAoeSkill`). */
   aoe: 'AOE',
-  /** The affinity gate's label when the card has no element/weapon to name. */
-  affinity: 'AFFINITY',
+  /** The affinity gate's badge label — always this short form, typed cards tint it by type (`CardToken.ts`). */
+  affinity: 'AFFIN',
   /** The empty-kit placeholder for a card with no printable effect at all. */
   passive: 'PASSIVE',
   /** This card's Weight undercuts its size (`weightOf(skill) < size * 10`). */
@@ -715,7 +722,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     displayToken: 'stun',
     faceClause: (a) => (a.turns > 1 ? `{{Stun}} ×${a.turns}` : '{{Stun}}'),
     ruleTitle: 'Stun',
-    ruleSentence: 'Prevents the next card from activating and sets readiness to 0.',
+    ruleSentence: 'Prevents the next card from activating and sets Readiness to 0.',
     faceToken: () => ({ text: STATUS_TOKEN.stun, keyword: 'stun' }),
   },
   debuffStat: {
@@ -783,7 +790,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     // to Disrupt rather than the other way round, which would also have needed
     // a new `KEYWORD_TEXT_COLOR` key for a word nothing else uses.
     ruleTitle: 'Disrupt',
-    ruleSentence: 'Remove X readiness from the target.',
+    ruleSentence: 'Remove X Readiness from the target.',
     faceToken: (a) => ({ text: `DISRUPT ${a.amount}`, keyword: 'disrupt' }),
   },
 
@@ -855,18 +862,24 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   // ── conditional (the eleven cross-cast riders) ───────────────────────────
   comboBonus: {
     composeGroup: 'conditional',
-    displayToken: 'combo',
-    faceClause: (a) => `{{Combo}} +${a.amount}`,
-    ruleTitle: 'Combo',
+    displayToken: 'chain',
+    faceClause: (a, ctx) => {
+      const names = ctx.archetypes.map(archetypeName).join('/');
+      return `{{Chain}} +${a.amount}${names === '' ? '' : `/${names}`}`;
+    },
+    ruleTitle: 'Chain',
     ruleSentence: 'Deal X more damage if the previous card shared this card’s Archetype.',
-    faceToken: (a) => ({ text: `COMBO +${a.amount}`, keyword: 'combo' }),
+    faceToken: (a, ctx) => {
+      const names = ctx.archetypes.map((x) => x.toUpperCase()).join('/');
+      return { text: names === '' ? `CHAIN ${a.amount}` : `CHAIN: ${names} ${a.amount}`, keyword: 'chain' };
+    },
   },
   chainBonus: {
     composeGroup: 'conditional',
     displayToken: 'chain',
     faceClause: (a) => `{{Chain}} +${a.amount}/${typeName(a.after)}`,
     ruleTitle: 'Chain',
-    ruleSentence: 'Deal X more damage if the previous card had X type.',
+    ruleSentence: 'Deal X more damage if the previous card shared this card’s X type.',
     faceToken: (a) => ({ text: `CHAIN: ${a.after.toUpperCase()} ${a.amount}`, keyword: 'chain' }),
   },
   empowerNext: {
@@ -880,7 +893,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleSentence: 'Add X damage to the next card with matching type.',
     faceToken: (a, ctx) => {
       const type = ctx.element ?? ctx.weapon;
-      return { text: `NEXT ${type === undefined ? '' : `${type.toUpperCase()} `}+${a.amount}`, keyword: 'charge' };
+      return { text: type === undefined ? `CHARGE ${a.amount}` : `CHARGE: ${type.toUpperCase()} ${a.amount}`, keyword: 'charge' };
     },
   },
   exploit: {
@@ -889,7 +902,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `+${a.amount} vs ${a.status === 'debuff' ? 'debuff' : `{{${STATUS_MARKUP[a.status]}}}`}`,
     ruleTitle: 'Exploit',
     ruleSentence: 'Deal X more damage if the target already has X affliction.',
-    faceToken: (a) => ({ text: `+${a.amount} vs ${STATUS_TOKEN[a.status]}`, keyword: a.status === 'debuff' ? undefined : a.status }),
+    faceToken: (a) => ({ text: `EXPLOIT: ${STATUS_TOKEN[a.status]} ${a.amount}`, keyword: a.status === 'debuff' ? undefined : a.status }),
   },
   stackBonus: {
     composeGroup: 'conditional',
@@ -1174,6 +1187,23 @@ export const MULTI_HIT_RULE_ENTRY = {
   title: 'Multi-Hit',
   body: 'This card hits X times. Each hit resolves separately.',
 };
+
+export const READINESS_RULE_ENTRY = {
+  title: 'Readiness',
+  body: 'A resource spent to activate cards. Gained each turn from Speed.',
+};
+
+const TERM_RULE_ENTRIES: readonly { title: string; body: string }[] = [READINESS_RULE_ENTRY];
+
+export function withTermEntries<T extends { title: string; body: string }>(entries: readonly T[]): Array<T | { title: string; body: string }> {
+  const out: Array<T | { title: string; body: string }> = [...entries];
+  for (const term of TERM_RULE_ENTRIES) {
+    if (out.some((entry) => entry.title === term.title)) continue;
+    const word = new RegExp(`\\b${term.title}\\b`, 'i');
+    if (out.some((entry) => word.test(entry.body))) out.push(term);
+  }
+  return out;
+}
 
 export const LIGHTWEIGHT_RULE_ENTRY = {
   title: 'Lightweight',

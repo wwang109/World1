@@ -31,7 +31,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
-  currentHeroAllocation, currentHeroLevel,
+  currentHeroAllocation, currentHeroLevel, currentPurchasedStats,
   commitRunDeckEdit,
   currentCooldownWarningDismissedFor, currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
   setCooldownWarningDismissedFor, setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
@@ -123,6 +123,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private set gemInventory(next: string[]) { if (this.runContext) setCurrentRunGemInventory(next); else demoState.gemInventory = next; }
   private get heroLevel(): number { return this.runContext ? currentHeroLevel() : demoState.heroLevel; }
   private get heroAllocation() { return this.runContext ? currentHeroAllocation() : demoState.heroAllocation; }
+  private get purchasedStats() { return this.runContext ? currentPurchasedStats() : undefined; }
   /** The TEMP HOLDING card — run state in run context, scene state in the
    *  Sandbox. Same context split as `pieces`/`bagSlots` above, and the reason
    *  it exists: a card on the strip is still OWNED, so in a run it has to be
@@ -148,7 +149,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   create(): void {
     this.detailActivation.reset();
     this.draggables = [];
-    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
+    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation, this.purchasedStats).setup;
     // Hero-scope stat gems (e.g. +4 SPD) fold in here too, the SAME math the
     // engine applies at cast time — see `resolveDisplayHeroStats`. Without
     // this, every card face's live-stat term understated the gem's bonus.
@@ -179,7 +180,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       renderRetireConfirm(this, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+        onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('DesktopRunMap'); },
       });
     }
     if (this.runContext && this.statPanelOpen) {
@@ -219,6 +220,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     let ghost: Phaser.GameObjects.Container | null = null;
     let totalMove = 0;
     let start = { x: 0, y: 0 };
+    let dragPickPlayedThisGesture = false;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // CONFIRMED INSTANCE (audit 2026-08, previously unguarded): this scene
       // has NO manual pointer-consumption field of its own (same as the shop
@@ -236,6 +238,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       if (!hit) { this.detailActivation.reset(); return; }
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
       totalMove = 0;
+      dragPickPlayedThisGesture = false;
       start = { x: p.worldX, y: p.worldY };
       ghost = hit.token.spawnGhost(); // dimmed copy + dashed outline stays in the source slot
       hit.token.setDepth(1000).setAlpha(0.9);
@@ -244,7 +247,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
       totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
-      if (totalMove >= 6) this.detailActivation.reset();
+      if (totalMove >= 6) {
+        this.detailActivation.reset();
+        if (!dragPickPlayedThisGesture) { dragPickPlayedThisGesture = true; playSfx('dragPick'); }
+      }
       dragging.token.setPosition(p.worldX, p.worldY);
       if (dropHint) {
         const { top, colH, colW, rowH, gap, deckX, bagX } = this.layout;
@@ -284,7 +290,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         return;
       }
       this.detailActivation.reset();
-      this.resolveDrop(src, p.worldX, p.worldY);
+      if (this.tryResolveDrop(src, p.worldX, p.worldY)) playSfx('dragDrop');
       this.rerender(); // mutations applied above; re-render (snaps back if no move)
     });
   }
@@ -691,13 +697,13 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     addHoverTipZone(this, { x: tok.x - tok.width / 2 + 44, y: tok.y - tok.height / 2, w: Math.max(1, tok.width - 88), h: tok.height }, entries);
   }
 
-  private resolveDrop(src: Source, px: number, py: number): void {
+  private tryResolveDrop(src: Source, px: number, py: number): boolean {
     // TRASH strip (bottom)
-    if (py >= this.trashTop && py <= this.trashTop + this.trashH) { this.pendingTrash = src; return; }
+    if (py >= this.trashTop && py <= this.trashTop + this.trashH) { this.pendingTrash = src; return true; }
     // TEMP HOLDING strip (top)
-    if (py >= this.holdingTop && py <= this.holdingTop + this.holdingH) { this.toHold(src); return; }
+    if (py >= this.holdingTop && py <= this.holdingTop + this.holdingH) return this.toHold(src);
     const { top, colH, rowH, gap, bagX } = this.layout;
-    if (py < top || py > top + colH) return; // dropped nowhere valid → snaps back
+    if (py < top || py > top + colH) return false; // dropped nowhere valid → snaps back
     const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((py - top) / (rowH + gap))));
     const where: 'deck' | 'bag' = px >= bagX ? 'bag' : 'deck';
 
@@ -711,11 +717,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         : this.bagOccupantAsSource(row);
       if (occupant && canStackMerge(occupant.card, src.card)) {
         this.pendingMerge = { target: occupant, dragged: src };
-        return;
+        return true;
       }
     }
 
-    if (where === 'bag') this.toBag(src, row); else this.toDeck(src, row);
+    return where === 'bag' ? this.toBag(src, row) : this.toDeck(src, row);
   }
 
   /** The deck occupant covering `row`, reshaped as a `MergeSource` (or
