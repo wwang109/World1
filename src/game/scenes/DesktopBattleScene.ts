@@ -19,7 +19,7 @@ import { describeGhostSaveFailure } from '../ghostApi';
 import { GemToken } from '../ui/GemToken';
 import { promptForLine } from '../ui/textPrompt';
 import type { BattleLog } from '../../run/resolveBattle';
-import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
+import { recipeForIdentity, fxTierFor, MOTION_PROFILE } from '../ui/battleFxSpec';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { playSfx } from '../audio/sfxSynth';
@@ -37,6 +37,11 @@ import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
 import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import {
+  applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
+  flashLogRowHighlight, popStatusChip, pulseTokenAt, punchLogRowIn, shakeBar, slidePhaseBanner, spawnFxFloat,
+  type HpBarHandles,
+} from '../ui/battlePlaybackFx';
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -44,15 +49,6 @@ const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 const TURNLINE_ENTRY = { title: 'Turn order', body: 'Each side’s turn score is banked readiness + Speed − the queued card’s weight; higher performs. The loser banks their Speed for next time. A size-N card busies its caster N−1 extra turns.' };
 
 const F = DESKTOP_PROFILE.font;
-
-/** Everything a rendered HP bar hands back so FX can target it after the fact. */
-interface HpBarHandles {
-  fillRect: Phaser.GameObjects.Rectangle;
-  shieldRect: Phaser.GameObjects.Rectangle;
-  shakeTargets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>;
-  floatX: number;
-  floatY: number;
-}
 
 // DEBUFF ("an effect was just APPLIED to you") vs EFFECT ("that effect is
 // DEALING DAMAGE right now") are deliberately split into their own tags AND
@@ -101,6 +97,8 @@ const FOOTER_BOTTOM = 24;
 const SCRUBBER_H = 28;
 const PANEL_W = 380;
 const HP_BLOCK_H = DESKTOP_HP_BLOCK.blockHeight;
+const HIT_STOP_MS = 90;
+const DEATH_PAUSE_MS = 70;
 
 /**
  * Desktop Battle — landscape: player board panel LEFT · enemy board panel
@@ -318,7 +316,14 @@ export class DesktopBattleScene extends Phaser.Scene {
     if (!this.playing) return;
     const current = this.steps[this.idx];
     const line = current ? this.linesByTurn.get(current.turn)?.[current.lineIndex] : undefined;
-    const delay = (line?.tag === 'DOWN' ? 160 : 450) / this.speedMult;
+    let delay = line?.tag === 'DOWN' ? 160 : 450;
+    const stepHasTopTierHit = (this.fxByStep[this.idx] ?? []).some((fx) => fx.kind === 'damage' && fxTierFor(fx.amount).flash);
+    if (stepHasTopTierHit) delay += HIT_STOP_MS;
+    const nextLine = this.steps[this.idx + 1]
+      ? this.linesByTurn.get(this.steps[this.idx + 1]!.turn)?.[this.steps[this.idx + 1]!.lineIndex]
+      : undefined;
+    if (nextLine?.tag === 'DOWN') delay += DEATH_PAUSE_MS;
+    delay /= this.speedMult;
     this.playTimer = this.time.delayedCall(delay, () => {
       if (this.idx < this.steps.length - 1) {
         this.idx += 1;
@@ -470,15 +475,27 @@ export class DesktopBattleScene extends Phaser.Scene {
     // in battle, not only inferable from the D: math expansions) is now drawn
     // by `hpBar` itself, with its own hover tip: it shares a block with the
     // status badges, so one function has to own where both land.
+    const stepFx = this.fxByStep[this.idx] ?? [];
+    const newlyAppliedChipKindsFor = (side: 'player' | 'enemy', unit: number): Set<string> => {
+      const out = new Set<string>();
+      if (!forwardStep) return out;
+      for (const fx of stepFx) if (fx.kind === 'statusApplied' && fx.side === side && (fx.unit ?? 0) === unit && fx.status) out.add(fx.status);
+      return out;
+    };
     const heroBar = this.hpBar(
       leftX, contentTop, PANEL_W, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
       this.heroStatLine,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       chips.player,
+      newlyAppliedChipKindsFor('player', 0),
     );
     const heroCol = new BoardColumn(this, { x: leftX, y: boardTop, width: PANEL_W, height: boardH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, 'player', 0, slots.player), deck: this.heroSkills, stats: this.heroStats });
-    if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
+    if (forwardStep && slots.player !== undefined) {
+      const cast = this.castFxFor('player', 0);
+      const recipe = pulseTokenAt(this, heroCol, this.heroPieces, slots.player, cast, F.small, this.speedMult);
+      if (recipe) { const key = cast ? sfxKeyForFx(cast) : null; if (key) playSfx(key); }
+    }
 
     const n = Math.max(1, this.foes.length);
     const tabbed = this.foes.length > 2;
@@ -513,6 +530,7 @@ export class DesktopBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeChips,
+        newlyAppliedChipKindsFor('enemy', u),
       );
       const foeSlot = slots.enemyUnits?.[u] ?? (u === 0 ? slots.enemy : undefined);
       const foeLastCast = comboSnap.enemyUnits?.[u] ?? (u === 0 ? comboSnap.enemy : []);
@@ -520,7 +538,11 @@ export class DesktopBattleScene extends Phaser.Scene {
         x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H, side: 'right',
         pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
-      if (animate && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot, this.castFxFor('enemy', u));
+      if (animate && foeSlot !== undefined) {
+        const cast = this.castFxFor('enemy', u);
+        const recipe = pulseTokenAt(this, foeCol, foeModel.pieces, foeSlot, cast, F.small, this.speedMult);
+        if (recipe) { const key = cast ? sfxKeyForFx(cast) : null; if (key) playSfx(key); }
+      }
     };
 
     if (!tabbed) {
@@ -569,32 +591,39 @@ export class DesktopBattleScene extends Phaser.Scene {
       renderFoeSection(this.focusedFoe, sectionTop, contentBottom - sectionTop, forwardStep && !focusChanged);
     }
 
-    // ---- floating numbers + defender shake for this step's damage/heal/shield ----
+    let stepHasTopTierHit = false;
+    let stepPhaseFx: TurnFx | undefined;
     if (forwardStep) {
-      for (const fx of this.fxByStep[this.idx] ?? []) {
+      for (const fx of stepFx) {
         const bar = fx.side === 'player' ? heroBar : foeBars[fx.unit ?? 0];
         const anchor = bar
           ? { x: bar.floatX, y: bar.floatY }
           : (fx.side === 'enemy' ? tabAnchors[fx.unit ?? 0] : undefined);
-        if (!anchor) continue;
         // Archetype × element/weapon recipe for this fx's source card (undefined
         // for un-attributed damage, e.g. DoT ticks — those keep the ailment
         // color fallback below), and the amount's importance tier (bigger hits
         // read bigger/bolder, only the top tier flashes).
         const recipe = recipeForIdentity(fx.archetype, fx.property, fx.element, fx.weapon);
         const tier = fxTierFor(fx.amount);
-        if (fx.kind === 'damage') {
-          if (bar) this.shakeBar(bar.shakeTargets);
+        if (fx.kind === 'damage' && anchor) {
+          if (tier.flash) stepHasTopTierHit = true;
+          if (bar) shakeBar(this, bar.shakeTargets, this.speedMult);
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
-          this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
-        } else if (fx.kind === 'heal') {
+          spawnFxFloat(this, anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier, F.body, this.speedMult);
+        } else if (fx.kind === 'heal' && anchor) {
           // Anti-heal world rule tax — visibly taxed float: the sickly
           // (debuff/expose) tint carries a small "−N%" suffix so a reduced
           // heal never reads as a plain, un-taxed number.
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
+          spawnFxFloat(this, anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier, F.body, this.speedMult,
             fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
-        } else if (fx.kind === 'shield') {
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
+        } else if (fx.kind === 'shield' && anchor) {
+          spawnFxFloat(this, anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier, F.body, this.speedMult);
+        } else if ((fx.kind === 'shieldBroken' || fx.kind === 'negated' || fx.kind === 'warded') && bar) {
+          flashHpBarKind(this, bar, fx.kind, this.speedMult);
+        } else if (fx.kind === 'died' && bar) {
+          fadeDefeated(this, bar.shakeTargets, this.speedMult);
+        } else if (fx.kind === 'phase') {
+          stepPhaseFx = fx;
         }
         const key = sfxKeyForFx(fx);
         if (key) playSfx(key);
@@ -602,7 +631,11 @@ export class DesktopBattleScene extends Phaser.Scene {
     }
 
     // ---- combat log (center column) ----
-    this.renderLog(logX, contentTop, logW, contentBottom - contentTop, turn, step, isOutcomeStep);
+    this.renderLog(logX, contentTop, logW, contentBottom - contentTop, turn, step, isOutcomeStep, forwardStep, stepHasTopTierHit);
+    if (stepPhaseFx) {
+      const line = this.linesByTurn.get(turn)?.[step.lineIndex];
+      if (line?.tag === 'PHASE') slidePhaseBanner(this, logX, contentTop, logW, 40, line.text, this.speedMult);
+    }
 
     // ---- horizontal scrubber + footer controls ----
     this.renderScrubber(leftX, scrubberY, this.W - GUTTER * 2);
@@ -617,7 +650,10 @@ export class DesktopBattleScene extends Phaser.Scene {
    * transcript (newest at bottom), tap a HIT row to expand its D: math (and
    * hover/tap it for a "how this was reached" tip reading the SAME
    * already-formatted D: string — never a recomputation). */
-  private renderLog(x: number, y: number, w: number, h: number, turn: number, step: PlaybackStep, isOutcomeStep: boolean): void {
+  private renderLog(
+    x: number, y: number, w: number, h: number, turn: number, step: PlaybackStep, isOutcomeStep: boolean,
+    forwardStep = false, topTierHit = false,
+  ): void {
     this.add.rectangle(x, y, w, h, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
     this.add.text(x + 16, y + 12, 'COMBAT LOG', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.text });
     const spd = this.speedByTurn.get(turn) ?? { player: '', enemy: '' };
@@ -661,8 +697,27 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.add.rectangle(x + 16, ly - 3, w - 32, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.boundedText(turnX, ly + 3, `T${t}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }, tagX - turnX - 8);
       prevTurn = t;
-      this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
-      const { height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
+      const tagText = this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
+      const { objects: bodyObjects, height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
+      const isNewestRow = forwardStep && t === turn && local === step.lineIndex;
+      if (isNewestRow) {
+        const newRowTargets = [tagText, ...bodyObjects];
+        if (line.tag === 'HIT' || line.tag === 'DOWN') {
+          punchLogRowIn(this, newRowTargets, this.speedMult);
+          if (line.tag === 'HIT' && topTierHit) {
+            flashLogRowHighlight(this, x + 8, ly - 3, w - 16, rowHeight, 0xd05c4e, this.speedMult);
+          }
+          if (line.tag === 'DOWN') {
+            flashLogPanelFullWidth(this, x, ly - 3, w, rowHeight, this.speedMult);
+          }
+        } else if (line.tag === 'BUFF' || line.tag === 'EFFECT') {
+          for (const t2 of newRowTargets) applyMotionProfileEntrance(this, t2, MOTION_PROFILE.support, this.speedMult);
+        } else if (line.tag === 'DEBUFF') {
+          for (const t2 of newRowTargets) applyMotionProfileEntrance(this, t2, MOTION_PROFILE.debuff, this.speedMult);
+        } else {
+          fadeSlideLogRowIn(this, newRowTargets, this.speedMult);
+        }
+      }
       if (line.detail) {
         this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
         const zone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
@@ -989,24 +1044,26 @@ export class DesktopBattleScene extends Phaser.Scene {
      * `chainChipsRow` (ui/battleHpBlockLayout.ts).
      */
     chips: StatusChip[] = [],
+    newlyAppliedChipKinds: Set<string> = new Set(),
   ): HpBarHandles {
     const R = DESKTOP_HP_BLOCK;
     const barY = panelY + R.barRowDy;
     const barW = panelW;
+    const barH = 16;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
     const firstAilment = ailments.find((a) => AILMENT_TINT[a] !== undefined);
     const fillColor = firstAilment ? this.blendColor(color, AILMENT_TINT[firstAilment]!, 45) : color;
 
     // ---- rects first, texts second, so no label can be painted over by a rect
     // added after it.
-    const border = this.add.rectangle(panelX, barY + 8, barW, 16, 0x1b2431).setOrigin(0, 0.5);
+    const border = this.add.rectangle(panelX, barY + 8, barW, barH, 0x1b2431).setOrigin(0, 0.5);
     border.setStrokeStyle(1, firstAilment ? AILMENT_TINT[firstAilment]! : 0x3a4a62, firstAilment ? 1 : 0.7);
 
     const hpTarget = frac(hp);
     const hpStart = prev ? frac(prev.hp) : hpTarget;
-    const fillRect = this.add.rectangle(panelX, barY + 8, hpStart, 16, fillColor).setOrigin(0, 0.5);
+    const fillRect = this.add.rectangle(panelX, barY + 8, hpStart, barH, fillColor).setOrigin(0, 0.5);
     if (prev && hpStart !== hpTarget) {
-      this.tweens.add({ targets: fillRect, width: hpTarget, duration: 400, ease: 'Cubic.Out' });
+      this.tweens.add({ targets: fillRect, width: hpTarget, duration: 400 / this.speedMult, ease: 'Cubic.Out' });
     }
 
     const shieldTarget = frac(shield);
@@ -1014,7 +1071,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const shieldVisible = shield > 0 || (prev?.shield ?? 0) > 0;
     const shieldRect = this.add.rectangle(panelX, barY, shieldStart, 5, 0x5fa8d3).setOrigin(0, 0.5).setVisible(shieldVisible);
     if (prev && shieldStart !== shieldTarget) {
-      this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
+      this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400 / this.speedMult, ease: 'Cubic.Out' });
     }
 
     // ---- labels. Created UNPLACED so the layout can chain off real measured
@@ -1071,6 +1128,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       if (!placed) { t.destroy(); return; } // overflowed — counted by the +N marker
       apply(t, `chip${i}`);
       placedChips.push(t);
+      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, t, this.speedMult);
     });
     if (moreText) {
       const moreBox = geo.byKey.chipMore;
@@ -1089,6 +1147,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     return {
       fillRect,
       shieldRect,
+      border,
       shakeTargets: [
         nameText, fillRect, hpLabelText,
         ...(shieldText ? [shieldText] : []),
@@ -1096,6 +1155,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       ],
       floatX: panelX + barW / 2,
       floatY: barY + 8,
+      barX: panelX,
+      barY: barY + 8,
+      barW,
+      barH,
     };
   }
 
@@ -1107,161 +1170,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       | ch(a & 255, b & 255);
   }
 
-  /**
-   * Floating "-N"/"+N" text over an HP bar — pops in with an overshoot
-   * (Back.easeOut), briefly flashes on the top FX tier only, then floats up +
-   * fades. Font size/weight scale with `tier`. Every stage self-destroys into
-   * the next; the final stage destroys the text object — nothing lingers, and
-   * a fresh render() already kills in-flight tweens + destroys the previous
-   * frame's objects before this ever runs again (see top of `render()`).
-   */
-  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier, taxSuffix?: string): void {
-    const fontSize = Math.round(F.body * tier.fontScale);
-    const fx = x + (Math.random() * 24 - 12);
-    const t = this.add
-      .text(fx, y - 4, text, {
-        fontFamily: FONT.body, fontSize: `${fontSize}px`, fontStyle: tier.bold ? 'bold' : 'normal', color,
-      })
-      .setOrigin(0.5)
-      .setDepth(30)
-      .setScale(0.5);
-    // Anti-heal world rule tax — a small sickly-tinted "−N%" riding just past
-    // the number, so a taxed heal never reads as a plain, un-taxed one. Same
-    // transient lifecycle as the number itself (pop/float/fade together,
-    // both destroyed at the end) — no separate cleanup path to leak.
-    const suffix = taxSuffix
-      ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
-          fontFamily: FONT.body, fontSize: `${F.tiny}px`, fontStyle: 'bold', color: AILMENT_COLOR.expose ?? '#c4a6e5',
-        }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
-      : undefined;
-    const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];
-    const floatUp = (): void => {
-      this.tweens.add({
-        targets, y: '-=26', alpha: 0, duration: 320, ease: 'Quad.easeOut',
-        onComplete: () => { t.destroy(); suffix?.destroy(); },
-      });
-    };
-    this.tweens.add({
-      targets, scale: 1, duration: 110, ease: 'Back.easeOut',
-      onComplete: () => {
-        if (tier.flash) {
-          this.tweens.add({
-            targets, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
-            onComplete: floatUp,
-          });
-        } else {
-          floatUp();
-        }
-      },
-    });
-  }
-
-  /** Small ±3px x-offset shake on the struck side's HP bar row. */
-  private shakeBar(targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>): void {
-    if (targets.length === 0) return;
-    const origins = targets.map((t) => ({ t, x: t.x }));
-    for (const o of origins) o.t.x = o.x - 3;
-    this.tweens.add({
-      targets,
-      x: '+=3',
-      duration: 33,
-      ease: 'Sine.InOut',
-      yoyo: true,
-      repeat: 2,
-      onComplete: () => { for (const o of origins) o.t.setPosition(o.x, o.t.y); },
-    });
-  }
-
-  /**
-   * Scale-pulse (1.0 → 1.04 → 1.0) the CardToken at `slot` in `col` — or, when
-   * `cast` resolves to a full archetype × element/weapon recipe, the richer
-   * `castTokenFx` flourish instead. Replicates BoardColumn's own row-
-   * consumption loop (a size-N piece occupies N rows but renders exactly one
-   * token) to find that piece's token without BoardColumn needing to expose
-   * one — battle scene stays a pure playback head over data it already owns
-   * (`pieces`), not a peek into BoardColumn internals.
-   */
-  private pulseTokenAt(col: BoardColumn, pieces: ColumnPiece[], slot: number, cast?: TurnFx, slotCount = 10): void {
-    const bySlot = new Map<number, ColumnPiece>();
-    for (const p of pieces) bySlot.set(p.slot, p);
-    let row = 0; let tokenIdx = 0;
-    while (row < slotCount) {
-      const piece = bySlot.get(row);
-      const span = piece ? Math.max(1, piece.skill.size) : 1;
-      if (piece && row === slot) {
-        const token = col.tokens[tokenIdx];
-        if (token) {
-          const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
-          if (recipe) {
-            this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
-            const key = cast ? sfxKeyForFx(cast) : null;
-            if (key) playSfx(key);
-          } else {
-            token.setScale(1);
-            this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });
-          }
-        }
-        return;
-      }
-      tokenIdx += 1;
-      row += span;
-    }
-  }
-
   /** This step's `cast` fx for `(side, unit)` — the card just played there,
    * if any (queued onto the step of its own first effect; see
    * `battleTimeline.ts`'s `pendingCastFx`). Drives `castTokenFx` below. */
   private castFxFor(side: 'player' | 'enemy', unit: number): TurnFx | undefined {
     return (this.fxByStep[this.idx] ?? []).find((fx) => fx.kind === 'cast' && fx.side === side && (fx.unit ?? 0) === unit);
-  }
-
-  /**
-   * A card PLAY's archetype × element/weapon flourish on its board token: a
-   * scale/rotation pulse shaped by the archetype's `MotionProfile` (offense
-   * punches, defensive braces, healing rises, support shimmers, debuff sinks/
-   * flickers), a brief palette-colored flash over the token, and the card
-   * name floating off in the same motion. Every tween destroys its own
-   * target on completion; a fresh render() already kills in-flight tweens +
-   * destroys the previous frame's objects first (see top of `render()`), so
-   * nothing orphans on a scrub/rebuild mid-animation.
-   */
-  private castTokenFx(token: Phaser.GameObjects.Container, recipe: FxRecipe, cardName: string): void {
-    const { motion, palette } = recipe;
-    const w = token.width || 60;
-    const h = token.height || 40;
-    token.setScale(1);
-    token.setAngle(0);
-    this.tweens.add({
-      targets: token, scale: motion.scalePeak, duration: motion.activeMs, ease: motion.easeIn,
-      yoyo: true, hold: motion.holdMs,
-      onComplete: () => token.setScale(1),
-    });
-    if (motion.angleJitterDeg > 0) {
-      this.tweens.add({
-        targets: token, angle: motion.angleJitterDeg, duration: Math.max(40, motion.activeMs / 2),
-        yoyo: true, ease: 'Sine.easeInOut',
-        onComplete: () => token.setAngle(0),
-      });
-    }
-    const flashCycles = Math.max(1, motion.pulses);
-    const flash = this.add.rectangle(token.x, token.y, w, h, palette.colorNum, 0.45).setDepth(29);
-    this.tweens.add({
-      targets: flash, alpha: 0, duration: 70, ease: motion.easeOut,
-      yoyo: flashCycles > 1, repeat: flashCycles - 1,
-      onComplete: () => flash.destroy(),
-    });
-    const nameText = this.add.text(token.x, token.y - h / 2 - 4, cardName, {
-      fontFamily: FONT.body, fontSize: `${F.small}px`, fontStyle: 'bold', color: palette.color,
-    }).setOrigin(0.5, 1).setDepth(31).setAlpha(0);
-    this.tweens.add({
-      targets: nameText, alpha: 1, duration: 100, ease: 'Sine.easeOut',
-      onComplete: () => {
-        this.tweens.add({
-          targets: nameText, y: nameText.y + motion.driftY, alpha: 0,
-          duration: 280, delay: motion.holdMs, ease: motion.easeOut,
-          onComplete: () => nameText.destroy(),
-        });
-      },
-    });
   }
 }

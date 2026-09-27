@@ -19,7 +19,7 @@ import { describeGhostSaveFailure } from '../ghostApi';
 import { GemToken } from '../ui/GemToken';
 import { promptForLine } from '../ui/textPrompt';
 import type { BattleLog } from '../../run/resolveBattle';
-import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
+import { recipeForIdentity, fxTierFor, MOTION_PROFILE } from '../ui/battleFxSpec';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { playSfx } from '../audio/sfxSynth';
@@ -37,6 +37,11 @@ import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
 import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import {
+  applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
+  flashLogRowHighlight, popStatusChip, pulseTokenAt, punchLogRowIn, shakeBar, slidePhaseBanner, spawnFxFloat,
+  type HpBarHandles,
+} from '../ui/battlePlaybackFx';
 
 const F = MOBILE_PROFILE.font;
 /**
@@ -50,20 +55,14 @@ const F = MOBILE_PROFILE.font;
 // viewport (only right/bottom/centre-anchored geometry moves), so this stays
 // a plain module constant.
 const RUN_HUD_TOP = runScreenLayout('mobile', 'statsOnly').regions.content.y;
+const HIT_STOP_MS = 90;
+const DEATH_PAUSE_MS = 70;
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 /** Hover copy for the turnline — read once, shown on every render. */
 const TURNLINE_ENTRY = { title: 'Turn order', body: 'Each side’s turn score is banked readiness + Speed − the queued card’s weight; higher performs. The loser banks their Speed for next time. A size-N card busies its caster N−1 extra turns.' };
 
-/** Everything a rendered HP bar hands back so FX can target it after the fact. */
-interface HpBarHandles {
-  fillRect: Phaser.GameObjects.Rectangle;
-  shieldRect: Phaser.GameObjects.Rectangle;
-  shakeTargets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>;
-  floatX: number;
-  floatY: number;
-}
 // Footer buttons come from the shared ActionBar template (ui/ActionBar.ts).
 
 /** The result overlay (scrim + ledger + banner) draws above the board. */
@@ -332,7 +331,14 @@ export class MobileBattleScene extends Phaser.Scene {
     if (!this.playing) return;
     const current = this.steps[this.idx];
     const line = current ? this.linesByTurn.get(current.turn)?.[current.lineIndex] : undefined;
-    const delay = (line?.tag === 'DOWN' ? 160 : 450) / this.speedMult;
+    let delay = line?.tag === 'DOWN' ? 160 : 450;
+    const stepHasTopTierHit = (this.fxByStep[this.idx] ?? []).some((fx) => fx.kind === 'damage' && fxTierFor(fx.amount).flash);
+    if (stepHasTopTierHit) delay += HIT_STOP_MS;
+    const nextLine = this.steps[this.idx + 1]
+      ? this.linesByTurn.get(this.steps[this.idx + 1]!.turn)?.[this.steps[this.idx + 1]!.lineIndex]
+      : undefined;
+    if (nextLine?.tag === 'DOWN') delay += DEATH_PAUSE_MS;
+    delay /= this.speedMult;
     this.playTimer = this.time.delayedCall(delay, () => {
       if (this.idx < this.steps.length - 1) {
         this.idx += 1;
@@ -447,6 +453,15 @@ export class MobileBattleScene extends Phaser.Scene {
     // live running ledger at ANY step) or closed (to dismiss it at the end).
     const summaryVisible = this.summaryOverride === null ? isOutcomeStep : this.summaryOverride;
 
+    const stepFx = this.fxByStep[this.idx] ?? [];
+    const stepHasTopTierHit = forwardStep && stepFx.some((fx) => fx.kind === 'damage' && fxTierFor(fx.amount).flash);
+    const newlyAppliedChipKindsFor = (side: 'player' | 'enemy', unit: number): Set<string> => {
+      const out = new Set<string>();
+      if (!forwardStep) return out;
+      for (const fx of stepFx) if (fx.kind === 'statusApplied' && fx.side === side && (fx.unit ?? 0) === unit && fx.status) out.add(fx.status);
+      return out;
+    };
+
     // ---- run-stats strip (2026-08-04 decision) — kicker/title('BATTLE')/
     // stats ONLY, drawn ONLY in run context; Sandbox reserves the identical
     // band (RUN_HUD_TOP) but draws nothing in it, so the dock/HP/boards below
@@ -515,8 +530,27 @@ export class MobileBattleScene extends Phaser.Scene {
       this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
       prevTurn = t;
-      this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
-      const { height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
+      const tagText = this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
+      const { objects: bodyObjects, height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
+      const isNewestRow = forwardStep && t === turn && local === step.lineIndex;
+      if (isNewestRow) {
+        const newRowTargets = [tagText, ...bodyObjects];
+        if (line.tag === 'HIT' || line.tag === 'DOWN') {
+          punchLogRowIn(this, newRowTargets, this.speedMult);
+          if (line.tag === 'HIT' && stepHasTopTierHit) {
+            flashLogRowHighlight(this, 8, ly - 3, this.W - 16, rowHeight, 0xd05c4e, this.speedMult);
+          }
+          if (line.tag === 'DOWN') {
+            flashLogPanelFullWidth(this, 0, ly - 3, this.W, rowHeight, this.speedMult);
+          }
+        } else if (line.tag === 'BUFF' || line.tag === 'EFFECT') {
+          for (const t2 of newRowTargets) applyMotionProfileEntrance(this, t2, MOTION_PROFILE.support, this.speedMult);
+        } else if (line.tag === 'DEBUFF') {
+          for (const t2 of newRowTargets) applyMotionProfileEntrance(this, t2, MOTION_PROFILE.debuff, this.speedMult);
+        } else {
+          fadeSlideLogRowIn(this, newRowTargets, this.speedMult);
+        }
+      }
       if (line.detail) {
         this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
         const zone = this.add.rectangle(0, ly - 3, this.W, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
@@ -563,6 +597,7 @@ export class MobileBattleScene extends Phaser.Scene {
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       chips.player,
+      newlyAppliedChipKindsFor('player', 0),
     );
     const foeBars: Array<HpBarHandles | undefined> = [];
     /** Tab-mode float anchor for foes whose full bar isn't on screen. */
@@ -583,6 +618,7 @@ export class MobileBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeChips,
+        newlyAppliedChipKindsFor('enemy', u),
       );
     };
     let boardsTop: number;
@@ -635,37 +671,46 @@ export class MobileBattleScene extends Phaser.Scene {
       boardsTop = tabY + tabH + 8;
     }
 
-    // ---- floating numbers + defender shake for this step's damage/heal/shield ----
+    let stepPhaseFx: TurnFx | undefined;
     if (forwardStep) {
-      for (const fx of this.fxByStep[this.idx] ?? []) {
+      for (const fx of stepFx) {
         const bar = fx.side === 'player' ? heroBar : foeBars[fx.unit ?? 0];
         const anchor = bar
           ? { x: bar.floatX, y: bar.floatY }
           : (fx.side === 'enemy' ? tabAnchors[fx.unit ?? 0] : undefined);
-        if (!anchor) continue;
         // Archetype × element/weapon recipe for this fx's source card (undefined
         // for un-attributed damage, e.g. DoT ticks — those keep the ailment
         // color fallback below), and the amount's importance tier (bigger hits
         // read bigger/bolder, only the top tier flashes).
         const recipe = recipeForIdentity(fx.archetype, fx.property, fx.element, fx.weapon);
         const tier = fxTierFor(fx.amount);
-        if (fx.kind === 'damage') {
-          if (bar) this.shakeBar(bar.shakeTargets);
+        if (fx.kind === 'damage' && anchor) {
+          if (bar) shakeBar(this, bar.shakeTargets, this.speedMult);
           // DoT ticks float in their ailment's color (poison green, burn orange…)
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
-          this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
-        } else if (fx.kind === 'heal') {
+          spawnFxFloat(this, anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier, F.lead, this.speedMult);
+        } else if (fx.kind === 'heal' && anchor) {
           // Anti-heal world rule tax — visibly taxed float: the sickly
           // (debuff/expose) tint carries a small "−N%" suffix so a reduced
           // heal never reads as a plain, un-taxed number.
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
+          spawnFxFloat(this, anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier, F.lead, this.speedMult,
             fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
-        } else if (fx.kind === 'shield') {
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
+        } else if (fx.kind === 'shield' && anchor) {
+          spawnFxFloat(this, anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier, F.lead, this.speedMult);
+        } else if ((fx.kind === 'shieldBroken' || fx.kind === 'negated' || fx.kind === 'warded') && bar) {
+          flashHpBarKind(this, bar, fx.kind, this.speedMult);
+        } else if (fx.kind === 'died' && bar) {
+          fadeDefeated(this, bar.shakeTargets, this.speedMult);
+        } else if (fx.kind === 'phase') {
+          stepPhaseFx = fx;
         }
         const key = sfxKeyForFx(fx);
         if (key) playSfx(key);
       }
+    }
+    if (stepPhaseFx) {
+      const line = this.linesByTurn.get(turn)?.[step.lineIndex];
+      if (line?.tag === 'PHASE') slidePhaseBanner(this, 0, dockTop, this.W, 28, line.text, this.speedMult);
     }
 
     // ---- boards + gutter scrubber ----
@@ -686,7 +731,11 @@ export class MobileBattleScene extends Phaser.Scene {
       slotMods: slotMods[slotModKey(side, unit, p.slot)],
     }));
     const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, 'player', 0, slots.player), deck: this.heroSkills, stats: this.heroStats });
-    if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
+    if (forwardStep && slots.player !== undefined) {
+      const cast = this.castFxFor('player', 0);
+      const recipe = pulseTokenAt(this, heroCol, this.heroPieces, slots.player, cast, F.label, this.speedMult);
+      if (recipe) { const key = cast ? sfxKeyForFx(cast) : null; if (key) playSfx(key); }
+    }
     // Enemy boards: 1–2 foes stack vertically in the right column; 3+ foes
     // show only the FOCUSED foe's board (the tab strip covers the rest).
     const foeBoard = (u: number, boardTop: number, boardH: number): void => {
@@ -697,7 +746,11 @@ export class MobileBattleScene extends Phaser.Scene {
         x: bagX, y: boardTop, width: colW, height: boardH, side: 'right',
         pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
-      if (forwardStep && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot, this.castFxFor('enemy', u));
+      if (forwardStep && foeSlot !== undefined) {
+        const cast = this.castFxFor('enemy', u);
+        const recipe = pulseTokenAt(this, foeCol, foeModel.pieces, foeSlot, cast, F.label, this.speedMult);
+        if (recipe) { const key = cast ? sfxKeyForFx(cast) : null; if (key) playSfx(key); }
+      }
     };
     if (!tabbed) {
       const nFoes = Math.max(1, this.foes.length);
@@ -936,10 +989,12 @@ export class MobileBattleScene extends Phaser.Scene {
      * `+N` marker — see `chainChipsRow` (ui/battleHpBlockLayout.ts).
      */
     chips: StatusChip[] = [],
+    newlyAppliedChipKinds: Set<string> = new Set(),
   ): HpBarHandles {
     const R = MOBILE_HP_BLOCK;
     const barX = R.barX;
     const barW = this.W - barX - R.barRightPad;
+    const barH = 12;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
     // Afflicted bars shift color toward their ailment (poison → green cast…)
     // and carry a colored border; the chip row below the statline names each
@@ -949,14 +1004,14 @@ export class MobileBattleScene extends Phaser.Scene {
 
     // ---- rects first, texts second, so no label can be painted over by a
     // rect added after it.
-    const border = this.add.rectangle(barX, y + 7, barW, 12, 0x1b2431).setOrigin(0, 0.5);
+    const border = this.add.rectangle(barX, y + 7, barW, barH, 0x1b2431).setOrigin(0, 0.5);
     border.setStrokeStyle(1, firstAilment ? AILMENT_TINT[firstAilment]! : 0x3a4a62, firstAilment ? 1 : 0.7);
 
     const hpTarget = frac(hp);
     const hpStart = prev ? frac(prev.hp) : hpTarget;
-    const fillRect = this.add.rectangle(barX, y + 7, hpStart, 12, fillColor).setOrigin(0, 0.5);
+    const fillRect = this.add.rectangle(barX, y + 7, hpStart, barH, fillColor).setOrigin(0, 0.5);
     if (prev && hpStart !== hpTarget) {
-      this.tweens.add({ targets: fillRect, width: hpTarget, duration: 400, ease: 'Cubic.Out' });
+      this.tweens.add({ targets: fillRect, width: hpTarget, duration: 400 / this.speedMult, ease: 'Cubic.Out' });
     }
 
     const shieldTarget = frac(shield);
@@ -964,7 +1019,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const shieldVisible = shield > 0 || (prev?.shield ?? 0) > 0;
     const shieldRect = this.add.rectangle(barX, y + 1, shieldStart, 4, 0x5fa8d3).setOrigin(0, 0.5).setVisible(shieldVisible);
     if (prev && shieldStart !== shieldTarget) {
-      this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
+      this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400 / this.speedMult, ease: 'Cubic.Out' });
     }
 
     // ---- labels. Created UNPLACED so the layout can chain off real measured
@@ -1022,6 +1077,7 @@ export class MobileBattleScene extends Phaser.Scene {
       if (!placed) { t.destroy(); return; } // overflowed — counted by the +N marker
       apply(t, `chip${i}`);
       placedChips.push(t);
+      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, t, this.speedMult);
     });
     if (moreText) {
       const moreBox = geo.byKey.chipMore;
@@ -1040,6 +1096,7 @@ export class MobileBattleScene extends Phaser.Scene {
     return {
       fillRect,
       shieldRect,
+      border,
       shakeTargets: [
         nameText, fillRect, hpText,
         ...(shieldText ? [shieldText] : []),
@@ -1047,6 +1104,10 @@ export class MobileBattleScene extends Phaser.Scene {
       ],
       floatX: barX + barW / 2,
       floatY: y + 7,
+      barX,
+      barY: y + 7,
+      barW,
+      barH,
     };
   }
 
@@ -1058,164 +1119,10 @@ export class MobileBattleScene extends Phaser.Scene {
       | ch(a & 255, b & 255);
   }
 
-  /**
-   * Floating "-N"/"+N" text over an HP bar — pops in with an overshoot
-   * (Back.easeOut), briefly flashes on the top FX tier only, then floats up +
-   * fades. Font size/weight scale with `tier`. Every stage self-destroys into
-   * the next; the final stage destroys the text object — nothing lingers, and
-   * a fresh render() already kills in-flight tweens + destroys the previous
-   * frame's objects before this ever runs again (see top of `render()`).
-   */
-  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier, taxSuffix?: string): void {
-    const fontSize = Math.round(F.lead * tier.fontScale);
-    const fx = x + (Math.random() * 24 - 12);
-    const t = this.add
-      .text(fx, y - 4, text, {
-        fontSize: `${fontSize}px`,
-        color,
-        fontFamily: FONT.body,
-        fontStyle: tier.bold ? 'bold' : 'normal',
-      })
-      .setOrigin(0.5)
-      .setDepth(30)
-      .setScale(0.5);
-    // Anti-heal world rule tax — a small sickly-tinted "−N%" riding just past
-    // the number, so a taxed heal never reads as a plain, un-taxed one. Same
-    // transient lifecycle as the number itself (pop/float/fade together,
-    // both destroyed at the end) — no separate cleanup path to leak.
-    const suffix = taxSuffix
-      ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
-          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#c4a6e5', fontFamily: FONT.body, fontStyle: 'bold',
-        }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
-      : undefined;
-    const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];
-    const floatUp = (): void => {
-      this.tweens.add({
-        targets, y: '-=26', alpha: 0, duration: 320, ease: 'Quad.easeOut',
-        onComplete: () => { t.destroy(); suffix?.destroy(); },
-      });
-    };
-    this.tweens.add({
-      targets, scale: 1, duration: 110, ease: 'Back.easeOut',
-      onComplete: () => {
-        if (tier.flash) {
-          this.tweens.add({
-            targets, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
-            onComplete: floatUp,
-          });
-        } else {
-          floatUp();
-        }
-      },
-    });
-  }
-
-  /** Small ±3px x-offset shake on the struck side's HP bar row. */
-  private shakeBar(targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>): void {
-    if (targets.length === 0) return;
-    const origins = targets.map((t) => ({ t, x: t.x }));
-    for (const o of origins) o.t.x = o.x - 3;
-    this.tweens.add({
-      targets,
-      x: '+=3',
-      duration: 33,
-      ease: 'Sine.InOut',
-      yoyo: true,
-      repeat: 2,
-      onComplete: () => { for (const o of origins) o.t.setPosition(o.x, o.t.y); },
-    });
-  }
-
-  /**
-   * Scale-pulse (1.0 → 1.04 → 1.0) the CardToken at `slot` in `col` — or, when
-   * `cast` resolves to a full archetype × element/weapon recipe, the richer
-   * `castTokenFx` flourish instead. Replicates BoardColumn's own row-
-   * consumption loop (a size-N piece occupies N rows but renders exactly one
-   * token) to find that piece's token without BoardColumn needing to expose
-   * one — battle scene stays a pure playback head over data it already owns
-   * (`pieces`), not a peek into BoardColumn internals.
-   */
-  private pulseTokenAt(col: BoardColumn, pieces: ColumnPiece[], slot: number, cast?: TurnFx, slotCount = 10): void {
-    const bySlot = new Map<number, ColumnPiece>();
-    for (const p of pieces) bySlot.set(p.slot, p);
-    let row = 0; let tokenIdx = 0;
-    while (row < slotCount) {
-      const piece = bySlot.get(row);
-      const span = piece ? Math.max(1, piece.skill.size) : 1;
-      if (piece && row === slot) {
-        const token = col.tokens[tokenIdx];
-        if (token) {
-          const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
-          if (recipe) {
-            this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
-            const key = cast ? sfxKeyForFx(cast) : null;
-            if (key) playSfx(key);
-          } else {
-            token.setScale(1);
-            this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });
-          }
-        }
-        return;
-      }
-      tokenIdx += 1;
-      row += span;
-    }
-  }
-
   /** This step's `cast` fx for `(side, unit)` — the card just played there,
    * if any (queued onto the step of its own first effect; see
    * `battleTimeline.ts`'s `pendingCastFx`). Drives `castTokenFx` below. */
   private castFxFor(side: 'player' | 'enemy', unit: number): TurnFx | undefined {
     return (this.fxByStep[this.idx] ?? []).find((fx) => fx.kind === 'cast' && fx.side === side && (fx.unit ?? 0) === unit);
-  }
-
-  /**
-   * A card PLAY's archetype × element/weapon flourish on its board token: a
-   * scale/rotation pulse shaped by the archetype's `MotionProfile` (offense
-   * punches, defensive braces, healing rises, support shimmers, debuff sinks/
-   * flickers), a brief palette-colored flash over the token, and the card
-   * name floating off in the same motion. Every tween destroys its own
-   * target on completion; a fresh render() already kills in-flight tweens +
-   * destroys the previous frame's objects first (see top of `render()`), so
-   * nothing orphans on a scrub/rebuild mid-animation.
-   */
-  private castTokenFx(token: Phaser.GameObjects.Container, recipe: FxRecipe, cardName: string): void {
-    const { motion, palette } = recipe;
-    const w = token.width || 60;
-    const h = token.height || 40;
-    token.setScale(1);
-    token.setAngle(0);
-    this.tweens.add({
-      targets: token, scale: motion.scalePeak, duration: motion.activeMs, ease: motion.easeIn,
-      yoyo: true, hold: motion.holdMs,
-      onComplete: () => token.setScale(1),
-    });
-    if (motion.angleJitterDeg > 0) {
-      this.tweens.add({
-        targets: token, angle: motion.angleJitterDeg, duration: Math.max(40, motion.activeMs / 2),
-        yoyo: true, ease: 'Sine.easeInOut',
-        onComplete: () => token.setAngle(0),
-      });
-    }
-    const flashCycles = Math.max(1, motion.pulses);
-    const flash = this.add.rectangle(token.x, token.y, w, h, palette.colorNum, 0.45).setDepth(29);
-    this.tweens.add({
-      targets: flash, alpha: 0, duration: 70, ease: motion.easeOut,
-      yoyo: flashCycles > 1, repeat: flashCycles - 1,
-      onComplete: () => flash.destroy(),
-    });
-    const nameText = this.add.text(token.x, token.y - h / 2 - 4, cardName, {
-      fontSize: `${F.label}px`, color: palette.color, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0.5, 1).setDepth(31).setAlpha(0);
-    this.tweens.add({
-      targets: nameText, alpha: 1, duration: 100, ease: 'Sine.easeOut',
-      onComplete: () => {
-        this.tweens.add({
-          targets: nameText, y: nameText.y + motion.driftY, alpha: 0,
-          duration: 280, delay: motion.holdMs, ease: motion.easeOut,
-          onComplete: () => nameText.destroy(),
-        });
-      },
-    });
   }
 }
