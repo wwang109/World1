@@ -487,10 +487,10 @@ const RUN_BOARD_SLOTS = HERO_BOARD_SLOTS;
  * in `availableChoices`, which goes empty the instant `currentNodeId` is set
  * and only advances past that node once it's resolved), so there is no
  * separate "already granted" bookkeeping to maintain. A fight day therefore
- * pays this +1 PLUS the fight's own `battleGoldReward.base` (1) on a win —
- * 2 gold minimum — with the difficulty-scaled win bonus stacking on top; a
- * loss still earns this day's +1 even though `recordBattleResult` credits 0
- * fight gold on a loss (no longer literally zero income on a loss).
+ * pays this +1 PLUS the fight's own `mapFightGoldReward.base` (1) on a win —
+ * 2 gold minimum — with the risk-option win bonus stacking on top; a loss
+ * still earns this day's +1 even though `recordBattleResult` credits 0 fight
+ * gold on a loss (no longer literally zero income on a loss).
  */
 export const DAILY_INCOME = 1;
 
@@ -556,9 +556,9 @@ export const MAX_LEVEL = 30;
  *     (`scaleMonsterToLevel`/`allocateMonsterPL`).
  *   - `modifiers`: a deep-run flavour axis layered on top of level/title,
  *     each DISTINCT `MODIFIER_PRESETS` id applied AT MOST ONCE per encounter
- *     (no more duplicate entries — `battleGoldReward` counts
- *     `modifiers.length`, so a repeat used to silently inflate the difficulty
- *     score/gold for free). One additional distinct modifier id unlocks every
+ *     (no more duplicate entries — a repeat used to silently inflate
+ *     `battleGoldReward`'s Sandbox-only difficulty score for free). One
+ *     additional distinct modifier id unlocks every
  *     `MODIFIER_PER_OVERFLOW_FIGHTS` fights past `MAX_LEVEL`, capped at
  *     `ENEMY_MODIFIER_IDS.length` (once every preset is active, this axis
  *     plateaus by design — `level` keeps climbing forever regardless).
@@ -589,10 +589,9 @@ const MODIFIER_PER_OVERFLOW_FIGHTS = 5;
  * WEAKER than its band's optional hard rung (w15 boss 35% win vs the w14 hard
  * rung's 12.5%) — swift moves w15 35%->~20% and w10 25%->~20%, so a milestone
  * boss out-threatens its band's standard fights again. Distinct-id rule kept:
- * once the deep-run escalation ramp
- * unlocks `swift` on its own (past `MAX_LEVEL`), it is NOT added twice, so
- * `battleGoldReward`'s `modifiers.length` difficulty term stays honest —
- * bosses 10..34 pay one tick more gold, which is intended.
+ * once the deep-run escalation ramp unlocks `swift` on its own (past
+ * `MAX_LEVEL`), it is NOT added twice, so `modifiers.length` (a Sandbox-only
+ * `battleGoldReward` difficulty term) stays honest.
  */
 export const BOSS_SWIFT_FROM_FIGHT = 5;
 

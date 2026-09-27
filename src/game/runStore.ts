@@ -33,7 +33,7 @@ import { battleStatsFromEvents } from '../run/logAnalysis';
 import { mapIntelRecords } from '../run/eventMapInfo';
 import { biomeFor } from '../run/biome';
 import { battleFactFromLog } from '../run/eventV3Facts';
-import { battleGoldReward, listOwnedDuplicates, pointsOf, type BattleFoeSummary, type OwnedDuplicate, type TierProgress } from '../run/shop';
+import { mapFightGoldReward, listOwnedDuplicates, pointsOf, type OwnedDuplicate, type TierProgress } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
 import { noteRunEnded, noteRunStarted } from './metaStore';
 import {
@@ -480,24 +480,17 @@ function bossRewardInfoOf(reward: BossReward | null): BossRewardInfo | null {
 }
 
 /** Settles the active run's current combat node from a fetched `BattleLog`:
- * computes `battleGoldReward` from the EXACT foe config the request was built
- * from + the run's hero level, then calls `recordBattleResult` (win -> base +
- * winBonus, loss -> 0). Returns the gold payout for the banner to display.
- * Callers own the "exactly once per fetched response" guard (same idiom as
+ * computes `mapFightGoldReward` from the node's own risk option (or boss
+ * status), then calls `recordBattleResult` (win -> base + winBonus, loss ->
+ * 0). Returns the gold payout for the banner to display. Callers own the
+ * "exactly once per fetched response" guard (same idiom as
  * `creditBattleGold`). No-op (returns 0) if there's no active run. */
 export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLog): number {
   if (!activeRun) return 0;
   const state = activeRun;
   const node = currentNode();
   if (!node) throw new Error('resolveRunBattleResult: no combat node is currently active');
-  const foes: BattleFoeSummary[] = (input.enemyTeam && input.enemyTeam.length > 0
-    ? input.enemyTeam
-    : [{
-      enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle,
-      rank: input.enemyRank, modifiers: input.enemyModifiers ?? [],
-    }]
-  ).map((f) => ({ level: f.level, title: f.title, rank: f.rank, modifiers: f.modifiers }));
-  const reward = battleGoldReward(foes, state.heroLevel);
+  const reward = mapFightGoldReward(node.fightOption, node.kind === 'boss');
   const won = log.result === 'win';
   const payout = won ? reward.base + reward.winBonus : 0;
   const battleStats = battleStatsFromEvents(log.events);

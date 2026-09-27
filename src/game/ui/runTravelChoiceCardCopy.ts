@@ -10,8 +10,9 @@ export function runTravelChoiceCardCopy(model: RunTravelChoiceViewModel, pending
   const detail = model.kind === 'fight' || model.kind === 'boss'
     ? model.detail.replace(/^(?:EASY|MEDIUM|HARD) · /, '').split(' · ').slice(1).join(' · ') || model.detail
     : model.detail;
-  const eyebrow = model.dossier && model.title === 'MINIBOSS ENCOUNTER'
-    ? `${model.title}${model.dossier.difficulty ? ` · ${model.dossier.difficulty}` : ''}`
+  const detailDifficulty = model.detail.match(/^(EASY|MEDIUM|HARD) · /)?.[1];
+  const eyebrow = model.title === 'MINIBOSS ENCOUNTER'
+    ? `${model.title}${detailDifficulty ? ` · ${detailDifficulty}` : ''}`
     : chain ? 'CHAIN EVENT · UNLOCKED'
     : model.kind === 'fight' ? model.title.replace(/^FIGHT/, 'COMBAT')
       : model.kind === 'boss' ? model.title : kind;

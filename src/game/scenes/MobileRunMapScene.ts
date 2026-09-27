@@ -347,13 +347,6 @@ export class MobileRunMapScene extends Phaser.Scene {
       return;
     }
     const models = options.map((node) => ({ ...this.choiceViewModel(node), enabled: !pending || node.id === pending.id }));
-    if (models.length > 0 && models.every((model) => model.dossier)) {
-      this.destination.renderEncounters({ x, y: top + 20, width: w, height: availableH - 20 }, models, true, pending?.id, (nodeId) => {
-        if (!pending) pickNode(nodeId);
-        this.scene.start('MobileRunPrep');
-      });
-      return;
-    }
     const layout = runTravelChoiceCardsLayout(
       { x, y: top + 20, width: w, height: availableH - 20 }, models,
       { compact: true, pending: pending !== undefined },

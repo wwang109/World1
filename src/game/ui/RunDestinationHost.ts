@@ -1,14 +1,11 @@
 import type Phaser from 'phaser';
 import type { RunNode } from '../../run/runState';
 import { currentNode, leaveCurrentShop } from '../runStore';
-import { SCREEN, textRole, textRoleFor, UI } from '../theme';
+import { SCREEN, textRoleFor, UI } from '../theme';
 import type { Rect } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
 import { applyRenderScale, devicePixels, uiScale } from '../renderScale';
 import { renderRunBossArrivalPanel, type RunBossArrivalViewModel } from './RunBossArrivalPanel';
-import { renderRunTravelChoiceCard, runTravelChoiceCardLayout, runTravelChoiceCardsLayout } from './RunTravelChoiceCard';
-import type { RunTravelChoiceViewModel } from './runTravelChoiceViewModel';
-import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { roundRect } from './roundedRect';
 
 const hostMasks = new WeakMap<Phaser.Scene, Phaser.GameObjects.Graphics>();
@@ -110,10 +107,6 @@ export class RunDestinationHost {
   private embedded: EmbeddedRunDestination | undefined;
   private savedChoices: readonly RunNode[] | null = null;
   private nodeId: string | null = null;
-  private choiceScroll = 0;
-  private choiceKey = '';
-  private readonly expandedChoices = new Set<string>();
-  private mobileDetailId: string | null = null;
 
   constructor(private readonly owner: Phaser.Scene, private readonly redraw: () => void) {}
 
@@ -121,10 +114,6 @@ export class RunDestinationHost {
     this.close(false);
     this.savedChoices = null;
     this.nodeId = null;
-    this.choiceScroll = 0;
-    this.choiceKey = '';
-    this.expandedChoices.clear();
-    this.mobileDetailId = null;
     this.owner.events.once('shutdown', () => this.close(false));
   }
 
@@ -165,107 +154,6 @@ export class RunDestinationHost {
   /** Mandatory arrivals replace the cards in this same bounded route host. */
   renderBoss(bounds: Rect, model: RunBossArrivalViewModel, compact: boolean, onFaceBoss: () => void): void {
     renderRunBossArrivalPanel(this.owner, bounds, model, { compact, onFaceBoss });
-  }
-
-  renderEncounters(bounds: Rect, models: readonly RunTravelChoiceViewModel[], compact: boolean,
-    pendingId: string | undefined, onSelect: (nodeId: string) => void): void {
-    const key = models.map((model) => model.nodeId).join('|');
-    if (key !== this.choiceKey) { this.choiceKey = key; this.choiceScroll = 0; this.expandedChoices.clear(); this.mobileDetailId = null; }
-    if (compact) {
-      const detail = models.find((model) => model.nodeId === this.mobileDetailId);
-      if (detail) {
-        const back = renderRunHostButton(this.owner, bounds.x, bounds.y, '‹ ALL STOPS', true,
-          () => { this.mobileDetailId = null; this.redraw(); });
-        const top = back.y + back.height + 8;
-        renderRunTravelChoiceCard(this.owner, { ...bounds, y: top, height: bounds.y + bounds.height - top }, detail, {
-          compact: true, fitHeight: true, expanded: true, pending: detail.nodeId === pendingId,
-          onSelect: () => onSelect(detail.nodeId),
-        });
-      } else {
-        const gap = 8;
-        const height = Math.min(176, Math.floor((bounds.height - gap * (models.length - 1)) / Math.max(1, models.length)));
-        models.forEach((model, index) => renderRunTravelChoiceCard(this.owner,
-          { ...bounds, y: bounds.y + index * (height + gap), height }, model, {
-            compact: true, fitHeight: true, pending: model.nodeId === pendingId,
-            onSelect: () => onSelect(model.nodeId),
-            onToggle: () => { this.mobileDetailId = model.nodeId; this.redraw(); },
-          }));
-      }
-      return;
-    }
-    const rail = compact ? 40 : 0;
-    const width = compact ? Math.min(660, bounds.width - rail) : bounds.width;
-    const view = { ...bounds, x: bounds.x + (bounds.width - rail - width) / 2, width };
-    const layout = runTravelChoiceCardsLayout(view, models, { compact });
-    if (compact) {
-      let y = view.y;
-      layout.cards = models.map((model) => {
-        const card = runTravelChoiceCardLayout({ x: view.x, y, width, height: 0 }, model,
-          { compact, expanded: this.expandedChoices.has(model.nodeId) }).bounds;
-        y += card.height + 12;
-        return card;
-      });
-      layout.height = y - view.y - 12;
-    }
-    const maxScroll = Math.max(0, layout.height - bounds.height);
-    this.choiceScroll = Math.max(0, Math.min(this.choiceScroll, maxScroll));
-    const first = this.owner.children.list.length;
-    models.forEach((model, index) => renderRunTravelChoiceCard(this.owner, layout.cards[index]!, model, {
-      compact, pending: model.nodeId === pendingId, expanded: this.expandedChoices.has(model.nodeId), clip: view,
-      onSelect: () => onSelect(model.nodeId),
-      onToggle: () => {
-        if (this.expandedChoices.has(model.nodeId)) this.expandedChoices.delete(model.nodeId);
-        else this.expandedChoices.add(model.nodeId);
-        this.redraw();
-      },
-    }));
-    const parts = this.owner.children.list.slice(first);
-    const content = this.owner.add.container(0, -this.choiceScroll, parts);
-    const shape = this.owner.make.graphics({}, false);
-    shape.fillStyle(0xffffff).fillRect(view.x - 1, view.y, view.width + 2, view.height);
-    const mask = shape.createGeometryMask();
-    content.setMask(mask);
-    content.once('destroy', () => { mask.destroy(); shape.destroy(); });
-    if (maxScroll === 0) return;
-    const railX = bounds.x + bounds.width - (compact ? 34 : 10);
-    const trackY = bounds.y + (compact ? 40 : 4);
-    const trackH = bounds.height - (compact ? 80 : 8);
-    const thumbH = Math.min(trackH, Math.max(28, trackH * bounds.height / layout.height));
-    this.owner.add.rectangle(railX + (compact ? 14 : 0), trackY, 4, trackH, UI.border, 0.65).setOrigin(0, 0);
-    const thumb = this.owner.add.rectangle(railX + (compact ? 14 : 0), trackY, 4, thumbH, UI.chip, 1).setOrigin(0, 0);
-    const scroll = (next: number): void => {
-      this.choiceScroll = Math.max(0, Math.min(next, maxScroll));
-      content.setY(-this.choiceScroll);
-      thumb.setY(trackY + (trackH - thumbH) * this.choiceScroll / maxScroll);
-    };
-    scroll(this.choiceScroll);
-    if (compact) {
-      for (const direction of [-1, 1]) {
-        const y = direction < 0 ? bounds.y : bounds.y + bounds.height - 34;
-        const box = this.owner.add.rectangle(railX, y, 32, 34, UI.panelMuted, 1).setOrigin(0, 0)
-          .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
-        const label = this.owner.add.text(railX + 16, y + 17, direction < 0 ? '↑' : '↓', textRole('label', { ink: 'accent' })).setOrigin(0.5);
-        attachButtonFeel(this.owner, box, { fill: UI.panelMuted, hover: UI.chipDark, follow: [label],
-          onPress: () => scroll(this.choiceScroll + direction * bounds.height * 0.65) });
-      }
-    }
-    const inside = (pointer: Phaser.Input.Pointer): boolean => pointer.worldX >= view.x && pointer.worldX <= view.x + view.width
-      && pointer.worldY >= view.y && pointer.worldY <= view.y + view.height;
-    let startY: number | undefined;
-    let startScroll = 0;
-    this.owner.input.on('pointerdown', (pointer: Phaser.Input.Pointer, objects: Phaser.GameObjects.GameObject[]) => {
-      if (wasPointerConsumedByRebuild(this.owner, pointer) || !inside(pointer) || objects.some((object) => object.input?.enabled)) return;
-      startY = pointer.worldY;
-      startScroll = this.choiceScroll;
-    });
-    this.owner.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (startY !== undefined && pointer.isDown) scroll(startScroll + startY - pointer.worldY);
-    });
-    this.owner.input.on('pointerup', () => { startY = undefined; });
-    this.owner.input.on('pointerupoutside', () => { startY = undefined; });
-    this.owner.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
-      if (inside(pointer)) scroll(this.choiceScroll + dy);
-    });
   }
 
   render(bounds: Rect): boolean {

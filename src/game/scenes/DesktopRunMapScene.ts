@@ -385,13 +385,6 @@ export class DesktopRunMapScene extends Phaser.Scene {
       return;
     }
     const models = options.map((node) => ({ ...this.choiceViewModel(node), enabled: !pending || node.id === pending.id }));
-    if (models.length > 0 && models.every((model) => model.dossier)) {
-      this.destination.renderEncounters({ x, y: top + 38, width: w, height: availableH - 38 }, models, false, pending?.id, (nodeId) => {
-        if (!pending) pickNode(nodeId);
-        this.scene.start('DesktopRunPrep');
-      });
-      return;
-    }
     const layout = runTravelChoiceCardsLayout(
       { x, y: top + 38, width: w, height: availableH - 38 }, models,
       { compact: false, pending: pending !== undefined },
@@ -418,7 +411,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private choiceViewModel(node: RunNode): RunTravelChoiceViewModel {
     const run = getActiveRun()!;
     const model = buildRunTravelChoiceViewModel(run, node, previewRunEvent(node), previewEncounter(node));
-    if (!model.dossier) return model;
+    if (node.kind !== 'fight' || model.artKey === undefined) return model;
     const biome = biomeFor(run.map.seed, node.wave, node.biomeId);
     return { ...model, artKey: desktopBiomeArtKey(biome.id) };
   }

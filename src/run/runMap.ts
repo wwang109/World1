@@ -67,10 +67,10 @@ export interface RunNode {
    * the UI labels it "MEDIUM"). `'standard'` is exactly this fight number's
    * base spec; `'hard'` is one title rung up + 1 level (the ENEMY level is
    * uncapped — see `fightTableEntryForNode` in runState.ts) and therefore
-   * pays more via `battleGoldReward`'s difficulty score; `'easy'` is one
-   * level DOWN from `'standard'` (floored at 1) with its title capped at
-   * `'normal'` (never `'elite'`) and therefore pays less. Undefined on boss
-   * nodes.
+   * pays the highest win bonus (`mapFightGoldReward` in shop.ts); `'easy'`
+   * is one level DOWN from `'standard'` (floored at 1) with its title capped
+   * at `'normal'` (never `'elite'`) and pays the lowest win bonus. Undefined
+   * on boss nodes.
    */
   fightOption?: 'easy' | 'standard' | 'hard';
   /** Seed for `rollEncounter` — fight/boss nodes only. Each of a fight

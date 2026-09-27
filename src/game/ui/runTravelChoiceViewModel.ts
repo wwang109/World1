@@ -1,9 +1,8 @@
 import { enemies } from '../../data/enemies';
 import type { LoadedEventDef } from '../../data/eventsContent';
 import { shopCatalog } from '../../data/shopTypes';
-import { skillBook } from '../../data/skills';
 import { BAND_WAVES, biomeFor } from '../../run/biome';
-import { battleGoldReward } from '../../run/shop';
+import { mapFightGoldReward } from '../../run/shop';
 import type { EncounterPack } from '../../run/encounter';
 import { eventRequirementReceipt } from '../../run/eventRequirementReceipt';
 import { summarizeEventReward } from '../../run/eventRewardSummary';
@@ -38,12 +37,6 @@ export interface RunTravelChoiceViewModel {
   artKey?: string;
   accent: number;
   enabled: boolean;
-  dossier?: {
-    difficulty: string;
-    roster: { name: string; level: number; tier: string; archetypes: string }[];
-    danger: string;
-    reward: string;
-  };
   event?: {
     eventId: string;
     chainUnlocked: boolean;
@@ -113,32 +106,18 @@ export function buildRunTravelChoiceViewModel(
   }
   if (node.kind === 'fight' || node.kind === 'boss') {
     const biome = biomeFor(state.seed, node.wave, node.biomeId);
-    const dossier = node.kind === 'fight' && encounter ? {
-      difficulty: node.fightOption ? FIGHT_TIER_LABEL[node.fightOption] : '',
-      roster: encounter.units.map((unit) => {
-        const cards = unit.setup.pieces.flatMap((piece) => skillBook[piece.skillId] ? [skillBook[piece.skillId]!] : []);
-        const archetypes = [...new Set(cards.flatMap((card) => card.archetypes))];
-        return {
-          name: enemies[unit.enemyId]?.name ?? unit.enemyId,
-          level: unit.effectiveLevel,
-          tier: unit.title === 'boss' ? 'MINIBOSS' : unit.title.toUpperCase(),
-          archetypes: archetypes.join(' / ').toUpperCase(),
-        };
-      }),
-      danger: `${encounter.units.length} ${encounter.units.length === 1 ? 'FOE' : 'FOES'} · ${encounter.units.reduce((sum, unit) => sum + unit.setup.pieces.length, 0)} CARDS`,
-      reward: (() => {
-        const reward = battleGoldReward(encounter.units.map((unit) => ({
-          level: unit.level, title: unit.title, rank: unit.baseRank, modifiers: unit.modifiers,
-        })), state.heroLevel);
-        return `VICTORY · +${reward.base + reward.winBonus} GOLD`;
-      })(),
-    } : undefined;
+    const showsEncounter = node.kind === 'fight' && encounter !== null;
+    const reward = showsEncounter ? (() => {
+      const won = mapFightGoldReward(node.fightOption, false);
+      return `VICTORY · +${won.base + won.winBonus} GOLD`;
+    })() : undefined;
     return {
       ...common,
       title: encounterDestinationLabel(node, encounter)
         ?? (node.fightOption ? `FIGHT · ${FIGHT_TIER_LABEL[node.fightOption]}` : 'FIGHT'),
       detail: encounter ? encounterHintDetail(encounter, node.kind === 'fight' ? node.fightOption : undefined) : '',
-      ...(dossier ? { dossier, artKey: biomeArtKey(biome.id) } : {}),
+      ...(reward ? { footer: reward, footerInk: 'gain' as const } : {}),
+      ...(showsEncounter ? { artKey: biomeArtKey(biome.id) } : {}),
       ...(node.kind === 'boss' ? { artKey: RUN_ART_KEYS.icon.bossSkull } : {}),
     };
   }
