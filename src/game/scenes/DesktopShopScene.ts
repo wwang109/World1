@@ -596,7 +596,7 @@ export class DesktopShopScene extends Phaser.Scene {
     // uses) guarantees the tagline clears the title for every theme, long or
     // short, with no per-theme layout math to keep in sync with content.
     const titleText = this.add.text(titleX + 8, top + 8, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent, wordWrap: { width: Math.max(80, shelfRight - titleX - 284) }, maxLines: 1 });
-    this.add.text(titleX + 8, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, shelfRight - titleX - 284) }, maxLines: 1 });
+    const taglineText = this.add.text(titleX + 8, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: Math.max(80, shelfRight - titleX - 284) }, maxLines: 1 });
 
     // A thin shop whose WHOLE pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
@@ -632,7 +632,10 @@ export class DesktopShopScene extends Phaser.Scene {
       }
     }
 
-    this.renderMergeSlotButton(shopId, rerollX - 8 - rerollW, rerollY, rerollW, rerollControl.height);
+    const mergeX = this.renderMergeSlotButton(shopId, rerollX - 8, rerollY, rerollW, rerollControl.height);
+    const titleWrapW = Math.max(80, mergeX - 16 - (titleX + 8));
+    titleText.setWordWrapWidth(titleWrapW);
+    taglineText.setWordWrapWidth(titleWrapW);
 
     const rowTop = top + SHOP_HEADER_H + 8;
     // Scrollable viewport for the CARDS+GEMS grid — runs the FULL remaining
@@ -1905,7 +1908,7 @@ export class DesktopShopScene extends Phaser.Scene {
     });
   }
 
-  private renderMergeSlotButton(shopId: string, x: number, y: number, w: number, h: number): void {
+  private renderMergeSlotButton(shopId: string, right: number, y: number, minW: number, h: number): number {
     const runMode = this.isRunMode();
     const price = shopMergeSlotPrice(runMode);
     const available = shopMergeSlotAvailable(runMode, shopId);
@@ -1913,15 +1916,20 @@ export class DesktopShopScene extends Phaser.Scene {
     const affordable = !runMode || this.activeGold() >= price;
     const enabled = available && hasTarget && affordable;
     const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE CARD · ${price} G`;
-    const btn = this.add.rectangle(x, y, w, h, enabled ? UI.good : UI.panelMuted, enabled ? 1 : 0.5)
+    const btn = this.add.rectangle(0, y, minW, h, enabled ? UI.good : UI.panelMuted, enabled ? 1 : 0.5)
       .setOrigin(0, 0).setStrokeStyle(1, UI.border, enabled ? 1 : 0.4);
-    this.add.text(x + w / 2, y + h / 2, label, {
+    const text = this.add.text(0, y + h / 2, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: enabled ? UI.textOnChip : UI.textSoft,
     }).setOrigin(0.5);
+    const w = Math.max(minW, Math.ceil(text.width) + 24);
+    const x = right - w;
+    btn.setPosition(x, y).setSize(w, h);
+    text.setX(x + w / 2);
     if (enabled) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); });
     }
+    return x;
   }
 
   private renderMergeSlotChooser(): void {
