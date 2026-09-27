@@ -578,7 +578,7 @@ export class MobileShopScene extends Phaser.Scene {
       back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = header.back.x + header.back.width + 8;
     }
-    this.add.text(titleX, header.titleY, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(titleX, header.titleY, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: Math.max(40, header.stock.x - 6 - header.stock.width - 8 - titleX) }, maxLines: 1 });
 
     // A thin shop whose whole pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
@@ -734,13 +734,13 @@ export class MobileShopScene extends Phaser.Scene {
     roundRect(this.add.rectangle(layout.header.x, layout.header.y, layout.header.width, layout.header.height, UI.panel, 0.72), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.75);
     this.add.text(layout.header.x + 8, layout.header.y + 7, shop.name.toUpperCase(), {
       ...textRole('section', { ink: 'accent' }), fontFamily: FONT.display, fontStyle: 'bold',
-      wordWrap: { width: layout.header.width - 126 },
+      wordWrap: { width: layout.header.width - 214 }, maxLines: 1,
     });
     this.add.text(layout.header.x + 8, layout.header.y + 29, `${this.activeGold()} GOLD`, textRole('micro', { ink: 'resource' }));
 
     const cost = currentShopRerollCost();
     const canReroll = !info.fullStock && this.activeGold() >= cost;
-    const rerollW = 112;
+    const rerollW = 92;
     const rerollH = 40;
     const rerollX = layout.header.x + layout.header.width - rerollW - 6;
     const rerollY = layout.header.y + layout.header.height - rerollH - 5;
