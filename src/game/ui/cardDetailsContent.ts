@@ -93,6 +93,14 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
       const verb = action.kind === 'debuffStat' ? 'Reduce enemy' : 'Increase';
       return { title: ruleTitleOf(action), body: `${prefix}${verb} ${STAT_TOKEN[action.stat]} by ${action.pct}% for ${action.turns} ${action.turns === 1 ? 'turn' : 'turns'}.` };
     }
+    if (action?.kind === 'shieldBurst' || action?.kind === 'wardRelease') {
+      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(' — ')))} — ` : '';
+      const maxCharges = action.kind === 'wardRelease' ? Math.ceil(action.cap / action.per) : 0;
+      const rule = action.kind === 'shieldBurst'
+        ? `Consume Shield to deal up to ${action.cap} damage.`
+        : `Consume Ward charges to deal ${action.per} damage per charge (max ${maxCharges} ${maxCharges === 1 ? 'charge' : 'charges'}).`;
+      return { title: ruleTitleOf(action), body: `${prefix}${rule}` };
+    }
     const markup = clause.match(/\{\{([^}:|]+)/)?.[1];
     const title = action ? ruleTitleOf(action) : undefined;
     const rule = action ? specificRule(action) : '';

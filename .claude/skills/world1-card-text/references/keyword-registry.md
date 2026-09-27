@@ -69,8 +69,8 @@ computed. A badge with no `(keyword: …)` note carries no tint.
 | `empowerNext` | `'charge'` | `NEXT {TYPE }+{amount}` (keyword: `charge`) |
 | `exploit` | **function**: `undefined` if `a.status === 'debuff'`, else `a.status` | `+{amount} vs {STATUS_TOKEN[a.status]}` (keyword: same rule as `displayToken` — `undefined` for `debuff`) |
 | `stackBonus` | **function**: `a.status` | `BONUS +{per} PER {STATUS_TOKEN[a.status]}` (keyword: `a.status`) — noun in the face clause differs for `burden` ("per Burdened card") vs a stacked pile ("per {Status} debuff") |
-| `shieldBurst` | `'shield'` | `SHLD BURST {cap}` (keyword: `shield`) |
-| `wardRelease` | `'ward'` | `WARD BURST +{per}/CHG (cap {cap})` (keyword: `ward`) |
+| `shieldBurst` | `'shield'` | `BURST: SHIELD {cap}` (keyword: `shield`) |
+| `wardRelease` | `'ward'` | `BURST: WARD {per}` (keyword: `ward`) |
 | `desperation` | `undefined` (exempt — the gate is the caster's own HP bar, not a keyword) | `+{amount} BELOW HALF HP` (keyword: `bleed` — badge still tints even though the clause is exempt) |
 | `overhealShield` | `'shield'` | `OVERHEAL -> SHLD {cap}` (keyword: `shield`) |
 | `cleanseConvert` | `'cleanse'` | `+{per} HP/CLEANSED (cap {cap})` (keyword: `cleanse`) |
