@@ -40,6 +40,7 @@ import {
   type RunState,
 } from './runState';
 import { startChallengeFight } from './challengeFight';
+import { reshapeFallbackV3, reshapeOfferV3, settleReshapeV3, type EventReshapeSettlementV3 } from './eventReshape';
 import { scheduleEventCallbackV3, type EventDefinitionLookup } from './eventCallbacks';
 import { resolveEventOutcomeSpec, type EventOutcome } from './events';
 import {
@@ -47,6 +48,7 @@ import {
   isMarketBuyOutcomeKind,
   MARKET_VISITS_PER_NODE,
   marketPurchasePriceGold,
+  marketStatPriceGold,
   withMarketPurchaseCharged,
   withStatPurchased,
 } from './market';
@@ -75,6 +77,8 @@ export type EventOutcomeV3 =
   | { kind: 'sellGem'; offer: PendingEventOfferV3<'sellGem'> }
   | { kind: 'mergeCards'; offer: PendingEventOfferV3<'mergeCards'> }
   | { kind: 'challengeFight' }
+  | { kind: 'reshapeCard'; offer: PendingEventOfferV3<'reshapeCard'> }
+  | EventReshapeSettlementV3
   | EventRewardSettlementV3;
 
 export type MaterializeReachedEventV3Result =
@@ -112,6 +116,7 @@ export function eventOutcomeForPendingOfferV3(
     case 'sellGem': return { kind: 'sellGem', offer };
     case 'mergeCards': return { kind: 'mergeCards', offer };
     case 'buyStatPick': return { kind: 'buyStatPick', offer };
+    case 'reshapeCard': return { kind: 'reshapeCard', offer };
     case 'grantCard':
     case 'grantGem':
       throw new Error(`eventOutcomeForPendingOfferV3: ${offer.kind} is immediate, not a picker`);
@@ -227,7 +232,7 @@ function legacyCommitment(
     || outcome.kind === 'grantLevel' || outcome.kind === 'grantMapInfo'
     || outcome.kind === 'nothing' || outcome.kind === 'challengeFight'
     || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'buyStatPick'
-    || outcome.kind === 'grantStat') return undefined;
+    || outcome.kind === 'grantStat' || outcome.kind === 'reshapeCard') return undefined;
   if (outcome.kind === 'sellGem' && state.gemInventory.length === 0) {
     return { kind: 'sellGem', status: 'unavailable' };
   }
@@ -345,6 +350,8 @@ export function materializeReachedEventV3(
         }, choice.id, outcome);
       } else if (outcome?.kind === 'upgradeCardTargeted') {
         offers[choice.id] = targetedUpgradeV3(bound.state, outcome, bound.boundSubjects);
+      } else if (outcome?.kind === 'reshapeCard') {
+        offers[choice.id] = reshapeOfferV3(bound.state, instance.instanceId, choice.id, outcome);
       } else if (outcome !== undefined) {
         const commitment = legacyCommitment(
           bound.state, node, instance.instanceId, choice.id, outcome, bound.boundSubjects,
@@ -522,6 +529,7 @@ function applyLegacyCommitment(
     case 'mergeCards': return { state, outcome: { kind: 'mergeCards', offer }, pending: true };
     case 'cardChoice':
     case 'upgradeCardTargeted':
+    case 'reshapeCard':
       return undefined;
   }
 }
@@ -579,7 +587,7 @@ function applyDirectOutcome(
       return { state: { ...charged, lives }, outcome: { kind: 'buyLife', price, lives }, pending: false };
     }
     case 'buyStat': {
-      const price = marketPurchasePriceGold(state);
+      const price = marketStatPriceGold(state, outcome.stat);
       if (price > state.gold) return undefined;
       const charged = withMarketPurchaseCharged(state, price);
       return {
@@ -629,6 +637,15 @@ function applyDirectOutcome(
       return offer?.kind === 'cardChoice' && offer.status === 'pending'
         ? { state, outcome: { kind: 'cardChoice', offer }, pending: true }
         : undefined;
+    }
+    case 'reshapeCard': {
+      const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
+      if (offer?.kind !== 'reshapeCard' || offer.status !== 'pending') return undefined;
+      if (offer.options.length === 0) {
+        const fellBack = reshapeFallbackV3(state, offer);
+        return { state: updateOffer(fellBack.state, instanceId, choiceId, settledOffer(offer)), outcome: fellBack.outcome, pending: false };
+      }
+      return { state, outcome: { kind: 'reshapeCard', offer }, pending: true };
     }
     case 'upgradeCardTargeted': {
       const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
@@ -969,6 +986,26 @@ export function finalizeTargetedUpgradeV3(
   return { ok: true, state: clearPending(next, instanceId), outcome: settled.outcome ?? { kind: 'nothing' } };
 }
 
+export function finalizeReshapeCardV3(
+  state: RunState,
+  instanceId: string,
+  choiceId: string,
+  selectedInstanceId: string,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'reshapeCard', lookup);
+  if (transaction.status === 'invalid') return { ok: false, state, reason: 'choice' };
+  if (transaction.status === 'settled') {
+    return transaction.offer.selectedId === selectedInstanceId
+      ? { ok: true, state, outcome: { kind: 'alreadySettled' } }
+      : { ok: false, state, reason: 'offer' };
+  }
+  const settled = settleReshapeV3(state, transaction.offer, selectedInstanceId);
+  const applied = settled ?? reshapeFallbackV3(state, transaction.offer);
+  const next = updateOffer(applied.state, instanceId, choiceId, settledOffer(transaction.offer, selectedInstanceId));
+  return { ok: true, state: clearPending(next, instanceId), outcome: applied.outcome };
+}
+
 type LegacyFinalizeResultV3 =
   | { ok: true; state: RunState; outcome: EventOutcomeV3 }
   | { ok: false; state: RunState; reason: 'choice' | 'offer' };
@@ -1032,7 +1069,7 @@ export function finalizeBuyStatPickV3(
       ? { ok: true, state, outcome: { kind: 'alreadySettled' } }
       : { ok: false, state, reason: 'offer' };
   }
-  const price = marketPurchasePriceGold(state);
+  const price = marketStatPriceGold(state, stat);
   if (price > state.gold) return { ok: false, state, reason: 'cost' };
   const located = nodeAndInstance(state, instanceId);
   if (located === undefined) return { ok: false, state, reason: 'choice' };

@@ -43,6 +43,9 @@
 
 import { biomeCatalog } from '../../data/biomes';
 import { shopCatalog } from '../../data/shopTypes';
+import { enemies } from '../../data/enemies';
+import { enemyDerivedAffinity } from '../../data/enemyAffinity';
+import { ELEMENT_BEATS, WEAPON_BEATS } from '../../engine/elements';
 import { forecastWave, type BandForecast } from '../../run/biomeForecast';
 import {
   BAND_FORECAST_LINE_WIDTH, BAND_FORECAST_ROW_INDENT, bandForecastRows,
@@ -127,47 +130,40 @@ export interface BandBannerViewModel {
   guideNote: string;
 }
 
-/**
- * One claim, as words. `types` is ignored for `'none'` and never turned into a
- * sentence for `'unsure'`.
- *
- * Grammar is derived, not hard-coded (one type "HITS", two or more "HIT"), and
- * when the type list makes the sentence too wide for a phone it flips to a
- * colon form that puts the types on their own line rather than wrapping —
- * the same two shapes `biomeForecast.ts#counterSentence` uses, so the banner
- * and the card break in the same places.
- */
+function enemyAffinityTypes(enemyId: string): readonly string[] {
+  const def = enemies[enemyId];
+  if (def === undefined) return [];
+  const affinity = enemyDerivedAffinity(def);
+  return [affinity.elementAffinity, affinity.weaponAffinity].filter((t): t is NonNullable<typeof t> => t !== undefined);
+}
+
+function affinityWords(types: readonly string[]): string {
+  return types.map((t) => t.toUpperCase()).join(' / ');
+}
+
 function claim(subject: BandClaimSubject, kind: BandClaimKind, types: readonly string[]): BandCounterClaim {
-  if (kind === 'none') {
-    return { subject, kind, types: [], lines: [`NOTHING COUNTERS ${subject}`] };
-  }
-  if (kind === 'unsure') {
-    // No type is true of BOTH faces, so no type may be printed as a promise.
-    return { subject, kind, types, lines: ['NO COUNTER IS SURE FOR', `${subject}.`] };
-  }
-  const list = types.map((t) => t.toUpperCase()).join('/');
-  const sentence = `${list} ${types.length === 1 ? 'HITS' : 'HIT'} ${subject} +50%`;
-  return {
-    subject,
-    kind,
-    types,
-    lines: sentence.length <= BAND_LINE_WIDTH ? [sentence] : [`+50% ON ${subject}:`, list],
-  };
+  const who = subject === 'THIS BOSS' ? 'BOSS' : 'MOBS';
+  if (kind === 'none') return { subject, kind, types: [], lines: [`${who} · NO AFFINITY`] };
+  const list = affinityWords(types);
+  const line = `${who} AFFINITY · ${kind === 'unsure' ? list.split(' / ').join(' OR ') : list}`;
+  return { subject, kind, types, lines: line.length <= BAND_LINE_WIDTH ? [line] : [`${who} AFFINITY:`, list] };
 }
 
-/** What counters THIS BOSS, at the certainty the forecast actually has. */
 function bossClaimOf(f: BandForecast): BandCounterClaim {
-  if (f.bossCounter.basis === 'split') return claim('THIS BOSS', 'unsure', f.bossCounter.types);
-  return claim('THIS BOSS', f.bossCounter.types.length === 0 ? 'none' : 'definite', f.bossCounter.types);
+  if (f.boss !== null) {
+    const types = enemyAffinityTypes(f.boss.enemyId);
+    return claim('THIS BOSS', types.length === 0 ? 'none' : 'definite', types);
+  }
+  const faces = f.bossCandidates.map((c) => enemyAffinityTypes(c.id).join(','));
+  const union: string[] = [];
+  for (const c of f.bossCandidates) for (const t of enemyAffinityTypes(c.id)) if (!union.includes(t)) union.push(t);
+  if (union.length === 0) return claim('THIS BOSS', 'none', []);
+  const agreed = faces.every((face) => face === faces[0]);
+  return claim('THIS BOSS', agreed ? 'definite' : 'unsure', agreed ? enemyAffinityTypes(f.bossCandidates[0]!.id) : union);
 }
 
-/** What counters THESE MOBS — the biome's declared lean, which for four of the
- * catalog's (biome, boss face) pairs is a DIFFERENT answer from the boss's. */
 function mobsClaimOf(f: BandForecast): BandCounterClaim {
-  const type = f.counterType;
-  return type === undefined
-    ? claim('THESE MOBS', 'none', [])
-    : claim('THESE MOBS', 'definite', [type]);
+  return claim('THESE MOBS', 'definite', [f.lean.type]);
 }
 
 function bossOf(f: BandForecast): BandBannerBoss {
@@ -179,15 +175,30 @@ function bossOf(f: BandForecast): BandBannerBoss {
       entries: [],
     };
   }
-  const split = f.bossCounter.basis === 'split';
   const entries: string[] = [];
   for (const c of f.bossCandidates) {
+    const types = enemyAffinityTypes(c.id);
     entries.push(c.name.toUpperCase());
-    // Only a SPLIT shortlist needs the per-face answer: when the faces agree,
-    // the single claim below the block is already true of whichever one comes.
-    if (split) entries.push(`  ${c.counterTypes.length === 0 ? 'NOTHING COUNTERS IT' : `${c.counterTypes.map((t) => t.toUpperCase()).join('/')} +50%`}`);
+    entries.push(`  ${types.length === 0 ? 'NO AFFINITY' : `AFFINITY · ${affinityWords(types)}`}`);
   }
   return { resolved: false, headline: 'ONE OF THESE:', sub: '', entries };
+}
+
+export function typeCounterGuide(): string {
+  const chains: string[] = [];
+  const seen: string[] = [];
+  for (const beats of [ELEMENT_BEATS as Record<string, string>, WEAPON_BEATS as Record<string, string>]) {
+    for (const start of Object.keys(beats)) {
+      if (seen.includes(start)) continue;
+      const chain = [start];
+      let next = beats[start];
+      while (next !== undefined && !chain.includes(next)) { chain.push(next); next = beats[next]; }
+      if (next !== undefined) chain.push(next);
+      chain.forEach((t) => { if (!seen.includes(t)) seen.push(t); });
+      chains.push(chain.map((t) => t.toUpperCase()).join(' > '));
+    }
+  }
+  return `${chains.join(' · ')} (+50%)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +279,7 @@ export function bandBannerViewModel(f: BandForecast): BandBannerViewModel {
         body: f.shops.map((shop) => shop.name).join(' · '),
         ...(exclusiveShop ? { accent: { text: `EXCLUSIVE · ${exclusiveShop}`, swatchColor: counterTypeColor(f.lean.type) } } : {}),
       },
+      { title: 'TYPE COUNTERS', body: typeCounterGuide() },
       { title: 'COMMON EVENT THEMES', body: f.eventThemes.map((theme) => theme.charAt(0).toUpperCase() + theme.slice(1)).join(' · ') },
     ],
     guideNote: 'Listed shops and themes are not exclusive or guaranteed. Other stops can appear. Individual events may have region requirements.',
@@ -375,7 +387,7 @@ export function leanColor(vm: Pick<BandBannerViewModel, 'leanType'>): number {
  * the boss-countdown headline uses — "no type helps you here" is a loud fact,
  * not a greyed-out blank. */
 export function claimTextColor(kind: BandClaimKind): string {
-  if (kind === 'none') return UI.textAlarm;
+  if (kind === 'none') return UI.textDim;
   if (kind === 'unsure') return UI.textAccent;
   return UI.text;
 }
@@ -383,7 +395,7 @@ export function claimTextColor(kind: BandClaimKind): string {
 /** The bar beside a claim. Decoration — the SENTENCE carries the subject, so
  * the block reads with the colour ignored entirely. */
 export function claimBarColor(claim: BandCounterClaim): number {
-  if (claim.kind === 'none') return UI.bad;
+  if (claim.kind === 'none') return UI.chip;
   if (claim.kind === 'unsure') return UI.waiting;
   return counterTypeColor(claim.types[0]);
 }

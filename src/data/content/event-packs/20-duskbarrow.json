@@ -72,6 +72,115 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Names Under Stone",
+            "body": "Beyond Duskbarrow's fallen lord, a mile of grave markers leans toward the road. One stone speaks a name that only a bearer of dark craft could answer.",
+            "theme": "omen",
+            "rarity": "rare",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "names_under_stone",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "combat.biomeBossDefeated",
+                  "args": {
+                    "biomeId": "duskbarrow"
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "raise_dark_name",
+                  "label": "Carve a card's name into the dark",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "take_grave_silver",
+                  "label": "Take the grave silver",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  },
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "grave_path",
+                      "value": "opened"
+                    }
+                  ],
+                  "callback": {
+                    "callbackId": "names_under_stone_answer",
+                    "eventId": "names_under_stone_answer",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the names buried",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -134,10 +243,25 @@
             "body": "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road.",
             "theme": "recruit",
             "rarity": "uncommon",
-            "biomeIds": ["duskbarrow"],
-            "story": { "storyId": "last_acolyte", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "biome.current", "args": { "ids": ["duskbarrow"] } },
-            "delivery": { "kind": "ambient" },
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "last_acolyte",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 150,
             "once": "run",
@@ -148,15 +272,110 @@
                   "id": "take_siphon_life",
                   "label": "Take Siphon Life",
                   "cost": 0,
-                  "outcome": { "kind": "grantCard", "cardId": "siphon_life", "tier": "bronze" }
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "siphon_life",
+                    "tier": "bronze"
+                  }
                 },
                 {
                   "id": "take_dark_card",
                   "label": "Take a Dark card",
                   "cost": 0,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["dark"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave", "label": "Leave the acolyte to the rot", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the acolyte to the rot",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Last Acolyte",
+            "body": "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "last_acolyte",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_siphon_life",
+                  "label": "Take Siphon Life",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "siphon_life",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "darken_card",
+                  "label": "Let him darken one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the acolyte to the rot",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -173,15 +392,41 @@
             "body": "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read.",
             "theme": "cache",
             "rarity": "uncommon",
-            "biomeIds": ["duskbarrow"],
-            "story": { "storyId": "grave_wax_seals", "stage": "setup", "role": "setup" },
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "grave_wax_seals",
+              "stage": "setup",
+              "role": "setup"
+            },
             "eligibility": {
               "all": [
-                { "fact": "biome.current", "args": { "ids": ["duskbarrow"] } },
-                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["dark"] } } }
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "duskbarrow"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 160,
             "once": "run",
@@ -192,7 +437,18 @@
                   "id": "take_grave_seals",
                   "label": "Break the grave-wax seals",
                   "cost": 0,
-                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["hex_of_frailty_echo", "blunting_sliver", "slow_hex_echo"] }] }
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "hex_of_frailty_echo",
+                          "blunting_sliver",
+                          "slow_hex_echo"
+                        ]
+                      }
+                    ]
+                  }
                 },
                 {
                   "id": "anoint_dark_card",
@@ -200,11 +456,123 @@
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "elements": ["dark"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "dark"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   }
                 },
-                { "id": "leave", "label": "Leave the seals unbroken", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the seals unbroken",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Grave-Wax Seals",
+            "body": "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "grave_wax_seals",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "duskbarrow"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_grave_seals",
+                  "label": "Break the grave-wax seals",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "hex_of_frailty_echo",
+                          "blunting_sliver",
+                          "slow_hex_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "entomb_card",
+                  "label": "Seal a card in the grave for its coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "reward": {
+                      "kind": "grantGold",
+                      "amount": 6
+                    },
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the seals unbroken",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

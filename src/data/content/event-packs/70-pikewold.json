@@ -55,10 +55,25 @@
             "body": "A field-forge still glows at Pikewold's rear line, its bellows worked by no one and its rack holding a single braced shaft, cooling from the last quench.",
             "theme": "forge",
             "rarity": "uncommon",
-            "biomeIds": ["pikewold"],
-            "story": { "storyId": "pike_forge", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "biome.current", "args": { "ids": ["pikewold"] } },
-            "delivery": { "kind": "ambient" },
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pike_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 150,
             "once": "run",
@@ -69,15 +84,112 @@
                   "id": "take_braced_pike",
                   "label": "Take the Braced Pike",
                   "cost": 0,
-                  "outcome": { "kind": "grantCard", "cardId": "braced_pike", "tier": "bronze" }
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "braced_pike",
+                    "tier": "bronze"
+                  }
                 },
                 {
                   "id": "take_lance_card",
                   "label": "Take a Lance card",
                   "cost": 0,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "weapons": ["lance"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave", "label": "Let the forge cool", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Let the forge cool",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Pike-Forge",
+            "body": "A field-forge still glows at Pikewold's rear line, its bellows worked by no one and its rack holding a single braced shaft, cooling from the last quench.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pike_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_braced_pike",
+                  "label": "Take the Braced Pike",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "braced_pike",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "reforge_lance",
+                  "label": "Reforge one of your lance cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "lance"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Let the forge cool",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -94,15 +206,41 @@
             "body": "A locked chest sits at the foot of a drill yard long since abandoned, stamped with a dead sergeant's seal and heavy with a lance-hand's due.",
             "theme": "cache",
             "rarity": "uncommon",
-            "biomeIds": ["pikewold"],
-            "story": { "storyId": "drill_sergeant_chest", "stage": "setup", "role": "setup" },
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "drill_sergeant_chest",
+              "stage": "setup",
+              "role": "setup"
+            },
             "eligibility": {
               "all": [
-                { "fact": "biome.current", "args": { "ids": ["pikewold"] } },
-                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "weapons": ["lance"] } } }
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "pikewold"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "weapons": [
+                        "lance"
+                      ]
+                    }
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 160,
             "once": "run",
@@ -113,7 +251,18 @@
                   "id": "open_the_chest",
                   "label": "Open the drill-sergeant's chest",
                   "cost": 0,
-                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["ward_of_silence_echo", "millstone_sliver", "crippling_strike_echo"] }] }
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "ward_of_silence_echo",
+                          "millstone_sliver",
+                          "crippling_strike_echo"
+                        ]
+                      }
+                    ]
+                  }
                 },
                 {
                   "id": "drill_lance_card",
@@ -121,11 +270,116 @@
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "weapons": ["lance"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "lance"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   }
                 },
-                { "id": "leave", "label": "Leave the chest locked", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the chest locked",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Drill-Sergeant's Chest",
+            "body": "A locked chest sits at the foot of a drill yard long since abandoned, stamped with a dead sergeant's seal and heavy with a lance-hand's due.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "drill_sergeant_chest",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "pikewold"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "weapons": [
+                        "lance"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "open_the_chest",
+                  "label": "Open the drill-sergeant's chest",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "ward_of_silence_echo",
+                          "millstone_sliver",
+                          "crippling_strike_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "take_drill",
+                  "label": "Run the sergeant's drill",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "armor"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the chest locked",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

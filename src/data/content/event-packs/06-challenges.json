@@ -81,6 +81,58 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Arena Pit",
+            "body": "A sunken ring of packed earth waits behind a curtain of oiled canvas, ringed by a crowd that has already placed its bets. The pit-master waves you toward the rope. \"Tougher bout, tougher purse,\" he says, and grins at the fighter already stretching in the sand.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "arena_pit",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "enter_pit",
+                  "label": "Enter the pit",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": {
+                      "kind": "grantLevel"
+                    }
+                  }
+                },
+                {
+                  "id": "watch_the_bout",
+                  "label": "Watch from the rail",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -223,6 +275,75 @@
                   }
                 },
                 { "id": "refuse", "label": "Refuse", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Duskroad Challenger",
+            "body": "A masked figure waits where the road dims toward dusk, testing every traveler who passes with the same plain offer: a fair fight, a fair prize, no names asked either way.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "duskroad_challenger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "answer_challenge",
+                  "label": "Answer the challenge",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "slow",
+                            "disrupt"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "id": "share_rations",
+                  "label": "Share his road-rations instead",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "speed"
+                  }
+                },
+                {
+                  "id": "refuse",
+                  "label": "Refuse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

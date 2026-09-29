@@ -17,6 +17,7 @@ import {
   finalizeMergeCardsV3,
   finalizeSellGemV3,
   finalizeTargetedUpgradeV3,
+  finalizeReshapeCardV3,
   finalizeUpgradeCardV3,
   materializeReachedEventV3,
   recordChallengeFightResult,
@@ -809,7 +810,8 @@ export type RunEventOfferSelection =
   | { kind: 'gem'; gemId: string }
   | { kind: 'sellGem'; pouchIndex: number }
   | { kind: 'mergeCards'; skillId: string }
-  | { kind: 'statPick'; stat: MarketStat };
+  | { kind: 'statPick'; stat: MarketStat }
+  | { kind: 'reshape'; instanceId: string };
 
 interface CurrentCommittedEvent {
   node: RunNode;
@@ -985,7 +987,9 @@ function finishCurrentV3Offer(
                 ? finalizeMergeCardsV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
                 : selection.kind === 'statPick' && offer.kind === 'buyStatPick'
                   ? finalizeBuyStatPickV3(activeRun, committed.instanceId, resolution.choiceId, selection.stat, lookup)
-                  : undefined;
+                  : selection.kind === 'reshape' && offer.kind === 'reshapeCard'
+                    ? finalizeReshapeCardV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
+                    : undefined;
   if (result === undefined || !result.ok) return undefined;
   if (result.state !== activeRun) setActiveRun(result.state);
   return result.outcome;

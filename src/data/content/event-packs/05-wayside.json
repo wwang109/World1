@@ -59,9 +59,21 @@
             "body": "A sergeant drills recruits through iron forms at the yard's edge. Two gold buys a place in the line and a weapon fresh off the rack; free, you can only watch from the fence.",
             "theme": "training",
             "rarity": "common",
-            "story": { "storyId": "cold_iron_drill", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 2 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "cold_iron_drill",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
@@ -72,9 +84,82 @@
                   "id": "join_drill",
                   "label": "Join the drill (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["offense"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "watch_only", "label": "Watch from the fence", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "watch_only",
+                  "label": "Watch from the fence",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Cold Iron Drill",
+            "body": "A sergeant drills recruits through iron forms at the yard's edge. Two gold buys a place in the line and a weapon fresh off the rack; free, you can only watch from the fence.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "cold_iron_drill",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "join_drill",
+                  "label": "Join the drill (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "watch_only",
+                  "label": "Watch from the fence",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -91,17 +176,43 @@
             "body": "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat three matched pieces of your gear into something that might hold better next time.",
             "theme": "training",
             "rarity": "common",
-            "story": { "storyId": "underdogs_stand", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "lives.current", "args": { "op": "lte", "value": 2 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "underdogs_stand",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "lte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
             "cooldownNodes": 6,
             "choiceSet": {
               "fixed": [
-                { "id": "drill_together", "label": "Beat three pieces together", "cost": 0, "outcome": { "kind": "mergeCards" } },
-                { "id": "march_alone", "label": "March on alone", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "drill_together",
+                  "label": "Beat three pieces together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -127,6 +238,63 @@
               ]
             }
           }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Underdog's Stand",
+            "body": "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat one piece of your gear into something that might hold better next time.",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "underdogs_stand",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "lte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Beat one piece into shape",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "rally",
+                  "label": "Rally with the other underdogs",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -140,21 +308,110 @@
             "body": "Three wins in, and the yard's old veterans finally wave you into their circle. What they teach next won't come from any drill.",
             "theme": "training",
             "rarity": "uncommon",
-            "story": { "storyId": "veterans_wisdom", "stage": "payoff", "role": "payoff" },
-            "eligibility": { "fact": "run.tally", "args": { "stat": "wins", "op": "gte", "value": 3 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "veterans_wisdom",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 250,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "toast_growth", "label": "Toast to hard-won growth", "cost": 0, "outcome": { "kind": "grantLevel" } },
+                {
+                  "id": "toast_growth",
+                  "label": "Toast to hard-won growth",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  }
+                },
                 {
                   "id": "take_defensive_lesson",
                   "label": "Learn a defensive lesson (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["defensive", "healing"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "defensive",
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Veteran's Wisdom",
+            "body": "Three wins in, and the yard's old veterans finally wave you into their circle. What they teach next won't come from any drill.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "veterans_wisdom",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "toast_growth",
+                  "label": "Toast to hard-won growth",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantLevel"
+                  }
+                },
+                {
+                  "id": "take_defensive_lesson",
+                  "label": "Learn a defensive lesson (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "defensive",
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 }
               ]
             }
@@ -264,21 +521,168 @@
             "body": "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn.",
             "theme": "omen",
             "rarity": "uncommon",
-            "story": { "storyId": "last_omens_toll", "stage": "payoff", "role": "payoff" },
-            "eligibility": { "fact": "run.tally", "args": { "stat": "bossesCleared", "op": "gte", "value": 1 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "last_omens_toll",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "bossesCleared",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 260,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "take_the_purse", "label": "Take the champion's purse", "cost": 0, "outcome": { "kind": "grantGold", "amount": 3 } },
+                {
+                  "id": "take_the_purse",
+                  "label": "Take the champion's purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
                 {
                   "id": "read_your_fortune",
                   "label": "Read your fortune (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["debuff"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "debuff"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Last Omen's Toll",
+            "body": "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "last_omens_toll",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "bossesCleared",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 260,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_purse",
+                  "label": "Take the champion's purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "read_your_fortune",
+                  "label": "Read your fortune (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "debuff"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Last Omen's Toll",
+            "body": "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "last_omens_toll",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "bossesCleared",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 260,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_the_purse",
+                  "label": "Ask where the road bends",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  }
+                },
+                {
+                  "id": "read_your_fortune",
+                  "label": "Read your fortune (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "debuff"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 }
               ]
             }
@@ -296,9 +700,21 @@
             "body": "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle.",
             "theme": "recruit",
             "rarity": "common",
-            "story": { "storyId": "quiet_muster", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 2 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "quiet_muster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
@@ -309,9 +725,147 @@
                   "id": "join_circle",
                   "label": "Join the circle (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["support"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "support"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "pass_by", "label": "Pass by", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "pass_by",
+                  "label": "Pass by",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Quiet Muster",
+            "body": "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "quiet_muster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "join_circle",
+                  "label": "Join the circle (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "support"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "pass_by",
+                  "label": "Pass by",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Quiet Muster",
+            "body": "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "quiet_muster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "join_circle",
+                  "label": "Join the circle (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "support"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "share_meal",
+                  "label": "Share their meal",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "pass_by",
+                  "label": "Pass by",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -347,6 +901,67 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Banner of Five",
+            "body": "Two wins in and a recruiter's banner catches your eye — five weapons laid out for anyone who's proven they can use one.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "banner_of_five",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "toast_to_wins",
+                  "label": "Raise a toast to the five",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "attack"
+                  }
+                },
+                {
+                  "id": "browse_the_banner",
+                  "label": "Browse the banner rack",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "bonusDraft",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword",
+                          "axe",
+                          "lance",
+                          "bow",
+                          "beast"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -360,17 +975,43 @@
             "body": "A sworn company drills three-deep at the roadside, offering to beat your gear together the way they beat their ranks into shape.",
             "theme": "recruit",
             "rarity": "common",
-            "story": { "storyId": "sworn_company", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 3 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "sworn_company",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
             "cooldownNodes": 6,
             "choiceSet": {
               "fixed": [
-                { "id": "drill_together", "label": "Drill three pieces together", "cost": 0, "outcome": { "kind": "mergeCards" } },
-                { "id": "march_alone", "label": "March on alone", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "drill_together",
+                  "label": "Drill three pieces together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -393,6 +1034,70 @@
               "fixed": [
                 { "id": "drill_together", "label": "Drill one piece into shape", "cost": 0, "outcome": { "kind": "awardCardPoint" } },
                 { "id": "march_alone", "label": "March on alone", "cost": 0, "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Sworn Company",
+            "body": "A sworn company drills three-deep at the roadside, offering to temper one piece of your gear the way they beat their own ranks into shape.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "sworn_company",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "drill_together",
+                  "label": "Drill one piece into shape",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "hire_blade",
+                  "label": "Hire one of their blades (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "march_alone",
+                  "label": "March on alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -499,6 +1204,60 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Scrap Reclaimer",
+            "body": "A reclaimer picks through scrap at the forge's edge, trading facets no one else wants for the ones that ward, cleanse, and taunt.",
+            "theme": "forge",
+            "rarity": "common",
+            "story": {
+              "storyId": "scrap_reclaimer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 1,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_a_stone",
+                  "label": "Trade a stone of your own",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "sellGem"
+                  }
+                },
+                {
+                  "id": "browse_the_scrap",
+                  "label": "Let him rework one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "transform",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -573,6 +1332,74 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Toll of Plenty",
+            "body": "A tollkeeper on the Tolling Road offers a wager instead of a toll: stake five gold and the gate might swing wide with more than you paid — or simply take your coin and go.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "toll_of_plenty",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 5
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "stake_the_toll",
+                  "label": "Stake 5 gold at the gate",
+                  "cost": 5,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "gate_swings_wide",
+                        "label": "Gate swings wide (55%)",
+                        "weight": 11,
+                        "outcome": {
+                          "kind": "grantCard",
+                          "tier": "bronze"
+                        }
+                      },
+                      {
+                        "id": "gate_holds",
+                        "label": "Gate holds (45%)",
+                        "weight": 9,
+                        "outcome": {
+                          "kind": "loseGold",
+                          "amount": 3
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "pay_no_toll",
+                  "label": "Pay no toll",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -586,21 +1413,113 @@
             "body": "A quiet ledger-keeper flags you down before the next stall. Eight gold through her books earns a courtesy the regulars get.",
             "theme": "market",
             "rarity": "uncommon",
-            "story": { "storyId": "quiet_ledger", "stage": "payoff", "role": "payoff" },
-            "eligibility": { "fact": "run.tally", "args": { "stat": "goldSpent", "op": "gte", "value": 8 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "quiet_ledger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "goldSpent",
+                "op": "gte",
+                "value": 8
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 210,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "take_courtesy_gem", "label": "Take the courtesy stone", "cost": 0, "outcome": { "kind": "gemChoice" } },
+                {
+                  "id": "take_courtesy_gem",
+                  "label": "Take the courtesy stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice"
+                  }
+                },
                 {
                   "id": "place_bulk_order",
                   "label": "Place a bulk order (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["offense"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Quiet Ledger",
+            "body": "A quiet ledger-keeper flags you down before the next stall. Eight gold through her books earns a courtesy the regulars get.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "quiet_ledger",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "goldSpent",
+                "op": "gte",
+                "value": 8
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 210,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_entry",
+                  "label": "Have the clerk copy one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "place_bulk_order",
+                  "label": "Place a bulk order (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "offense"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 }
               ]
             }
@@ -650,17 +1569,43 @@
             "body": "A half-sunk reliquary in the Silt Hollows holds three matched relics, ready to be beaten into one truer piece.",
             "theme": "cache",
             "rarity": "common",
-            "story": { "storyId": "silt_reliquary", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 3 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "silt_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
             "cooldownNodes": 6,
             "choiceSet": {
               "fixed": [
-                { "id": "beat_the_relics", "label": "Beat the relics together", "cost": 0, "outcome": { "kind": "mergeCards" } },
-                { "id": "leave_the_reliquary", "label": "Leave the reliquary shut", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "beat_the_relics",
+                  "label": "Beat the relics together",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "mergeCards"
+                  }
+                },
+                {
+                  "id": "leave_the_reliquary",
+                  "label": "Leave the reliquary shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -686,6 +1631,62 @@
               ]
             }
           }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Silt Reliquary",
+            "body": "A half-sunk reliquary in the Silt Hollows holds one true relic, waiting to be beaten a step further.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "silt_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 3
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 6,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "beat_the_relics",
+                  "label": "Beat the relic true",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "awardCardPoint"
+                  }
+                },
+                {
+                  "id": "pry_relic",
+                  "label": "Pry a relic stone loose",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGem"
+                  }
+                },
+                {
+                  "id": "leave_the_reliquary",
+                  "label": "Leave the reliquary shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -699,9 +1700,21 @@
             "body": "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly.",
             "theme": "cache",
             "rarity": "common",
-            "story": { "storyId": "hollow_stash", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "wallet.current", "args": { "op": "gte", "value": 2 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "hollow_stash",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "node",
@@ -712,9 +1725,151 @@
                   "id": "dig_it_out",
                   "label": "Dig it out properly (2 gold)",
                   "cost": 2,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "archetypes": ["healing"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave_the_log", "label": "Leave the log alone", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave_the_log",
+                  "label": "Leave the log alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Hollow Stash",
+            "body": "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "hollow_stash",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "dig_it_out",
+                  "label": "Dig it out properly (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave_the_log",
+                  "label": "Leave the log alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Hollow Stash",
+            "body": "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly.",
+            "theme": "cache",
+            "rarity": "common",
+            "story": {
+              "storyId": "hollow_stash",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "wallet.current",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 5,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "dig_it_out",
+                  "label": "Dig it out properly (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "archetypes": [
+                          "healing"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "swap_into_log",
+                  "label": "Swap one of your cards for what's inside",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "transform",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave_the_log",
+                  "label": "Leave the log alone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

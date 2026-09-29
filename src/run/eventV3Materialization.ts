@@ -2,6 +2,7 @@ import {
   isAmbientEventDefV3,
   type EventBoundSubjectsV3,
   type EventChoiceV3,
+  type EventReshapeModeV3,
   type LoadedEventDefV3,
 } from '../data/eventContentV3';
 import { biomeIds } from '../data/biomes';
@@ -25,6 +26,13 @@ export interface EventMergeInputV3 {
   tier: SkillTier;
   location: 'board' | 'bag';
   index: number;
+}
+
+export interface EventReshapeOptionV3 {
+  instanceId: string;
+  skillId: string;
+  tier: SkillTier;
+  resultSkillId?: string;
 }
 
 type PendingOrSettledV3 =
@@ -69,6 +77,13 @@ export type EventDeferredOfferV3 =
   // second buy at the same node.
   | ({ kind: 'buyStatPick' } & PendingOrSettledV3)
   | ({ kind: 'upgradeCard'; optionInstanceIds: readonly string[]; fallback: { kind: 'grantGold'; amount: number } } & PendingOrSettledV3)
+  | ({
+    kind: 'reshapeCard';
+    mode: EventReshapeModeV3;
+    options: readonly EventReshapeOptionV3[];
+    reward?: { kind: 'grantGold'; amount: number } | { kind: 'grantLevel' };
+    fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+  } & PendingOrSettledV3)
   | { kind: 'sellGem'; status: 'unavailable' }
   | ({ kind: 'sellGem'; options: readonly EventSellGemOfferV3[] } & PendingOrSettledV3)
   | { kind: 'mergeCards'; status: 'unavailable' }

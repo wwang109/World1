@@ -63,8 +63,10 @@ function describeCardFilterAxis(filter: CardFilter | undefined): CardRewardAxis 
   return { axis: populated[0]!.axis, value: populated[0]!.values![0]! };
 }
 
+const RESHAPE_CHIP = { transform: 'TRANSFORM', retype: 'CHANGE TYPE', duplicate: 'COPY', sacrifice: 'SACRIFICE' } as const;
+
 const REWARD_PRIORITY = [
-  'challengeFight',
+  'challengeFight', 'reshapeCard',
   'mergeCards', 'upgradeCard', 'upgradeCardTargeted', 'awardCardPoint',
   'grantCard', 'cardChoice',
   'gemChoice',
@@ -113,6 +115,8 @@ function candidateOf(outcome: EventOutcomeSpec | EventDirectOutcomeSpecV3): Rewa
       return { kind: 'mergeCards', chip: 'MERGE', rewardKind: 'merge' };
     case 'sellGem':
       return { kind: 'sellGem', chip: 'GOLD', rewardKind: 'gold' };
+    case 'reshapeCard':
+      return { kind: 'reshapeCard', chip: RESHAPE_CHIP[outcome.mode], rewardKind: 'upgrade' };
     case 'challengeFight': {
       const inner = candidateOf(outcome.reward as EventDirectOutcomeSpecV3);
       return {

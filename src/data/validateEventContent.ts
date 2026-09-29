@@ -31,7 +31,7 @@ const RARITIES = enumValues<EventRarity>({ common: true, uncommon: true, rare: t
 const EVENT_ART_IDS = enumValues<EventArtId>({ bell_beneath_ice: true, second_toll: true, bell_unbound: true });
 const TIERS = enumValues<SkillTier>({ bronze: true, silver: true, gold: true, diamond: true });
 const FILTER_FROM = enumValues<FilterFromSource>({ biomeLean: true, biomeCounter: true, boardIdentity: true });
-const MARKET_STATS = enumValues<MarketStat>({ attack: true, armor: true, maxHp: true });
+const MARKET_STATS = enumValues<MarketStat>({ maxHp: true, attack: true, magicPower: true, armor: true, magicResist: true, speed: true });
 const TALLY_STATS = enumValues<EventTallyGate['stat']>({
   goldSpent: true,
   cardsBought: true,
@@ -1277,6 +1277,30 @@ function validateV3ChallengeFight(
   else validateV3ChallengeFightReward(raw.reward, `${where}.reward`, problems, context);
 }
 
+function validateV3ReshapeCard(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  const modes = ['transform', 'retype', 'duplicate', 'sacrifice'];
+  if (!modes.includes(String(raw.mode))) {
+    problems.push({ where: `${where}.mode`, message: `mode must be ${modes.join('|')}` });
+  }
+  if (raw.mode === 'retype') {
+    if (raw.retypeTo === undefined) problems.push({ where: `${where}.retypeTo`, message: 'retype needs retypeTo' });
+    else validateCardFilter(raw.retypeTo, `${where}.retypeTo`, problems);
+  } else if (raw.retypeTo !== undefined) {
+    problems.push({ where: `${where}.retypeTo`, message: 'retypeTo is only for retype' });
+  }
+  if (raw.reward !== undefined) {
+    if (raw.mode !== 'sacrifice') problems.push({ where: `${where}.reward`, message: 'reward is only for sacrifice' });
+    const reward = raw.reward;
+    const ok = isObj(reward) && (reward.kind === 'grantLevel'
+      || (reward.kind === 'grantGold' && Number.isInteger(reward.amount) && (reward.amount as number) > 0));
+    if (!ok) problems.push({ where: `${where}.reward`, message: 'reward must be grantLevel or grantGold{amount>0}' });
+  }
+  const fallback = raw.fallback;
+  const fallbackOk = isObj(fallback) && (fallback.kind === 'nothing'
+    || (fallback.kind === 'grantGold' && Number.isInteger(fallback.amount) && (fallback.amount as number) > 0));
+  if (!fallbackOk) problems.push({ where: `${where}.fallback`, message: 'fallback must be nothing or grantGold{amount>0}' });
+}
+
 function validateV3DirectOutcome(
   value: unknown,
   where: string,
@@ -1301,6 +1325,10 @@ function validateV3DirectOutcome(
   }
   if (value.kind === 'challengeFight') {
     validateV3ChallengeFight(value, where, problems, context);
+    return;
+  }
+  if (value.kind === 'reshapeCard') {
+    validateV3ReshapeCard(value, where, problems);
     return;
   }
   if (value.kind === 'weighted') {

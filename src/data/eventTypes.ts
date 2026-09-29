@@ -40,7 +40,7 @@ export type EventRarity = 'common' | 'uncommon' | 'rare' | 'secret';
 /** The permanent hero stats the gold market and free stat-boon events buy —
  * a closed subset of `BuffableStat`, priced by `LEVEL_STAT_COST` (leveling.ts)
  * and folded via the same unguarded `applyLevelAllocation` a level-up uses. */
-export type MarketStat = 'attack' | 'armor' | 'maxHp';
+export type MarketStat = 'maxHp' | 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed';
 
 /** Closed presentation vocabulary for event-specific story illustrations.
  * Map nodes still preview their theme because no event has been resolved there. */

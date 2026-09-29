@@ -82,11 +82,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ## Materialized definitions
 
-## `abandoned_cache` · current version `1`
+## `abandoned_cache` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `abandoned_cache@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `abandoned_cache@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Abandoned Cache"
 - Presentation body: "The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned."
 - Discovery: none
@@ -105,8 +105,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -116,8 +115,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `search_thoroughly`
 
-- Presentation label: "Search it thoroughly (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Search it thoroughly (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -148,11 +147,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `arena_pit` · current version `1`
+## `arena_pit` · current version `2`
 
 - Source pack: `src/data/content/event-packs/06-challenges.json`
-- Identity: `arena_pit@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `arena_pit@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Arena Pit"
 - Presentation body: "A sunken ring of packed earth waits behind a curtain of oiled canvas, ringed by a crowd that has already placed its bets. The pit-master waves you toward the rope. \"Tougher bout, tougher purse,\" he says, and grins at the fighter already stretching in the sand."
 - Discovery: none
@@ -200,16 +199,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
   "kind": "challengeFight",
   "difficulty": "hard",
   "reward": {
-    "kind": "cardChoice",
-    "filter": [
-      {
-        "archetypes": [
-          "defensive",
-          "healing"
-        ]
-      }
-    ],
-    "maxTier": "bronze"
+    "kind": "grantLevel"
   }
 }
 ```
@@ -238,11 +228,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `ash_oracle` · current version `1`
+## `ash_oracle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/30-emberwaste.json`
-- Identity: `ash_oracle@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `ash_oracle@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Ash Oracle"
 - Presentation body: "An oracle sits cross-legged in the Emberwaste's drifting soot, reading futures out of the way embers curl and die. She presses a warm brand into your palm before you have asked a single question."
 - Discovery: none
@@ -298,23 +288,20 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_fire_card`
+#### Fixed choice 2: `burn_card`
 
-- Presentation label: "Take a Fire card"
+- Presentation label: "Burn a card into something new"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "elements": [
-        "fire"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "reshapeCard",
+  "mode": "transform",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -447,11 +434,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `banner_of_five` · current version `1`
+## `banner_of_five` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `banner_of_five@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `banner_of_five@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Banner of Five"
 - Presentation body: "Two wins in and a recruiter's banner catches your eye — five weapons laid out for anyone who's proven they can use one."
 - Discovery: none
@@ -491,14 +478,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `toast_to_wins`
 
-- Presentation label: "Take a toast and a coin"
+- Presentation label: "Raise a toast to the five"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 2
+  "kind": "grantStat",
+  "stat": "attack"
 }
 ```
 
@@ -537,11 +524,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `banner_scribe` · current version `1`
+## `banner_scribe` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `banner_scribe@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `banner_scribe@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Banner-Scribe"
 - Presentation body: "A banner-scribe has set her table among the Muster Road's camps, reading fighters' colors off their gear the way other scribes read letters. One look over your board and she is already mixing paint: if you march under a device, she knows a supplier for it — and if you march under none, she will still pay a copper for the sketch."
 - Discovery: none
@@ -554,8 +541,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `blazon`
 
-- Presentation label: "Commission gear in your colors (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Commission gear in your colors (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -572,14 +559,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `sketch_fee`
 
-- Presentation label: "Let her sketch your kit for a copper"
+- Presentation label: "Let her sketch your kit"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -694,11 +680,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `beast_nest` · current version `1`
+## `beast_nest` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `beast_nest@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `beast_nest@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Beast Nest"
 - Presentation body: "A trampled nest sits half-sunk in the Silt Hollows' mud, littered with the shed claws and feathers of something large. Everything worth carrying out of it is beast-work — fang, claw and hide, nothing else — if whatever built it doesn't come back and cost you a coin purse for the trouble."
 - Discovery: none
@@ -711,14 +697,21 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `raid_it`
 
-- Presentation label: "Raid the nest"
+- Presentation label: "Raid the nest for whatever's inside"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantCard",
+  "filter": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "tier": "bronze"
 }
 ```
 
@@ -728,8 +721,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `raid_prepared`
 
-- Presentation label: "Take a beast trophy (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Take a beast trophy (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -982,11 +975,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `blood_price_muster` · current version `1`
+## `blood_price_muster` · current version `2`
 
 - Source pack: `src/data/content/event-packs/60-ironmoot.json`
-- Identity: `blood_price_muster@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `blood_price_muster@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Blood-Price Muster"
 - Presentation body: "An Ironmoot recruiter has nailed a muster notice to a splintered post: axes wanted, blood-price paid in kind. A single notched blade hangs beneath it, already claimed by no one."
 - Discovery: none
@@ -1042,10 +1035,10 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_axe_card`
+#### Fixed choice 2: `buy_axe_pick`
 
-- Presentation label: "Take an Axe card"
-- Cost: `0` gold
+- Presentation label: "Pay the blood-price for your pick of axes (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -1086,11 +1079,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `bloom_behind_the_teeth` · current version `1`
+## `bloom_behind_the_teeth` · current version `2`
 
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
-- Identity: `bloom_behind_the_teeth@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `bloom_behind_the_teeth@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Bloom Behind the Teeth"
 - Presentation body: "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall."
 - Discovery: `venom_crown` · Venom Crown · account `future`
@@ -1141,22 +1134,17 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `harvest_venom`
 
-- Presentation label: "Harvest the venom"
+- Presentation label: "Harvest a venom-sac"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "gemChoice",
+  "kind": "grantGem",
   "filter": [
     {
       "actionKinds": [
         "poison"
-      ]
-    },
-    {
-      "ids": [
-        "festering_sliver"
       ]
     }
   ]
@@ -1167,43 +1155,31 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `cultivate_bloom`
+#### Fixed choice 2: `fight_the_teeth`
 
-- Presentation label: "Cultivate the bloom"
+- Presentation label: "Fight the teeth for the bloom"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
+  "kind": "challengeFight",
+  "difficulty": "standard",
+  "reward": {
+    "kind": "cardChoice",
+    "filter": [
+      {
         "elements": [
           "nature"
         ]
       }
-    }
-  },
-  "fallback": {
-    "kind": "grantGold",
-    "amount": 2
+    ],
+    "maxTier": "bronze"
   }
 }
 ```
 
-- Typed mutations:
-
-```json
-[
-  {
-    "op": "set",
-    "key": "venom_bloom",
-    "value": "cultivated"
-  }
-]
-```
+- Typed mutations: none
 
 - Callback: none
 
@@ -1227,11 +1203,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `broken_axle` · current version `1`
+## `broken_axle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `broken_axle@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `broken_axle@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Broken Axle"
 - Presentation body: "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone."
 - Discovery: none
@@ -1244,14 +1220,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `help_haul`
 
-- Presentation label: "Help haul the cart upright"
+- Presentation label: "Help haul the cart upright and take a crate"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantCard",
+  "tier": "bronze"
 }
 ```
 
@@ -1385,11 +1361,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `capacitor_vault` · current version `1`
+## `capacitor_vault` · current version `2`
 
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
-- Identity: `capacitor_vault@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `capacitor_vault@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Capacitor Vault"
 - Presentation body: "A tinker's vault hums behind a door of copper and glass, charged decades ago and never discharged. Only a lightning-tempered hand can draw on it without earthing the whole store."
 - Discovery: none
@@ -1469,28 +1445,21 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `charge_lightning_card`
+#### Fixed choice 2: `feed_vault`
 
-- Presentation label: "Charge a Lightning card"
+- Presentation label: "Feed a card to the vault"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "lightning"
-        ]
-      }
-    }
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantLevel"
   },
   "fallback": {
-    "kind": "grantGold",
-    "amount": 2
+    "kind": "nothing"
   }
 }
 ```
@@ -1615,11 +1584,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `card_that_remembered` · current version `1`
+## `card_that_remembered` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
-- Identity: `card_that_remembered@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `card_that_remembered@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Card That Remembered"
 - Presentation body: "One skill has followed your victories and struck the final blow against a great foe. At a roadside shrine, the card begins to remember more than ink."
 - Discovery: `signature_skill` · Signature Skill · account `future`
@@ -1676,8 +1645,19 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "archetypes": [
+        "offense",
+        "defensive",
+        "healing",
+        "support",
+        "debuff"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
 }
 ```
 
@@ -1764,11 +1744,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `cartographers_missing_road` · current version `1`
+## `cartographers_missing_road` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
-- Identity: `cartographers_missing_road@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `cartographers_missing_road@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Cartographer's Missing Road"
 - Presentation body: "A cartographer compares your traveled lands to a map with one deliberate blank. The absent road points toward a biome you have not yet crossed."
 - Discovery: `off_the_map` · Off the Map · account `future`
@@ -1838,8 +1818,12 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice",
+  "filter": [
+    {
+      "all": true
+    }
+  ]
 }
 ```
 
@@ -2280,11 +2264,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `cold_iron_drill` · current version `1`
+## `cold_iron_drill` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `cold_iron_drill@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `cold_iron_drill@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Cold Iron Drill"
 - Presentation body: "A sergeant drills recruits through iron forms at the yard's edge. Two gold buys a place in the line and a weapon fresh off the rack; free, you can only watch from the fence."
 - Discovery: none
@@ -2323,8 +2307,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `join_drill`
 
-- Presentation label: "Join the drill (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Join the drill (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -2365,11 +2349,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `collapsed_barrow` · current version `1`
+## `collapsed_barrow` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `collapsed_barrow@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `collapsed_barrow@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Collapsed Barrow"
 - Presentation body: "A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves."
 - Discovery: none
@@ -2382,14 +2366,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `crawl_in`
 
-- Presentation label: "Crawl inside"
+- Presentation label: "Crawl inside and hone a card on the old whetstone"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "upgradeCard"
 }
 ```
 
@@ -2429,6 +2412,101 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
+
+## `courier_shortcut` · current version `1`
+
+- Source pack: `src/data/content/event-packs/121-rare-boons.json`
+- Identity: `courier_shortcut@v1`
+- Retained versions: v1 (schema 3)
+- Presentation title: "The Courier's Shortcut"
+- Presentation body: "A courier in mud-splashed boots overtakes you at a dead run, then doubles back, laughing. \"You walk like the road owes you time,\" she says, and shows you how she sets her feet — lighter, sooner, already moving before the thought arrives."
+- Discovery: none
+
+- Story: `courier_shortcut` · stage `payoff` · role `payoff`
+- Theme `recruit` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 0`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 0
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `learn_stride`
+
+- Presentation label: "Learn her stride"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "speed"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `take_parcel`
+
+- Presentation label: "Take the parcel she can't deliver"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantCard",
+  "tier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
+
+- Presentation label: "Let her run on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
 
 ## `crooked_dice` · current version `1`
 
@@ -2555,11 +2633,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `crossroads_shrine` · current version `1`
+## `crossroads_shrine` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `crossroads_shrine@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `crossroads_shrine@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Crossroads Shrine"
 - Presentation body: "At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon, and the two faces answer separately: tithe at the sun and what comes back is holy work, every time; scratch the moon-mark instead and it is dark work, every time. Others, less devout, simply pry the shrine apart for scrap."
 - Discovery: none
@@ -2572,8 +2650,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `tithe`
 
-- Presentation label: "Leave a holy tithe (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Leave a holy tithe (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -2595,8 +2673,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `moon_rite`
 
-- Presentation label: "Scratch the moon-mark for dark work (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Scratch the moon-mark for dark work (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -2634,11 +2712,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `drill_sergeant_chest` · current version `1`
+## `drill_sergeant_chest` · current version `2`
 
 - Source pack: `src/data/content/event-packs/70-pikewold.json`
-- Identity: `drill_sergeant_chest@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `drill_sergeant_chest@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Drill-Sergeant's Chest"
 - Presentation body: "A locked chest sits at the foot of a drill yard long since abandoned, stamped with a dead sergeant's seal and heavy with a lance-hand's due."
 - Discovery: none
@@ -2718,29 +2796,16 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `drill_lance_card`
+#### Fixed choice 2: `take_drill`
 
-- Presentation label: "Drill a Lance card"
+- Presentation label: "Run the sergeant's drill"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "weapons": [
-          "lance"
-        ]
-      }
-    }
-  },
-  "fallback": {
-    "kind": "grantGold",
-    "amount": 2
-  }
+  "kind": "grantStat",
+  "stat": "armor"
 }
 ```
 
@@ -2768,11 +2833,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `duelists_grip` · current version `1`
+## `duelists_grip` · current version `2`
 
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
-- Identity: `duelists_grip@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `duelists_grip@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Old Duelist's Grip"
 - Presentation body: "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\""
 - Discovery: none
@@ -2826,7 +2891,28 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `decline`
+#### Fixed choice 2: `mirror_form`
+
+- Presentation label: "Have him show you a move twice"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
 
 - Presentation label: "Thank him and walk on"
 - Cost: `0` gold
@@ -2846,11 +2932,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `duskroad_challenger` · current version `1`
+## `duskroad_challenger` · current version `2`
 
 - Source pack: `src/data/content/event-packs/06-challenges.json`
-- Identity: `duskroad_challenger@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `duskroad_challenger@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Duskroad Challenger"
 - Presentation body: "A masked figure waits where the road dims toward dusk, testing every traveler who passes with the same plain offer: a fair fight, a fair prize, no names asked either way."
 - Discovery: none
@@ -2915,7 +3001,24 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `refuse`
+#### Fixed choice 2: `share_rations`
+
+- Presentation label: "Share his road-rations instead"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "speed"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `refuse`
 
 - Presentation label: "Refuse"
 - Cost: `0` gold
@@ -2935,11 +3038,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `ember_pit` · current version `2`
+## `ember_pit` · current version `3`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `ember_pit@v2`
-- Retained versions: v1 (schema 1), v2 (schema 1)
+- Identity: `ember_pit@v3`
+- Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1)
 - Presentation title: "The Ember Pit"
 - Presentation body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Feed one piece of your gear to the coals and it comes back a step further tempered toward its next grade — you choose which piece takes the heat."
 - Discovery: none
@@ -2958,8 +3061,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "cardChoice",
+  "tier": "bronze"
 }
 ```
 
@@ -3000,11 +3103,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `factors_ledger` · current version `1`
+## `factors_ledger` · current version `3`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `factors_ledger@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `factors_ledger@v3`
+- Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1)
 - Presentation title: "The Factor's Ledger"
 - Presentation body: "A trade factor steps into the road with a ledger already open to your page. \"Twelve gold and change, through the stalls and tolls of this road, by my count,\" she says, turning the book so you can see the tally — and it is your tally, coin for coin. \"The road pays its regulars. One credit, one time. Spend it or tear the page.\""
 - Discovery: none
@@ -3035,7 +3138,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "gemChoice"
+  "kind": "grantGem"
 }
 ```
 
@@ -3045,8 +3148,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `bulk_order`
 
-- Presentation label: "Place a bulk order (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Place a bulk order (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -3546,11 +3649,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `fletchers_tithe` · current version `1`
+## `fletchers_tithe` · current version `2`
 
 - Source pack: `src/data/content/event-packs/10-arrowfell.json`
-- Identity: `fletchers_tithe@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `fletchers_tithe@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Fletcher's Tithe"
 - Presentation body: "A fletcher's stall stands unmanned at an Arrowfell crossroads, its ledger open to a page marked \"tithe.\" One fine arrow rests beside it, already fletched for a hand that never came to claim it."
 - Discovery: none
@@ -3606,15 +3709,15 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_bow_card`
+#### Fixed choice 2: `take_random_bow`
 
-- Presentation label: "Take a Bow card"
+- Presentation label: "Take whatever bow the fletcher hands you"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
+  "kind": "grantCard",
   "filter": [
     {
       "weapons": [
@@ -3622,7 +3725,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
       ]
     }
   ],
-  "maxTier": "bronze"
+  "tier": "bronze"
 }
 ```
 
@@ -3729,11 +3832,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `fortune_teller` · current version `1`
+## `fortune_teller` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `fortune_teller@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `fortune_teller@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Fortune-Teller"
 - Presentation body: "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand."
 - Discovery: none
@@ -3752,8 +3855,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantMapInfo",
+  "bandsAhead": 2
 }
 ```
 
@@ -3844,11 +3947,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `garrisons_oath` · current version `1`
+## `garrisons_oath` · current version `2`
 
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
-- Identity: `garrisons_oath@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `garrisons_oath@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Garrison's Oath"
 - Presentation body: "Swornhold's drill yard still musters at the old hours. Two victories won under its banner earn a place in the line — and the oath that comes with it."
 - Discovery: none
@@ -3888,21 +3991,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `swear_the_oath`
 
-- Presentation label: "Swear the garrison's oath"
-- Cost: `0` gold
+- Presentation label: "Swear the garrison's oath (2 gold)"
+- Cost: `2` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "weapons": [
-        "sword"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "grantLevel"
 }
 ```
 
@@ -3977,11 +4072,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `garrisons_oath_kept` · current version `1`
+## `garrisons_oath_kept` · current version `2`
 
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
-- Identity: `garrisons_oath_kept@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `garrisons_oath_kept@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Oath Kept"
 - Presentation body: "Word of the oath reaches you again, three roads on: the garrison held its line without you, and the standard-bearer sends word of what your name still earns there."
 - Discovery: none
@@ -4079,23 +4174,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Pool choice 2: `temper_the_oath_blade`
 
-- Presentation label: "Temper the oath-blade"
+- Presentation label: "Forge a twin of your oath-blade"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "weapons": [
-          "sword"
-        ]
-      }
-    }
-  },
+  "kind": "reshapeCard",
+  "mode": "duplicate",
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -4117,11 +4203,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `gemsellers_mishap` · current version `1`
+## `gemsellers_mishap` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `gemsellers_mishap@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `gemsellers_mishap@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Gemseller's Mishap"
 - Presentation body: "A peddler's cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there's more here than she can gather alone, and more than a few have already rolled to rest against your boots."
 - Discovery: none
@@ -4134,14 +4220,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `help`
 
-- Presentation label: "Help her gather them"
+- Presentation label: "Help her gather them and keep one"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantGem"
 }
 ```
 
@@ -4276,11 +4361,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `grave_wax_seals` · current version `1`
+## `grave_wax_seals` · current version `2`
 
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
-- Identity: `grave_wax_seals@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `grave_wax_seals@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Grave-Wax Seals"
 - Presentation body: "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read."
 - Discovery: none
@@ -4360,28 +4445,22 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `anoint_dark_card`
+#### Fixed choice 2: `entomb_card`
 
-- Presentation label: "Anoint a Dark card"
+- Presentation label: "Seal a card in the grave for its coin"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "dark"
-        ]
-      }
-    }
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantGold",
+    "amount": 6
   },
   "fallback": {
-    "kind": "grantGold",
-    "amount": 2
+    "kind": "nothing"
   }
 }
 ```
@@ -4488,11 +4567,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `hermits_riddle` · current version `1`
+## `hermits_riddle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `hermits_riddle@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `hermits_riddle@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Hermit's Riddle"
 - Presentation body: "On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you've even stopped walking. Answer it right, she says, and you'll understand something about yourself no sparring ring could teach. Answer wrong, and you'll simply keep walking, no worse for it."
 - Discovery: none
@@ -4511,8 +4590,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "cardChoice",
+  "tier": "bronze"
 }
 ```
 
@@ -4553,11 +4632,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `hoarfrost_reliquary` · current version `1`
+## `hoarfrost_reliquary` · current version `2`
 
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
-- Identity: `hoarfrost_reliquary@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `hoarfrost_reliquary@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Hoarfrost Reliquary"
 - Presentation body: "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold."
 - Discovery: none
@@ -4637,25 +4716,23 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `rime_a_frost_card`
+#### Fixed choice 2: `rime_card`
 
-- Presentation label: "Rime a Frost card"
+- Presentation label: "Let the rime turn a card to frost"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "frost"
-        ]
-      }
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "elements": [
+        "frost"
+      ]
     }
-  },
+  ],
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -4687,11 +4764,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `hollow_stash` · current version `1`
+## `hollow_stash` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `hollow_stash@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `hollow_stash@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Hollow Stash"
 - Presentation body: "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly."
 - Discovery: none
@@ -4730,8 +4807,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `dig_it_out`
 
-- Presentation label: "Dig it out properly (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Dig it out properly (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -4752,7 +4829,28 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `leave_the_log`
+#### Fixed choice 2: `swap_into_log`
+
+- Presentation label: "Swap one of your cards for what's inside"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "transform",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave_the_log`
 
 - Presentation label: "Leave the log alone"
 - Cost: `0` gold
@@ -4772,11 +4870,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `howling_cairn` · current version `1`
+## `howling_cairn` · current version `2`
 
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
-- Identity: `howling_cairn@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `howling_cairn@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Howling Cairn"
 - Presentation body: "A cairn of bleached bone and antler stands where Howlmoor's packs gather at dusk, a single fanged trophy wedged into its crown for whoever can call the howl back."
 - Discovery: none
@@ -4832,23 +4930,20 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_beast_card`
+#### Fixed choice 2: `echo_card`
 
-- Presentation label: "Take a Beast card"
+- Presentation label: "Howl a card's echo into a copy"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "weapons": [
-        "beast"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -4876,11 +4971,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `last_acolyte` · current version `1`
+## `last_acolyte` · current version `2`
 
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
-- Identity: `last_acolyte@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `last_acolyte@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Last Acolyte"
 - Presentation body: "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road."
 - Discovery: none
@@ -4936,23 +5031,27 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_dark_card`
+#### Fixed choice 2: `darken_card`
 
-- Presentation label: "Take a Dark card"
+- Presentation label: "Let him darken one of your cards"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
     {
       "elements": [
         "dark"
       ]
     }
   ],
-  "maxTier": "bronze"
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -5111,11 +5210,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `last_light_at_roads_end` · current version `1`
+## `last_light_at_roads_end` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
-- Identity: `last_light_at_roads_end@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `last_light_at_roads_end@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Last Light at Road's End"
 - Presentation body: "After the last defeat, a lone lantern burns where the road divides. Its keeper offers strength for the safer path—or a spark for the unlit one."
 - Discovery: `last_light` · Last Light · account `future`
@@ -5227,8 +5326,12 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice",
+  "filter": [
+    {
+      "all": true
+    }
+  ]
 }
 ```
 
@@ -5386,11 +5489,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `last_omens_toll` · current version `1`
+## `last_omens_toll` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `last_omens_toll@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `last_omens_toll@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Last Omen's Toll"
 - Presentation body: "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn."
 - Discovery: none
@@ -5430,14 +5533,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `take_the_purse`
 
-- Presentation label: "Take the champion's purse"
+- Presentation label: "Ask where the road bends"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 3
+  "kind": "grantMapInfo",
+  "bandsAhead": 2
 }
 ```
 
@@ -5447,8 +5550,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `read_your_fortune`
 
-- Presentation label: "Read your fortune (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Read your fortune (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -5473,11 +5576,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `lightning_struck_spire` · current version `1`
+## `lightning_struck_spire` · current version `2`
 
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
-- Identity: `lightning_struck_spire@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `lightning_struck_spire@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Lightning-Struck Spire"
 - Presentation body: "A shattered spire juts from Stormreach's ridgeline, its stone still smoking from a strike that split it top to base. A single blackened arc still crawls the crack, waiting for a hand that can hold it."
 - Discovery: none
@@ -5533,23 +5636,16 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_lightning_card`
+#### Fixed choice 2: `touch_spire`
 
-- Presentation label: "Take a Lightning card"
+- Presentation label: "Touch the charged stone"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "elements": [
-        "lightning"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "grantStat",
+  "stat": "speed"
 }
 ```
 
@@ -5577,11 +5673,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `mirror_of_the_board` · current version `1`
+## `mirror_of_the_board` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
-- Identity: `mirror_of_the_board@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `mirror_of_the_board@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Mirror of the Board"
 - Presentation body: "A road-forge holds a mirror wide enough for your whole formation. It reflects a single shared purpose more clearly than any face."
 - Discovery: `one_purpose` · One Purpose · account `future`
@@ -5889,8 +5985,19 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "archetypes": [
+        "offense",
+        "defensive",
+        "healing",
+        "support",
+        "debuff"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
 }
 ```
 
@@ -6230,11 +6337,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `missing_road_destination` · current version `1`
+## `missing_road_destination` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
-- Identity: `missing_road_destination@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `missing_road_destination@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Missing Road"
 - Presentation body: "The cartographer's mark appears beneath your feet in the biome it named. For a moment, the road opens onto a cache hidden outside every common map."
 - Discovery: none
@@ -6304,25 +6411,18 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `claim_road_cache`
 
-- Presentation label: "Claim the road cache"
+- Presentation label: "Trade a card at the road cache"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "archetypes": [
-        "offense",
-        "defensive",
-        "healing",
-        "support",
-        "debuff"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "reshapeCard",
+  "mode": "transform",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -6368,11 +6468,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `moon_scented_hunt` · current version `1`
+## `moon_scented_hunt` · current version `2`
 
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
-- Identity: `moon_scented_hunt@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `moon_scented_hunt@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Moon Hunt"
 - Presentation body: "The silver trail reaches its quarry beneath a low moon. Hunter and hunted wait for you to decide how the chase ends."
 - Discovery: none
@@ -6410,23 +6510,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `finish_hunt`
 
-- Presentation label: "Finish the moon hunt"
+- Presentation label: "Finish the hunt with a twin strike"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "weapons": [
-          "beast"
-        ]
-      }
-    }
-  },
+  "kind": "reshapeCard",
+  "mode": "duplicate",
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -6434,16 +6525,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 }
 ```
 
-- Typed mutations:
-
-```json
-[
-  {
-    "op": "completeStory",
-    "storyId": "moon_scented_trail"
-  }
-]
-```
+- Typed mutations: none
 
 - Callback: none
 
@@ -6515,11 +6597,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `moon_scented_trail` · current version `1`
+## `moon_scented_trail` · current version `2`
 
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
-- Identity: `moon_scented_trail@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `moon_scented_trail@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Moon-Scented Trail"
 - Presentation body: "Silver tracks cross the Howlmoor road and vanish into heather. The trail bends for a hunter who runs with beasts—or has already broken a pack."
 - Discovery: `hunted_the_hunter` · Hunted the Hunter · account `future`
@@ -6569,21 +6651,25 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `follow_hunt`
 
-- Presentation label: "Follow the hunt"
+- Presentation label: "Run down the quarry"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "weapons": [
-        "beast"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "challengeFight",
+  "difficulty": "standard",
+  "reward": {
+    "kind": "cardChoice",
+    "filter": [
+      {
+        "weapons": [
+          "beast"
+        ]
+      }
+    ],
+    "maxTier": "bronze"
+  }
 }
 ```
 
@@ -6658,11 +6744,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `names_under_stone` · current version `1`
+## `names_under_stone` · current version `2`
 
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
-- Identity: `names_under_stone@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `names_under_stone@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Names Under Stone"
 - Presentation body: "Beyond Duskbarrow's fallen lord, a mile of grave markers leans toward the road. One stone speaks a name that only a bearer of dark craft could answer."
 - Discovery: `the_grave_answers` · The Grave Answers · account `future`
@@ -6717,23 +6803,21 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `raise_dark_name`
 
-- Presentation label: "Raise the dark name"
+- Presentation label: "Carve a card's name into the dark"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "dark"
-        ]
-      }
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "elements": [
+        "dark"
+      ]
     }
-  },
+  ],
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -6944,11 +7028,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `oathsmiths_forge` · current version `1`
+## `oathsmiths_forge` · current version `2`
 
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
-- Identity: `oathsmiths_forge@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `oathsmiths_forge@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Oathsmith"
 - Presentation body: "Swornhold's forge never truly cools. Its smith takes no coin, only oaths, and the blade she sets aside today is already promised to whoever swears to carry it into the line."
 - Discovery: none
@@ -7004,23 +7088,24 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_sword_card`
+#### Fixed choice 2: `take_oath_gem`
 
-- Presentation label: "Take a Sword card"
+- Presentation label: "Take a gem from the oath-rack"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
+  "kind": "gemChoice",
   "filter": [
     {
-      "weapons": [
-        "sword"
+      "ids": [
+        "follow_through_echo",
+        "iron_bulwark_echo",
+        "war_banner_echo"
       ]
     }
-  ],
-  "maxTier": "bronze"
+  ]
 }
 ```
 
@@ -7048,11 +7133,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `overloaded_caravan` · current version `1`
+## `overloaded_caravan` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `overloaded_caravan@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `overloaded_caravan@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Overloaded Caravan"
 - Presentation body: "A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. A bundle of bowstaves is lashed to the tailgate where anyone can see it; the trunks behind it are packed with no order at all and could hold anything. Push, and she'll let you take from either — or just toss you a coin for a shoulder at the wheel."
 - Discovery: none
@@ -7104,14 +7189,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 3: `push`
 
-- Presentation label: "Just push for a coin"
+- Presentation label: "Just push"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -7120,11 +7204,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `penitents_road` · current version `1`
+## `penitents_road` · current version `2`
 
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
-- Identity: `penitents_road@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `penitents_road@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Penitent's Road"
 - Presentation body: "A stretch of Hallowfield's road runs bare of grass, worn smooth by knees rather than boots. At its end a plain altar holds one blade of consecrated light, left for whoever finishes the walk."
 - Discovery: none
@@ -7180,23 +7264,23 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_holy_card`
+#### Fixed choice 2: `offer_card`
 
-- Presentation label: "Take a Holy card"
+- Presentation label: "Offer a card at the shrine for alms"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "elements": [
-        "holy"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantGold",
+    "amount": 6
+  },
+  "fallback": {
+    "kind": "nothing"
+  }
 }
 ```
 
@@ -7224,11 +7308,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `pike_forge` · current version `1`
+## `pike_forge` · current version `2`
 
 - Source pack: `src/data/content/event-packs/70-pikewold.json`
-- Identity: `pike_forge@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `pike_forge@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Pike-Forge"
 - Presentation body: "A field-forge still glows at Pikewold's rear line, its bellows worked by no one and its rack holding a single braced shaft, cooling from the last quench."
 - Discovery: none
@@ -7284,23 +7368,29 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_lance_card`
+#### Fixed choice 2: `reforge_lance`
 
-- Presentation label: "Take a Lance card"
+- Presentation label: "Reforge one of your lance cards"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "weapons": [
-        "lance"
-      ]
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "lance"
+        ]
+      }
     }
-  ],
-  "maxTier": "bronze"
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
 }
 ```
 
@@ -7328,11 +7418,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `pyre_watch` · current version `1`
+## `pyre_watch` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `pyre_watch@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `pyre_watch@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Pyre-Watch"
 - Presentation body: "A watch-fire burns at the crossroads for the road's dead, tended by a hooded keeper who does not ask whose name you are carrying. The fire already knows: you left a life on a field behind you, and the pyre-watch keeps the old custom for anyone who limps past it — alms for the mourner, or arms for the living."
 - Discovery: none
@@ -7374,8 +7464,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `arm_the_living`
 
-- Presentation label: "Buy arms for the living (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Buy arms for the living (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -7469,11 +7559,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `quiet_ledger` · current version `1`
+## `quiet_ledger` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `quiet_ledger@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `quiet_ledger@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Quiet Ledger"
 - Presentation body: "A quiet ledger-keeper flags you down before the next stall. Eight gold through her books earns a courtesy the regulars get."
 - Discovery: none
@@ -7511,15 +7601,20 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ### Fixed choices (always materialized)
 
-#### Fixed choice 1: `take_courtesy_gem`
+#### Fixed choice 1: `copy_entry`
 
-- Presentation label: "Take the courtesy stone"
+- Presentation label: "Have the clerk copy one of your cards"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "gemChoice"
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -7529,8 +7624,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `place_bulk_order`
 
-- Presentation label: "Place a bulk order (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Place a bulk order (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -7555,11 +7650,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `quiet_muster` · current version `1`
+## `quiet_muster` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `quiet_muster@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `quiet_muster@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Quiet Muster"
 - Presentation body: "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle."
 - Discovery: none
@@ -7598,8 +7693,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `join_circle`
 
-- Presentation label: "Join the circle (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Join the circle (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -7620,7 +7715,24 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `pass_by`
+#### Fixed choice 2: `share_meal`
+
+- Presentation label: "Share their meal"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "maxHp"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `pass_by`
 
 - Presentation label: "Pass by"
 - Cost: `0` gold
@@ -7640,11 +7752,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `recruiter` · current version `1`
+## `recruiter` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `recruiter@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `recruiter@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Recruiter"
 - Presentation body: "A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. \"Swords are racked on their own — anything else, you take your chances with what's in the cart,\" he grins, laying out a row of five either way. \"Or take the coin instead. I won't haggle.\""
 - Discovery: none
@@ -7680,13 +7792,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `pick_weapon`
 
-- Presentation label: "Dig through the mixed cart"
+- Presentation label: "Grab whatever's on top of the cart"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "bonusDraft",
+  "kind": "grantCard",
   "filter": [
     {
       "weapons": [
@@ -7697,7 +7809,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
         "beast"
       ]
     }
-  ]
+  ],
+  "tier": "bronze"
 }
 ```
 
@@ -7886,11 +7999,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `rime_locked_sledge` · current version `1`
+## `rime_locked_sledge` · current version `2`
 
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
-- Identity: `rime_locked_sledge@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `rime_locked_sledge@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Rime-Locked Sledge"
 - Presentation body: "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting."
 - Discovery: none
@@ -7946,23 +8059,22 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_frost_card`
+#### Fixed choice 2: `sacrifice_to_ice`
 
-- Presentation label: "Take a Frost card"
+- Presentation label: "Leave a card to the ice for strength"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "elements": [
-        "frost"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantLevel"
+  },
+  "fallback": {
+    "kind": "nothing"
+  }
 }
 ```
 
@@ -8113,11 +8225,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `rootbound_hermit` · current version `1`
+## `rootbound_hermit` · current version `2`
 
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
-- Identity: `rootbound_hermit@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `rootbound_hermit@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Rootbound Hermit"
 - Presentation body: "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield."
 - Discovery: none
@@ -8173,23 +8285,15 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `take_nature_card`
+#### Fixed choice 2: `take_seed_gem`
 
-- Presentation label: "Take a Nature card"
+- Presentation label: "Take the seed he presses into your palm"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
-  "filter": [
-    {
-      "elements": [
-        "nature"
-      ]
-    }
-  ],
-  "maxTier": "bronze"
+  "kind": "grantGem"
 }
 ```
 
@@ -8285,11 +8389,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `sanctum_vigil` · current version `1`
+## `sanctum_vigil` · current version `2`
 
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
-- Identity: `sanctum_vigil@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `sanctum_vigil@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Sanctum Vigil"
 - Presentation body: "Past Hallowfield's consecrated line, a keeper still holds a vigil no map explains. The ward has stood since before the road, and it has never once let anything back out."
 - Discovery: none
@@ -8329,21 +8433,20 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `keep_the_vigil`
 
-- Presentation label: "Keep the vigil"
+- Presentation label: "Keep the vigil and choose a blessing"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "cardChoice",
+  "kind": "bonusDraft",
   "filter": [
     {
       "elements": [
         "holy"
       ]
     }
-  ],
-  "maxTier": "bronze"
+  ]
 }
 ```
 
@@ -8418,11 +8521,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `sanctum_vigil_answer` · current version `1`
+## `sanctum_vigil_answer` · current version `2`
 
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
-- Identity: `sanctum_vigil_answer@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `sanctum_vigil_answer@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "What the Ward Kept Out"
 - Presentation body: "The vigil answers: a wisp of dark magic, held at the boundary since long before you crossed it, still restless against the consecrated line. The keeper offers you the choosing of what becomes of it."
 - Discovery: none
@@ -8460,26 +8563,19 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `consecrate_the_dark`
 
-- Presentation label: "Consecrate what it kept out"
+- Presentation label: "Give a card up to the ward"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "dark"
-        ]
-      }
-    }
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantLevel"
   },
   "fallback": {
-    "kind": "grantGold",
-    "amount": 2
+    "kind": "nothing"
   }
 }
 ```
@@ -8552,11 +8648,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `scrap_reclaimer` · current version `1`
+## `scrap_reclaimer` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `scrap_reclaimer@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `scrap_reclaimer@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Scrap Reclaimer"
 - Presentation body: "A reclaimer picks through scrap at the forge's edge, trading facets no one else wants for the ones that ward, cleanse, and taunt."
 - Discovery: none
@@ -8612,22 +8708,18 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `browse_the_scrap`
 
-- Presentation label: "Browse the warded scrap (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Let him rework one of your cards"
+- Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "gemChoice",
-  "filter": [
-    {
-      "actionKinds": [
-        "ward",
-        "cleanse",
-        "taunt"
-      ]
-    }
-  ]
+  "kind": "reshapeCard",
+  "mode": "transform",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
 }
 ```
 
@@ -8639,11 +8731,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `seedvault` · current version `1`
+## `seedvault` · current version `2`
 
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
-- Identity: `seedvault@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `seedvault@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Seedvault"
 - Presentation body: "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open."
 - Discovery: none
@@ -8723,29 +8815,23 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `root_nature_card`
+#### Fixed choice 2: `buy_seedling`
 
-- Presentation label: "Root a Nature card"
-- Cost: `0` gold
+- Presentation label: "Buy a seedling card (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "nature"
-        ]
-      }
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "nature"
+      ]
     }
-  },
-  "fallback": {
-    "kind": "grantGold",
-    "amount": 2
-  }
+  ],
+  "maxTier": "bronze"
 }
 ```
 
@@ -8773,11 +8859,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `sellsword_camp` · current version `1`
+## `sellsword_camp` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `sellsword_camp@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `sellsword_camp@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Sellsword Camp"
 - Presentation body: "A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and waves at the camp: the axes stand in their own rack by the mess tent, company-issue and nothing but axes, while the armory tent behind it is steel of every make thrown in together. Or, if you'd rather not linger, a coin for the road."
 - Discovery: none
@@ -8840,14 +8926,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 3: `take_coin`
 
-- Presentation label: "Take a coin for the road"
+- Presentation label: "Take a whetstone for the road"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 2
+  "kind": "grantGem"
 }
 ```
 
@@ -9258,11 +9343,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `silt_reliquary` · current version `2`
+## `silt_reliquary` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `silt_reliquary@v2`
-- Retained versions: v1 (schema 3), v2 (schema 3)
+- Identity: `silt_reliquary@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Silt Reliquary"
 - Presentation body: "A half-sunk reliquary in the Silt Hollows holds one true relic, waiting to be beaten a step further."
 - Discovery: none
@@ -9315,7 +9400,23 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `leave_the_reliquary`
+#### Fixed choice 2: `pry_relic`
+
+- Presentation label: "Pry a relic stone loose"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGem"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave_the_reliquary`
 
 - Presentation label: "Leave the reliquary shut"
 - Cost: `0` gold
@@ -9335,11 +9436,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `slag_glass_cache` · current version `1`
+## `slag_glass_cache` · current version `2`
 
 - Source pack: `src/data/content/event-packs/30-emberwaste.json`
-- Identity: `slag_glass_cache@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `slag_glass_cache@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Slag-Glass Cache"
 - Presentation body: "Fused slag has cooled into a glassy shell around a hoard from some earlier traveler, its contents visible but sealed. Only fire-tempered hands can crack it open."
 - Discovery: none
@@ -9419,25 +9520,16 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `temper_fire_card`
+#### Fixed choice 2: `melt_card`
 
-- Presentation label: "Temper a Fire card"
+- Presentation label: "Melt a card down in the slag"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "fire"
-        ]
-      }
-    }
-  },
+  "kind": "reshapeCard",
+  "mode": "transform",
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -9469,11 +9561,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `smiths_temper` · current version `1`
+## `smiths_temper` · current version `2`
 
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
-- Identity: `smiths_temper@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `smiths_temper@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "A Smith's Tempering"
 - Presentation body: "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\""
 - Discovery: none
@@ -9527,7 +9619,41 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `decline`
+#### Fixed choice 2: `temper_card`
+
+- Presentation label: "Have her temper one card instead"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "archetypes": [
+          "offense",
+          "defensive",
+          "healing",
+          "support",
+          "debuff"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
 
 - Presentation label: "Keep moving"
 - Cost: `0` gold
@@ -9603,11 +9729,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `standing_stone` · current version `1`
+## `standing_stone` · current version `2`
 
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
-- Identity: `standing_stone@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `standing_stone@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Standing Stone"
 - Presentation body: "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting."
 - Discovery: none
@@ -9661,7 +9787,30 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `decline`
+#### Fixed choice 2: `leave_offering`
+
+- Presentation label: "Leave a card at its foot"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "reward": {
+    "kind": "grantLevel"
+  },
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
 
 - Presentation label: "Leave the stone be"
 - Cost: `0` gold
@@ -9681,11 +9830,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `sweep_drill` · current version `1`
+## `sweep_drill` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `sweep_drill@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `sweep_drill@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Sweep Drill"
 - Presentation body: "A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever's standing next to your actual target, whether you meant it to or not. \"Newer recruits call it splash,\" she snorts, resting a training axe on her shoulder. \"I call it not missing twice. Two gold, and I'll teach you the sweep itself.\""
 - Discovery: none
@@ -9722,8 +9871,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -9748,11 +9896,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `sworn_company` · current version `2`
+## `sworn_company` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `sworn_company@v2`
-- Retained versions: v1 (schema 3), v2 (schema 3)
+- Identity: `sworn_company@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Sworn Company"
 - Presentation body: "A sworn company drills three-deep at the roadside, offering to temper one piece of your gear the way they beat their own ranks into shape."
 - Discovery: none
@@ -9805,7 +9953,31 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `march_alone`
+#### Fixed choice 2: `hire_blade`
+
+- Presentation label: "Hire one of their blades (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantCard",
+  "filter": [
+    {
+      "weapons": [
+        "sword"
+      ]
+    }
+  ],
+  "tier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `march_alone`
 
 - Presentation label: "March on alone"
 - Cost: `0` gold
@@ -10056,11 +10228,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `the_lands_measure` · current version `1`
+## `the_lands_measure` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `the_lands_measure@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `the_lands_measure@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Land's Measure"
 - Presentation body: "A surveyor's drop-box juts from the mud of the Silt Hollows, stenciled with the mark of whatever country you are crossing. The locals cache what the land makes, and any land worth naming only makes one thing well — the box is local work to the last piece. Lashed underneath it rides a hunter's kit, picked to hurt what lives here. When anything can."
 - Discovery: none
@@ -10073,8 +10245,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `local_make`
 
-- Presentation label: "Take the local make (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Take the local make (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -10091,8 +10263,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `hunters_edge`
 
-- Presentation label: "Take the hunter's kit (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Take the hunter's kit (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -10115,8 +10287,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -10125,11 +10296,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `the_lapidary` · current version `1`
+## `the_lapidary` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `the_lapidary@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `the_lapidary@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Lapidary"
 - Presentation body: "A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. \"Reject bin's free to pick through,\" she says, without looking up, \"and if you've got a stone you're done carrying, I'll take it off your hands too — fair price, no haggling.\" The good tray, though, isn't free."
 - Discovery: none
@@ -10148,8 +10319,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "cardChoice",
+  "tier": "bronze"
 }
 ```
 
@@ -10385,11 +10556,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `thorn_garden_shrine` · current version `1`
+## `thorn_garden_shrine` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `thorn_garden_shrine@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `thorn_garden_shrine@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Thorn Garden Shrine"
 - Presentation body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it."
 - Discovery: none
@@ -10408,8 +10579,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantGem"
 }
 ```
 
@@ -10419,8 +10589,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `push_through`
 
-- Presentation label: "Push through the brambles (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Push through the brambles (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -10458,11 +10628,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `thunder_in_a_bottle` · current version `1`
+## `thunder_in_a_bottle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
-- Identity: `thunder_in_a_bottle@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `thunder_in_a_bottle@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Thunder in a Bottle"
 - Presentation body: "A Stormreach tinker has trapped the echo of your swiftest lightning victory. The bottle shakes whenever the road turns toward another fight."
 - Discovery: `storm_in_hand` · Storm in Hand · account `future`
@@ -10548,23 +10718,21 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Pool choice 2: `teach_the_card`
 
-- Presentation label: "Teach a Lightning card"
+- Presentation label: "Pour the storm into a card"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "elements": [
-          "lightning"
-        ]
-      }
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "elements": [
+        "lightning"
+      ]
     }
-  },
+  ],
   "fallback": {
     "kind": "grantGold",
     "amount": 2
@@ -10703,11 +10871,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `toll_of_plenty` · current version `1`
+## `toll_of_plenty` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `toll_of_plenty@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `toll_of_plenty@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Toll of Plenty"
 - Presentation body: "A tollkeeper on the Tolling Road offers a wager instead of a toll: stake five gold and the gate might swing wide with more than you paid — or simply take your coin and go."
 - Discovery: none
@@ -10759,8 +10927,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
       "label": "Gate swings wide (55%)",
       "weight": 11,
       "outcome": {
-        "kind": "grantGold",
-        "amount": 12
+        "kind": "grantCard",
+        "tier": "bronze"
       }
     },
     {
@@ -10783,8 +10951,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 12
+  "kind": "grantCard",
+  "tier": "bronze"
 }
 ```
 
@@ -10906,11 +11074,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `two_ravens` · current version `1`
+## `two_ravens` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `two_ravens@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `two_ravens@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "Two Ravens"
 - Presentation body: "Two ravens perch unnervingly still on the crossroads shrine's arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin's trouble, or walk the long way around and let them watch you go."
 - Discovery: none
@@ -10937,7 +11105,24 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `walk_around`
+#### Fixed choice 2: `follow_ravens`
+
+- Presentation label: "Run with the ravens"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "speed"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_around`
 
 - Presentation label: "Walk the long way around, coin still in your pocket"
 - Cost: `0` gold
@@ -10954,11 +11139,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `underdogs_stand` · current version `2`
+## `underdogs_stand` · current version `3`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `underdogs_stand@v2`
-- Retained versions: v1 (schema 3), v2 (schema 3)
+- Identity: `underdogs_stand@v3`
+- Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
 - Presentation title: "The Underdog's Stand"
 - Presentation body: "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat one piece of your gear into something that might hold better next time."
 - Discovery: none
@@ -11011,7 +11196,24 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `march_alone`
+#### Fixed choice 2: `rally`
+
+- Presentation label: "Rally with the other underdogs"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "maxHp"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `march_alone`
 
 - Presentation label: "March on alone"
 - Cost: `0` gold
@@ -11031,11 +11233,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `venomers_den` · current version `1`
+## `venomers_den` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `venomers_den@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `venomers_den@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Venomer's Den"
 - Presentation body: "Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn't quite smoke. \"The weak batch is yours for nothing,\" she says, nodding at a dull green vial, \"or two gold buys off the real shelf. Every jar on it does the one job — leaves whatever you use it on worse off than it started. Past that I make no promises about what's in the glass.\""
 - Discovery: none
@@ -11054,8 +11256,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "grantGem",
+  "filter": [
+    {
+      "actionKinds": [
+        "poison"
+      ]
+    }
+  ]
 }
 ```
 
@@ -11065,8 +11273,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `true_batch`
 
-- Presentation label: "Pay 2 gold for what she actually sells"
-- Cost: `2` gold
+- Presentation label: "Pay 1 gold for what she actually sells"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -11138,11 +11346,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `veterans_wisdom` · current version `1`
+## `veterans_wisdom` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
-- Identity: `veterans_wisdom@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `veterans_wisdom@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "Veteran's Wisdom"
 - Presentation body: "Three wins in, and the yard's old veterans finally wave you into their circle. What they teach next won't come from any drill."
 - Discovery: none
@@ -11198,8 +11406,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `take_defensive_lesson`
 
-- Presentation label: "Learn a defensive lesson (2 gold)"
-- Cost: `2` gold
+- Presentation label: "Learn a defensive lesson (1 gold)"
+- Cost: `1` gold
 - Typed outcome:
 
 ```json
@@ -11452,11 +11660,117 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `weighing_stone` · current version `1`
+## `warded_hermit` · current version `1`
+
+- Source pack: `src/data/content/event-packs/121-rare-boons.json`
+- Identity: `warded_hermit@v1`
+- Retained versions: v1 (schema 3)
+- Presentation title: "The Warded Hermit"
+- Presentation body: "A hermit sits inside a ring of chalk sigils that no storm has managed to wash away. He traces one of the marks onto the back of your hand with an ink-stained thumb. \"Spells find the easy door,\" he says. \"This one is shut.\""
+- Discovery: none
+
+- Story: `warded_hermit` · stage `payoff` · role `payoff`
+- Theme `training` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 0`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 0
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_sigil`
+
+- Presentation label: "Accept the sigil"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "magicResist"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `sigil_card`
+
+- Presentation label: "Have him ward one of your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
+
+- Presentation label: "Keep your hand"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `weighing_stone` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `weighing_stone@v1`
-- Retained versions: v1 (schema 1)
+- Identity: `weighing_stone@v2`
+- Retained versions: v1 (schema 1), v2 (schema 1)
 - Presentation title: "The Weighing Stone"
 - Presentation body: "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them."
 - Discovery: none
@@ -11475,8 +11789,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 ```json
 {
-  "kind": "grantGold",
-  "amount": 1
+  "kind": "gemChoice"
 }
 ```
 
@@ -11517,11 +11830,110 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `whetting_pit` · current version `1`
+## `wellspring_of_sparks` · current version `1`
+
+- Source pack: `src/data/content/event-packs/121-rare-boons.json`
+- Identity: `wellspring_of_sparks@v1`
+- Retained versions: v1 (schema 3)
+- Presentation title: "The Wellspring of Sparks"
+- Presentation body: "A spring bubbles up between cracked flagstones, and every droplet that breaks the surface flickers with pale light before it falls. The air above it hums against your teeth. Cupped in your hands, the water is cold, bright, and faintly alive."
+- Discovery: none
+
+- Story: `wellspring_of_sparks` · stage `payoff` · role `payoff`
+- Theme `omen` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 0`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 0
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `drink_spark`
+
+- Presentation label: "Drink from the spring"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "magicPower"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `dip_card`
+
+- Presentation label: "Dip a card into the spring"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "transform",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `decline`
+
+- Presentation label: "Let it flow on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `whetting_pit` · current version `2`
 
 - Source pack: `src/data/content/event-packs/60-ironmoot.json`
-- Identity: `whetting_pit@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `whetting_pit@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Whetting Pit"
 - Presentation body: "A stone pit worn smooth by generations of axe-edges sits at Ironmoot's heart, its grindstones still turning under no visible hand."
 - Discovery: none
@@ -11601,29 +12013,23 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
-#### Fixed choice 2: `hone_axe_card`
+#### Fixed choice 2: `take_pit_axe`
 
-- Presentation label: "Hone an Axe card"
+- Presentation label: "Take an axe from the pit's rack"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "upgradeCardTargeted",
-  "target": {
-    "filter": {
-      "where": "any",
-      "match": {
-        "weapons": [
-          "axe"
-        ]
-      }
+  "kind": "grantCard",
+  "filter": [
+    {
+      "weapons": [
+        "axe"
+      ]
     }
-  },
-  "fallback": {
-    "kind": "grantGold",
-    "amount": 2
-  }
+  ],
+  "tier": "bronze"
 }
 ```
 
@@ -11651,11 +12057,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `whiteout_guidance` · current version `1`
+## `whiteout_guidance` · current version `2`
 
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
-- Identity: `whiteout_guidance@v1`
-- Retained versions: v1 (schema 3)
+- Identity: `whiteout_guidance@v2`
+- Retained versions: v1 (schema 3), v2 (schema 3)
 - Presentation title: "The Pilgrim's Marker"
 - Presentation body: "A white-road marker rises where the storm should have erased every trail. The pilgrim's sign points through the safest break in the gale."
 - Discovery: none
@@ -11719,22 +12125,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `take_ward`
 
-- Presentation label: "Claim the cached ward"
+- Presentation label: "Warm yourself at the marker"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "gemChoice",
-  "filter": [
-    {
-      "actionKinds": [
-        "shield",
-        "guard",
-        "ward"
-      ]
-    }
-  ]
+  "kind": "grantStat",
+  "stat": "magicResist"
 }
 ```
 

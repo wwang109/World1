@@ -647,9 +647,10 @@ export function renderRunBonusDraftPicker(
     onPick: (card: RunRewardCardOption) => void;
     inspectedIndex?: number | null;
     onInspect?: (index: number | null) => void;
+    title?: string;
   } & RewardPickerPagingOptions,
 ): void {
-  renderPickHeader(scene, template, choiceArtKey('bonusDraft'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
+  renderPickHeader(scene, template, choiceArtKey('bonusDraft'), opts.title ?? 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
 
   const { feature } = template.contentSlots.reward;
   const ideal = cardRowIdeal(feature, template.platform);

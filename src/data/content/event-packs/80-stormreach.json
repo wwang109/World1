@@ -56,6 +56,95 @@
               }
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Thunder in a Bottle",
+            "body": "A Stormreach tinker has trapped the echo of your swiftest lightning victory. The bottle shakes whenever the road turns toward another fight.",
+            "theme": "cache",
+            "rarity": "rare",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "thunder_in_a_bottle",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "combat.fastWin",
+              "args": {
+                "maxTurns": 8,
+                "element": "lightning"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "sell_storm",
+                  "label": "Sell the storm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  }
+                }
+              ],
+              "pool": {
+                "draw": 1,
+                "entries": [
+                  {
+                    "id": "socket_thunder",
+                    "label": "Socket the thunder",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "gemChoice",
+                      "filter": [
+                        {
+                          "actionKinds": [
+                            "slow"
+                          ]
+                        },
+                        {
+                          "ids": [
+                            "time_crystal_echo"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "teach_the_card",
+                    "label": "Pour the storm into a card",
+                    "cost": 0,
+                    "outcome": {
+                      "kind": "reshapeCard",
+                      "mode": "retype",
+                      "retypeTo": [
+                        {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      ],
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       ]
     },
@@ -69,10 +158,25 @@
             "body": "A shattered spire juts from Stormreach's ridgeline, its stone still smoking from a strike that split it top to base. A single blackened arc still crawls the crack, waiting for a hand that can hold it.",
             "theme": "omen",
             "rarity": "uncommon",
-            "biomeIds": ["stormreach"],
-            "story": { "storyId": "lightning_struck_spire", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "biome.current", "args": { "ids": ["stormreach"] } },
-            "delivery": { "kind": "ambient" },
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "lightning_struck_spire",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 150,
             "once": "run",
@@ -83,15 +187,99 @@
                   "id": "take_chain_spark",
                   "label": "Take Chain Spark",
                   "cost": 0,
-                  "outcome": { "kind": "grantCard", "cardId": "chain_spark", "tier": "bronze" }
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "chain_spark",
+                    "tier": "bronze"
+                  }
                 },
                 {
                   "id": "take_lightning_card",
                   "label": "Take a Lightning card",
                   "cost": 0,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["lightning"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave", "label": "Leave the spire smoking", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the spire smoking",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Lightning-Struck Spire",
+            "body": "A shattered spire juts from Stormreach's ridgeline, its stone still smoking from a strike that split it top to base. A single blackened arc still crawls the crack, waiting for a hand that can hold it.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "lightning_struck_spire",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_chain_spark",
+                  "label": "Take Chain Spark",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "chain_spark",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "touch_spire",
+                  "label": "Touch the charged stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "speed"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the spire smoking",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -108,15 +296,41 @@
             "body": "A tinker's vault hums behind a door of copper and glass, charged decades ago and never discharged. Only a lightning-tempered hand can draw on it without earthing the whole store.",
             "theme": "forge",
             "rarity": "uncommon",
-            "biomeIds": ["stormreach"],
-            "story": { "storyId": "capacitor_vault", "stage": "setup", "role": "setup" },
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "capacitor_vault",
+              "stage": "setup",
+              "role": "setup"
+            },
             "eligibility": {
               "all": [
-                { "fact": "biome.current", "args": { "ids": ["stormreach"] } },
-                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["lightning"] } } }
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "stormreach"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "lightning"
+                      ]
+                    }
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 160,
             "once": "run",
@@ -127,7 +341,18 @@
                   "id": "draw_the_vault",
                   "label": "Draw on the capacitor vault",
                   "cost": 0,
-                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["quickening_sliver", "swift_charm", "battle_howl_echo"] }] }
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "quickening_sliver",
+                          "swift_charm",
+                          "battle_howl_echo"
+                        ]
+                      }
+                    ]
+                  }
                 },
                 {
                   "id": "charge_lightning_card",
@@ -135,11 +360,122 @@
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "elements": ["lightning"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   }
                 },
-                { "id": "leave", "label": "Leave the vault charged", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the vault charged",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Capacitor Vault",
+            "body": "A tinker's vault hums behind a door of copper and glass, charged decades ago and never discharged. Only a lightning-tempered hand can draw on it without earthing the whole store.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "capacitor_vault",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "stormreach"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "lightning"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "draw_the_vault",
+                  "label": "Draw on the capacitor vault",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "quickening_sliver",
+                          "swift_charm",
+                          "battle_howl_echo"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "feed_vault",
+                  "label": "Feed a card to the vault",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "reward": {
+                      "kind": "grantLevel"
+                    },
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the vault charged",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

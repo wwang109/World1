@@ -115,6 +115,8 @@ export function choiceArtKey(kind: string): string {
     case 'grantCard':
     case 'cardGranted':
     case 'cardUpgraded':
+    case 'reshapeCard':
+    case 'cardReshaped':
     case 'bonusDraft':
     case 'upgradeCard':
     case 'upgradeCardTargeted':

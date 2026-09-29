@@ -21,34 +21,187 @@
             "body": "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall.",
             "theme": "cache",
             "rarity": "secret",
-            "biomeIds": ["thornwild"],
-            "story": { "storyId": "bloom_behind_the_teeth", "stage": "capstone", "role": "capstone" },
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "bloom_behind_the_teeth",
+              "stage": "capstone",
+              "role": "capstone"
+            },
             "eligibility": {
               "all": [
-                { "fact": "combat.statusUsed", "args": { "status": "poison", "result": "bossWin", "biomeId": "thornwild" } },
-                { "fact": "board.affinity", "args": { "affinityId": "nature" } }
+                {
+                  "fact": "combat.statusUsed",
+                  "args": {
+                    "status": "poison",
+                    "result": "bossWin",
+                    "biomeId": "thornwild"
+                  }
+                },
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "nature"
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "hidden_until_eligible",
             "priority": 400,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "harvest_venom", "label": "Harvest the venom", "cost": 0, "outcome": { "kind": "gemChoice", "filter": [{ "actionKinds": ["poison"] }, { "ids": ["festering_sliver"] }] } },
+                {
+                  "id": "harvest_venom",
+                  "label": "Harvest the venom",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "poison"
+                        ]
+                      },
+                      {
+                        "ids": [
+                          "festering_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
                 {
                   "id": "cultivate_bloom",
                   "label": "Cultivate the bloom",
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "elements": ["nature"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   },
-                  "mutations": [{ "op": "set", "key": "venom_bloom", "value": "cultivated" }]
+                  "mutations": [
+                    {
+                      "op": "set",
+                      "key": "venom_bloom",
+                      "value": "cultivated"
+                    }
+                  ]
                 },
-                { "id": "leave", "label": "Leave the bloom sleeping", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the bloom sleeping",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Bloom Behind the Teeth",
+            "body": "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall.",
+            "theme": "cache",
+            "rarity": "secret",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "bloom_behind_the_teeth",
+              "stage": "capstone",
+              "role": "capstone"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "combat.statusUsed",
+                  "args": {
+                    "status": "poison",
+                    "result": "bossWin",
+                    "biomeId": "thornwild"
+                  }
+                },
+                {
+                  "fact": "board.affinity",
+                  "args": {
+                    "affinityId": "nature"
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 400,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "harvest_venom",
+                  "label": "Harvest a venom-sac",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGem",
+                    "filter": [
+                      {
+                        "actionKinds": [
+                          "poison"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "fight_the_teeth",
+                  "label": "Fight the teeth for the bloom",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "standard",
+                    "reward": {
+                      "kind": "cardChoice",
+                      "filter": [
+                        {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      ],
+                      "maxTier": "bronze"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the bloom sleeping",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -65,10 +218,25 @@
             "body": "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield.",
             "theme": "recruit",
             "rarity": "uncommon",
-            "biomeIds": ["thornwild"],
-            "story": { "storyId": "rootbound_hermit", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "biome.current", "args": { "ids": ["thornwild"] } },
-            "delivery": { "kind": "ambient" },
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "rootbound_hermit",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 150,
             "once": "run",
@@ -79,15 +247,98 @@
                   "id": "take_thorn_bite",
                   "label": "Take Thorn Bite",
                   "cost": 0,
-                  "outcome": { "kind": "grantCard", "cardId": "thorn_bite", "tier": "bronze" }
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "thorn_bite",
+                    "tier": "bronze"
+                  }
                 },
                 {
                   "id": "take_nature_card",
                   "label": "Take a Nature card",
                   "cost": 0,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["nature"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave", "label": "Leave the hermit rooted", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the hermit rooted",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Rootbound Hermit",
+            "body": "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "rootbound_hermit",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_thorn_bite",
+                  "label": "Take Thorn Bite",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "thorn_bite",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "take_seed_gem",
+                  "label": "Take the seed he presses into your palm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGem"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the hermit rooted",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -104,15 +355,41 @@
             "body": "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open.",
             "theme": "market",
             "rarity": "uncommon",
-            "biomeIds": ["thornwild"],
-            "story": { "storyId": "seedvault", "stage": "setup", "role": "setup" },
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "seedvault",
+              "stage": "setup",
+              "role": "setup"
+            },
             "eligibility": {
               "all": [
-                { "fact": "biome.current", "args": { "ids": ["thornwild"] } },
-                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["nature"] } } }
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "thornwild"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "nature"
+                      ]
+                    }
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 160,
             "once": "run",
@@ -123,7 +400,18 @@
                   "id": "crack_the_seedvault",
                   "label": "Crack the seedvault",
                   "cost": 0,
-                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["bramble_sliver", "second_wind_echo", "renewal_sliver"] }] }
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "bramble_sliver",
+                          "second_wind_echo",
+                          "renewal_sliver"
+                        ]
+                      }
+                    ]
+                  }
                 },
                 {
                   "id": "root_nature_card",
@@ -131,11 +419,123 @@
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "elements": ["nature"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   }
                 },
-                { "id": "leave", "label": "Leave the vault rooted shut", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the vault rooted shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Seedvault",
+            "body": "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "seedvault",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "thornwild"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "nature"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "crack_the_seedvault",
+                  "label": "Crack the seedvault",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "bramble_sliver",
+                          "second_wind_echo",
+                          "renewal_sliver"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "buy_seedling",
+                  "label": "Buy a seedling card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the vault rooted shut",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

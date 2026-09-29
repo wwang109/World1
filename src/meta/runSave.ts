@@ -632,8 +632,38 @@ function isDeferredOffer(value: unknown): boolean {
     return pendingOrSettled(value, ['kind', 'from', 'to', 'consumed', 'candidates', 'fallback'],
       value.candidates.map((entry) => entry.skillId));
   }
+  if (value.kind === 'reshapeCard') {
+    if (!['transform', 'retype', 'duplicate', 'sacrifice'].includes(String(value.mode))
+      || !Array.isArray(value.options) || !isRecord(value.fallback)) return false;
+    const ids: string[] = [];
+    for (const option of value.options) {
+      if (!isRecord(option) || !hasExactKeys(option, ['instanceId', 'skillId', 'tier'], ['resultSkillId'])
+        || typeof option.instanceId !== 'string' || ids.includes(option.instanceId)
+        || typeof option.skillId !== 'string' || skillBook[option.skillId] === undefined
+        || !['bronze', 'silver', 'gold', 'diamond'].includes(String(option.tier))
+        || (option.resultSkillId !== undefined
+          && (typeof option.resultSkillId !== 'string' || skillBook[option.resultSkillId] === undefined))) return false;
+      ids.push(option.instanceId);
+    }
+    const fallbackOk = value.fallback.kind === 'nothing'
+      ? hasExactKeys(value.fallback, ['kind'])
+      : value.fallback.kind === 'grantGold' && hasExactKeys(value.fallback, ['kind', 'amount'])
+        && isPositiveInteger(value.fallback.amount);
+    const rewardOk = value.reward === undefined
+      || (isRecord(value.reward) && (value.reward.kind === 'grantLevel'
+        ? hasExactKeys(value.reward, ['kind'])
+        : value.reward.kind === 'grantGold' && hasExactKeys(value.reward, ['kind', 'amount'])
+          && isPositiveInteger(value.reward.amount)));
+    if (!fallbackOk || !rewardOk) return false;
+    const required = ['kind', 'mode', 'options', 'fallback', 'status'];
+    const optional = value.reward === undefined ? [] : ['reward'];
+    if (value.status === 'pending') return hasExactKeys(value, [...required, ...optional]);
+    return value.status === 'settled'
+      && hasExactKeys(value, [...required, ...optional], ['selectedId'])
+      && (value.selectedId === undefined || (typeof value.selectedId === 'string' && ids.includes(value.selectedId)));
+  }
   if (value.kind === 'buyStatPick') {
-    return pendingOrSettled(value, ['kind'], ['attack', 'armor', 'maxHp']);
+    return pendingOrSettled(value, ['kind'], ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed']);
   }
   if (value.kind !== 'upgradeCardTargeted'
     || !isStringArray(value.optionInstanceIds)

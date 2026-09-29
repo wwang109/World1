@@ -41,6 +41,42 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Abandoned Cache",
+            "theme": "cache",
+            "notes": [
+              "The free deterministic reward is the old gamble's small result; paying two gold buys the former winning result, so the player chooses certainty rather than a hidden coin flip."
+            ],
+            "body": "The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned.",
+            "choices": [
+              {
+                "id": "open",
+                "label": "Pry it open",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "search_thoroughly",
+                "label": "Search it thoroughly (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave",
+                "label": "Leave it be",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -84,6 +120,43 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Banner-Scribe",
+            "theme": "recruit",
+            "notes": [
+              "Board identity begins at three cards sharing one weapon type and is rederived whenever this conditional event is checked, so a detour cannot leave a stale gate. Sketching for a coin keeps the event safely resolvable without a qualifying board."
+            ],
+            "body": "A banner-scribe has set her table among the Muster Road's camps, reading fighters' colors off their gear the way other scribes read letters. One look over your board and she is already mixing paint: if you march under a device, she knows a supplier for it — and if you march under none, she will still pay a copper for the sketch.",
+            "choices": [
+              {
+                "id": "blazon",
+                "label": "Commission gear in your colors (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "boardIdentity",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "sketch_fee",
+                "label": "Let her sketch your kit",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "keep_marching",
+                "label": "March on unblazoned",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -112,6 +185,58 @@
                 "id": "raid_prepared",
                 "label": "Take a beast trophy (2 gold)",
                 "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "beast"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave_it",
+                "label": "Leave the nest be",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Beast Nest",
+            "theme": "cache",
+            "notes": [
+              "The old bow-or-beast pool produced a beast card about 93% of the time but a bow only about 57%; the authored beast door makes that promise 100%. Raid it is now free because a choice labeled as a raid should not quietly lose gold."
+            ],
+            "body": "A trampled nest sits half-sunk in the Silt Hollows' mud, littered with the shed claws and feathers of something large. Everything worth carrying out of it is beast-work — fang, claw and hide, nothing else — if whatever built it doesn't come back and cost you a coin purse for the trouble.",
+            "choices": [
+              {
+                "id": "raid_it",
+                "label": "Raid the nest for whatever's inside",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantCard",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "beast"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "raid_prepared",
+                "label": "Take a beast trophy (1 gold)",
+                "cost": 1,
                 "outcome": {
                   "kind": "cardChoice",
                   "filter": [
@@ -243,6 +368,40 @@
                 "outcome": {
                   "kind": "grantGold",
                   "amount": 1
+                }
+              },
+              {
+                "id": "salvage_properly",
+                "label": "Stay and salvage the wreckage properly (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "leave_him",
+                "label": "Leave him to it",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Broken Axle",
+            "theme": "market",
+            "body": "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone.",
+            "choices": [
+              {
+                "id": "help_haul",
+                "label": "Help haul the cart upright and take a crate",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantCard",
+                  "tier": "bronze"
                 }
               },
               {
@@ -412,6 +571,39 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Collapsed Barrow",
+            "theme": "cache",
+            "body": "A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves.",
+            "choices": [
+              {
+                "id": "crawl_in",
+                "label": "Crawl inside and hone a card on the old whetstone",
+                "cost": 0,
+                "outcome": {
+                  "kind": "upgradeCard"
+                }
+              },
+              {
+                "id": "dig_further",
+                "label": "Dig further for a real find (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "seal_it",
+                "label": "Seal it back up and move on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -447,6 +639,57 @@
                 "id": "moon_rite",
                 "label": "Scratch the moon-mark for dark work (2 gold)",
                 "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "dark"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "deface",
+                "label": "Deface it for scrap",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 3
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Crossroads Shrine",
+            "theme": "omen",
+            "notes": [
+              "The old shared pool offered 93% holy and 83% dark per offer; splitting it into separate 100% doors is a strict gain for both. Both choices remain two-gold, three-card offers so neither face dominates on width or price."
+            ],
+            "body": "At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon, and the two faces answer separately: tithe at the sun and what comes back is holy work, every time; scratch the moon-mark instead and it is dark work, every time. Others, less devout, simply pry the shrine apart for scrap.",
+            "choices": [
+              {
+                "id": "tithe",
+                "label": "Leave a holy tithe (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "elements": [
+                        "holy"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "moon_rite",
+                "label": "Scratch the moon-mark for dark work (1 gold)",
+                "cost": 1,
                 "outcome": {
                   "kind": "cardChoice",
                   "filter": [
@@ -545,6 +788,42 @@
               }
             ]
           }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "2026-09-26 T2: the mergeCards trio trade retired for new draws in favor of awardCardPoint (a free +1 stored tier-up point on one owned card) — version 1 stays live for any save with a pending trio already offered."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Feed one piece of your gear to the coals and it comes back a step further tempered toward its next grade — you choose which piece takes the heat.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed one piece to the coals",
+                "outcome": {
+                  "kind": "awardCardPoint"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -576,6 +855,86 @@
                 "id": "bulk_order",
                 "label": "Place a bulk order (2 gold)",
                 "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "tear_the_page",
+                "label": "Tear your page out",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Factor's Ledger",
+            "theme": "market",
+            "notes": [
+              "The goldSpent tally deliberately records aggregate commitment rather than purchase provenance. Twelve gold is the threshold, and the bounded payoff is one free gem choice."
+            ],
+            "requiresTally": {
+              "stat": "goldSpent",
+              "atLeast": 12
+            },
+            "body": "A trade factor steps into the road with a ledger already open to your page. \"Twelve gold and change, through the stalls and tolls of this road, by my count,\" she says, turning the book so you can see the tally — and it is your tally, coin for coin. \"The road pays its regulars. One credit, one time. Spend it or tear the page.\"",
+            "choices": [
+              {
+                "id": "standing_credit",
+                "label": "Take your standing credit",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "bulk_order",
+                "label": "Place a bulk order (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "tear_the_page",
+                "label": "Tear your page out",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Factor's Ledger",
+            "theme": "market",
+            "notes": [
+              "The goldSpent tally deliberately records aggregate commitment rather than purchase provenance. Twelve gold is the threshold, and the bounded payoff is one free gem choice."
+            ],
+            "requiresTally": {
+              "stat": "goldSpent",
+              "atLeast": 12
+            },
+            "body": "A trade factor steps into the road with a ledger already open to your page. \"Twelve gold and change, through the stalls and tolls of this road, by my count,\" she says, turning the book so you can see the tally — and it is your tally, coin for coin. \"The road pays its regulars. One credit, one time. Spend it or tear the page.\"",
+            "choices": [
+              {
+                "id": "standing_credit",
+                "label": "Take your standing credit",
+                "outcome": {
+                  "kind": "grantGem"
+                }
+              },
+              {
+                "id": "bulk_order",
+                "label": "Place a bulk order (1 gold)",
+                "cost": 1,
                 "outcome": {
                   "kind": "cardChoice",
                   "tier": "bronze"
@@ -751,6 +1110,33 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Fortune-Teller",
+            "theme": "omen",
+            "body": "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand.",
+            "choices": [
+              {
+                "id": "free_reading",
+                "label": "Take the free reading",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantMapInfo",
+                  "bandsAhead": 2
+                }
+              },
+              {
+                "id": "cross_palm",
+                "label": "Cross her palm with 2 gold",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -825,6 +1211,32 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Gemseller's Mishap",
+            "theme": "cache",
+            "body": "A peddler's cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there's more here than she can gather alone, and more than a few have already rolled to rest against your boots.",
+            "choices": [
+              {
+                "id": "help",
+                "label": "Help her gather them and keep one",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantGem"
+                }
+              },
+              {
+                "id": "rifle",
+                "label": "Rifle through the spill (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -844,6 +1256,39 @@
                 "outcome": {
                   "kind": "grantGold",
                   "amount": 1
+                }
+              },
+              {
+                "id": "press_further",
+                "label": "Press her for a deeper truth (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantLevel"
+                }
+              },
+              {
+                "id": "walk_away",
+                "label": "Walk away",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Hermit's Riddle",
+            "theme": "training",
+            "body": "On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you've even stopped walking. Answer it right, she says, and you'll understand something about yourself no sparring ring could teach. Answer wrong, and you'll simply keep walking, no worse for it.",
+            "choices": [
+              {
+                "id": "answer",
+                "label": "Answer the riddle",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
                 }
               },
               {
@@ -912,6 +1357,49 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Overloaded Caravan",
+            "theme": "market",
+            "notes": [
+              "The dedicated bow door replaces an old mixed offer that surfaced a bow only about 57% of the time, while the broad whole-book trunk remains available for players who want variety."
+            ],
+            "body": "A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. A bundle of bowstaves is lashed to the tailgate where anyone can see it; the trunks behind it are packed with no order at all and could hold anything. Push, and she'll let you take from either — or just toss you a coin for a shoulder at the wheel.",
+            "choices": [
+              {
+                "id": "bow_staves",
+                "label": "Take a bow off the tailgate (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "bow"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "rummage",
+                "label": "Push, then rummage the trunks (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "bonusDraft"
+                }
+              },
+              {
+                "id": "push",
+                "label": "Just push",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -944,6 +1432,54 @@
                 "id": "arm_the_living",
                 "label": "Buy arms for the living (2 gold)",
                 "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "let_it_burn",
+                "label": "Let it burn, and walk on",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Pyre-Watch",
+            "theme": "omen",
+            "notes": [
+              "The first lost life is the authored trigger. The event telegraphs the next omen, and its alms choice remains usable at any wallet so recovery is never gated by the defeat that unlocked it."
+            ],
+            "requiresTally": {
+              "stat": "livesLost",
+              "atLeast": 1
+            },
+            "body": "A watch-fire burns at the crossroads for the road's dead, tended by a hooded keeper who does not ask whose name you are carrying. The fire already knows: you left a life on a field behind you, and the pyre-watch keeps the old custom for anyone who limps past it — alms for the mourner, or arms for the living.",
+            "choices": [
+              {
+                "id": "alms",
+                "label": "Accept the mourner's alms",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              },
+              {
+                "id": "arm_the_living",
+                "label": "Buy arms for the living (1 gold)",
+                "cost": 1,
                 "outcome": {
                   "kind": "cardChoice",
                   "filter": [
@@ -1049,6 +1585,60 @@
                       ]
                     }
                   ]
+                }
+              },
+              {
+                "id": "take_coin",
+                "label": "Take the coin instead",
+                "outcome": {
+                  "kind": "grantGold",
+                  "amount": 2
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Recruiter",
+            "theme": "recruit",
+            "notes": [
+              "A guaranteed sword rack sits beside the mixed five-weapon cart, preserving the broad option while giving a committed sword build an honest routing choice."
+            ],
+            "body": "A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. \"Swords are racked on their own — anything else, you take your chances with what's in the cart,\" he grins, laying out a row of five either way. \"Or take the coin instead. I won't haggle.\"",
+            "choices": [
+              {
+                "id": "pick_sword",
+                "label": "Browse the sword rack",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "pick_weapon",
+                "label": "Grab whatever's on top of the cart",
+                "outcome": {
+                  "kind": "grantCard",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword",
+                        "axe",
+                        "lance",
+                        "bow",
+                        "beast"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
                 }
               },
               {
@@ -1253,6 +1843,55 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Sellsword Camp",
+            "theme": "recruit",
+            "body": "A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and waves at the camp: the axes stand in their own rack by the mess tent, company-issue and nothing but axes, while the armory tent behind it is steel of every make thrown in together. Or, if you'd rather not linger, a coin for the road.",
+            "choices": [
+              {
+                "id": "browse_axes",
+                "label": "Borrow from the axe rack",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "axe"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "browse_armory",
+                "label": "Browse the mixed armory tent",
+                "outcome": {
+                  "kind": "bonusDraft",
+                  "filter": [
+                    {
+                      "weapons": [
+                        "sword",
+                        "axe",
+                        "lance",
+                        "bow",
+                        "beast"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "take_coin",
+                "label": "Take a whetstone for the road",
+                "outcome": {
+                  "kind": "grantGem"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1326,6 +1965,43 @@
                 "outcome": {
                   "kind": "grantGold",
                   "amount": 1
+                }
+              },
+              {
+                "id": "skip",
+                "label": "Skip the drill",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Sweep Drill",
+            "theme": "training",
+            "notes": [
+              "Only one of the fifteen candidates in the old broad filter actually matched the promised splash lesson, roughly 7%; naming Shockwave Slam makes the lesson deterministic."
+            ],
+            "body": "A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever's standing next to your actual target, whether you meant it to or not. \"Newer recruits call it splash,\" she snorts, resting a training axe on her shoulder. \"I call it not missing twice. Two gold, and I'll teach you the sweep itself.\"",
+            "choices": [
+              {
+                "id": "proper_stance",
+                "label": "Pay 2 gold to learn the sweep",
+                "cost": 2,
+                "outcome": {
+                  "kind": "grantCard",
+                  "cardId": "shockwave_slam",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "scavenge",
+                "label": "Scavenge the practice yard for scraps",
+                "outcome": {
+                  "kind": "gemChoice"
                 }
               },
               {
@@ -1448,6 +2124,46 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Land's Measure",
+            "theme": "cache",
+            "notes": [
+              "The local-work door follows the current biome's weapon lean and the hunter's kit follows its counter. Bow has no counter in the matchup table, so the safe coin choice remains the universal fallback."
+            ],
+            "body": "A surveyor's drop-box juts from the mud of the Silt Hollows, stenciled with the mark of whatever country you are crossing. The locals cache what the land makes, and any land worth naming only makes one thing well — the box is local work to the last piece. Lashed underneath it rides a hunter's kit, picked to hurt what lives here. When anything can.",
+            "choices": [
+              {
+                "id": "local_make",
+                "label": "Take the local make (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "biomeLean",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "hunters_edge",
+                "label": "Take the hunter's kit (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filterFrom": "biomeCounter",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "gather_stones",
+                "label": "Pocket the loose stones",
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1470,6 +2186,51 @@
                 "outcome": {
                   "kind": "grantGold",
                   "amount": 1
+                }
+              },
+              {
+                "id": "warding_cut",
+                "label": "Pay 2 gold for a warding cut",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice",
+                  "filter": [
+                    {
+                      "actionKinds": [
+                        "ward",
+                        "cleanse",
+                        "taunt"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "sell_facet",
+                "label": "Sell her a facet you're not using",
+                "outcome": {
+                  "kind": "sellGem"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Lapidary",
+            "theme": "forge",
+            "notes": [
+              "Selling a gem replaces the removed expose-filtered choice without stranding expose gems, which remain reachable through the Armory. Selling is free because surrendering the gem is already the price."
+            ],
+            "body": "A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. \"Reject bin's free to pick through,\" she says, without looking up, \"and if you've got a stone you're done carrying, I'll take it off your hands too — fair price, no haggling.\" The good tray, though, isn't free.",
+            "choices": [
+              {
+                "id": "reject_bin",
+                "label": "Pick through the reject bin",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
                 }
               },
               {
@@ -1664,6 +2425,47 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Thorn Garden Shrine",
+            "theme": "cache",
+            "body": "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it.",
+            "choices": [
+              {
+                "id": "gather_thorns",
+                "label": "Gather the fallen thorns at the edge",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantGem"
+                }
+              },
+              {
+                "id": "push_through",
+                "label": "Push through the brambles (1 gold)",
+                "cost": 1,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave_it",
+                "label": "Leave the shrine to the thorns",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1825,6 +2627,39 @@
               }
             ]
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Two Ravens",
+            "theme": "omen",
+            "body": "Two ravens perch unnervingly still on the crossroads shrine's arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin's trouble, or walk the long way around and let them watch you go.",
+            "choices": [
+              {
+                "id": "feed_them",
+                "label": "Toss them your scraps (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "follow_ravens",
+                "label": "Run with the ravens",
+                "outcome": {
+                  "kind": "grantStat",
+                  "stat": "speed"
+                }
+              },
+              {
+                "id": "walk_around",
+                "label": "Walk the long way around, coin still in your pocket",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },
@@ -1850,6 +2685,47 @@
                 "id": "true_batch",
                 "label": "Pay 2 gold for what she actually sells",
                 "cost": 2,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "debuff"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Venomer's Den",
+            "theme": "recruit",
+            "body": "Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn't quite smoke. \"The weak batch is yours for nothing,\" she says, nodding at a dull green vial, \"or two gold buys off the real shelf. Every jar on it does the one job — leaves whatever you use it on worse off than it started. Past that I make no promises about what's in the glass.\"",
+            "choices": [
+              {
+                "id": "weak_batch",
+                "label": "Take the weak batch for free",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantGem",
+                  "filter": [
+                    {
+                      "actionKinds": [
+                        "poison"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "true_batch",
+                "label": "Pay 1 gold for what she actually sells",
+                "cost": 1,
                 "outcome": {
                   "kind": "cardChoice",
                   "filter": [
@@ -1991,6 +2867,38 @@
                 "outcome": {
                   "kind": "grantGold",
                   "amount": 1
+                }
+              },
+              {
+                "id": "press_harder",
+                "label": "Press harder and hold (2 gold)",
+                "cost": 2,
+                "outcome": {
+                  "kind": "bonusDraft"
+                }
+              },
+              {
+                "id": "skirt_around",
+                "label": "Skirt around it",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Weighing Stone",
+            "theme": "omen",
+            "body": "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them.",
+            "choices": [
+              {
+                "id": "press_palm",
+                "label": "Press your palm to the stone",
+                "outcome": {
+                  "kind": "gemChoice"
                 }
               },
               {

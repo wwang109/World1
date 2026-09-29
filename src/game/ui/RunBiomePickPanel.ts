@@ -8,6 +8,8 @@ import { textRoleFor, UI } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { attachButtonFeel, flashConfirm } from './motion';
 import { roundRect } from './roundedRect';
+import { enemies } from '../../data/enemies';
+import { enemyDerivedAffinity } from '../../data/enemyAffinity';
 
 export interface BiomePickCardModel {
   biomeId: string;
@@ -19,9 +21,17 @@ export interface BiomePickCardModel {
   counterLines: readonly string[];
 }
 
+function bossAffinityLine(enemyId: string | undefined): string {
+  const def = enemyId === undefined ? undefined : enemies[enemyId];
+  const affinity = def === undefined ? {} : enemyDerivedAffinity(def);
+  const types = [affinity.elementAffinity, affinity.weaponAffinity].filter((t): t is NonNullable<typeof t> => t !== undefined);
+  return types.length === 0 ? 'NO AFFINITY' : `AFFINITY · ${types.map((t) => t.toUpperCase()).join(' / ')}`;
+}
+
 export function biomePickCardModel(option: BiomePickOption, mode: 'desktop' | 'mobile'): BiomePickCardModel {
   const vm = bandBannerViewModel(option.forecast);
   const bossName = vm.boss.resolved ? vm.boss.headline : vm.boss.entries[0] ?? vm.boss.headline;
+  const bossId = option.forecast.boss?.enemyId ?? option.forecast.bossCandidates[0]?.id;
   return {
     biomeId: option.biomeId,
     artKey: mode === 'desktop' ? desktopBiomeArtKey(option.biomeId) : biomeArtKey(option.biomeId),
@@ -29,7 +39,7 @@ export function biomePickCardModel(option: BiomePickOption, mode: 'desktop' | 'm
     tagline: option.forecast.tagline,
     leanChip: vm.leanChip,
     bossLine: `BOSS · ${bossName}`,
-    counterLines: vm.bossClaim.lines,
+    counterLines: [bossAffinityLine(bossId)],
   };
 }
 

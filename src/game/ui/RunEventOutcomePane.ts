@@ -7,6 +7,7 @@ import { choiceArtKey } from './runArt';
 import { eventOutcomePaneTemplate } from './runRewardGeometry';
 import type { RunScreenTemplate } from './runScreenTemplate';
 import { buildRunRewardViewModel } from './runRewardViewModel';
+import { RESHAPE_PICK_TITLE } from './eventOutcomeText';
 import {
   mergeReceiptForEventPicker, presentRunEventOutcome,
   type RunEventPickerPresentation, type RunEventPresentableOutcome, type RunEventScenePresentation,
@@ -109,6 +110,15 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     onPick: stat => ctx.onFinalize({ kind: 'statPick', stat }),
     onCancel: ctx.onCancel,
+  }),
+  reshapeCard: (picker, ctx) => renderRunBonusDraftPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
+    ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
+    title: RESHAPE_PICK_TITLE[picker.mode],
+    onPick: card => {
+      const chosen = picker.options.find(option => option === card);
+      if (chosen !== undefined) ctx.onFinalize({ kind: 'reshape', instanceId: chosen.instanceId });
+    },
+    ...ctx.inspect('draft'),
   }),
 } satisfies PickerRegistry & StateRegistry;
 

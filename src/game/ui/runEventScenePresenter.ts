@@ -18,6 +18,8 @@ import { runScreenTemplate, type RunTemplatePlatform } from './runScreenTemplate
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { marketStatPickOptions, type MarketStatPickOption } from '../../run/market';
+import type { EventReshapeModeV3 } from '../../data/eventContentV3';
+import type { SkillTier } from '../../engine/types';
 
 export interface RunEventSceneLayout {
   platform: RunTemplatePlatform;
@@ -276,7 +278,14 @@ export type MergePicker = {
 };
 export type StatPicker = { kind: 'buyStatPick'; options: readonly MarketStatPickOption[]; optionCount: number };
 
-export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker;
+export type ReshapePicker = {
+  kind: 'reshapeCard';
+  mode: EventReshapeModeV3;
+  options: readonly { instanceId: string; skillId: string; tier: SkillTier }[];
+  optionCount: number;
+};
+
+export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker | ReshapePicker;
 export type RunEventPresentableOutcome = EventOutcome | EventOutcomeV3;
 export type RunEventOutcomePresentation =
   | { kind: 'picker'; picker: RunEventPickerPresentation }
@@ -389,6 +398,17 @@ export function presentRunEventOutcome(
     // keeps the exhaustiveness guard compiling.
     case 'challengeFight':
       return { kind: 'ignored' };
+    case 'reshapeCard':
+      return {
+        kind: 'picker',
+        picker: {
+          kind: 'reshapeCard', mode: outcome.offer.mode,
+          options: outcome.offer.options.map((option) => ({ instanceId: option.instanceId, skillId: option.skillId, tier: option.tier })),
+          optionCount: outcome.offer.options.length,
+        },
+      };
+    case 'cardReshaped':
+      return { kind: 'result', outcome };
     default: {
       const exhaustive: never = outcome;
       throw new Error(`presentRunEventOutcome: unknown outcome ${(exhaustive as RunEventPresentableOutcome).kind}`);

@@ -225,7 +225,18 @@ export type EventDirectOutcomeSpecV3 =
     target: EventUpgradeTargetV3;
     fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
   }
-  | { kind: 'challengeFight'; difficulty: EventChallengeDifficultyV3; reward: EventChallengeRewardSpecV3 };
+  | { kind: 'challengeFight'; difficulty: EventChallengeDifficultyV3; reward: EventChallengeRewardSpecV3 }
+  | EventReshapeCardSpecV3;
+
+export type EventReshapeModeV3 = 'transform' | 'retype' | 'duplicate' | 'sacrifice';
+
+export interface EventReshapeCardSpecV3 {
+  kind: 'reshapeCard';
+  mode: EventReshapeModeV3;
+  retypeTo?: CardFilter;
+  reward?: { kind: 'grantGold'; amount: number } | { kind: 'grantLevel' };
+  fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+}
 
 /** Risk rung a `challengeFight` outcome fights at — a solo off-column battle,
  * never the fight column itself (`src/run/challengeFight.ts`). */

@@ -105,6 +105,84 @@
               ]
             }
           }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Pilgrim's Marker",
+            "body": "A white-road marker rises where the storm should have erased every trail. The pilgrim's sign points through the safest break in the gale.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "whiteout_pilgrim",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "whiteout_guidance"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_guidance",
+                  "label": "Follow the safe line",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantMapInfo",
+                    "bandsAhead": 2
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_ward",
+                  "label": "Warm yourself at the marker",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "magicResist"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                },
+                {
+                  "id": "walk_unaided",
+                  "label": "Walk unaided",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "whiteout_pilgrim"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -118,10 +196,25 @@
             "body": "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting.",
             "theme": "forge",
             "rarity": "uncommon",
-            "biomeIds": ["frostmarch"],
-            "story": { "storyId": "rime_locked_sledge", "stage": "setup", "role": "setup" },
-            "eligibility": { "fact": "biome.current", "args": { "ids": ["frostmarch"] } },
-            "delivery": { "kind": "ambient" },
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "rime_locked_sledge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "frostmarch"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 150,
             "once": "run",
@@ -132,15 +225,105 @@
                   "id": "take_frost_shackle",
                   "label": "Take Frost Shackle",
                   "cost": 0,
-                  "outcome": { "kind": "grantCard", "cardId": "frost_shackle", "tier": "bronze" }
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "frost_shackle",
+                    "tier": "bronze"
+                  }
                 },
                 {
                   "id": "take_frost_card",
                   "label": "Take a Frost card",
                   "cost": 0,
-                  "outcome": { "kind": "cardChoice", "filter": [{ "elements": ["frost"] }], "maxTier": "bronze" }
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
                 },
-                { "id": "leave", "label": "Leave the sledge frozen", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Leave the sledge frozen",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Rime-Locked Sledge",
+            "body": "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "rime_locked_sledge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "frostmarch"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_frost_shackle",
+                  "label": "Take Frost Shackle",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantCard",
+                    "cardId": "frost_shackle",
+                    "tier": "bronze"
+                  }
+                },
+                {
+                  "id": "sacrifice_to_ice",
+                  "label": "Leave a card to the ice for strength",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "reward": {
+                      "kind": "grantLevel"
+                    },
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the sledge frozen",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -157,15 +340,41 @@
             "body": "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold.",
             "theme": "market",
             "rarity": "uncommon",
-            "biomeIds": ["frostmarch"],
-            "story": { "storyId": "hoarfrost_reliquary", "stage": "setup", "role": "setup" },
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "hoarfrost_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
             "eligibility": {
               "all": [
-                { "fact": "biome.current", "args": { "ids": ["frostmarch"] } },
-                { "fact": "owned.card.count", "args": { "where": "any", "count": 1, "match": { "elements": ["frost"] } } }
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "frostmarch"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  }
+                }
               ]
             },
-            "delivery": { "kind": "ambient" },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 160,
             "once": "run",
@@ -176,7 +385,18 @@
                   "id": "buy_reliquary_ware",
                   "label": "Browse the reliquary's wares",
                   "cost": 0,
-                  "outcome": { "kind": "gemChoice", "filter": [{ "ids": ["frost_ward_echo", "mana_ward_echo", "stunning_shard"] }] }
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "frost_ward_echo",
+                          "mana_ward_echo",
+                          "stunning_shard"
+                        ]
+                      }
+                    ]
+                  }
                 },
                 {
                   "id": "rime_a_frost_card",
@@ -184,11 +404,127 @@
                   "cost": 0,
                   "outcome": {
                     "kind": "upgradeCardTargeted",
-                    "target": { "filter": { "where": "any", "match": { "elements": ["frost"] } } },
-                    "fallback": { "kind": "grantGold", "amount": 2 }
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "frost"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
                   }
                 },
-                { "id": "leave", "label": "Walk past the stall", "cost": 0, "outcome": { "kind": "nothing" } }
+                {
+                  "id": "leave",
+                  "label": "Walk past the stall",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "Hoarfrost Reliquary",
+            "body": "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "hoarfrost_reliquary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "biome.current",
+                  "args": {
+                    "ids": [
+                      "frostmarch"
+                    ]
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 1,
+                    "match": {
+                      "elements": [
+                        "frost"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 160,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_reliquary_ware",
+                  "label": "Browse the reliquary's wares",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "frost_ward_echo",
+                          "mana_ward_echo",
+                          "stunning_shard"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "rime_card",
+                  "label": "Let the rime turn a card to frost",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past the stall",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }

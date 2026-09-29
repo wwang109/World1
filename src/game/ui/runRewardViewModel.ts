@@ -74,6 +74,9 @@ export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, 
     const skill = skillBook[outcome.skillId];
     const tier = outcome.kind === 'cardGranted' ? outcome.tier : outcome.to;
     if (skill) feature = { kind: 'card', skill: tier === skill.tier ? skill : applyTier(skill, tier) };
+  } else if (outcome.kind === 'cardReshaped' && outcome.mode !== 'sacrifice') {
+    const skill = skillBook[outcome.resultSkillId ?? outcome.skillId];
+    if (skill) feature = { kind: 'card', skill: outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier) };
   } else if (outcome.kind === 'grantGem') {
     const gem = gemBook[outcome.gemId];
     if (gem) feature = { kind: 'gem', gem };

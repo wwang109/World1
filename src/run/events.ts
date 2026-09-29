@@ -38,7 +38,7 @@ import {
   type FilterFromSource,
   type MarketStat,
 } from '../data/events';
-import { canBuyMarketLife, isMarketBuyOutcomeKind, marketPurchasePriceGold, withMarketPurchaseCharged, withStatPurchased } from './market';
+import { canBuyMarketLife, isMarketBuyOutcomeKind, marketChoicePriceGold, marketPurchasePriceGold, marketStatPriceGold, withMarketPurchaseCharged, withStatPurchased } from './market';
 import { eventContentMeta, eventDefAtVersion } from '../data/eventsContent';
 import { isEventDefV2, type EventChoiceV2 } from '../data/eventContentV2';
 import { isEventDefV3, type EventOutcomeSpecV3, type EventRequirementV3, type LoadedEventDefV3 } from '../data/eventContentV3';
@@ -625,7 +625,7 @@ function offerableBook(tier: SkillTier): SkillDef[] {
  * contract ("cost <= gold, nothing else") stays simple and doesn't grow a
  * special case per outcome kind. */
 export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef): boolean {
-  if (isMarketBuyOutcomeKind(choice.outcome.kind)) return marketPurchasePriceGold(state) <= state.gold;
+  if (isMarketBuyOutcomeKind(choice.outcome.kind)) return marketChoicePriceGold(state, choice.outcome) <= state.gold;
   return (choice.cost ?? 0) <= state.gold;
 }
 
@@ -1095,7 +1095,7 @@ function cardOutcomeCanDeliver(state: RunState, choice: EventChoiceDef): boolean
  */
 export function choiceLockReason(state: RunState, choice: EventChoiceDef): string | null {
   if (!isEventChoiceAffordable(state, choice)) {
-    return `needs ${isMarketBuyOutcomeKind(choice.outcome.kind) ? marketPurchasePriceGold(state) : choice.cost ?? 0} gold`;
+    return `needs ${isMarketBuyOutcomeKind(choice.outcome.kind) ? marketChoicePriceGold(state, choice.outcome) : choice.cost ?? 0} gold`;
   }
   if (choice.outcome.kind === 'buyLife' && !canBuyMarketLife(state)) return 'already at full lives';
   if (choice.requires && !eventGateMet(state, choice.requires)) return gateLockReason(choice.requires);
@@ -2477,7 +2477,7 @@ function applySpec(
       return { state: { ...charged, lives }, outcome: { kind: 'buyLife', price, lives } };
     }
     case 'buyStat': {
-      const price = marketPurchasePriceGold(state);
+      const price = marketStatPriceGold(state, spec.stat);
       if (price > state.gold) return { state, outcome: { kind: 'nothing' } };
       const charged = withMarketPurchaseCharged(state, price);
       return { state: withStatPurchased(charged, spec.stat), outcome: { kind: 'buyStat', stat: spec.stat, price } };

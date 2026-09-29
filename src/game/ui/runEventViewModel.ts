@@ -31,7 +31,7 @@ import type {
 } from '../../run/eventV3Materialization';
 import { correlatedMaterializedChoiceV3 } from '../../run/eventsV3';
 import { challengeFightRewardChip } from '../../run/eventRewardSummary';
-import { canBuyMarketLife, isMarketBuyOutcomeKind, MARKET_VISITS_PER_NODE, marketPurchasePriceGold } from '../../run/market';
+import { canBuyMarketLife, isMarketBuyOutcomeKind, MARKET_VISITS_PER_NODE, marketChoicePriceGold } from '../../run/market';
 import type { EventResolution, RunNode, RunState } from '../../run/runState';
 import {
   eventChoiceOpportunityHint,
@@ -191,6 +191,7 @@ function persistedHint(
     case 'mergeCards':
     case 'cardChoice':
     case 'upgradeCardTargeted':
+    case 'reshapeCard':
       return offer?.kind === outcome.kind ? { kind: outcome.kind, offer, ...weighted } as RunEventOutcomeHint : undefined;
     // Unlike the sibling kinds above, no offer persists until this choice is
     // taken at least once (`correlatedMaterializedChoiceV3`'s `buyStatPick`
@@ -240,8 +241,8 @@ function historicalRequiredChoice(
  * `buyStat`, the authored static `cost` for everything else. The one place
  * both the lock reason and the choice row's "COST N GOLD" pipeline read the
  * price from, so they can never disagree. */
-function dynamicChoiceCost(state: RunState, choice: { cost?: number; outcome: { kind: string } }): number {
-  return isMarketBuyOutcomeKind(choice.outcome.kind) ? marketPurchasePriceGold(state) : choice.cost ?? 0;
+function dynamicChoiceCost(state: RunState, choice: { cost?: number; outcome: { kind: string; stat?: MarketStat } }): number {
+  return isMarketBuyOutcomeKind(choice.outcome.kind) ? marketChoicePriceGold(state, choice.outcome) : choice.cost ?? 0;
 }
 
 function v3ChoiceLockReason(

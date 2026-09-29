@@ -25,6 +25,22 @@ export function marketPurchasePriceGold(state: RunState): number {
   return MARKET_BASE_PRICE_GOLD + marketPurchaseCount(state);
 }
 
+export const MARKET_SPEED_PREMIUM_GOLD = 2;
+
+/** A stat buy's price: the shared ladder, plus a flat premium for Speed, so
+ * every price still climbs by exactly 1 per purchase. */
+export function marketStatPriceGold(state: RunState, stat: MarketStat): number {
+  return marketPurchasePriceGold(state) + (stat === 'speed' ? MARKET_SPEED_PREMIUM_GOLD : 0);
+}
+
+/** The price a market choice shows and charges: per-stat for `buyStat`, the
+ * base ladder for `buyLife` and the "Buy a stat" picker row. */
+export function marketChoicePriceGold(state: RunState, outcome: { kind: string; stat?: MarketStat }): number {
+  return outcome.kind === 'buyStat' && outcome.stat !== undefined
+    ? marketStatPriceGold(state, outcome.stat)
+    : marketPurchasePriceGold(state);
+}
+
 /** Whether a life refill is possible right now — refill only, never above
  * `LIVES_PER_RUN`. */
 export function canBuyMarketLife(state: RunState): boolean {
@@ -77,7 +93,7 @@ export function marketStatGain(stat: MarketStat): number {
   return LEVEL_STAT_COST[stat].gain;
 }
 
-const MARKET_STATS: readonly MarketStat[] = ['attack', 'armor', 'maxHp'];
+const MARKET_STATS: readonly MarketStat[] = ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed'];
 
 export interface MarketStatPickOption {
   stat: MarketStat;
@@ -86,13 +102,11 @@ export interface MarketStatPickOption {
   affordable: boolean;
 }
 
-/** The market stat picker's three rows, priced live off THIS state — the
- * same shared ladder every stat buy shares (`marketPurchasePriceGold`), so
- * all three read the identical price. Pure; a view model calls this rather
- * than re-deriving the price/affordability pair by hand. */
+/** The market stat picker's rows — every hero stat, priced live off THIS
+ * state via `marketStatPriceGold`. */
 export function marketStatPickOptions(state: RunState): readonly MarketStatPickOption[] {
-  const price = marketPurchasePriceGold(state);
-  return MARKET_STATS.map((stat) => ({
-    stat, gain: marketStatGain(stat), price, affordable: price <= state.gold,
-  }));
+  return MARKET_STATS.map((stat) => {
+    const price = marketStatPriceGold(state, stat);
+    return { stat, gain: marketStatGain(stat), price, affordable: price <= state.gold };
+  });
 }

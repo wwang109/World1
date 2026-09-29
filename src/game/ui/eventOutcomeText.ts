@@ -1,6 +1,8 @@
 import type { EventOutcomeSpec, MarketStat } from '../../data/events';
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import type { EventOutcomeV3 } from '../../run/eventsV3';
+import type { EventReshapeModeV3 } from '../../data/eventContentV3';
+import type { EventReshapeSettlementV3 } from '../../run/eventReshape';
 import { LIVES_PER_RUN } from '../../run/runState';
 import type { SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
@@ -15,10 +17,45 @@ function skillName(skillId: string): string {
 }
 
 export const MARKET_STAT_LABEL: Record<MarketStat, string> = {
-  attack: '+1 ATTACK',
-  armor: '+1 ARMOR',
   maxHp: '+5 MAX HP',
+  attack: '+1 ATTACK',
+  magicPower: '+1 MAGIC POWER',
+  armor: '+1 ARMOR',
+  magicResist: '+1 MAGIC RESIST',
+  speed: '+1 SPEED',
 };
+
+export const RESHAPE_HINT: Record<EventReshapeModeV3, string> = {
+  transform: 'TRANSFORM A CARD',
+  retype: 'CHANGE A CARD\'S TYPE',
+  duplicate: 'COPY A CARD',
+  sacrifice: 'SACRIFICE A CARD',
+};
+
+export const RESHAPE_PICK_TITLE: Record<EventReshapeModeV3, string> = {
+  transform: 'CHOOSE A CARD TO TRANSFORM',
+  retype: 'CHOOSE A CARD TO CHANGE',
+  duplicate: 'CHOOSE A CARD TO COPY',
+  sacrifice: 'CHOOSE A CARD TO SACRIFICE',
+};
+
+function reshapeHeadline(outcome: EventReshapeSettlementV3): { headline: string; detail: string } {
+  const from = skillName(outcome.skillId);
+  const tier = outcome.tier.toUpperCase();
+  switch (outcome.mode) {
+    case 'transform':
+    case 'retype':
+      return { headline: `${from} became ${skillName(outcome.resultSkillId ?? outcome.skillId)}`, detail: tier };
+    case 'duplicate':
+      return { headline: `Copied ${from}`, detail: tier };
+    case 'sacrifice': {
+      const reward = outcome.reward === undefined
+        ? ''
+        : outcome.reward.kind === 'grantGold' ? `+${outcome.reward.amount} gold` : `Hero levels up → LV ${outcome.reward.level}`;
+      return { headline: `Sacrificed ${from}`, detail: reward };
+    }
+  }
+}
 
 /**
  * Terse in-place confirmation for a market buy that keeps its node OPEN for
@@ -242,7 +279,8 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
       return 'offer' in hint && hint.offer.status !== 'unavailable'
         ? mergeTradeLine(hint.offer.consumed.length, hint.offer.from, hint.offer.to)
         : '3 CARDS → 1 BETTER';
-    case 'buyStatPick': return 'CHOICE OF 3 STATS';
+    case 'buyStatPick': return 'CHOICE OF STATS';
+    case 'reshapeCard': return RESHAPE_HINT[hint.offer.mode];
     default: {
       const exhaustive: never = hint;
       throw new Error(`eventOutcomeHintText: unknown outcome ${String((exhaustive as RunEventOutcomeHint).kind)}`);
@@ -397,6 +435,10 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
         headline: `Your ${skillName(outcome.skillId)} is re-tempered — ${outcome.from.toUpperCase()} → ${outcome.to.toUpperCase()}.`,
         detail: '',
       };
+    case 'reshapeCard':
+      return { headline: RESHAPE_PICK_TITLE[outcome.offer.mode], detail: '' };
+    case 'cardReshaped':
+      return reshapeHeadline(outcome);
     case 'alreadySettled':
       return { headline: 'Reward already claimed', detail: '' };
     // The scene intercepts `challengeFight` before it reaches this

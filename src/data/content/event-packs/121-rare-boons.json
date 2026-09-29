@@ -21,17 +21,104 @@
             "body": "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\"",
             "theme": "training",
             "rarity": "rare",
-            "story": { "storyId": "duelists_grip", "stage": "payoff", "role": "payoff" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "duelists_grip",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "take_grip", "label": "Learn his grip", "cost": 0, "outcome": { "kind": "grantStat", "stat": "attack" } },
-                { "id": "decline", "label": "Thank him and walk on", "outcome": { "kind": "nothing" } }
+                {
+                  "id": "take_grip",
+                  "label": "Learn his grip",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "attack"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Thank him and walk on",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Old Duelist's Grip",
+            "body": "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "duelists_grip",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_grip",
+                  "label": "Learn his grip",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "attack"
+                  }
+                },
+                {
+                  "id": "mirror_form",
+                  "label": "Have him show you a move twice",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Thank him and walk on",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -48,17 +135,106 @@
             "body": "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting.",
             "theme": "omen",
             "rarity": "rare",
-            "story": { "storyId": "standing_stone", "stage": "payoff", "role": "payoff" },
-            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
-            "delivery": { "kind": "ambient" },
+            "story": {
+              "storyId": "standing_stone",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
             "visibility": "visible",
             "priority": 0,
             "once": "run",
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "press_palm", "label": "Press your palm to the stone", "cost": 0, "outcome": { "kind": "grantStat", "stat": "maxHp" } },
-                { "id": "decline", "label": "Leave the stone be", "outcome": { "kind": "nothing" } }
+                {
+                  "id": "press_palm",
+                  "label": "Press your palm to the stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Leave the stone be",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "The Standing Stone",
+            "body": "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "standing_stone",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "press_palm",
+                  "label": "Press your palm to the stone",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "leave_offering",
+                  "label": "Leave a card at its foot",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "reward": {
+                      "kind": "grantLevel"
+                    },
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Leave the stone be",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
               ]
             }
           }
@@ -75,7 +251,134 @@
             "body": "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\"",
             "theme": "forge",
             "rarity": "rare",
-            "story": { "storyId": "smiths_temper", "stage": "payoff", "role": "payoff" },
+            "story": {
+              "storyId": "smiths_temper",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "temper_gear",
+                  "label": "Let her temper your gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "armor"
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Keep moving",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "version": 2,
+          "def": {
+            "title": "A Smith's Tempering",
+            "body": "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "smiths_temper",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 0
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "temper_gear",
+                  "label": "Let her temper your gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "armor"
+                  }
+                },
+                {
+                  "id": "temper_card",
+                  "label": "Have her temper one card instead",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "archetypes": [
+                            "offense",
+                            "defensive",
+                            "healing",
+                            "support",
+                            "debuff"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  }
+                },
+                {
+                  "id": "decline",
+                  "label": "Keep moving",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "wellspring_of_sparks",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Wellspring of Sparks",
+            "body": "A spring bubbles up between cracked flagstones, and every droplet that breaks the surface flickers with pale light before it falls. The air above it hums against your teeth. Cupped in your hands, the water is cold, bright, and faintly alive.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": { "storyId": "wellspring_of_sparks", "stage": "payoff", "role": "payoff" },
             "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
             "delivery": { "kind": "ambient" },
             "visibility": "visible",
@@ -84,8 +387,65 @@
             "cooldownNodes": 0,
             "choiceSet": {
               "fixed": [
-                { "id": "temper_gear", "label": "Let her temper your gear", "cost": 0, "outcome": { "kind": "grantStat", "stat": "armor" } },
-                { "id": "decline", "label": "Keep moving", "outcome": { "kind": "nothing" } }
+                { "id": "drink_spark", "label": "Drink from the spring", "cost": 0, "outcome": { "kind": "grantStat", "stat": "magicPower" } },
+                {"id": "dip_card", "label": "Dip a card into the spring", "cost": 0, "outcome": {"kind": "reshapeCard", "mode": "transform", "fallback": {"kind": "grantGold", "amount": 2}}},
+                { "id": "decline", "label": "Let it flow on", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "warded_hermit",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Warded Hermit",
+            "body": "A hermit sits inside a ring of chalk sigils that no storm has managed to wash away. He traces one of the marks onto the back of your hand with an ink-stained thumb. \"Spells find the easy door,\" he says. \"This one is shut.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": { "storyId": "warded_hermit", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "take_sigil", "label": "Accept the sigil", "cost": 0, "outcome": { "kind": "grantStat", "stat": "magicResist" } },
+                {"id": "sigil_card", "label": "Have him ward one of your cards", "cost": 0, "outcome": {"kind": "reshapeCard", "mode": "retype", "retypeTo": [{"elements": ["holy"]}], "fallback": {"kind": "grantGold", "amount": 2}}},
+                { "id": "decline", "label": "Keep your hand", "outcome": { "kind": "nothing" } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "courier_shortcut",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Courier's Shortcut",
+            "body": "A courier in mud-splashed boots overtakes you at a dead run, then doubles back, laughing. \"You walk like the road owes you time,\" she says, and shows you how she sets her feet — lighter, sooner, already moving before the thought arrives.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": { "storyId": "courier_shortcut", "stage": "payoff", "role": "payoff" },
+            "eligibility": { "fact": "node.depth", "args": { "op": "gte", "value": 0 } },
+            "delivery": { "kind": "ambient" },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                { "id": "learn_stride", "label": "Learn her stride", "cost": 0, "outcome": { "kind": "grantStat", "stat": "speed" } },
+                {"id": "take_parcel", "label": "Take the parcel she can't deliver", "cost": 0, "outcome": {"kind": "grantCard", "tier": "bronze"}},
+                { "id": "decline", "label": "Let her run on", "outcome": { "kind": "nothing" } }
               ]
             }
           }
