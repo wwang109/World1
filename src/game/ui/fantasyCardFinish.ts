@@ -57,7 +57,7 @@ function drawShadow(shadow: Phaser.GameObjects.Graphics, w: number, h: number, r
   }
 }
 
-export function applyCardFinish(card: FantasyCardTemplateV2): CardFinishHandle {
+export function applyCardFinish(card: FantasyCardTemplateV2, options: { effects?: boolean } = {}): CardFinishHandle {
   const scene = card.scene;
   const model = card.getData('templateModel') as FantasyCardTemplateModel;
   const regions = card.getData('templateRegions') as Record<string, RegionBox>;
@@ -82,7 +82,7 @@ export function applyCardFinish(card: FantasyCardTemplateV2): CardFinishHandle {
   }
 
   const handle: CardFinishHandle = { shadow };
-  if (isWebGL(scene) && card.postFX) {
+  if (options.effects !== false && isWebGL(scene) && card.postFX) {
     if (finish.shine) handle.shine = card.postFX.addShine(finish.shine.speed, finish.shine.lineWidth, finish.shine.gradient, false);
     if (finish.glow) card.postFX.addGlow(finish.glow.color, finish.glow.outer, 0, false, 0.1, 10);
   }

@@ -24,6 +24,7 @@ import {
 } from './fantasyCardTemplateModel';
 import { fantasyTitleLayout, type RegionBox, type FantasyCardTemplateSpec, type FantasyCardTemplateVariant } from './fantasyCardTemplateSpec';
 import { makeClassicCardBody, makePrintedCardBody } from './fantasyCardPrintedBody';
+import { applyCardFinish } from './fantasyCardFinish';
 import { whenFantasyCardChromeReady } from './fantasyCardChromeLoader';
 import { isAoeSkill } from './skillPresentation';
 import type { TierProgress } from '../../run/shop';
@@ -40,6 +41,7 @@ export interface FantasyCardTemplateV2Options {
   progress?: TierProgress;
   template?: FantasyCardTemplateVariant;
   artwork?: boolean;
+  finish?: boolean;
 }
 
 /**
@@ -63,6 +65,7 @@ export interface FantasyCardTemplateV2Options {
  */
 export const FANTASY_CARD_BODY_NAME = 'fantasy-card-body';
 export const FANTASY_CARD_TITLE_NAME = 'fantasy-card-title';
+const FINISH_EFFECTS_MIN_WIDTH = 200;
 const TITLE_MIN_FONT_PX = 8;
 
 
@@ -126,6 +129,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     this.setSize(width, height);
     this.setData({ templateVariant: model.template, templateRegions: model.regions, templateModel: model });
     scene.add.existing(this);
+    if (options.finish !== false) applyCardFinish(this, { effects: width >= FINISH_EFFECTS_MIN_WIDTH });
   }
 
   /**
