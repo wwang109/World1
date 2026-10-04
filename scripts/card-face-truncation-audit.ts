@@ -470,10 +470,12 @@ async function main(): Promise<void> {
               for (const w of seg.text.split(/\s+/)) if (w.length > 0) expected.push(w);
             }
             // Which body words never made it onto the card at all?
+            const visibleText = visible.toLowerCase();
             const lost: string[] = [];
             for (const w of expected) {
-              if (w === '·') continue;
-              if (!visible.includes(w)) lost.push(w);
+              if (w === '·' || w === '.') continue;
+              const word = w.replace(/\.$/, '').toLowerCase();
+              if (word.length > 0 && !visibleText.includes(word)) lost.push(w);
             }
             if (lost.length === 0) continue;
             overflowing += 1;

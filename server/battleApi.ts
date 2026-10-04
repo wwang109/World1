@@ -5,6 +5,8 @@ import { skillBook } from '../src/data/skills';
 import type { CombatantSetup } from '../src/engine/types';
 import { validateGhostSubmission, type GhostSubmissionInput } from '../src/run/ghostValidate';
 import { createFileGhostStore } from './ghostStoreFile';
+import { createAccountService, webCryptoRandomHex, webCryptoSha256Hex } from '../src/meta/account';
+import { createFileAccountStore } from './accountStoreFile';
 
 /**
  * Battle API — the only thing that may run combat.
@@ -14,6 +16,7 @@ import { createFileGhostStore } from './ghostStoreFile';
  * - `POST /ghosts`      submit a ghost boss build
  * - `GET  /ghosts`      fetch a ghost for a band
  * - `POST /ghosts/:id/result` report a settled ghost fight's outcome
+ * - `/account/*`        guest accounts, Steam and email linking (src/meta/account.ts)
  *
  * Both are thin wrappers; the logic lives in `src/run`. The client cannot
  * simulate at all (enforced by `scripts/check-boundaries.mjs`), so the prep
@@ -25,6 +28,15 @@ const PORT = Number(process.env.PORT ?? 8787);
 const ghostStore = process.env.GHOST_STORE_FILE
   ? createFileGhostStore(process.env.GHOST_STORE_FILE)
   : createFileGhostStore();
+const accountService = createAccountService({
+  store: createFileAccountStore(process.env.ACCOUNT_STORE_FILE),
+  now: () => Date.now(),
+  randomHex: webCryptoRandomHex,
+  sha256Hex: webCryptoSha256Hex,
+  fetch: (target, init) => fetch(target, init),
+  sendEmail: async (message) => { console.log(`[account email] to ${message.to}\n${message.text}`); },
+  allowReturnTo: (returnTo, apiOrigin) => returnTo.hostname === new URL(apiOrigin).hostname,
+});
 
 createServer((req, res) => {
   const json = (code: number, body: unknown): void => {
@@ -35,13 +47,37 @@ createServer((req, res) => {
     res.writeHead(204, {
       'access-control-allow-origin': '*',
       'access-control-allow-methods': 'GET, POST, OPTIONS',
-      'access-control-allow-headers': 'content-type',
+      'access-control-allow-headers': 'content-type, authorization',
     });
     res.end();
     return;
   }
-  const url = new URL(req.url ?? '/', `http://localhost:${String(PORT)}`);
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `localhost:${String(PORT)}`}`);
   const route = url.pathname;
+
+  if (route.startsWith('/account/')) {
+    let accountBody = '';
+    req.on('data', (chunk) => { accountBody += chunk; });
+    req.on('end', () => {
+      accountService.handle({
+        method: req.method ?? 'GET',
+        path: route,
+        url,
+        authorization: req.headers.authorization ?? null,
+        body: accountBody,
+      })
+        .then((result) => {
+          if (result.kind === 'redirect') {
+            res.writeHead(302, { location: result.location, 'cache-control': 'no-store' });
+            res.end();
+            return;
+          }
+          json(result.status, result.body);
+        })
+        .catch((err: unknown) => json(500, { error: err instanceof Error ? err.message : String(err) }));
+    });
+    return;
+  }
 
   if (req.method === 'GET' && route === '/ghosts') {
     const band = Number(url.searchParams.get('band'));
@@ -91,13 +127,20 @@ createServer((req, res) => {
       }
       if (route === '/ghosts') {
         const input = JSON.parse(body) as GhostSubmissionInput;
-        const result = validateGhostSubmission(input);
-        if (!result.ok) {
-          json(400, { error: result.reason, detail: result.detail });
-          return;
-        }
-        ghostStore.save(result.record)
-          .then((record) => json(201, { id: record.id }))
+        accountService.authenticate(req.headers.authorization ?? null)
+          .then(async (account) => {
+            if (!account) {
+              json(401, { error: 'missing-account' });
+              return;
+            }
+            const result = validateGhostSubmission({ ...input, ownerLocalId: account.id });
+            if (!result.ok) {
+              json(400, { error: result.reason, detail: result.detail });
+              return;
+            }
+            const record = await ghostStore.save(result.record);
+            json(201, { id: record.id });
+          })
           .catch((err: unknown) => json(400, { error: err instanceof Error ? err.message : String(err) }));
         return;
       }

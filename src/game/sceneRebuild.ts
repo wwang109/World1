@@ -49,8 +49,25 @@ export function rebuildScene(scene: Phaser.Scene & { create: () => void }): void
   for (const event of ['pointerdown', 'pointermove', 'pointerup', 'pointerupoutside', 'wheel', 'gameobjectdown', 'gameobjectup']) {
     scene.input.removeAllListeners(event);
   }
-  for (const child of [...scene.children.list]) child.destroy();
+  const kept: Phaser.GameObjects.GameObject[] = [];
+  for (const child of [...scene.children.list]) {
+    if (child.data?.get(KEEP_ON_REBUILD) === true) {
+      child.data.set(KEEP_ON_REBUILD, 'unclaimed');
+      kept.push(child);
+    } else child.destroy();
+  }
   scene.create();
+  for (const child of kept) if (child.data?.get(KEEP_ON_REBUILD) === 'unclaimed') child.destroy();
+}
+
+export const KEEP_ON_REBUILD = 'keepOnRebuild';
+
+export function keepOnRebuild(object: Phaser.GameObjects.GameObject): void {
+  object.setData(KEEP_ON_REBUILD, true);
+}
+
+export function isKeptFromRebuild(object: Phaser.GameObjects.GameObject): boolean {
+  return object.active && object.data?.get(KEEP_ON_REBUILD) !== undefined;
 }
 
 /**

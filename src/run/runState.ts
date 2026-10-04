@@ -110,6 +110,7 @@ export interface RunShopShelf {
   rerollCount: number;
   // merge slot draws no Rng
   mergeSlotUsed?: boolean;
+  freeRerolls?: number;
 }
 
 /**
@@ -466,6 +467,7 @@ export interface RunStateV3Fields {
    * like `extraGhostFights`, so the fight column's own counters/gates stay
    * untouched by an event-sourced battle. */
   challengeFights?: { won: number; lost: number };
+  freeShopRerolls?: number;
 }
 
 export type RunState = Omit<RunStateV2, 'eventInstances' | 'eventCallbackQueue'> & RunStateV3Fields & {
@@ -1447,7 +1449,9 @@ export function ensureRunShopShelf(state: RunState, nodeId: string): RunState {
  * reroll price, and it is this function.
  */
 export function rerollCostForNode(state: RunState, nodeId: string): number {
-  const base = 1 + (state.shopShelves[nodeId]?.rerollCount ?? 0);
+  if ((state.freeShopRerolls ?? 0) > 0) return 0;
+  const shelf = state.shopShelves[nodeId];
+  const base = 1 + (shelf?.rerollCount ?? 0) - (shelf?.freeRerolls ?? 0);
   const node = findNode(state.map, nodeId);
   return scaledGoldPrice(base, node?.wave ?? 1);
 }
@@ -1467,12 +1471,18 @@ export function rerollRunShop(state: RunState, nodeId: string): RunState {
   if (state.gold < cost) return state;
   const nextCount = (state.shopShelves[nodeId]?.rerollCount ?? 0) + 1;
   const rolled = rollShopStock(node.shopId, node.shopSeed + nextCount, shopStockDepthForWave(node.wave), true, node.wave);
-  const shelf: RunShopShelf = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
+  const freeShopRerolls = state.freeShopRerolls ?? 0;
+  const freeUsed = (state.shopShelves[nodeId]?.freeRerolls ?? 0) + (freeShopRerolls > 0 ? 1 : 0);
+  const shelf: RunShopShelf = {
+    cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount,
+    ...(freeUsed > 0 ? { freeRerolls: freeUsed } : {}),
+  };
   return {
     ...state,
     gold: state.gold - cost,
     shopShelves: { ...state.shopShelves, [nodeId]: shelf },
     stats: { ...state.stats, goldSpent: state.stats.goldSpent + cost },
+    ...(freeShopRerolls > 0 ? { freeShopRerolls: freeShopRerolls - 1 } : {}),
   };
 }
 

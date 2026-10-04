@@ -1,4 +1,16 @@
 export type FantasyTemplateTier = 'bronze' | 'silver' | 'gold' | 'diamond';
+export type FantasyCardTemplateVariant = 'classic' | 'printed-v2';
+
+export const DEFAULT_CARD_TEMPLATE_VARIANT: FantasyCardTemplateVariant = 'classic';
+
+export function resolveCardTemplateVariant(
+  variant?: FantasyCardTemplateVariant,
+  search = typeof window === 'undefined' ? '' : window.location.search,
+): FantasyCardTemplateVariant {
+  if (variant) return variant;
+  const preview = new URLSearchParams(search).get('cardTemplate');
+  return preview === 'classic' || preview === 'printed-v2' ? preview : DEFAULT_CARD_TEMPLATE_VARIANT;
+}
 
 export type FantasyTemplateTextRuleKey =
   | 'title-short'
@@ -34,8 +46,10 @@ export interface RegionBox {
 
 export interface FantasyCardTemplateSpec {
   baseSize: { width: 420; height: 690 };
-  cornerRadius: 28;
-  regions: Record<FantasyTemplateRegion, RegionBox>;
+  cornerRadius: number;
+  regions: Record<FantasyTemplateRegion, RegionBox> & Partial<Record<
+    'header' | 'rulesBand' | 'rulesCaption' | 'footer' | 'progress' | 'headerTrim' | 'rulesTrim' | 'bodyTrim', RegionBox
+  >>;
   /** Archetype badges stack inside `rightRail`, top-down. Offsets are from the rail's top edge. */
   archetypeStack: { w: number; h: number; firstCenterY: number; pitch: number; max: number };
   /** `Slot` label + one box glyph per occupied board slot, right-aligned inside `slotLabel`. */
@@ -44,6 +58,15 @@ export interface FantasyCardTemplateSpec {
   glossaryText: { titleFontSize: number; bodyFontSize: number; pad: number };
   /** Decorative corner filigree drawn in the tier trim color, all four corners. */
   cornerArt: { inset: number; length: number; innerGap: number; diamond: number; overshoot: number };
+  printed?: {
+    background: number; panel: number; ink: string; frameInset: number;
+    titlePlate: RegionBox; progressBox: RegionBox; artRadius: number;
+    rowGap: number; labelWidth: number; labelFontSize: number;
+    bodyFontSize: number; bodyMinFontSize: number; bodyLineHeightRatio: number;
+    labelMinScale: number; compactLabelWidth: number;
+    frameStroke: number; panelStroke: number;
+    bandColor: number; caption: string; captionFontSize: number; titleInk: string;
+  };
   textRules: Record<FantasyTemplateTextRuleKey, {
     fontSize: number;
     lineSpacing: number;
@@ -59,15 +82,13 @@ export const FANTASY_CARD_TEMPLATE_SPEC: FantasyCardTemplateSpec = {
     // Full-art layout: the art runs edge-to-edge under everything; the lower
     // portion carries a gradient scrim (tierFrame) instead of a boxed plate.
     artFrame: { x: 0, y: 0, w: 420, h: 690 },
-    // Badges clear the corner filigree (main line at 24, echo at 30) with
-    // ~8 units of air.
     leftRail: { x: 34, y: 34, w: 56, h: 56 },
     rightRail: { x: 334, y: 38, w: 48, h: 160 },
-    tierFrame: { x: 0, y: 440, w: 420, h: 250 },
+    tierFrame: { x: 0, y: 360, w: 420, h: 330 },
     slotLabel: { x: 230, y: 644, w: 156, h: 20 },
-    titleBox: { x: 40, y: 500, w: 340, h: 44 },
-    divider: { x: 60, y: 550, w: 300, h: 2 },
-    bodyBox: { x: 40, y: 562, w: 340, h: 76 },
+    titleBox: { x: 100, y: 40, w: 222, h: 48 },
+    divider: { x: 110, y: 94, w: 202, h: 2 },
+    bodyBox: { x: 26, y: 472, w: 368, h: 166 },
     typeBadge: { x: 38, y: 38, w: 48, h: 48 },
     // Bottom-left footer row, mirroring slotLabel on the right.
     wtPlate: { x: 34, y: 644, w: 110, h: 20 },
@@ -92,6 +113,49 @@ export const FANTASY_CARD_TEMPLATE_SPEC: FantasyCardTemplateSpec = {
     'wt-3-digit': { fontSize: 11, lineSpacing: 0, maxLines: 1, wrapWidth: 56 },
   },
 };
+
+export const PRINTED_CARD_TEMPLATE_SPEC: FantasyCardTemplateSpec = {
+  ...FANTASY_CARD_TEMPLATE_SPEC,
+  cornerRadius: 22,
+  regions: {
+    ...FANTASY_CARD_TEMPLATE_SPEC.regions,
+    artFrame: { x: 0, y: 0, w: 420, h: 690 },
+    header: { x: 18, y: 12, w: 384, h: 50 },
+    leftRail: { x: 20, y: 12, w: 48, h: 48 },
+    typeBadge: { x: 20, y: 12, w: 48, h: 48 },
+    rightRail: { x: 354, y: 76, w: 48, h: 160 },
+    titleBox: { x: 76, y: 22, w: 302, h: 30 },
+    divider: { x: 76, y: 62, w: 302, h: 0 },
+    rulesBand: { x: 18, y: 416, w: 384, h: 38 },
+    rulesCaption: { x: 76, y: 430, w: 268, h: 28 },
+    headerTrim: { x: 76, y: 8, w: 302, h: 4 },
+    rulesTrim: { x: 44, y: 424, w: 332, h: 4 },
+    bodyTrim: { x: 44, y: 640, w: 332, h: 4 },
+    tierFrame: { x: 18, y: 454, w: 384, h: 182 },
+    bodyBox: { x: 34, y: 468, w: 352, h: 152 },
+    footer: { x: 18, y: 646, w: 384, h: 44 },
+    progress: { x: 160, y: 674, w: 100, h: 12 },
+    wtPlate: { x: 32, y: 650, w: 110, h: 20 },
+    slotLabel: { x: 248, y: 650, w: 140, h: 20 },
+    tierDiamond: { x: 198, y: 647, w: 24, h: 24 },
+  },
+  archetypeStack: { w: 48, h: 48, firstCenterY: 24, pitch: 56, max: 3 },
+  cornerArt: { inset: 10, length: 12, innerGap: 4, diamond: 3, overshoot: 4 },
+  printed: {
+    background: 0x164f83, panel: 0xffffff, ink: '#202b3b', frameInset: 0,
+    titlePlate: { x: 18, y: 12, w: 384, h: 50 },
+    progressBox: { x: 160, y: 674, w: 100, h: 12 }, artRadius: 22,
+    rowGap: 5, labelWidth: 66, labelFontSize: 11,
+    bodyFontSize: 15, bodyMinFontSize: 8, bodyLineHeightRatio: 1.25,
+    labelMinScale: 0.6, compactLabelWidth: 6,
+    frameStroke: 2, panelStroke: 2,
+    bandColor: 0x65b8ed, caption: 'RULES', captionFontSize: 23, titleInk: '#082b4c',
+  },
+};
+
+export function cardTemplateSpec(variant: FantasyCardTemplateVariant): FantasyCardTemplateSpec {
+  return variant === 'printed-v2' ? PRINTED_CARD_TEMPLATE_SPEC : FANTASY_CARD_TEMPLATE_SPEC;
+}
 
 /**
  * READABILITY FLOOR for the card's TITLE, in real screen px — the title never
@@ -127,34 +191,13 @@ export interface FantasyTitleLayout {
   room: number;
 }
 
-/**
- * The title's type AND its line budget, derived from the hairline it has to
- * clear rather than from the text rule alone.
- *
- * THE BUG THIS EXISTS TO CLOSE (2026-08-28 rule-clearance sweep, same class as
- * `RunProgressStrip`'s mobile header rule): the title's font size has a
- * readability FLOOR (`TITLE_MIN_FONT_PX`) but `divider`/`titleBox` are pure
- * spec rects that scale with the card. Below cardScale ~0.65 the floor wins,
- * so the type stops shrinking while the 50-unit gap between `titleBox.y` and
- * `divider.y` keeps closing — and a `title-long` (maxLines 2) title then drew
- * its second line straight THROUGH the divider and on into `bodyBox`:
- * measured 11.3px past the rule at cardScale 0.333 (the 140px card in
- * `cardDetailOverlay`/`MobileDeckBuildScene`/`MobileDraftScene`), 3.2px at
- * 0.476 (the 200px card in `DesktopShopScene`), 0.8px at 0.524 (the 220px
- * card in `DesktopWikiScene`) — i.e. wrong on BOTH platforms, and 1px-margin
- * wrong on desktop, exactly the signature the header rule had.
- *
- * `makeBody` already took this stance for the body text ("Min font clamps can
- * outgrow a heavily shrunken card, so the box height — not just the ladder —
- * bounds the visible line count"); this is the same rule for the title, and it
- * is a NO-OP at cardScale 1 (2 lines still fit, `title-long` still gets 2).
- */
 export function fantasyTitleLayout(
   titleRule: FantasyTemplateTextRuleKey,
   cardScale: number,
+  spec: FantasyCardTemplateSpec = FANTASY_CARD_TEMPLATE_SPEC,
 ): FantasyTitleLayout {
-  const rule = FANTASY_CARD_TEMPLATE_SPEC.textRules[titleRule];
-  const { titleBox, divider } = FANTASY_CARD_TEMPLATE_SPEC.regions;
+  const rule = spec.textRules[titleRule];
+  const { titleBox, divider } = spec.regions;
   // `Math.round` inside the `max`, mirroring `FantasyCardTemplateV2.px()`
   // exactly — this must reproduce the shipped font size byte for byte, or the
   // fix would silently restyle every card it was supposed to leave alone.

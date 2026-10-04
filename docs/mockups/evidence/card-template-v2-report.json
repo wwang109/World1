@@ -1,0 +1,60 @@
+{
+  "status": "candidate-unaccepted",
+  "beforeSnapshotCompared": true,
+  "textVariants": 732,
+  "stats": {
+    "140": {
+      "variants": 732,
+      "truncated": 46
+    },
+    "150": {
+      "variants": 732,
+      "truncated": 22
+    },
+    "187": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "200": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "220": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "260": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "307": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "336": {
+      "variants": 732,
+      "truncated": 0
+    },
+    "420": {
+      "variants": 732,
+      "truncated": 0
+    }
+  },
+  "optionalRows": {
+    "withoutAffinity": 591,
+    "withoutTiming": 720,
+    "archetypeCounts": {
+      "1": 448,
+      "2": 284
+    }
+  },
+  "chromeAlpha": {
+    "width": 840,
+    "height": 1380,
+    "middle": 0,
+    "leftArtEdge": 0,
+    "header": 253,
+    "rules": 253
+  },
+  "contractHash": "9d5adfaabbe091368dfdf8a9e3723e61377c21ecfd9399501be0b3a21754d70a"
+}

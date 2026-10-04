@@ -66,6 +66,7 @@ type LegacyOutcomeHint =
   | { kind: 'nothing' };
 
 type ImmediateOutcomeHint =
+  | { kind: 'grantShopRerolls'; amount: number }
   | { kind: 'grantGold'; amount: number }
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
@@ -177,6 +178,11 @@ function persistedHint(
     case 'buyStat': return { kind: 'buyStat', stat: outcome.stat, ...weighted };
     case 'grantStat': return { kind: 'grantStat', stat: outcome.stat, ...weighted };
     case 'nothing': return { kind: 'nothing', ...weighted };
+    case 'grantShopRerolls': return { kind: 'grantShopRerolls', amount: outcome.amount, ...weighted };
+    case 'scavengeCard':
+      return offer?.kind === 'bonusDraft' ? { kind: 'bonusDraft', offer, ...weighted } : undefined;
+    case 'reshapeGem':
+      return offer?.kind === 'reshapeGem' ? { kind: 'reshapeGem', offer, ...weighted } : undefined;
     case 'challengeFight':
       return {
         kind: 'challengeFight', difficulty: outcome.difficulty,
@@ -255,6 +261,7 @@ function v3ChoiceLockReason(
   if (unavailableReason === 'no_unvisited_biome') return 'no unvisited biome remains';
   const cost = dynamicChoiceCost(state, choice);
   if (cost > state.gold) return `needs ${cost} gold`;
+  if ((choice.lifeCost ?? 0) > 0 && state.lives <= choice.lifeCost!) return 'would cost your last life';
   if (choice.outcome.kind === 'buyLife' && !canBuyMarketLife(state)) return 'already at full lives';
   if (choice.requires !== undefined && !eventGateMet(state, choice.requires)) {
     if (choice.requires.choiceIds?.length === 1) {

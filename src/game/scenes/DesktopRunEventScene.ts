@@ -10,12 +10,13 @@ import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel 
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { marketPurchaseConfirmText, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
 import { isMarketBuyOutcomeKind } from '../../run/market';
-import { buildMergeSpentEntries, mergeConfirmPreviewForChoice } from '../ui/runMergeViewModel';
 import {
   renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud,
   renderSellGemConfirm, snapshotRunProgress,
 } from '../ui/RunProgressStrip';
-import { addBrightRunArt, addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
+import { addBrightRunArt, addRunArt, choiceArtKey, driftRunArt, eventArtKey } from '../ui/runArt';
+import { addBiomeAmbience } from '../ui/ambience';
+import { isFreshRender } from '../ui/motion';
 import { renderEventArtBorder } from '../ui/eventArtBorder';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { EVENT_REWARD_COLORS, renderRunEventOutcomePane } from '../ui/RunRewardPanel';
@@ -167,6 +168,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       }
     } else this.data.remove('embeddedEventOutcomeBounds');
     positionRunDestination(this, this.embedded, content);
+    addBiomeAmbience(this, presentation.context.biomeId, content);
     if (!this.embedded) this.renderHud(run);
     this.renderStory(presentation, layout.story);
     const paneTemplate = eventOutcomePaneTemplate(template, 'icon', layout.outcomes, layout.outcomeHeader);
@@ -199,20 +201,13 @@ export class DesktopRunEventScene extends Phaser.Scene {
     // per-dialog guard needed here either.
     if (this.mergeConfirmChoiceId !== null) {
       const choiceId = this.mergeConfirmChoiceId;
-      // UNCONDITIONAL (2026-09-06 user ruling): a merge always costs three
-      // cards, so it always shows this confirm. V3 reads the exact clicked
-      // choice's persisted offer; legacy keeps its live preview.
       const choice = view.choices.find((candidate) => candidate.id === choiceId);
-      const preview = choice === undefined
-        ? null
-        : mergeConfirmPreviewForChoice(choice.outcomeHint, run);
-      if (!preview) {
+      if (choice?.outcomeHint.kind !== 'mergeCards') {
         this.mergeConfirmChoiceId = null;
       } else {
-        const spent = buildMergeSpentEntries(preview.consumed, run);
         renderMergeConsumeConfirm(this, {
           compact: false,
-          body: mergeConfirmBody(preview.from, preview.to, spent),
+          body: mergeConfirmBody(),
           onCancel: () => { this.mergeConfirmChoiceId = null; this.rerender(); },
           onConfirm: () => { this.mergeConfirmChoiceId = null; this.resolveAndEnter(choiceId); },
         });
@@ -419,6 +414,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       { x: artX, y: cursor, width: artW, height: artH },
       BRIGHT_ART_TREATMENT.story,
     );
+    driftRunArt(this, storyArt.image, { width: artW, height: artH });
     if (event.art.kind === 'event') {
       renderEventArtBorder(this, event.art.kind, { x: artX, y: cursor, width: artW, height: artH });
     } else storyArt.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.45);
@@ -483,6 +479,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       auditTextBlock(count, { name: 'Event outcome choice count', maxWidth: outcomeHeader.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 9 });
     }
 
+    const fresh = isFreshRender(this, `choices:${event.choices.map((choice) => choice.id).join('|')}`);
     event.choices.forEach((choice, choiceIndex: number) => {
       const row = choiceRows[choiceIndex];
       if (!row) return;
@@ -499,6 +496,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       renderRunChoicePanel(this, { x: row.x, y: row.y, w: row.width, h: row.height }, model, {
         font: F,
         sfx: choice.cost > 0 ? 'purchase' : 'uiClick',
+        appearIndex: fresh ? choiceIndex : undefined,
         onSelect: () => {
           // mergeCards (UNCONDITIONAL, 2026-09-06 user ruling: a merge
           // always costs three cards, so it always pauses here — see

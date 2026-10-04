@@ -23,6 +23,8 @@ import { DesktopRunEventScene } from './game/scenes/DesktopRunEventScene';
 import { MobileRunEventScene } from './game/scenes/MobileRunEventScene';
 import { DesktopCardDesignScene } from './game/scenes/DesktopCardDesignScene';
 import { shouldPreserveDrawingBufferForLayoutAudit } from './game/devLaunch';
+import { installSceneFadeIn } from './game/ui/motion';
+import { UI } from './game/theme';
 import { devicePixels, installFillHost, installRenderScale, manageTextResolution, textResolution } from './game/renderScale';
 
 // The canvas FILLS the browser window (Phaser.Scale.RESIZE) -- no letterbox,
@@ -98,6 +100,7 @@ const game = new Phaser.Game({
 });
 
 installRenderScale(game);
+installSceneFadeIn(game, ['Boot'], UI.bg);
 
 // Dev aid: lets Playwright smoke scripts hit-test Phaser input directly
 // (see docs/screenshot-howto.md).

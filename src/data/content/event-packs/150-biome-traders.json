@@ -1,0 +1,1089 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": {
+      "kind": "boolean",
+      "default": false
+    },
+    "grave_path": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "opened",
+        "answered"
+      ],
+      "default": "none"
+    },
+    "honorable_choice": {
+      "kind": "boolean",
+      "default": false
+    },
+    "reliquary_oath": {
+      "kind": "boolean",
+      "default": false
+    },
+    "oath_gate": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "sworn",
+        "kept",
+        "released"
+      ],
+      "default": "none"
+    },
+    "venom_bloom": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "cultivated"
+      ],
+      "default": "none"
+    },
+    "rival_spared": {
+      "kind": "boolean",
+      "default": false
+    },
+    "moon_quarry_released": {
+      "kind": "boolean",
+      "default": false
+    }
+  },
+  "events": [
+    {
+      "id": "arrowfell_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fletcher's Trade",
+            "body": "A fletcher has spread her best bows on a blanket by the road and will swap any one of them for something of yours. Bring her a bow and she pays a grade better.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "arrowfell_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "arrowfell"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duskbarrow_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grave-Barterer",
+            "body": "A hooded barterer deals in whatever the barrows give up. He takes any card for one of his dark ones, and a dark card buys a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "duskbarrow_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "emberwaste_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Trader",
+            "body": "A smith with soot to the elbows swaps finished fire-work for whatever you carry. Hand her fire and she trades a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "emberwaste_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "emberwaste"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "frostmarch_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rime Peddler",
+            "body": "A peddler's sled is stacked with frost-worked wares, each one rimed white. He swaps any card for one of his, and frost buys a grade better.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "frostmarch_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "frostmarch"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hallowfield_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Relic Swapper",
+            "body": "A pilgrim trades blessed relics for whatever travelers can spare. Give her something holy and she returns a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "hallowfield_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "hallowfield"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Holy card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "howlmoor_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Beast-Tamer",
+            "body": "A tamer with a leash in each hand offers one of her beasts for any card you carry. Bring her a beast and she gives a grade better.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "howlmoor_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "howlmoor"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironmoot_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe Broker",
+            "body": "An axe broker has racked his stock along a wall of the moot hall. He swaps any card for an axe, and an axe trades a grade better.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "ironmoot_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "ironmoot"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pikewold_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pike Trader",
+            "body": "A quartermaster trades spare lances off the back of a wagon. Any card buys one; a lance buys one a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pikewold_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormreach_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Storm Barterer",
+            "body": "A barterer whose hair stands on end swaps charged wares for anything you carry. Lightning buys a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "stormreach_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Lightning card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "swornhold_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blade Exchange",
+            "body": "The garrison armorer swaps blades for whatever a recruit brings in. Hand him a sword and he returns a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "swornhold"
+            ],
+            "story": {
+              "storyId": "swornhold_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "swornhold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Sword card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thornwild_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Root Trader",
+            "body": "A trader grown half into her stall offers living-wood wares for any card. Nature buys a grade better.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "thornwild_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arrowfell_bowyer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bowyer's Bench",
+            "body": "A bowyer restrings anything handed across her bench into a bow of the same weight. What comes back is hers to choose.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "arrowfell_bowyer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "arrowfell"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card restrung as a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironmoot_hafter",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe-Hafter",
+            "body": "An old hafter fits axe-heads to anything with a handle. He will rework one card into an axe, though not one you pick.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "ironmoot_hafter",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "ironmoot"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card rehafted as an Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pikewold_shaft_turner",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Shaft-Turner",
+            "body": "A turner lengthens hafts into pike shafts for the drill yard. Hand him a card and it comes back as a lance.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pikewold_shaft_turner",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card turned into a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thornwild_rootgraft",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rootgraft",
+            "body": "A druid grafts living root into whatever you hold out. The card that comes back grows wild.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "thornwild_rootgraft",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Let a card be grafted into a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

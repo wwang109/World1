@@ -14,6 +14,7 @@ import { mapIntelLayoutModel, renderEmbeddedBandRead, renderMobileMapIntelOverla
 import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addBrightRunArt, addRunArt, RUN_ART_KEYS } from '../ui/runArt';
+import { addBiomeAmbience, runAmbienceBiomeId } from '../ui/ambience';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderEmbeddedRunLedger, renderRunStatsGrid, runStatsGridHeight, runStatsPairs } from '../ui/RunStatsPanel';
@@ -108,6 +109,7 @@ export class MobileRunMapScene extends Phaser.Scene {
       this.scene.start('Start');
       return;
     }
+    addBiomeAmbience(this, runAmbienceBiomeId(run), { x: 0, y: 0, width: this.W, height: this.H });
     // Freshly-started run (or a stale re-entry mid-draft) — the run-context
     // draft owns installing the starting deck before any node is pickable.
     if (run.status === 'drafting') {

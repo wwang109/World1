@@ -6,6 +6,7 @@ import { addBrightRunArt, RUN_ART_KEYS } from '../ui/runArt';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { getActiveRun, getPendingSeed, rerollPendingSeed, startRun } from '../runStore';
 import { attachButtonFeel } from '../ui/motion';
+import { addAccountChip } from '../ui/accountPanel';
 import {
   startSceneAssetPaths,
   startSceneLayout,
@@ -91,6 +92,7 @@ export class StartScene extends Phaser.Scene {
     }
 
     this.creditsButton();
+    addAccountChip(this);
 
     this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
     this.ornamentalRule(layout.centerX, layout.lowerRuleY, mobile ? 245 : 460);

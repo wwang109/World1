@@ -29,12 +29,16 @@ export interface EventContentMeta {
   notes?: readonly string[];
   /** Every version number carried by this document, ascending. */
   versions: readonly number[];
+  /** Never drawn for new nodes; saves that already drew it still resolve. */
+  retired?: true;
+  /** Exempt from the one-draw-per-biome-stay guard. */
+  repeatable?: true;
 }
 
 type ValidatedEventVersion = { version: number; schemaVersion?: EventContentSchemaVersion; def: Record<string, unknown> };
 type ValidatedEventContentDocument = {
   schemaVersion: EventContentSchemaVersion;
-  events: readonly { id: string; versions: readonly ValidatedEventVersion[] }[];
+  events: readonly { id: string; retired?: true; repeatable?: true; versions: readonly ValidatedEventVersion[] }[];
 };
 
 export type LoadedEventDef = EventDef | LoadedEventDefV3;
@@ -97,6 +101,8 @@ export function loadEventContent(raw: unknown): LoadedEventContent<LoadedEventDe
       version: current.version,
       ...(current.def.notes !== undefined ? { notes: [...(current.def.notes as readonly string[])] } : {}),
       versions: entries.map((entry) => entry.version).sort((a, b) => a - b),
+      ...(event.retired === true ? { retired: true } : {}),
+      ...(event.repeatable === true ? { repeatable: true } : {}),
     });
   }
 

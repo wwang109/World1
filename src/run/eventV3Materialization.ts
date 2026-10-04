@@ -2,6 +2,7 @@ import {
   isAmbientEventDefV3,
   type EventBoundSubjectsV3,
   type EventChoiceV3,
+  type EventReshapeGemModeV3,
   type EventReshapeModeV3,
   type LoadedEventDefV3,
 } from '../data/eventContentV3';
@@ -33,6 +34,14 @@ export interface EventReshapeOptionV3 {
   skillId: string;
   tier: SkillTier;
   resultSkillId?: string;
+  resultTier?: SkillTier;
+}
+
+export interface EventReshapeGemOptionV3 {
+  id: string;
+  pouchIndexes: readonly number[];
+  gemIds: readonly string[];
+  resultGemId: string;
 }
 
 type PendingOrSettledV3 =
@@ -82,6 +91,12 @@ export type EventDeferredOfferV3 =
     mode: EventReshapeModeV3;
     options: readonly EventReshapeOptionV3[];
     reward?: { kind: 'grantGold'; amount: number } | { kind: 'grantLevel' };
+    fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+  } & PendingOrSettledV3)
+  | ({
+    kind: 'reshapeGem';
+    mode: EventReshapeGemModeV3;
+    options: readonly EventReshapeGemOptionV3[];
     fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
   } & PendingOrSettledV3)
   | { kind: 'sellGem'; status: 'unavailable' }

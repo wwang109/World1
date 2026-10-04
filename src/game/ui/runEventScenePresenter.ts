@@ -1,7 +1,7 @@
 import { biomeFor } from '../../run/biome';
-import type { EventOutcome, MergeCardsReceipt, MergeInputCard, SellGemOption, UpgradeCardOption } from '../../run/events';
-import { mergeCardsPreview } from '../../run/events';
-import { mergeCardsOfferAvailabilityV3, type EventOutcomeV3 } from '../../run/eventsV3';
+import type { EventOutcome, MergeTrioRewards, SellGemOption, UpgradeCardOption } from '../../run/events';
+import { mergeableOwnedCards, mergeCardsPreview, mergeTrioRewards } from '../../run/events';
+import type { EventOutcomeV3 } from '../../run/eventsV3';
 import type { RunCard, RunState } from '../../run/runState';
 import { currentEventNode } from '../../run/runState';
 import { nextSkillTier } from '../../run/shop';
@@ -13,12 +13,13 @@ import { runChoicePanelMinHeight } from './RunChoicePanel';
 import { eventChoiceBlockHeight } from './runEventStoryLayout';
 import type { RunEventOutcomeHint, RunEventViewModel } from './runEventViewModel';
 import type { EventOpportunityHint } from '../../run/eventOpportunityHint';
-import { buildMergeSpentEntries, buildRunMergeViewModel, type RunMergeViewModel } from './runMergeViewModel';
+import { buildMergeSpentEntries, type MergeSpentEntry } from './runMergeViewModel';
 import { runScreenTemplate, type RunTemplatePlatform } from './runScreenTemplate';
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { marketStatPickOptions, type MarketStatPickOption } from '../../run/market';
-import type { EventReshapeModeV3 } from '../../data/eventContentV3';
+import type { EventReshapeGemModeV3, EventReshapeModeV3 } from '../../data/eventContentV3';
+import type { EventReshapeGemOptionV3 } from '../../run/eventV3Materialization';
 import type { SkillTier } from '../../engine/types';
 
 export interface RunEventSceneLayout {
@@ -272,20 +273,36 @@ type GemPicker = { kind: 'gemChoice'; options: readonly string[]; optionCount: n
 type SellPicker = { kind: 'sellGem'; options: readonly SellGemOption[]; optionCount: number };
 export type MergePicker = {
   kind: 'mergeCards';
-  model: RunMergeViewModel;
-  consumed: readonly MergeInputCard[];
+  owned: readonly MergeSpentEntry[];
+  rewardsFor: (instanceIds: readonly string[]) => MergeTrioRewards | null;
   optionCount: number;
 };
+
+function mergePicker(state: RunState, candidateSkillIds: readonly string[]): MergePicker {
+  return {
+    kind: 'mergeCards',
+    owned: buildMergeSpentEntries(mergeableOwnedCards(state), state),
+    rewardsFor: (instanceIds) => mergeTrioRewards(state, instanceIds, candidateSkillIds),
+    optionCount: candidateSkillIds.length,
+  };
+}
 export type StatPicker = { kind: 'buyStatPick'; options: readonly MarketStatPickOption[]; optionCount: number };
 
 export type ReshapePicker = {
   kind: 'reshapeCard';
   mode: EventReshapeModeV3;
-  options: readonly { instanceId: string; skillId: string; tier: SkillTier }[];
+  options: readonly { instanceId: string; skillId: string; tier: SkillTier; resultSkillId?: string; resultTier?: SkillTier }[];
   optionCount: number;
 };
 
-export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker | ReshapePicker;
+export type ReshapeGemPicker = {
+  kind: 'reshapeGem';
+  mode: EventReshapeGemModeV3;
+  options: readonly EventReshapeGemOptionV3[];
+  optionCount: number;
+};
+
+export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker | ReshapePicker | ReshapeGemPicker;
 export type RunEventPresentableOutcome = EventOutcome | EventOutcomeV3;
 export type RunEventOutcomePresentation =
   | { kind: 'picker'; picker: RunEventPickerPresentation }
@@ -352,21 +369,10 @@ export function presentRunEventOutcome(
       return { kind: 'result', outcome };
     case 'sellGemPick':
       return { kind: 'picker', picker: { kind: 'sellGem', options: outcome.options, optionCount: outcome.options.length } };
-    case 'mergeCards': {
-      const status = mergeCardsOfferAvailabilityV3(state, outcome.offer);
-      const model = buildRunMergeViewModel(outcome.offer, state, status);
-      return {
-        kind: 'picker',
-        picker: { kind: 'mergeCards', model, consumed: outcome.offer.consumed, optionCount: model.candidates.length },
-      };
-    }
-    case 'mergeCardsPick': {
-      const model = buildRunMergeViewModel(outcome, state);
-      return {
-        kind: 'picker',
-        picker: { kind: 'mergeCards', model, consumed: outcome.consumed, optionCount: outcome.candidates.length },
-      };
-    }
+    case 'mergeCards':
+      return { kind: 'picker', picker: mergePicker(state, outcome.offer.candidates.map((candidate) => candidate.skillId)) };
+    case 'mergeCardsPick':
+      return { kind: 'picker', picker: mergePicker(state, outcome.candidates.map((candidate) => candidate.skillId)) };
     case 'alreadySettled':
       return { kind: 'ignored' };
     case 'grantCard':
@@ -403,31 +409,27 @@ export function presentRunEventOutcome(
         kind: 'picker',
         picker: {
           kind: 'reshapeCard', mode: outcome.offer.mode,
-          options: outcome.offer.options.map((option) => ({ instanceId: option.instanceId, skillId: option.skillId, tier: option.tier })),
+          options: outcome.offer.options.map((option) => ({
+            instanceId: option.instanceId, skillId: option.skillId, tier: option.tier,
+            ...(outcome.offer.mode === 'trade' && option.resultSkillId !== undefined ? { resultSkillId: option.resultSkillId } : {}),
+            ...(outcome.offer.mode === 'trade' && option.resultTier !== undefined ? { resultTier: option.resultTier } : {}),
+          })),
           optionCount: outcome.offer.options.length,
         },
       };
     case 'cardReshaped':
+      return { kind: 'result', outcome };
+    case 'reshapeGem':
+      return {
+        kind: 'picker',
+        picker: { kind: 'reshapeGem', mode: outcome.offer.mode, options: outcome.offer.options, optionCount: outcome.offer.options.length },
+      };
+    case 'gemReshaped':
+    case 'grantShopRerolls':
       return { kind: 'result', outcome };
     default: {
       const exhaustive: never = outcome;
       throw new Error(`presentRunEventOutcome: unknown outcome ${(exhaustive as RunEventPresentableOutcome).kind}`);
     }
   }
-}
-
-/** The merge finalizer returns a normal card grant. Preserve the destructive
- * trade receipt from the exact persisted/reopened question plus the answer. */
-export function mergeReceiptForEventPicker(
-  picker: MergePicker,
-  selectedSkillId: string,
-): MergeCardsReceipt | undefined {
-  const selected = picker.model.candidates.find((candidate) => candidate.skillId === selectedSkillId);
-  if (selected === undefined) return undefined;
-  return {
-    from: picker.model.from,
-    to: picker.model.to,
-    consumed: picker.consumed,
-    taken: { skillId: selected.skillId, tier: selected.tier },
-  };
 }

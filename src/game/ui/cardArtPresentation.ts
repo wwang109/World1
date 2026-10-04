@@ -139,6 +139,11 @@ const TEMPLATE_BADGE_TEXTURE_KEY: Partial<Record<CardIconKey, string>> = {
   debuff: 'card-badge:template:debuff',
 };
 
+export const CARD_TEMPLATE_BADGE_ASSETS = Object.entries(TEMPLATE_BADGE_TEXTURE_KEY).map(([iconKey, key]) => ({
+  key,
+  path: `/game-art/ui/card-badges/${iconKey}.webp`,
+}));
+
 export function templateBadgeTextureKey(iconKey: CardIconKey): string | undefined {
   return TEMPLATE_BADGE_TEXTURE_KEY[iconKey];
 }

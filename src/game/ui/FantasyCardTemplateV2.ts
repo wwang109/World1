@@ -22,7 +22,9 @@ import {
   buildWeightPlateText,
   type FantasyArtAnchor,
 } from './fantasyCardTemplateModel';
-import { FANTASY_CARD_TEMPLATE_SPEC, fantasyTitleLayout, type RegionBox } from './fantasyCardTemplateSpec';
+import { fantasyTitleLayout, type RegionBox, type FantasyCardTemplateSpec, type FantasyCardTemplateVariant } from './fantasyCardTemplateSpec';
+import { makeClassicCardBody, makePrintedCardBody } from './fantasyCardPrintedBody';
+import { whenFantasyCardChromeReady } from './fantasyCardChromeLoader';
 import { isAoeSkill } from './skillPresentation';
 import type { TierProgress } from '../../run/shop';
 
@@ -36,6 +38,8 @@ export interface FantasyCardTemplateV2Options {
   /** This instance's merge progress toward the next tier; renders as pips
    * above the tier diamond. Omitted (or Diamond tier) shows no pips. */
   progress?: TierProgress;
+  template?: FantasyCardTemplateVariant;
+  artwork?: boolean;
 }
 
 /**
@@ -59,9 +63,12 @@ export interface FantasyCardTemplateV2Options {
  */
 export const FANTASY_CARD_BODY_NAME = 'fantasy-card-body';
 export const FANTASY_CARD_TITLE_NAME = 'fantasy-card-title';
+const TITLE_MIN_FONT_PX = 8;
+
 
 export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
   private readonly cardScale: number;
+  private readonly spec: FantasyCardTemplateSpec;
   private glossaryTip?: Phaser.GameObjects.Container;
   private skinTrimColor = 0xffffff;
   /** Art clip mask — WORLD-space, so it must be redrawn whenever the card moves. */
@@ -79,7 +86,8 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     super(scene, x, y);
 
     const model = buildFantasyCardTemplateModel(skill, options);
-    const spec = FANTASY_CARD_TEMPLATE_SPEC;
+    const spec = model.spec;
+    this.spec = spec;
     this.cardScale = Math.min(
       model.size.width / spec.baseSize.width,
       model.size.height / spec.baseSize.height,
@@ -93,17 +101,21 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     // weapon badge frame, not the entire card border.
     const silhouetteTrim = model.skin.trimColor;
     this.add(this.makeFrame(scene, width, height, silhouetteTrim));
-    this.add(this.makeArt(scene, model, halfW, halfH));
-    this.add(this.makeCornerArt(scene, halfW, halfH, silhouetteTrim, model.skin.accentColor));
-    this.add(this.makeTextPlate(scene, model, halfW, halfH));
-    this.add(this.makeBadges(scene, model, halfW, halfH));
+    this.add(this.makeArt(scene, model, halfW, halfH, options.artwork !== false));
+    if (spec.printed) {
+      this.add(this.makePrintedChrome(scene, model, halfW, halfH));
+    } else {
+      this.add(this.makeCornerArt(scene, halfW, halfH, silhouetteTrim, model.skin.accentColor));
+      this.add(this.makeTextPlate(scene, model, halfW, halfH));
+    }
+    this.add(this.makeBadges(scene, model, halfW, halfH).setName('fantasy-card-badges'));
     this.add(this.makeWtPlate(scene, model, halfW, halfH));
     this.add(this.makeTierDiamond(scene, model, halfW, halfH));
     const pips = this.makeTierProgressPips(scene, model, halfW, halfH);
     if (pips) this.add(pips);
     this.add(this.makeSlotDisplay(scene, model, halfW, halfH));
     this.add(this.makeTitle(scene, model, halfW, halfH));
-    this.add(this.makeDivider(scene, model, halfW, halfH));
+    if (!spec.printed) this.add(this.makeDivider(scene, model, halfW, halfH));
     this.add(this.makeBody(scene, model, halfW, halfH));
 
     this.skinTrimColor = silhouetteTrim;
@@ -112,6 +124,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     }
 
     this.setSize(width, height);
+    this.setData({ templateVariant: model.template, templateRegions: model.regions, templateModel: model });
     scene.add.existing(this);
   }
 
@@ -137,7 +150,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfW: number,
     halfH: number,
   ): void {
-    const spec = FANTASY_CARD_TEMPLATE_SPEC;
+    const spec = this.spec;
     const stack = spec.archetypeStack;
     const rail = spec.regions.rightRail;
     // AoE targeting reads from the printed body text (a scope: 'all' tier's
@@ -184,7 +197,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
 
   private showGlossary(scene: Phaser.Scene, entries: GlossaryEntry[], halfW: number, halfH: number): void {
     this.hideGlossary();
-    const spec = FANTASY_CARD_TEMPLATE_SPEC;
+    const spec = this.spec;
     const box = this.region(spec.regions.glossaryTip);
     const pad = Math.max(8, this.px(spec.glossaryText.pad));
     const left = -halfW + box.x;
@@ -264,7 +277,13 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const g = scene.add.graphics();
     const halfW = width / 2;
     const halfH = height / 2;
-    const radius = this.px(FANTASY_CARD_TEMPLATE_SPEC.cornerRadius);
+    const radius = this.px(this.spec.cornerRadius);
+    if (this.spec.printed) {
+      const style = this.spec.printed;
+      g.fillStyle(style.background, 1);
+      g.fillRoundedRect(-halfW, -halfH, width, height, radius);
+      return g;
+    }
     // Full-art direction: no heavy border — dark base under the art plus one
     // thin tier-colored trim line hugging the silhouette.
     g.fillStyle(0x120f17, 1);
@@ -279,11 +298,12 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     model: ReturnType<typeof buildFantasyCardTemplateModel>,
     halfW: number,
     halfH: number,
+    artwork: boolean,
   ): Phaser.GameObjects.Container {
     const group = scene.add.container(0, 0);
-    const spec = FANTASY_CARD_TEMPLATE_SPEC;
+    const spec = this.spec;
     const artRegion = this.region(model.regions.artFrame);
-    const radius = this.px(spec.cornerRadius);
+    const radius = this.px(spec.printed?.artRadius ?? spec.cornerRadius);
     const x = -halfW + artRegion.x;
     const y = -halfH + artRegion.y;
 
@@ -310,7 +330,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     placeholder.setMask(mask);
     group.add(placeholder);
 
-    whenCardArtReady(scene, model.skill.id, (artKey) => {
+    if (artwork) whenCardArtReady(scene, model.skill.id, (artKey) => {
       // The card may have been destroyed while its art was in flight.
       if (!this.scene || !group.scene) return;
       const image = scene.add.image(0, 0, artKey);
@@ -344,7 +364,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     trimColor: number,
     accentColor: number,
   ): Phaser.GameObjects.Graphics {
-    const spec = FANTASY_CARD_TEMPLATE_SPEC.cornerArt;
+    const spec = this.spec.cornerArt;
     const inset = this.px(spec.inset);
     const length = this.px(spec.length);
     const innerGap = this.px(spec.innerGap);
@@ -393,6 +413,59 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     return g;
   }
 
+  private makePrintedChrome(
+    scene: Phaser.Scene,
+    model: ReturnType<typeof buildFantasyCardTemplateModel>,
+    halfW: number,
+    halfH: number,
+  ): Phaser.GameObjects.Container {
+    const style = this.spec.printed!;
+    const group = scene.add.container(0, 0).setName('fantasy-card-chrome').setData('rasterReady', false);
+    const paperBox = this.region(model.regions.tierFrame);
+    const paper = scene.add.rectangle(-halfW + paperBox.x, -halfH + paperBox.y, paperBox.w, paperBox.h, style.panel)
+      .setOrigin(0, 0).setName('fantasy-card-rules-paper');
+    group.add(paper);
+    const fallback = scene.add.graphics();
+    for (const [box, color] of [
+      [model.regions.header!, style.bandColor],
+      [model.regions.rulesBand!, style.bandColor],
+      [model.regions.tierFrame, style.panel],
+      [model.regions.footer!, style.background],
+    ] as const) {
+      const region = this.region(box);
+      fallback.fillStyle(color, 1);
+      fallback.fillRect(-halfW + region.x, -halfH + region.y, region.w, region.h);
+    }
+    group.add(fallback);
+    const unsubscribe = whenFantasyCardChromeReady(scene, key => {
+      if (!group.scene) return;
+      const region = this.region(model.regions.artFrame);
+      const raster = scene.add.image(-halfW + region.x, -halfH + region.y, key)
+        .setOrigin(0, 0).setDisplaySize(region.w, region.h).setName('fantasy-card-chrome-raster');
+      group.addAt(raster, 2);
+      fallback.setVisible(false);
+      group.setData('rasterReady', true);
+      this.emit('chrome-ready');
+    });
+    group.once(Phaser.GameObjects.Events.DESTROY, unsubscribe);
+    const trim = scene.add.graphics().setName('fantasy-card-tier-trim');
+    for (const box of [model.regions.headerTrim!, model.regions.rulesTrim!, model.regions.bodyTrim!]) {
+      const region = this.region(box);
+      trim.lineStyle(Math.max(1, region.h), model.skin.trimColor, 1);
+      const left = -halfW + region.x;
+      const top = -halfH + region.y + region.h / 2;
+      trim.lineBetween(left, top, left + region.w, top);
+    }
+    group.add(trim);
+    const band = this.region(model.regions.rulesCaption!);
+    const caption = scene.add.text(-halfW + band.x + band.w / 2, -halfH + band.y + band.h / 2, style.caption, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: this.px(style.captionFontSize), color: style.titleInk,
+    }).setOrigin(0.5).setName('fantasy-card-rules-caption');
+    caption.setScale(Math.min(1, band.w / caption.width, band.h / caption.height));
+    group.add(caption);
+    return group;
+  }
+
   private makeTextPlate(
     scene: Phaser.Scene,
     model: ReturnType<typeof buildFantasyCardTemplateModel>,
@@ -405,7 +478,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const g = scene.add.graphics();
     const x = -halfW + region.x;
     const y = -halfH + region.y;
-    const radius = this.px(FANTASY_CARD_TEMPLATE_SPEC.cornerRadius);
+    const radius = this.px(this.spec.cornerRadius);
     const fadeH = Math.round(region.h * 0.3);
     g.fillGradientStyle(0x05090f, 0x05090f, 0x05090f, 0x05090f, 0, 0, 0.85, 0.85);
     g.fillRect(x, y, region.w, fadeH);
@@ -421,13 +494,11 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Container {
     const group = scene.add.container(0, 0);
-    const spec = FANTASY_CARD_TEMPLATE_SPEC;
+    const spec = this.spec;
     const typeRegion = this.region(model.regions.typeBadge);
     const right = this.region(model.regions.rightRail);
     const stack = spec.archetypeStack;
 
-    // Keep the authored badge texture at its intended scale. Enlarging the
-    // 80x80 source makes elemental icons softer on the desktop card.
     const typeBadgeScale = 1;
     group.add(this.makeBadge(
       scene,
@@ -438,7 +509,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       model.type.color ?? UI.chip,
       model.type.iconKey,
       model.type.label,
-    ));
+    ).setName('fantasy-card-type-badge').setData('iconKey', model.type.iconKey));
     if (model.skill.weapon) {
       const cx = -halfW + typeRegion.x + typeRegion.w / 2;
       const cy = -halfH + typeRegion.y + typeRegion.h / 2;
@@ -464,7 +535,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
           badge.color,
           badge.iconKey,
           badge.archetype.toUpperCase(),
-        ),
+        ).setName(`fantasy-card-archetype-badge-${index}`).setData({ archetype: badge.archetype, iconKey: badge.iconKey, index }),
       );
     });
 
@@ -487,7 +558,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const container = scene.add.container(0, 0);
     const textureKey = iconKey ? templateBadgeTextureKey(iconKey as never) : undefined;
     if (textureKey && scene.textures.exists(textureKey)) {
-      container.add(scene.add.image(x, y, textureKey).setDisplaySize(width, height));
+      container.add(scene.add.image(x, y, textureKey).setDisplaySize(width, height).setName('fantasy-card-badge-image'));
     } else {
       const g = scene.add.graphics();
       g.fillStyle(0x10151d, 0.9);
@@ -516,7 +587,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
   ): Phaser.GameObjects.Container {
     const container = scene.add.container(0, 0);
     const region = this.region(model.regions.wtPlate);
-    const display = FANTASY_CARD_TEMPLATE_SPEC.slotDisplay;
+    const display = this.spec.slotDisplay;
     const left = -halfW + region.x;
     const centerY = -halfH + region.y + region.h / 2;
     const gap = Math.max(4, this.px(display.gap));
@@ -529,7 +600,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     }).setOrigin(0, 0.5);
     container.add(label);
 
-    const wtRule = FANTASY_CARD_TEMPLATE_SPEC.textRules[model.wtRule];
+    const wtRule = this.spec.textRules[model.wtRule];
     container.add(scene.add.text(left + label.width + gap, centerY, buildWeightPlateText(model.weight), {
       fontFamily: FONT.display,
       fontStyle: 'bold',
@@ -587,9 +658,9 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Text | null {
     if (!model.progressPips) return null;
-    const region = this.region(model.regions.tierDiamond);
+    const region = this.region(this.spec.printed?.progressBox ?? model.regions.tierDiamond);
     const cx = -halfW + region.x + region.w / 2;
-    const cy = -halfH + region.y - region.h * 0.55;
+    const cy = -halfH + region.y + (this.spec.printed ? region.h / 2 : -region.h * 0.55);
     return scene.add.text(cx, cy, model.progressPips, {
       fontFamily: FONT.body,
       fontSize: `${Math.max(7, this.px(9))}px`,
@@ -604,7 +675,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Container {
     const region = this.region(model.regions.slotLabel);
-    const display = FANTASY_CARD_TEMPLATE_SPEC.slotDisplay;
+    const display = this.spec.slotDisplay;
     const container = scene.add.container(0, 0);
     const centerY = -halfH + region.y + region.h / 2;
     const gap = Math.max(4, this.px(display.gap));
@@ -644,12 +715,21 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Text {
     const region = this.region(model.regions.titleBox);
+    if (this.spec.printed) {
+      const rule = this.spec.textRules[model.titleRule];
+      const title = scene.add.text(-halfW + region.x + region.w / 2, -halfH + region.y + region.h / 2, model.title, {
+        fontFamily: FONT.display, fontStyle: 'bold', fontSize: Math.max(8, this.px(rule.fontSize)),
+        color: this.spec.printed.titleInk, align: 'center',
+      }).setOrigin(0.5).setName(FANTASY_CARD_TITLE_NAME);
+      title.setScale(Math.min(1, region.w / Math.max(1, title.width), region.h / Math.max(1, title.height)));
+      return title;
+    }
     // Type AND line budget both come from `fantasyTitleLayout`, which derives
     // the budget from the DIVIDER the title has to clear — see that function's
     // doc comment for the overflow it closes. This used to read
     // `Math.max(13, px(rule.fontSize))` + `maxLines: rule.maxLines`, a font
     // floor with no matching floor on the geometry.
-    const layout = fantasyTitleLayout(model.titleRule, this.cardScale);
+    const layout = fantasyTitleLayout(model.titleRule, this.cardScale, this.spec);
     const title = scene.add.text(
       -halfW + region.x + region.w / 2,
       -halfH + region.y,
@@ -682,13 +762,25 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
      * `segmentedLineSurvivors` was deleted for making, and the real
      * proportional metrics are what decide this.
      */
+    const fitFont = (lines: number, start: number): number => {
+      let size = start;
+      title.setFontSize(size);
+      while (title.getWrappedText(model.title).length > lines && size > TITLE_MIN_FONT_PX) title.setFontSize(--size);
+      return title.getWrappedText(model.title).length <= lines ? size : 0;
+    };
+    const oneLineFont = fitFont(layout.maxLines, layout.fontSize);
+    const twoLineStart = Math.min(layout.fontSize, Math.floor(layout.room / (2 * (layout.lineHeight / layout.fontSize))));
+    const twoLineFont = layout.maxLines < 2 && model.title.includes(' ') ? fitFont(2, twoLineStart) : 0;
+    const lineBudget = twoLineFont > oneLineFont ? 2 : layout.maxLines;
+    title.setMaxLines(lineBudget);
+    title.setFontSize(lineBudget === 2 ? twoLineFont : oneLineFont || TITLE_MIN_FONT_PX);
     const wrapped = title.getWrappedText(model.title);
-    if (wrapped.length > layout.maxLines) {
-      const kept = wrapped.slice(0, layout.maxLines).map((line) => line.trimEnd());
+    if (wrapped.length > lineBudget) {
+      const kept = wrapped.slice(0, lineBudget).map((line) => line.trimEnd());
       let last = kept[kept.length - 1] ?? '';
       const head = kept.slice(0, -1);
       const fits = (candidate: string): boolean =>
-        title.getWrappedText([...head, candidate].join('\n')).length <= layout.maxLines;
+        title.getWrappedText([...head, candidate].join('\n')).length <= lineBudget;
       // Shed a word at a time first (a title cut mid-word reads as a typo),
       // then characters if a single word is itself too long for the line.
       while (last.includes(' ') && !fits(`${last}…`)) last = last.slice(0, last.lastIndexOf(' ')).trimEnd();
@@ -720,126 +812,8 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Container {
     const region = this.region(model.regions.bodyBox);
-    const rule = FANTASY_CARD_TEMPLATE_SPEC.textRules[model.bodyRule];
-    const fontSize = Math.max(8, this.px(rule.fontSize));
-    const lineHeight = fontSize + Math.max(3, this.px(rule.lineSpacing + 5));
-    const spaceWidth = Math.max(3, Math.round(fontSize * 0.32));
-    // Min font clamps can outgrow a heavily shrunken card (catalog grid), so
-    // the box height — not just the ladder — bounds the visible line count.
-    const maxLines = Math.min(rule.maxLines, Math.max(1, Math.floor(region.h / lineHeight)));
-    const strokeThickness = Math.max(1, Math.round(1.5 * this.cardScale));
-    // NAMED so an audit can find it EXACTLY. `scripts/card-face-truncation-audit.ts`
-    // has to read the words this container actually holds, and its first attempt
-    // guessed "the first child Container whose children are all Text" — which is
-    // the WEIGHT PLATE (2 Texts), not the body (11). Every card at every width
-    // then read as fully overflowing. A name costs nothing and cannot be wrong.
-    const container = scene.add.container(0, 0).setName(FANTASY_CARD_BODY_NAME);
-    const left = -halfW + region.x;
-    const top = -halfH + region.y;
-
-    // Build every word object first so widths are measurable, grouped into
-    // clauses split on the ' · ' separator. A clause that would straddle a
-    // line break moves to the next line whole — related text (e.g. "-25%
-    // enemy Attack (2 turns)") never splits mid-clause unless the clause is
-    // longer than a full line.
-    const clauses: Phaser.GameObjects.Text[][] = [[]];
-    const glued = new Set<Phaser.GameObjects.Text>();
-    for (const word of cardTextWords(model.body)) {
-      const color = word.keyword ? keywordTextColor(word.keyword) ?? '#ffd98a' : '#f1efe8';
-      const wordText = scene.add.text(0, 0, word.text, {
-        fontFamily: FONT.body,
-        fontStyle: word.keyword ? 'bold' : 'normal',
-        fontSize: `${fontSize}px`,
-        color,
-        stroke: '#111722',
-        strokeThickness,
-      }).setOrigin(0, 0);
-      if (word.glued) glued.add(wordText);
-      if (word.text === '·') {
-        // Separator closes the current clause and stays with it.
-        clauses[clauses.length - 1]!.push(wordText);
-        clauses.push([]);
-      } else {
-        clauses[clauses.length - 1]!.push(wordText);
-      }
-    }
-    const gapBefore = (wordText: Phaser.GameObjects.Text): number => (glued.has(wordText) ? -strokeThickness : spaceWidth);
-
-    let cursorX = 0;
-    let line = 0;
-    /**
-     * Words the box has no room for. They used to be `destroy()`ed and that was
-     * the end of it — a SILENT LOSS, and the worst kind: at the 140px card
-     * (`cardDetailOverlay`, `MobileDeckBuild`, `MobileDraft`; cardScale
-     * 0.333 — `MobileWiki`'s detail card and both `MobileShop` panes are 150px,
-     * one step up and no better off) the box is 113x25 and the 8px font floor pins
-     * `lineHeight` to 11, so `maxLines` collapses to TWO whatever the ladder
-     * says — and `bramble_covenant` lost `{{Poison}} 8.` on a dangling em dash
-     * with nothing on screen to say so.
-     *
-     * THE 140px CARD CANNOT BE MADE TO FIT, and that was measured rather than
-     * assumed: roughly half of the 732 card/tier pairs overflow there, and the
-     * two geometry levers available recover exactly ONE of them (dropping the
-     * keep-a-clause-whole rule at <=2 lines; plus the 6 units of slack between
-     * `bodyBox` and the footer row). Three lines would need zero
-     * leading under an 8px font, and the font floor exists because 4px — what
-     * the proportional ladder actually asks for at this scale — is not text.
-     * It is a THUMBNAIL; every surface that draws one also prints the whole
-     * body beside it (`renderCardInfoBox` on the three overlays,
-     * `renderSkillText` verbatim on both Wiki detail panes).
-     *
-     * So the fix is not to fit it, it is to STOP LYING ABOUT IT: the last word
-     * that did fit gets an ellipsis, which is the cue that sends a player to
-     * the full text already on the same screen.
-     *
-     * THE EXACT COUNTS LIVE IN ONE PLACE, and it is not this comment:
-     * `CARD_WIDTHS` in `scripts/card-face-truncation-audit.ts` (GATE 2,
-     * `npm run audit:cardface`) records an overflow mark per real card width
-     * and fails if any overflow goes uncued or a count creeps above its mark.
-     * Those marks move whenever a face gets longer, so a number written here
-     * would go stale silently — which it did, within hours, the first time it
-     * was written into four places at once. The one-off comparison against the
-     * AUTHORED text this migration replaced (it overflowed the 140px card on
-     * materially MORE pairs than the generated text does) is recorded once, with
-     * its date, in `.superpowers/sdd/2026-09-06-card-text-migration/progress.md`
-     * — not restated here, for the same reason.
-     */
-    const clipped: Phaser.GameObjects.Text[] = [];
-    /** The last word actually placed — the one that carries the cue. */
-    let lastPlaced: Phaser.GameObjects.Text | undefined;
-    for (const clause of clauses) {
-      if (clause.length === 0) continue;
-      const clauseWidth = clause.reduce((sum, word, i) => sum + word.width + (i > 0 ? gapBefore(word) : 0), 0);
-      if (cursorX > 0 && cursorX + spaceWidth + clauseWidth > region.w && clauseWidth <= region.w) {
-        cursorX = 0;
-        line += 1;
-      }
-      for (const wordText of clause) {
-        const gap = cursorX > 0 ? gapBefore(wordText) : 0;
-        if (cursorX > 0 && gap > 0 && cursorX + gap + wordText.width > region.w) {
-          cursorX = 0;
-          line += 1;
-        }
-        if (line >= maxLines) {
-          clipped.push(wordText);
-          continue;
-        }
-        const x = cursorX > 0 ? cursorX + gap : 0;
-        wordText.setPosition(left + x, top + line * lineHeight);
-        container.add(wordText);
-        lastPlaced = wordText;
-        cursorX = x + wordText.width;
-      }
-    }
-    for (const wordText of clipped) wordText.destroy();
-    // THE CUE. Appended to the last word that fitted rather than drawn as a
-    // separate object, so it cannot itself be pushed onto a line that does not
-    // exist. A trailing '·' separator is replaced rather than decorated — a
-    // dangling "· …" reads as a missing clause where "…" reads as more text.
-    if (clipped.length > 0 && lastPlaced !== undefined) {
-      const tail = lastPlaced.text;
-      lastPlaced.setText(tail === '·' || tail.endsWith('—') ? '…' : `${tail.replace(/[.,·]$/, '')}…`);
-    }
-    return container;
+    const box = { ...region, x: -halfW + region.x, y: -halfH + region.y };
+    if (this.spec.printed) return makePrintedCardBody(scene, model, box, this.cardScale, FANTASY_CARD_BODY_NAME);
+    return makeClassicCardBody(scene, model.rows, box, this.cardScale, FANTASY_CARD_BODY_NAME);
   }
 }

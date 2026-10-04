@@ -552,6 +552,7 @@ export function renderEventCatalogWiki(
       `- Source pack: ${inlineCode(sourceLabels[id] ?? 'unknown pack')}`,
       `- Identity: ${inlineCode(`${id}@v${String(meta.version)}`)}`,
       `- Retained versions: ${retained}`,
+      `- Draw: ${meta.retired ? 'retired (never drawn)' : meta.repeatable ? 'repeatable' : 'once per biome stay'}`,
       `- Presentation title: ${JSON.stringify(event.title)}`,
       `- Presentation body: ${JSON.stringify(event.body)}`,
     );

@@ -123,7 +123,10 @@ function auraClause(aura: AuraDef): string {
     ? `ALL ${target}`
     : aura.affects === 'adjacent'
       ? (reach <= 1 ? `adjacent ${target}` : `${target} within ${reach}`)
-      : `the ${reach} ${target} to its ${aura.affects.toUpperCase()}`;
+      : reach <= 1
+        ? `${aura.affects === 'left' ? 'previous' : 'next'} ${target.replace(/cards$/, 'card')}`
+        : `${reach} ${aura.affects === 'left' ? 'previous' : 'next'} ${target}`;
+  const verb = (aura.affects === 'left' || aura.affects === 'right') && reach <= 1 ? 'gets' : 'get';
   // THE MOD WORDS COME FROM THE REGISTRY (2026-09-07), not from here.
   //
   // `AuraDef.mods` and a card-scope stat gem's `StatGemMods.card` are the SAME
@@ -142,7 +145,7 @@ function auraClause(aura: AuraDef): string {
       return value === undefined ? '' : CARD_MOD_TEXT[key].faceClause(value);
     })
     .filter(Boolean);
-  return `Passive: ${where} get ${mods.join(', ')}`;
+  return `Passive: ${where} ${verb} ${mods.join(', ')}`;
 }
 
 /**
@@ -205,9 +208,11 @@ export function castableGapWarningLines(needed: number | null): string[] {
  * action may carry — so 39 raw occurrences collapse to this one template, and
  * it wraps the action's own BARE face clause, never a rule sentence.
  */
+export const AFFINITY_SEPARATOR = ': ';
+
 function affinityWrap(clause: string, ctx: RenderCtx): string {
   const type = ctx.element ?? ctx.weapon;
-  return `{{Affinity}} ${type === undefined ? 'type' : typeName(type)} — ${clause}`;
+  return `{{Affinity}} ${type === undefined ? 'type' : typeName(type)}${AFFINITY_SEPARATOR}${clause}`;
 }
 
 /**
@@ -217,17 +222,26 @@ function affinityWrap(clause: string, ctx: RenderCtx): string {
  * density term: feeding it the raw `effects.length` would over-penalise
  * exactly the cards the merge rule exists to help.
  */
-export function renderSkillClauses(raw: SkillDef): string[] {
+export interface SkillFaceClause {
+  text: string;
+  kind: Action['kind'] | 'targeting' | 'aura';
+  group: ComposeGroup | 'aura';
+  affinity: boolean;
+}
+
+export function renderSkillFaceClauses(raw: SkillDef): SkillFaceClause[] {
   // Tier locks resolved here too, idempotently: a line locked above this
   // copy's tier does not exist on it, so it must not appear on its face.
   const skill = tierResolved(raw);
   const ctx = renderCtxOf(skill);
   const effects = mergePiles(skill.effects);
 
-  const byGroup = new Map<ComposeGroup, string[]>();
+  const byGroup = new Map<ComposeGroup, SkillFaceClause[]>();
   for (const group of GROUP_ORDER) byGroup.set(group, []);
 
-  const push = (group: ComposeGroup, clause: string): void => { byGroup.get(group)!.push(clause); };
+  const push = (group: ComposeGroup, text: string, kind: SkillFaceClause['kind'], affinity = false): void => {
+    byGroup.get(group)!.push({ text, kind, group, affinity });
+  };
   /** A gated clause renders in a context that has already named the type. */
   const gatedCtx: RenderCtx = { ...ctx, gated: true };
 
@@ -259,7 +273,7 @@ export function renderSkillClauses(raw: SkillDef): string[] {
   // slows every foe as well as hitting them, and a `... damage to ALL foes`
   // suffix would have quietly said otherwise. The rule ("ascending board
   // order, not a single chosen target") stays in `targetingEntry`, tap-only.
-  if (ctx.aoe) push('setup', 'Hits EVERY foe');
+  if (ctx.aoe) push('setup', 'Hits EVERY foe', 'targeting');
 
   // HEADLINE is ordered by KIND, not by authoring order, so two cards with the
   // same sinks read the same way round. Everything else keeps authored order
@@ -280,7 +294,7 @@ export function renderSkillClauses(raw: SkillDef): string[] {
     // sum. Gated hits are excluded and emitted separately below.
     if (kind === 'damage') {
       const powers = effects.filter((a) => a.kind === 'damage' && a.affinity !== true).map((a) => (a as { power: number }).power);
-      if (powers.length > 0) push('headline', damageClause(powers, ctx));
+      if (powers.length > 0) push('headline', damageClause(powers, ctx), 'damage');
     }
     // Two passes over the SAME list rather than a sort: authored order is still
     // what decides two ungated heals' order between themselves (it is the order
@@ -294,7 +308,7 @@ export function renderSkillClauses(raw: SkillDef): string[] {
         // The ungated damage line was already emitted above, whole.
         if (kind === 'damage' && !gated) continue;
         const clause = faceClauseOf(action, gated ? ctxForGated(kind) : ctx);
-        push('headline', gated ? affinityWrap(clause, ctx) : clause);
+        push('headline', gated ? affinityWrap(clause, ctx) : clause, kind, gated);
       }
     }
   }
@@ -306,13 +320,17 @@ export function renderSkillClauses(raw: SkillDef): string[] {
     // conditional rider or payload shares a kind with a sink), so this arm
     // keeps the plain gated context.
     const clause = faceClauseOf(action, gated ? gatedCtx : ctx);
-    push(group, gated ? affinityWrap(clause, ctx) : clause);
+    push(group, gated ? affinityWrap(clause, ctx) : clause, action.kind, gated);
   }
 
-  const clauses: string[] = [];
+  const clauses: SkillFaceClause[] = [];
   for (const group of GROUP_ORDER) clauses.push(...byGroup.get(group)!);
-  if (skill.aura) clauses.push(auraClause(skill.aura));
+  if (skill.aura) clauses.push({ text: auraClause(skill.aura), kind: 'aura', group: 'aura', affinity: false });
   return clauses;
+}
+
+export function renderSkillClauses(raw: SkillDef): string[] {
+  return renderSkillFaceClauses(raw).map(clause => clause.text);
 }
 
 /**

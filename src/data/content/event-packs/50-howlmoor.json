@@ -374,6 +374,7 @@
     },
     {
       "id": "howling_cairn",
+      "retired": true,
       "versions": [
         {
           "version": 1,

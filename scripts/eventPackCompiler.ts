@@ -14,6 +14,8 @@ import { validateEventDocument } from '../src/data/validateEventContent';
 
 export interface EventPackEvent {
   id: string;
+  retired?: true;
+  repeatable?: true;
   versions: readonly {
     version: number;
     schemaVersion?: 1 | 2 | 3;
@@ -90,6 +92,8 @@ function aggregateEvent(
   if (sourceSchemaVersion === aggregateSchemaVersion) return event;
   return {
     id: event.id,
+    ...(event.retired === true ? { retired: true } : {}),
+    ...(event.repeatable === true ? { repeatable: true } : {}),
     versions: event.versions.map((wrapper) => wrapper.schemaVersion === undefined
       ? {
         version: wrapper.version,

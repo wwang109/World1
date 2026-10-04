@@ -14,7 +14,7 @@ src/data/     Content only: skills, gems, enemies, heroes, events, shopTypes.
               No logic.
 src/run/      In-run state, pure TS: loadout, runMap, runState, shop, events,
               draft, encounter, leveling, analysis, logAnalysis, resolveBattle.
-src/meta/     Persistence, account progression. Pure TS. (not built yet)
+src/meta/     Persistence, lifetime stats, accounts (account.ts). Pure TS.
 src/game/     Phaser scenes + playback rendering ONLY. Cannot run combat.
 server/       battleApi.ts — the dev battle service (node http, port 8787).
 functions/    Cloudflare Pages Functions — production twins of the service:
@@ -83,6 +83,24 @@ not an allowlist: both routes are stateless, unauthenticated pure functions
 of their request body, so there is no per-caller state or credential for an
 allowlist to protect. Deployment target: the `proof-of-concept-ab-deckbuilder`
 CF Pages project.
+
+**Accounts**: `src/meta/account.ts` holds the whole account service
+(`createAccountService(...).handle`), so `functions/account/[[path]].ts` and
+the `/account/*` branch of `server/battleApi.ts` are thin twins over it, with
+D1 (`functions/accountStoreD1.ts`) and file (`server/accountStoreFile.ts`,
+`.tmp/account-store.json`) stores. Routes: `POST /account/register`
+(guest; reuses the browser's `world1:localId:v1` as the account id when
+unclaimed), `GET /account/me`, `POST /account/name`,
+`POST /account/steam/start` + `GET /account/steam/callback` (Steam OpenID
+2.0, verified by `check_authentication`; no API key), `POST /account/email`
+(magic link), `POST /account/redeem` (email and post-Steam handoff codes,
+delivered in the URL fragment). Sessions are bearer tokens stored hashed;
+`POST /ghosts` requires one and takes the owner from it. Production email
+needs a `send_email` binding `EMAIL` plus an `EMAIL_FROM` var on the Pages
+project (Workers Paid + a sending domain); without them the email row is
+hidden. The dev service prints email links to its console instead.
+Schema: `migrations/0002_accounts.sql` — apply it to the production D1
+BEFORE deploying, since ghost uploads now need an account.
 
 **Dev workflow**: run BOTH `npm run dev` (Vite) and `npm run api` (battle
 service on :8787). Without the API, prep previews and battles fail — that is

@@ -1,0 +1,951 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": {
+      "kind": "boolean",
+      "default": false
+    },
+    "grave_path": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "opened",
+        "answered"
+      ],
+      "default": "none"
+    },
+    "honorable_choice": {
+      "kind": "boolean",
+      "default": false
+    },
+    "reliquary_oath": {
+      "kind": "boolean",
+      "default": false
+    },
+    "oath_gate": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "sworn",
+        "kept",
+        "released"
+      ],
+      "default": "none"
+    },
+    "venom_bloom": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "cultivated"
+      ],
+      "default": "none"
+    },
+    "rival_spared": {
+      "kind": "boolean",
+      "default": false
+    },
+    "moon_quarry_released": {
+      "kind": "boolean",
+      "default": false
+    }
+  },
+  "events": [
+    {
+      "id": "lantern_wake",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lantern Wake",
+            "body": "Mourners line the barrow road with unlit lanterns, one for each soul the Duskbarrow keeps. A lantern lit for the dead is a debt they repay once the barrow's master falls.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "lantern_wake",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "light_lantern",
+                  "label": "Light a lantern for the dead (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "take_dark_card",
+                  "label": "Take a Dark card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past the mourners",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lanterns_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lanterns Answer",
+            "body": "With the Duskbarrow's master fallen, the lantern you lit drifts back along the road, and the dead keep their word.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "lantern_wake",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "event.choice",
+                  "args": {
+                    "eventId": "lantern_wake",
+                    "choiceIds": [
+                      "light_lantern"
+                    ]
+                  }
+                },
+                {
+                  "fact": "combat.biomeBossDefeated",
+                  "args": {
+                    "biomeId": "duskbarrow"
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_any_card",
+                  "label": "Let the dead copy one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lantern_wake"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_dark",
+                  "label": "Take a gold Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lantern_wake"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ember_debt",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Debt",
+            "body": "A forge-master with more coal than coin offers you a purse against the future. \"Pay me back with a little interest,\" he says, \"or I'll send someone to ask.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "ember_debt",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "emberwaste"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "borrow",
+                  "label": "Borrow 8 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 8
+                  },
+                  "callback": {
+                    "callbackId": "ember_debt_collector",
+                    "eventId": "ember_debt_collector",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_fire_card",
+                  "label": "Take a Fire card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Decline the purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ember_debt_collector",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Collector",
+            "body": "A soot-black collector blocks the road with the forge-master's ledger. \"Ten gold,\" she says, \"and he sends a gift for your trouble. Or we settle it the other way.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "ember_debt",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "ember_debt_collector"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "repay",
+                  "label": "Repay 10 gold",
+                  "cost": 10,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "ember_debt"
+                    }
+                  ]
+                },
+                {
+                  "id": "refuse",
+                  "label": "Refuse, and fight the collector",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "elements": [
+                              "fire"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 3
+                      }
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "ember_debt"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lightning_rod",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lightning Rod",
+            "body": "A tinker is hammering iron rods into the Stormreach hilltops. \"Plant one,\" he says, \"and the next storm will strike for you.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "lightning_rod",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "plant_rod",
+                  "label": "Plant a rod (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "lightning_strikes_twice",
+                    "eventId": "lightning_strikes_twice",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 16,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_lightning_card",
+                  "label": "Take a Lightning card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the tinker to his work",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lightning_strikes_twice",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Lightning Strikes Twice",
+            "body": "A storm rolls over the road behind you, and far off your rod takes the strike. The tinker catches up, grinning at the scorched iron. \"Twice the strike, twice the steel.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "lightning_rod",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "lightning_strikes_twice"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_any_card",
+                  "label": "Copy one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lightning_rod"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_lightning",
+                  "label": "Upgrade one of your Lightning cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lightning_rod"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lost_cub",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lost Cub",
+            "body": "A wolf cub whimpers in the Howlmoor reeds, too young to hunt and too stubborn to leave. Feed it, and it may remember you.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "lost_cub",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "howlmoor"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "feed_cub",
+                  "label": "Feed the cub (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "lost_cub_returns",
+                    "eventId": "lost_cub_returns",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 16,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_beast_card",
+                  "label": "Take a Beast card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it to the moor",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lost_cub_returns",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Wolf Returns",
+            "body": "A grown wolf steps onto the road and drops something at your feet before vanishing into the trees. The cub remembered.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": {
+              "storyId": "lost_cub",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "lost_cub_returns"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_gold_beast",
+                  "label": "Take a gold Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lost_cub"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_beast",
+                  "label": "Upgrade one of your Beast cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "beast"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lost_cub"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pilgrims_relic",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pilgrim's Relic",
+            "body": "A dying pilgrim presses a wrapped relic into your hands. \"Carry it beyond the Hallowfield,\" she breathes, \"and the light will thank you.\"",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "pilgrims_relic",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "hallowfield"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "carry_relic",
+                  "label": "Carry the relic onward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "pilgrims_relic_delivered",
+                    "eventId": "pilgrims_relic_delivered",
+                    "contentVersion": 1,
+                    "minDepthDelay": 5,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "destinationBiomeIds": [
+                      "arrowfell",
+                      "duskbarrow",
+                      "emberwaste",
+                      "frostmarch",
+                      "howlmoor",
+                      "ironmoot",
+                      "pikewold",
+                      "stormreach",
+                      "swornhold",
+                      "thornwild"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_holy_card",
+                  "label": "Take a Holy card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the relic at the shrine",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pilgrims_relic_delivered",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Relic Delivered",
+            "body": "Far from the Hallowfield, the relic warms in your pack and unwraps itself in a burst of light.",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "pilgrims_relic",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "pilgrims_relic_delivered"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "upgrade_holy",
+                  "label": "Upgrade one of your Holy cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "holy"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "pilgrims_relic"
+                    }
+                  ]
+                },
+                {
+                  "id": "relic_gem",
+                  "label": "Choose a relic gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "prism_barrier_echo",
+                          "second_wind_echo",
+                          "sanctuary_sliver"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "pilgrims_relic"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

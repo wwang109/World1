@@ -19,11 +19,13 @@ export type GhostUploadResult =
   | { ok: true; id: string }
   | { ok: false; reason: string };
 
-export async function uploadGhost(input: GhostUploadInput): Promise<GhostUploadResult> {
+export async function uploadGhost(input: GhostUploadInput, token: string | null): Promise<GhostUploadResult> {
   try {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) headers.authorization = `Bearer ${token}`;
     const res = await fetch(`${BASE_URL}/ghosts`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify(input),
     });
     const payload = await res.json() as { id?: string; error?: string };
@@ -49,10 +51,11 @@ export async function reportGhostResult(id: string, ghostWon: boolean): Promise<
   }
 }
 
-type GhostSaveFailureCode = GhostValidationFailureReason | 'no active run' | 'no save prompt pending';
+type GhostSaveFailureCode = GhostValidationFailureReason | 'missing-account' | 'no active run' | 'no save prompt pending';
 
 const GHOST_SAVE_FAILURE_TEXT: Record<GhostSaveFailureCode, string> = {
   'missing-owner': "Couldn't identify this device.",
+  'missing-account': "Couldn't verify your account.",
   'empty-name': 'Enter a name for your build.',
   'invalid-fight-number': 'This fight cannot be saved.',
   'invalid-code': "Couldn't read your build.",

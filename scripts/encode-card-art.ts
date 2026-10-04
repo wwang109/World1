@@ -58,9 +58,18 @@ interface Group {
   /** 0 = keep the master's dimensions. */
   maxHeight: number;
   quality: number;
+  trimTransparent?: boolean;
+  outputSize?: { width: number; height: number };
+  contain?: boolean;
+  atlas?: { file: string; columns: number; names: readonly string[] };
 }
 
 const GROUPS: Group[] = [
+  { name: 'event-icons', srcDir: 'art-src/ui/event-icons', outDir: 'public/game-art/ui/event-icons', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
+    atlas: { file: 'illustrated-event-icons.png', columns: 3, names: ['gold','card','gamble','gem','level','nothing'] } },
+  { name: 'card-badges', srcDir: 'art-src/ui/card-badges', outDir: 'public/game-art/ui/card-badges', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
+    atlas: { file: 'illustrated-badges.png', columns: 4, names: ['sword','axe','lance','bow','fangs','fire','frost','lightning','nature','holy','dark','offense','defensive','healing','support','debuff'] } },
+  { name: 'templates', srcDir: 'art-src/templates', outDir: 'public/game-art/template', maxHeight: 0, quality: 0.9, trimTransparent: true, outputSize: { width: 840, height: 1380 } },
   { name: 'gems', srcDir: 'art-src/ui/gems', outDir: 'public/game-art/ui/gems', maxHeight: 256, quality: 0.84 },
   { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.68 },
   { name: 'placeholders', srcDir: 'art-src/placeholders', outDir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
@@ -86,11 +95,12 @@ async function main(): Promise<void> {
 
   for (const group of groups) {
     mkdirSync(group.outDir, { recursive: true });
-    const files = readdirSync(group.srcDir).filter((f) => f.toLowerCase().endsWith('.png')).sort();
+    const files = group.atlas ? group.atlas.names.map((name,index) => ({ file: group.atlas!.file,name,index }))
+      : readdirSync(group.srcDir).filter(f => f.toLowerCase().endsWith('.png')).sort().map(file => ({ file,name: basename(file,'.png'),index: undefined }));
     console.log(`\n== ${group.name} (${files.length} masters, ${group.srcDir} -> ${group.outDir}) ==`);
-    for (const file of files) {
+    for (const { file,name,index } of files) {
       const src = join(group.srcDir, file);
-      const out = join(group.outDir, `${basename(file, '.png')}.webp`);
+      const out = join(group.outDir, `${name}.webp`);
       const srcStat = statSync(src);
       masterBytes += srcStat.size;
       if (!force && existsSync(out) && statSync(out).mtimeMs >= srcStat.mtimeMs) {
@@ -99,13 +109,40 @@ async function main(): Promise<void> {
         continue;
       }
       const dataUrl = `data:image/png;base64,${readFileSync(src).toString('base64')}`;
-      const encoded = await page.evaluate(async ({ url, maxHeight, quality }) => {
+      const encoded = await page.evaluate(async ({ url, maxHeight, quality, trimTransparent, outputSize, contain, atlas }) => {
         const img = new Image();
         img.src = url;
         await img.decode();
-        const scale = maxHeight > 0 && img.naturalHeight > maxHeight ? maxHeight / img.naturalHeight : 1;
-        const w = Math.max(1, Math.round(img.naturalWidth * scale));
-        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        let left = 0, top = 0, sourceWidth = img.naturalWidth, sourceHeight = img.naturalHeight;
+        if (atlas) {
+          sourceWidth = img.naturalWidth / atlas.columns;
+          sourceHeight = img.naturalHeight / atlas.rows;
+          left = (atlas.index % atlas.columns) * sourceWidth;
+          top = Math.floor(atlas.index / atlas.columns) * sourceHeight;
+        }
+        if (trimTransparent) {
+          const source = document.createElement('canvas');
+          source.width = sourceWidth; source.height = sourceHeight;
+          const sourceContext = source.getContext('2d');
+          if (!sourceContext) throw new Error('no source 2d context');
+          sourceContext.drawImage(img, left, top, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+          const pixels = sourceContext.getImageData(0, 0, sourceWidth, sourceHeight).data;
+          const cropLeft = left, cropTop = top;
+          left = sourceWidth; top = sourceHeight;
+          let right = -1, bottom = -1;
+          for (let y = 0; y < sourceHeight; y++) for (let x = 0; x < sourceWidth; x++) {
+            if (pixels[(y * sourceWidth + x) * 4 + 3]! >= 8) {
+              left = Math.min(left, x); top = Math.min(top, y);
+              right = Math.max(right, x); bottom = Math.max(bottom, y);
+            }
+          }
+          if (right < 0) throw new Error('empty template asset');
+          sourceWidth = right - left + 1; sourceHeight = bottom - top + 1;
+          left += cropLeft; top += cropTop;
+        }
+        const scale = maxHeight > 0 && sourceHeight > maxHeight ? maxHeight / sourceHeight : 1;
+        const w = outputSize?.width ?? Math.max(1, Math.round(sourceWidth * scale));
+        const h = outputSize?.height ?? Math.max(1, Math.round(sourceHeight * scale));
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
@@ -113,16 +150,20 @@ async function main(): Promise<void> {
         if (!ctx) throw new Error('no 2d context');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
+        const fit = Math.min(w / sourceWidth,h / sourceHeight);
+        const drawWidth = contain ? Math.round(sourceWidth * fit) : w;
+        const drawHeight = contain ? Math.round(sourceHeight * fit) : h;
+        ctx.drawImage(img, left, top, sourceWidth, sourceHeight, Math.floor((w - drawWidth) / 2),Math.floor((h - drawHeight) / 2),drawWidth,drawHeight);
         const out = canvas.toDataURL('image/webp', quality);
         if (!out.startsWith('data:image/webp')) throw new Error('chromium did not encode webp');
         return { b64: out.slice(out.indexOf(',') + 1), w, h };
-      }, { url: dataUrl, maxHeight: group.maxHeight, quality: group.quality });
+      }, { url: dataUrl, maxHeight: group.maxHeight, quality: group.quality, trimTransparent: group.trimTransparent, outputSize: group.outputSize, contain: group.contain,
+        atlas: group.atlas && index !== undefined ? { index,columns: group.atlas.columns,rows: Math.ceil(group.atlas.names.length / group.atlas.columns) } : undefined });
       const buf = Buffer.from(encoded.b64, 'base64');
       writeFileSync(out, buf);
       derivedBytes += buf.length;
       written += 1;
-      console.log(`  ${file.padEnd(34)} ${kb(srcStat.size).padStart(10)} -> ${encoded.w}x${encoded.h} ${kb(buf.length).padStart(9)}`);
+      console.log(`  ${name.padEnd(34)} ${kb(srcStat.size).padStart(10)} -> ${encoded.w}x${encoded.h} ${kb(buf.length).padStart(9)}`);
     }
   }
 

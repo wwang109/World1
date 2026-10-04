@@ -5,6 +5,7 @@ import { instancePowerLevelDeci } from '../../engine/balance';
 import { CardDetailActivation } from '../ui/cardDetailActivation';
 import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
 import { positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
+import { addBiomeAmbience, runAmbienceBiomeId } from '../ui/ambience';
 import { renderSkillText } from '../../engine/keywords/compose';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier, resolveDisplaySkill } from '../../engine/cards';
@@ -405,6 +406,8 @@ export class DesktopShopScene extends Phaser.Scene {
     this.sellZoneLabelObj = null;
     if (!this.embedded) renderDesktopBackground(this);
     const runShop = this.runShopId();
+    const ambienceRun = runShop ? getActiveRun() : undefined;
+    if (ambienceRun) addBiomeAmbience(this, runAmbienceBiomeId(ambienceRun), { x: 0, y: 0, width: this.viewWidth, height: this.viewHeight });
     if (runShop) {
       if (!this.embedded) this.renderHud(runShop);
     } else {
@@ -623,7 +626,7 @@ export class DesktopShopScene extends Phaser.Scene {
       const canReroll = this.activeGold() >= cost;
       const reroll = this.add.rectangle(rerollX, rerollY, rerollW, rerollControl.height, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, `REROLL · ${cost} G`, {
+      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost} G`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
       }).setOrigin(0.5);
       if (canReroll) {

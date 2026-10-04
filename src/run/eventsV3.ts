@@ -40,9 +40,19 @@ import {
   type RunState,
 } from './runState';
 import { startChallengeFight } from './challengeFight';
-import { reshapeFallbackV3, reshapeOfferV3, settleReshapeV3, type EventReshapeSettlementV3 } from './eventReshape';
+import {
+  applyEventFallbackV3,
+  reshapeFallbackV3,
+  reshapeGemOfferV3,
+  reshapeOfferV3,
+  scavengeOptionsV3,
+  settleReshapeGemV3,
+  settleReshapeV3,
+  type EventGemReshapeSettlementV3,
+  type EventReshapeSettlementV3,
+} from './eventReshape';
 import { scheduleEventCallbackV3, type EventDefinitionLookup } from './eventCallbacks';
-import { resolveEventOutcomeSpec, type EventOutcome } from './events';
+import { planMergeTrio, resolveEventOutcomeSpec, type EventOutcome } from './events';
 import {
   canBuyMarketLife,
   isMarketBuyOutcomeKind,
@@ -79,6 +89,9 @@ export type EventOutcomeV3 =
   | { kind: 'challengeFight' }
   | { kind: 'reshapeCard'; offer: PendingEventOfferV3<'reshapeCard'> }
   | EventReshapeSettlementV3
+  | { kind: 'reshapeGem'; offer: PendingEventOfferV3<'reshapeGem'> }
+  | EventGemReshapeSettlementV3
+  | { kind: 'grantShopRerolls'; amount: number; total: number }
   | EventRewardSettlementV3;
 
 export type MaterializeReachedEventV3Result =
@@ -117,6 +130,7 @@ export function eventOutcomeForPendingOfferV3(
     case 'mergeCards': return { kind: 'mergeCards', offer };
     case 'buyStatPick': return { kind: 'buyStatPick', offer };
     case 'reshapeCard': return { kind: 'reshapeCard', offer };
+    case 'reshapeGem': return { kind: 'reshapeGem', offer };
     case 'grantCard':
     case 'grantGem':
       throw new Error(`eventOutcomeForPendingOfferV3: ${offer.kind} is immediate, not a picker`);
@@ -203,7 +217,10 @@ export function correlatedMaterializedChoiceV3(
     || outcome.kind === 'grantLevel' || outcome.kind === 'grantMapInfo'
     || outcome.kind === 'nothing'
     || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'grantStat'
+    || outcome.kind === 'grantShopRerolls'
     ? offer === undefined
+    : outcome.kind === 'scavengeCard'
+      ? offer?.kind === 'bonusDraft'
     : outcome.kind === 'buyStatPick'
       ? offer === undefined || offer.kind === 'buyStatPick'
       : outcome.kind === 'challengeFight'
@@ -232,7 +249,8 @@ function legacyCommitment(
     || outcome.kind === 'grantLevel' || outcome.kind === 'grantMapInfo'
     || outcome.kind === 'nothing' || outcome.kind === 'challengeFight'
     || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'buyStatPick'
-    || outcome.kind === 'grantStat' || outcome.kind === 'reshapeCard') return undefined;
+    || outcome.kind === 'grantStat' || outcome.kind === 'reshapeCard' || outcome.kind === 'reshapeGem'
+    || outcome.kind === 'scavengeCard' || outcome.kind === 'grantShopRerolls') return undefined;
   if (outcome.kind === 'sellGem' && state.gemInventory.length === 0) {
     return { kind: 'sellGem', status: 'unavailable' };
   }
@@ -352,6 +370,10 @@ export function materializeReachedEventV3(
         offers[choice.id] = targetedUpgradeV3(bound.state, outcome, bound.boundSubjects);
       } else if (outcome?.kind === 'reshapeCard') {
         offers[choice.id] = reshapeOfferV3(bound.state, instance.instanceId, choice.id, outcome);
+      } else if (outcome?.kind === 'reshapeGem') {
+        offers[choice.id] = reshapeGemOfferV3(bound.state, instance.instanceId, choice.id, outcome);
+      } else if (outcome?.kind === 'scavengeCard') {
+        offers[choice.id] = { kind: 'bonusDraft', status: 'pending', options: scavengeOptionsV3(bound.state) };
       } else if (outcome !== undefined) {
         const commitment = legacyCommitment(
           bound.state, node, instance.instanceId, choice.id, outcome, bound.boundSubjects,
@@ -530,6 +552,7 @@ function applyLegacyCommitment(
     case 'cardChoice':
     case 'upgradeCardTargeted':
     case 'reshapeCard':
+    case 'reshapeGem':
       return undefined;
   }
 }
@@ -647,6 +670,28 @@ function applyDirectOutcome(
       }
       return { state, outcome: { kind: 'reshapeCard', offer }, pending: true };
     }
+    case 'reshapeGem': {
+      const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
+      if (offer?.kind !== 'reshapeGem' || offer.status !== 'pending') return undefined;
+      if (offer.options.length === 0) {
+        const fellBack = reshapeFallbackV3(state, offer);
+        return { state: updateOffer(fellBack.state, instanceId, choiceId, settledOffer(offer)), outcome: fellBack.outcome, pending: false };
+      }
+      return { state, outcome: { kind: 'reshapeGem', offer }, pending: true };
+    }
+    case 'scavengeCard': {
+      const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
+      if (offer?.kind !== 'bonusDraft' || offer.status !== 'pending') return undefined;
+      if (offer.options.length === 0) {
+        const fellBack = applyEventFallbackV3(state, outcome.fallback);
+        return { state: updateOffer(fellBack.state, instanceId, choiceId, settledOffer(offer)), outcome: fellBack.outcome, pending: false };
+      }
+      return { state, outcome: { kind: 'bonusDraft', offer }, pending: true };
+    }
+    case 'grantShopRerolls': {
+      const total = (state.freeShopRerolls ?? 0) + outcome.amount;
+      return { state: { ...state, freeShopRerolls: total }, outcome: { kind: 'grantShopRerolls', amount: outcome.amount, total }, pending: false };
+    }
     case 'upgradeCardTargeted': {
       const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
       if (offer?.kind !== 'upgradeCardTargeted' || offer.status !== 'pending') return undefined;
@@ -751,6 +796,8 @@ export function resolveEventChoiceV3(
   if (!choiceGateMet(state, choice)) return { ok: false, state, reason: 'gate' };
   const cost = choice.cost ?? 0;
   if (cost > state.gold) return { ok: false, state, reason: 'cost' };
+  const lifeCost = choice.lifeCost ?? 0;
+  if (lifeCost > 0 && state.lives <= lifeCost) return { ok: false, state, reason: 'cost' };
 
   const persistedOffer = correlated.offer;
   if ((direct.kind === 'sellGem' || direct.kind === 'mergeCards')
@@ -775,6 +822,7 @@ export function resolveEventChoiceV3(
     gold: state.gold - cost,
     stats: { ...state.stats, goldSpent: state.stats.goldSpent + cost },
   };
+  if (lifeCost > 0) working = { ...working, lives: working.lives - lifeCost };
   const applied = applyDirectOutcome(working, located.node, instanceId, choiceId, direct);
   if (applied === undefined) return { ok: false, state, reason: 'outcome' };
   working = applyMutations(applyMutations(applied.state, choice.mutations), branchMutations);
@@ -1006,6 +1054,27 @@ export function finalizeReshapeCardV3(
   return { ok: true, state: clearPending(next, instanceId), outcome: applied.outcome };
 }
 
+export function finalizeReshapeGemV3(
+  state: RunState,
+  instanceId: string,
+  choiceId: string,
+  selectedId: string,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'reshapeGem', lookup);
+  if (transaction.status === 'invalid') return { ok: false, state, reason: 'choice' };
+  if (transaction.status === 'settled') {
+    return transaction.offer.selectedId === selectedId
+      ? { ok: true, state, outcome: { kind: 'alreadySettled' } }
+      : { ok: false, state, reason: 'offer' };
+  }
+  if (!transaction.offer.options.some((option) => option.id === selectedId)) return { ok: false, state, reason: 'offer' };
+  const settled = settleReshapeGemV3(state, transaction.offer, selectedId);
+  const applied = settled ?? reshapeFallbackV3(state, transaction.offer);
+  const next = updateOffer(applied.state, instanceId, choiceId, settledOffer(transaction.offer, selectedId));
+  return { ok: true, state: clearPending(next, instanceId), outcome: applied.outcome };
+}
+
 type LegacyFinalizeResultV3 =
   | { ok: true; state: RunState; outcome: EventOutcomeV3 }
   | { ok: false; state: RunState; reason: 'choice' | 'offer' };
@@ -1200,6 +1269,7 @@ export function mergeCardsOfferAvailabilityV3(
 export function finalizeMergeCardsV3(
   state: RunState, instanceId: string, choiceId: string, selectedSkillId: string,
   lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+  consumedIds?: readonly string[],
 ): LegacyFinalizeResultV3 {
   const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'mergeCards', lookup);
   if (transaction.status === 'invalid') return { ok: false, state, reason: 'choice' };
@@ -1209,6 +1279,14 @@ export function finalizeMergeCardsV3(
   const offer = transaction.offer;
   const selected = offer.candidates.find((candidate) => candidate.skillId === selectedSkillId);
   if (selected === undefined) return { ok: false, state, reason: 'offer' };
+  if (consumedIds !== undefined) {
+    const plan = planMergeTrio(state, consumedIds);
+    if (plan === null || !plan.pool.some((skill) => skill.id === selectedSkillId)) return { ok: false, state, reason: 'offer' };
+    const chosen = tryInsertPersistedEventRunCard(plan.after, selectedSkillId, plan.to);
+    if (chosen === null) return { ok: false, state, reason: 'offer' };
+    return finishLegacy(chosen.state, instanceId, choiceId, offer,
+      { kind: 'grantCard', skillId: selectedSkillId, tier: plan.to }, selectedSkillId);
+  }
   if (mergeCardsOfferAvailabilityV3(state, offer).kind !== 'ready') {
     return { ok: false, state, reason: 'offer' };
   }

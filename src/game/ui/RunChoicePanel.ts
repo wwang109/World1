@@ -5,8 +5,7 @@ import { ACTIVE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
 import { FONT, INK, UI, type InkRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
-import { addRunArt } from './runArt';
-import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
+import { appearPanel, attachButtonFeel, flashConfirm, MOTION } from './motion';
 
 export interface RunChoiceImage {
   textureKey: string;
@@ -26,7 +25,7 @@ export interface RunChoiceViewModel {
    * It exists for the ELITE AFFIX line the run map puts in this slot
    * (`affixMapFooter`, ui/affixPresentation.ts): a cost and a threat are not
    * the same kind of fact and must not read as the same colour. A ROLE, not a
-   * colour — the call site may not invent one (tests/game/textRoleAudit.test.ts).
+   * colour — the call site may not invent one.
    */
   footerInk?: InkRole;
   image?: RunChoiceImage;
@@ -36,6 +35,71 @@ export interface RunChoiceViewModel {
 
 function trackObject(track: Phaser.GameObjects.GameObject[] | undefined, object: Phaser.GameObjects.GameObject): void {
   track?.push(object);
+}
+
+function choiceImageDepthTextures(scene: Phaser.Scene, key: string): { shadow: string; highlight: string } {
+  const source = scene.textures.get(key).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+  const edge = Math.max(source.width, source.height);
+  const padding = Math.ceil(edge * 0.1);
+  const shadow = `run-choice-shadow:${key}`;
+  const highlight = `run-choice-highlight:${key}`;
+  if (!scene.textures.exists(shadow)) {
+    const texture = scene.textures.createCanvas(shadow, source.width + padding * 2, source.height + padding * 2);
+    if (texture) {
+      const context = texture.getContext();
+      context.shadowColor = 'rgba(3,8,14,0.38)';
+      context.shadowBlur = edge * 0.055;
+      context.shadowOffsetY = edge * 0.035;
+      context.drawImage(source, padding, padding);
+      context.shadowColor = 'rgba(0,0,0,0)';
+      context.globalCompositeOperation = 'destination-out';
+      context.drawImage(source, padding, padding);
+      context.globalCompositeOperation = 'source-over';
+      texture.refresh();
+    }
+  }
+  if (!scene.textures.exists(highlight)) {
+    const texture = scene.textures.createCanvas(highlight, source.width, source.height);
+    if (texture) {
+      const context = texture.getContext();
+      context.drawImage(source, 0, 0);
+      context.globalCompositeOperation = 'source-in';
+      const light = context.createLinearGradient(0, 0, 0, source.height);
+      light.addColorStop(0, 'rgba(255,255,255,0.12)');
+      light.addColorStop(0.4, 'rgba(255,255,255,0.035)');
+      light.addColorStop(0.75, 'rgba(255,255,255,0)');
+      context.fillStyle = light;
+      context.fillRect(0, 0, source.width, source.height);
+      context.globalCompositeOperation = 'source-over';
+      texture.refresh();
+    }
+  }
+  return { shadow, highlight };
+}
+
+function addChoiceImage(
+  scene: Phaser.Scene,
+  key: string,
+  bounds: { x: number; y: number; size: number },
+  alpha: number,
+): Phaser.GameObjects.Container | undefined {
+  if (!scene.textures.exists(key)) return undefined;
+  const source = scene.textures.get(key).getSourceImage();
+  const innerSize = Math.max(1, bounds.size);
+  const scale = Math.min(innerSize / source.width, innerSize / source.height);
+  const group = scene.add.container(bounds.x + bounds.size / 2, bounds.y + bounds.size / 2)
+    .setName('run-choice-image').setAlpha(alpha);
+  const depth = choiceImageDepthTextures(scene, key);
+  if (scene.textures.exists(depth.shadow)) {
+    group.add(scene.add.image(0, 0, depth.shadow).setScale(scale).setName('run-choice-image-shadow'));
+  }
+  const image = scene.add.image(0, 0, key).setScale(scale).setName('run-choice-image-art');
+  group.add(image);
+  if (scene.textures.exists(depth.highlight)) {
+    group.add(scene.add.image(0, 0, depth.highlight).setScale(scale).setName('run-choice-image-highlight'));
+  }
+  group.setData({ textureKey: key, imageSize: bounds.size, fit: 'contain' });
+  return group;
 }
 
 /** Rendered height of one line of text at `fontSize` — Phaser's line box runs
@@ -111,8 +175,7 @@ export interface RunChoicePanelLayout {
 }
 
 /**
- * THE PANEL'S STACK, RESERVED FROM THE BOTTOM UP — pure arithmetic, no Phaser,
- * so `tests/game/runChoicePanelLayout.test.ts` can hold it directly.
+ * THE PANEL'S STACK, RESERVED FROM THE BOTTOM UP — pure arithmetic, no Phaser.
  *
  * Two decisions live here, and both are the 2026-08-30 fix:
  *
@@ -208,11 +271,10 @@ export function renderRunChoicePanel(
   const rail = scene.add.rectangle(bounds.x, bounds.y + (compact ? 12 : 0), railW, bounds.h - (compact ? 24 : 0), model.accent, model.enabled ? 1 : 0.48).setOrigin(0, 0);
   if (compact) roundRect(rail, 3);
   const image = model.image
-    ? addRunArt(scene, model.image.textureKey, {
+    ? addChoiceImage(scene, model.image.textureKey, {
       x: bounds.x + railW + inset,
       y: bounds.y + (bounds.h - imageSize) / 2,
-      width: imageSize,
-      height: imageSize,
+      size: imageSize,
     }, model.enabled ? 1 : 0.48)
     : undefined;
   // THE TITLE WRAPS TO THE FULL CONTENT COLUMN. It used to stop short by
@@ -295,23 +357,23 @@ export function renderRunChoicePanel(
   auditTextBlock(action, { name: `${model.nodeId} ${actionCopy.toLowerCase()} affordance`, maxWidth: actionReserve, maxHeight: opts.font.tiny * 2, minFontSize: 8 });
   auditTextBlock(detail, { name: `${model.nodeId} detail`, maxWidth: contentW, maxHeight: detailMaxH, minFontSize: 8 });
   if (footer) auditTextBlock(footer, { name: `${model.nodeId} footer`, maxWidth: footerW, maxHeight: opts.font.tiny * 2, minFontSize: 8 });
+  image?.setY((title.y + detail.y + detail.height) / 2);
 
   // FADE-AND-RISE, opt-in per caller (see `appearIndex`). Runs AFTER every
   // layout audit above has measured the final geometry — `appearPanel` only
   // touches `y`/`alpha` at runtime, so the audits still see the authored
   // positions and nothing about layout verification changes.
+  const parts = [panel, rail, title, action, detail, ...(image ? [image] : []), ...(footer ? [footer] : [])];
   if (opts.appearIndex !== undefined) {
-    const parts = [panel, rail, title, action, detail, ...(image ? [image] : []), ...(footer ? [footer] : [])];
-    appearPanel(scene, parts, { delay: opts.appearIndex * 45, stagger: 0 });
+    appearPanel(scene, parts, { delay: opts.appearIndex * MOTION.rowStagger, stagger: 0 });
   }
+
+  const group = choiceGroupOf(scene);
+  group.entries.push({ panel, parts });
 
   if (!model.enabled) return;
   panel.setInteractive({ useHandCursor: true });
-  // An OPTION, not a button: the same hover/press feel, plus a confirmation
-  // pulse on the panel that was actually chosen — several options look alike, so
-  // the pulse is what tells the player which one the game took. `lift: 0`
-  // because these panels are laid out from their own origin and a translate
-  // would fight the row alignment; the colour and the pulse carry the feedback.
+  attachChoiceHover(scene, panel, model.accent, image, action);
   attachButtonFeel(scene, panel, {
     fill,
     hover: UI.slotHover,
@@ -319,10 +381,76 @@ export function renderRunChoicePanel(
     lift: 0,
     sfx: opts.sfx,
     onPress: () => {
-      // The RAIL flashes, not the whole plate: it is the panel's accent
-      // element, so the confirmation reads without the plate itself blinking.
+      if (group.committing) return;
+      group.committing = true;
       flashConfirm(scene, rail);
-      opts.onSelect();
+      playCommit(scene, group, { panel, title, accent: model.accent, bounds });
+      scene.time.delayedCall(MOTION.commitHold, () => {
+        group.committing = false;
+        opts.onSelect();
+      });
     },
   });
+}
+
+interface ChoiceGroupEntry { panel: Phaser.GameObjects.Rectangle; parts: Phaser.GameObjects.GameObject[] }
+interface ChoiceGroup { entries: ChoiceGroupEntry[]; committing: boolean }
+
+const choiceGroups = new WeakMap<Phaser.Scene, ChoiceGroup>();
+
+function choiceGroupOf(scene: Phaser.Scene): ChoiceGroup {
+  let group = choiceGroups.get(scene);
+  if (!group) {
+    group = { entries: [], committing: false };
+    choiceGroups.set(scene, group);
+  }
+  group.entries = group.entries.filter((entry) => entry.panel.active);
+  if (group.entries.length === 0) group.committing = false;
+  return group;
+}
+
+function attachChoiceHover(
+  scene: Phaser.Scene,
+  panel: Phaser.GameObjects.Rectangle,
+  accent: number,
+  image: Phaser.GameObjects.Container | undefined,
+  action: Phaser.GameObjects.Text,
+): void {
+  const baseScale = image ? { x: image.scaleX, y: image.scaleY } : undefined;
+  const actionX = action.x;
+  panel.on('pointerover', () => {
+    panel.setStrokeStyle(3, accent, 1);
+    if (image && baseScale) {
+      scene.tweens.add({ targets: image, scaleX: baseScale.x * 1.12, scaleY: baseScale.y * 1.12, duration: MOTION.hoverIn, ease: MOTION.easeHover });
+    }
+    scene.tweens.add({ targets: action, x: actionX - 4, duration: MOTION.hoverIn, ease: MOTION.easeHover });
+  });
+  panel.on('pointerout', () => {
+    panel.setStrokeStyle(2, accent, 0.9);
+    if (image && baseScale) {
+      scene.tweens.add({ targets: image, scaleX: baseScale.x, scaleY: baseScale.y, duration: MOTION.hoverOut, ease: MOTION.easeHover });
+    }
+    scene.tweens.add({ targets: action, x: actionX, duration: MOTION.hoverOut, ease: MOTION.easeHover });
+  });
+}
+
+function playCommit(
+  scene: Phaser.Scene,
+  group: ChoiceGroup,
+  chosen: { panel: Phaser.GameObjects.Rectangle; title: Phaser.GameObjects.Text; accent: number; bounds: { x: number; y: number; w: number; h: number } },
+): void {
+  for (const entry of group.entries) {
+    if (entry.panel === chosen.panel || !entry.panel.active) continue;
+    for (const part of entry.parts) {
+      const target = part as unknown as { alpha: number };
+      scene.tweens.add({ targets: part, alpha: target.alpha * MOTION.commitDim, duration: MOTION.commitHold * 0.6, ease: MOTION.easeHover });
+    }
+  }
+  chosen.panel.setStrokeStyle(3, chosen.accent, 1);
+  const { x, y, w, h } = chosen.bounds;
+  const glow = scene.add.rectangle(x, y, w, h, chosen.accent, 0).setOrigin(0, 0);
+  scene.tweens.add({ targets: glow, alpha: 0.28, duration: MOTION.commitHold / 2, ease: MOTION.easePulse, yoyo: true });
+  const sweep = scene.add.rectangle(x, y, Math.max(12, w * 0.12), h, 0xffffff, 0.16).setOrigin(0, 0);
+  scene.tweens.add({ targets: sweep, x: x + w - sweep.width, alpha: 0, duration: MOTION.commitHold, ease: 'Quad.easeIn' });
+  scene.tweens.add({ targets: chosen.title, x: chosen.title.x + 6, duration: MOTION.commitHold / 2, ease: MOTION.easeHover, yoyo: true });
 }

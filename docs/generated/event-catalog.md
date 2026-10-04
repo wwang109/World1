@@ -64,12 +64,29 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 | --- | --- | --- |
 | callback | `card_that_remembered/awaken_capstone` | `signature_card_capstone@v1` |
 | callback | `cartographers_missing_road/mark_missing_road` | `missing_road_destination@v1` |
+| callback | `ember_debt/borrow` | `ember_debt_collector@v1` |
 | callback | `feathered_cairn/read_feathers` | `feathered_cairn_far_sight@v2` |
 | callback | `garrisons_oath/swear_the_oath` | `garrisons_oath_kept@v1` |
+| event choice | `lanterns_answer` | `lantern_wake` |
 | callback | `last_light_at_roads_end/risk_last_road` | `last_light_secret_route@v1` |
+| callback | `lightning_rod/plant_rod` | `lightning_strikes_twice@v1` |
+| callback | `lost_cub/feed_cub` | `lost_cub_returns@v1` |
 | callback | `mirror_of_the_board/enter_mirror` | `mirror_transformation@v1` |
+| callback | `moneylender/lend` | `moneylender_repays@v1` |
 | callback | `moon_scented_trail/follow_hunt` | `moon_scented_hunt@v1` |
 | callback | `names_under_stone/take_grave_silver` | `names_under_stone_answer@v1` |
+| callback | `patron_axe/swear_to_patron` | `patron_axe_gift@v1` |
+| callback | `patron_beast/swear_to_patron` | `patron_beast_gift@v1` |
+| callback | `patron_bow/swear_to_patron` | `patron_bow_gift@v1` |
+| callback | `patron_dark/swear_to_patron` | `patron_dark_gift@v1` |
+| callback | `patron_fire/swear_to_patron` | `patron_fire_gift@v1` |
+| callback | `patron_frost/swear_to_patron` | `patron_frost_gift@v1` |
+| callback | `patron_holy/swear_to_patron` | `patron_holy_gift@v1` |
+| callback | `patron_lance/swear_to_patron` | `patron_lance_gift@v1` |
+| callback | `patron_lightning/swear_to_patron` | `patron_lightning_gift@v1` |
+| callback | `patron_nature/swear_to_patron` | `patron_nature_gift@v1` |
+| callback | `patron_sword/swear_to_patron` | `patron_sword_gift@v1` |
+| callback | `pilgrims_relic/carry_relic` | `pilgrims_relic_delivered@v1` |
 | callback | `sanctum_vigil/keep_the_vigil` | `sanctum_vigil_answer@v1` |
 | legacy choice | `the_bell_unbound` | `bell_beneath_ice` |
 | legacy choice | `the_bell_unbound` | `the_second_toll` |
@@ -87,6 +104,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `abandoned_cache@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "Abandoned Cache"
 - Presentation body: "The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned."
 - Discovery: none
@@ -152,6 +170,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `arena_pit@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Arena Pit"
 - Presentation body: "A sunken ring of packed earth waits behind a curtain of oiled canvas, ringed by a crowd that has already placed its bets. The pit-master waves you toward the rope. \"Tougher bout, tougher purse,\" he says, and grins at the fighter already stretching in the sand."
 - Discovery: none
@@ -228,11 +247,194 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `arrowfell_bowyer` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `arrowfell_bowyer@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Bowyer's Bench"
+- Presentation body: "A bowyer restrings anything handed across her bench into a bow of the same weight. What comes back is hers to choose."
+- Discovery: none
+
+- Story: `arrowfell_bowyer` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `arrowfell`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["arrowfell"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "arrowfell"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `150` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `retype`
+
+- Presentation label: "Have a card restrung as a Bow card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "weapons": [
+        "bow"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `arrowfell_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `arrowfell_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Fletcher's Trade"
+- Presentation body: "A fletcher has spread her best bows on a blanket by the road and will swap any one of them for something of yours. Bring her a bow and she pays a grade better."
+- Discovery: none
+
+- Story: `arrowfell_trader` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `arrowfell`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["arrowfell"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "arrowfell"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Bow card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "weapons": [
+        "bow"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `ash_oracle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/30-emberwaste.json`
 - Identity: `ash_oracle@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Ash Oracle"
 - Presentation body: "An oracle sits cross-legged in the Emberwaste's drifting soot, reading futures out of the way embers curl and die. She presses a warm brand into your palm before you have asked a single question."
 - Discovery: none
@@ -334,6 +536,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `bandit_toll@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Bandit's Toll"
 - Presentation body: "A ragged band blocks the road, spears low and grins lower. Their captain names a toll in gold — or, failing that, in blood. Either way, they say, you are paying something before you pass."
 - Discovery: none
@@ -439,6 +642,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `banner_of_five@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Banner of Five"
 - Presentation body: "Two wins in and a recruiter's banner catches your eye — five weapons laid out for anyone who's proven they can use one."
 - Discovery: none
@@ -529,6 +733,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `banner_scribe@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Banner-Scribe"
 - Presentation body: "A banner-scribe has set her table among the Muster Road's camps, reading fighters' colors off their gear the way other scribes read letters. One look over your board and she is already mixing paint: if you march under a device, she knows a supplier for it — and if you march under none, she will still pay a copper for the sketch."
 - Discovery: none
@@ -595,6 +800,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `barrow_guardian@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Barrow Guardian"
 - Presentation body: "The cairn stones over this barrow have been disturbed, and something under them has noticed. It rises slow and huge from the broken earth, hoard-marks still ground into its knuckles — whatever it was set to guard, it means to keep guarding."
 - Discovery: none
@@ -685,6 +891,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `beast_nest@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "Beast Nest"
 - Presentation body: "A trampled nest sits half-sunk in the Silt Hollows' mud, littered with the shed claws and feathers of something large. Everything worth carrying out of it is beast-work — fang, claw and hide, nothing else — if whatever built it doesn't come back and cost you a coin purse for the trouble."
 - Discovery: none
@@ -765,6 +972,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `bell_beneath_ice@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Bell Beneath the Ice"
 - Presentation body: "Beneath blue ice, a silver bell waits with its mouth turned toward the road. Its rim is warm. The metal seems to remember every hand that has tried to free it."
 - Discovery: none
@@ -853,6 +1061,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/100-global-payoffs.json`
 - Identity: `bitter_rematch@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Bitter Rematch"
 - Presentation body: "Word of your answered defeat reaches a scarred training yard. Your old rival's mark hangs beside the card that ended the rematch."
 - Discovery: `settled_score` · Settled Score · account `future`
@@ -975,11 +1184,113 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `blood_altar` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `blood_altar@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Blood Altar"
+- Presentation body: "A black altar asks for the one thing gold cannot buy back. Bleed on it, and it gives up a treasure."
+- Discovery: none
+
+- Story: `blood_altar` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(lives.current gte 2, node.depth gte 4)`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "lives.current",
+      "args": {
+        "op": "gte",
+        "value": 2
+      }
+    },
+    {
+      "fact": "node.depth",
+      "args": {
+        "op": "gte",
+        "value": 4
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `lives.current` → `RunState.lives`
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `120` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `bleed`
+
+- Presentation label: "Pay a life for a Gold card (1 life)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk away"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `blood_price_muster` · current version `2`
 
 - Source pack: `src/data/content/event-packs/60-ironmoot.json`
 - Identity: `blood_price_muster@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Blood-Price Muster"
 - Presentation body: "An Ironmoot recruiter has nailed a muster notice to a splintered post: axes wanted, blood-price paid in kind. A single notched blade hangs beneath it, already claimed by no one."
 - Discovery: none
@@ -1084,6 +1395,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
 - Identity: `bloom_behind_the_teeth@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Bloom Behind the Teeth"
 - Presentation body: "Past Thornwild's poisoned crown, a flower opens inside the jaw of a stone beast. It knows the nature-bound hand that carried venom through a ruler's fall."
 - Discovery: `venom_crown` · Venom Crown · account `future`
@@ -1208,6 +1520,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `broken_axle@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Broken Axle"
 - Presentation body: "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone."
 - Discovery: none
@@ -1273,6 +1586,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/120-gold-market.json`
 - Identity: `brokers_scale@v1`
 - Retained versions: v1 (schema 3)
+- Draw: repeatable
 - Presentation title: "The Broker's Scale"
 - Presentation body: "A broker has set her scale up at the crossroads, weighing coin against whatever the road has worn thin — a limb still healing, an edge gone dull. She never carries the same goods twice, but she is never far from the road either, and her prices climb a little with every trade she strikes."
 - Discovery: none
@@ -1366,6 +1680,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
 - Identity: `capacitor_vault@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Capacitor Vault"
 - Presentation body: "A tinker's vault hums behind a door of copper and glass, charged decades ago and never discharged. Only a lightning-tempered hand can draw on it without earthing the whole store."
 - Discovery: none
@@ -1493,6 +1808,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `capstone_reforge@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Capstone Reforge"
 - Presentation body: "Two champions felled, and the master forge itself opens to you — one true piece of your kit, reforged past its old limit."
 - Discovery: none
@@ -1589,6 +1905,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `card_that_remembered@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Card That Remembered"
 - Presentation body: "One skill has followed your victories and struck the final blow against a great foe. At a roadside shrine, the card begins to remember more than ink."
 - Discovery: `signature_skill` · Signature Skill · account `future`
@@ -1749,6 +2066,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `cartographers_missing_road@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Cartographer's Missing Road"
 - Presentation body: "A cartographer compares your traveled lands to a map with one deliberate blank. The absent road points toward a biome you have not yet crossed."
 - Discovery: `off_the_map` · Off the Map · account `future`
@@ -1898,6 +2216,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `champions_duel@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Champion's Duel"
 - Presentation body: "A traveling champion plants a banner at the crossroads and calls out anyone who thinks their steel is worth testing. The crowd that gathers already knows this one is no easy bout — but a champion's duel tempers whatever you carry into it."
 - Discovery: none
@@ -1997,6 +2316,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/30-emberwaste.json`
 - Identity: `cinderheart_crucible@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Cinderheart Crucible"
 - Presentation body: "A smith tends the last furnace between Emberwaste and the road beyond. It wakes only for flame proven in gold or carried through a fallen tyrant."
 - Discovery: `tempered_by_fire` · Tempered by Fire · account `future`
@@ -2136,6 +2456,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `cinderworks_regrind@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Regrinding Wheel"
 - Presentation body: "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Two gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink."
 - Discovery: none
@@ -2184,6 +2505,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `circle_of_adepts@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Circle of Adepts"
 - Presentation body: "Camped along the Muster Road, a circle of robed scholars debates arcane theory beneath a floating lattice of light. Two of their books are single-discipline and copied clean — one fire-work cover to cover, one lightning-work — and the third is the working grimoire, every discipline they practise jammed in together in no order at all. Copy from whichever you like; they're too deep in the argument to care."
 - Discovery: none
@@ -2269,6 +2591,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `cold_iron_drill@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Cold Iron Drill"
 - Presentation body: "A sergeant drills recruits through iron forms at the yard's edge. Two gold buys a place in the line and a weapon fresh off the rack; free, you can only watch from the fence."
 - Discovery: none
@@ -2354,6 +2677,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `collapsed_barrow@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Collapsed Barrow"
 - Presentation body: "A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves."
 - Discovery: none
@@ -2418,6 +2742,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `courier_shortcut@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Courier's Shortcut"
 - Presentation body: "A courier in mud-splashed boots overtakes you at a dead run, then doubles back, laughing. \"You walk like the road owes you time,\" she says, and shows you how she sets her feet — lighter, sooner, already moving before the thought arrives."
 - Discovery: none
@@ -2508,11 +2833,178 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `cracked_idol` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `cracked_idol@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Cracked Idol"
+- Presentation body: "A cracked stone idol sits at the crossroads with its palm held out. Pilgrims say it blesses what it is given, when it isn't hungry."
+- Discovery: none
+
+- Story: `cracked_idol` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 2`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 2
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `offer_card`
+
+- Presentation label: "Lay a card in its palm"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "weighted",
+  "branches": [
+    {
+      "id": "blessed",
+      "label": "Blessed (60%)",
+      "weight": 3,
+      "outcome": {
+        "kind": "upgradeCardTargeted",
+        "target": {
+          "filter": {
+            "where": "any",
+            "match": {
+              "archetypes": [
+                "offense",
+                "defensive",
+                "healing",
+                "support",
+                "debuff"
+              ]
+            }
+          }
+        },
+        "fallback": {
+          "kind": "grantGold",
+          "amount": 2
+        }
+      }
+    },
+    {
+      "id": "swallowed",
+      "label": "Swallowed (40%)",
+      "weight": 2,
+      "outcome": {
+        "kind": "reshapeCard",
+        "mode": "sacrifice",
+        "fallback": {
+          "kind": "nothing"
+        }
+      }
+    }
+  ]
+}
+```
+
+##### Weighted branch 1: `blessed` · weight `3`
+
+- Presentation label: "Blessed (60%)"
+- Typed branch outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "archetypes": [
+          "offense",
+          "defensive",
+          "healing",
+          "support",
+          "debuff"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed branch mutations: none
+
+##### Weighted branch 2: `swallowed` · weight `2`
+
+- Presentation label: "Swallowed (40%)"
+- Typed branch outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed branch mutations: none
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Leave the idol be"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `crooked_dice` · current version `1`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `crooked_dice@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Crooked Dice"
 - Presentation body: "A gambler beneath the crossroads shrine rattles a cup of black dice, promising the road pays double to the bold — or nothing at all to the unlucky."
 - Discovery: none
@@ -2638,6 +3130,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `crossroads_shrine@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Crossroads Shrine"
 - Presentation body: "At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon, and the two faces answer separately: tithe at the sun and what comes back is holy work, every time; scratch the moon-mark instead and it is dark work, every time. Others, less devout, simply pry the shrine apart for scrap."
 - Discovery: none
@@ -2717,6 +3210,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/70-pikewold.json`
 - Identity: `drill_sergeant_chest@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Drill-Sergeant's Chest"
 - Presentation body: "A locked chest sits at the foot of a drill yard long since abandoned, stamped with a dead sergeant's seal and heavy with a lance-hand's due."
 - Discovery: none
@@ -2838,6 +3332,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `duelists_grip@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Old Duelist's Grip"
 - Presentation body: "A retired duelist rests at the roadside, turning a nicked practice blade over in weathered hands. He watches your stance more than your face, and after a long moment he holds the blade out hilt-first. \"Grip's the whole art,\" he says. \"Yours could stand to learn it.\""
 - Discovery: none
@@ -2932,11 +3427,103 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `duskbarrow_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `duskbarrow_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Grave-Barterer"
+- Presentation body: "A hooded barterer deals in whatever the barrows give up. He takes any card for one of his dark ones, and a dark card buys a grade better."
+- Discovery: none
+
+- Story: `duskbarrow_trader` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `duskbarrow`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["duskbarrow"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "duskbarrow"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Dark card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `duskroad_challenger` · current version `2`
 
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `duskroad_challenger@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Duskroad Challenger"
 - Presentation body: "A masked figure waits where the road dims toward dusk, testing every traveler who passes with the same plain offer: a fair fight, a fair prize, no names asked either way."
 - Discovery: none
@@ -3038,13 +3625,264 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
-## `ember_pit` · current version `3`
+## `ember_debt` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `ember_debt@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Ember Debt"
+- Presentation body: "A forge-master with more coal than coin offers you a purse against the future. \"Pay me back with a little interest,\" he says, \"or I'll send someone to ask.\""
+- Discovery: none
+
+- Story: `ember_debt` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `emberwaste`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["emberwaste"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "emberwaste"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `220` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `borrow`
+
+- Presentation label: "Borrow 8 gold"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 8
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `ember_debt/borrow` → `ember_debt_collector@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "ember_debt_collector",
+  "eventId": "ember_debt_collector",
+  "contentVersion": 1,
+  "minDepthDelay": 4,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 20,
+    "fallback": "discard"
+  }
+}
+```
+
+#### Fixed choice 2: `take_fire_card`
+
+- Presentation label: "Take a Fire card (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Decline the purse"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `ember_debt_collector` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `ember_debt_collector@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Collector"
+- Presentation body: "A soot-black collector blocks the road with the forge-master's ledger. \"Ten gold,\" she says, \"and he sends a gift for your trouble. Or we settle it the other way.\""
+- Discovery: none
+
+- Story: `ember_debt` · stage `callback` · role `callback`
+- Theme `forge` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"ember_debt_collector"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "ember_debt_collector"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `repay`
+
+- Presentation label: "Repay 10 gold"
+- Cost: `10` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "ember_debt"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `refuse`
+
+- Presentation label: "Refuse, and fight the collector"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "challengeFight",
+  "difficulty": "hard",
+  "reward": {
+    "kind": "upgradeCardTargeted",
+    "target": {
+      "filter": {
+        "where": "any",
+        "match": {
+          "elements": [
+            "fire"
+          ]
+        }
+      }
+    },
+    "fallback": {
+      "kind": "grantGold",
+      "amount": 3
+    }
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "ember_debt"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `ember_pit` · current version `4`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `ember_pit@v3`
-- Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1)
+- Identity: `ember_pit@v4`
+- Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1), v4 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Ember Pit"
-- Presentation body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Feed one piece of your gear to the coals and it comes back a step further tempered toward its next grade — you choose which piece takes the heat."
+- Presentation body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Or choose any three pieces of one grade and feed them in together: they come back out as a single piece of the grade above, and the tender lets you pick which."
 - Discovery: none
 
 - Story: legacy compatibility definition (no schema-v3 story role).
@@ -3088,13 +3926,13 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 3: `feed_the_coals`
 
-- Presentation label: "Feed one piece to the coals"
+- Presentation label: "Feed three pieces of one grade to the coals"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "awardCardPoint"
+  "kind": "mergeCards"
 }
 ```
 
@@ -3103,11 +3941,103 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `emberwaste_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `emberwaste_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Ember Trader"
+- Presentation body: "A smith with soot to the elbows swaps finished fire-work for whatever you carry. Hand her fire and she trades a grade better."
+- Discovery: none
+
+- Story: `emberwaste_trader` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `emberwaste`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["emberwaste"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "emberwaste"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Fire card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `factors_ledger` · current version `3`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `factors_ledger@v3`
 - Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Factor's Ledger"
 - Presentation body: "A trade factor steps into the road with a ledger already open to your page. \"Twelve gold and change, through the stalls and tolls of this road, by my count,\" she says, turning the book so you can see the tally — and it is your tally, coin for coin. \"The road pays its regulars. One credit, one time. Spend it or tear the page.\""
 - Discovery: none
@@ -3185,6 +4115,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/10-arrowfell.json`
 - Identity: `feathered_cairn@v2`
 - Retained versions: v1 (schema 2), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Feathered Cairn"
 - Presentation body: "A low cairn of arrow-marked stones stands beside the road. Black feathers turn in the wind around a set of deliberate cuts, each one pointing toward a fork you cannot yet see."
 - Discovery: `far_sighted` · Far-Sighted · account `future`
@@ -3325,6 +4256,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/10-arrowfell.json`
 - Identity: `feathered_cairn_far_sight@v2`
 - Retained versions: v1 (schema 2), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Far Sight"
 - Presentation body: "At the next omen-stone, the cairn's cuts return in the dust. They trace a safer fork ahead, with one loose mark pointing toward a small hidden cache."
 - Discovery: none
@@ -3454,6 +4386,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `fences_offer@v1`
 - Retained versions: v1 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Fence's Offer"
 - Presentation body: "A fence works a folding table at the shadowed edge of the Tolling Road, goods of dubious origin spread out under a stained cloth. \"Coin, or a stone — your pick, no questions asked either way.\" She taps the table, already bored with the transaction."
 - Discovery: none
@@ -3503,6 +4436,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `field_medic@v1`
 - Retained versions: v1 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Field Medic"
 - Presentation body: "A field medic has set up a triage tent at the roadside among the Muster Road's camps. Her herb satchel is sorted and green to the last cutting — nature work, all of it — while the rest of the tent is whatever keeps people upright: salves, wraps, mending songs, half-taught steadying tricks. Or, if none of it is what you need, she'll simply spare a little coin instead."
 - Discovery: none
@@ -3583,6 +4517,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `flaw_finder@v1`
 - Retained versions: v1 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Flaw-Finder"
 - Presentation body: "A jeweler's loupe glints from a stall no wider than its own strongbox on the Tolling Road. \"Every stone has a flaw,\" its owner says, not as an apology — her whole tray is cut to FIND them, facets ground to open a weakness and hold it open. She buys as readily as she sells, if you are carrying a stone you are done with."
 - Discovery: none
@@ -3654,6 +4589,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/10-arrowfell.json`
 - Identity: `fletchers_tithe@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Fletcher's Tithe"
 - Presentation body: "A fletcher's stall stands unmanned at an Arrowfell crossroads, its ledger open to a page marked \"tithe.\" One fine arrow rests beside it, already fletched for a hand that never came to claim it."
 - Discovery: none
@@ -3758,6 +4694,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `forgotten_ledger@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Forgotten Ledger"
 - Presentation body: "A forgotten ledger surfaces from an old cache, its pages full of every road you've already walked."
 - Discovery: none
@@ -3837,6 +4774,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `fortune_teller@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Fortune-Teller"
 - Presentation body: "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand."
 - Discovery: none
@@ -3881,11 +4819,332 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `fortunes_crate` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `fortunes_crate@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "Fortune's Crate"
+- Presentation body: "A sealed crate fell off a merchant's cart and split along one side. Something glints inside, but most of it is straw."
+- Discovery: none
+
+- Story: `fortunes_crate` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 2`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 2
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `pry_open`
+
+- Presentation label: "Pry it open (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "weighted",
+  "branches": [
+    {
+      "id": "gilded",
+      "label": "Gilded card (30%)",
+      "weight": 3,
+      "outcome": {
+        "kind": "cardChoice",
+        "filter": [
+          {
+            "properties": [
+              "physical",
+              "magical",
+              "true"
+            ]
+          }
+        ],
+        "maxTier": "gold",
+        "minTier": "gold"
+      }
+    },
+    {
+      "id": "straw",
+      "label": "Straw and splinters (70%)",
+      "weight": 7,
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 1
+      }
+    }
+  ]
+}
+```
+
+##### Weighted branch 1: `gilded` · weight `3`
+
+- Presentation label: "Gilded card (30%)"
+- Typed branch outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed branch mutations: none
+
+##### Weighted branch 2: `straw` · weight `7`
+
+- Presentation label: "Straw and splinters (70%)"
+- Typed branch outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 1
+}
+```
+
+- Typed branch mutations: none
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Leave it"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `frostmarch_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `frostmarch_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Rime Peddler"
+- Presentation body: "A peddler's sled is stacked with frost-worked wares, each one rimed white. He swaps any card for one of his, and frost buys a grade better."
+- Discovery: none
+
+- Story: `frostmarch_trader` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `frostmarch`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["frostmarch"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "frostmarch"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Frost card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "frost"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `fusing_kiln` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `fusing_kiln@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Fusing Kiln"
+- Presentation body: "An alchemist's kiln melts two stones of one grade into a single gem of the next. Nothing that goes in comes out the same."
+- Discovery: none
+
+- Story: `fusing_kiln` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.gem.count({"where":"pouch","count":2,"match":{}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.gem.count",
+  "args": {
+    "where": "pouch",
+    "count": 2,
+    "match": {}
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.gem.count` → `RunState.gemInventory + socketed pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `120` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `fuse`
+
+- Presentation label: "Fuse two gems from your pouch"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeGem",
+  "mode": "fuse",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `gambler` · current version `1`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `gambler@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Gambler"
 - Presentation body: "In the shadow of the crossroads shrine, a hooded figure shuffles cards at a folding table, coins stacked at her elbow, never once looking up as travelers pass. \"Stake two gold on a safe cut,\" she says, \"or five on a bold one — walk off with more than you sat down with, either way. Or don't play at all — some prefer to keep what little they have.\""
 - Discovery: none
@@ -3952,6 +5211,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
 - Identity: `garrisons_oath@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Garrison's Oath"
 - Presentation body: "Swornhold's drill yard still musters at the old hours. Two victories won under its banner earn a place in the line — and the oath that comes with it."
 - Discovery: none
@@ -4077,6 +5337,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
 - Identity: `garrisons_oath_kept@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Oath Kept"
 - Presentation body: "Word of the oath reaches you again, three roads on: the garrison held its line without you, and the standard-bearer sends word of what your name still earns there."
 - Discovery: none
@@ -4203,11 +5464,95 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `gem_cutters_wheel` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `gem_cutters_wheel@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Gem-Cutter's Wheel"
+- Presentation body: "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face."
+- Discovery: none
+
+- Story: `gem_cutters_wheel` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.gem.count({"where":"pouch","count":1,"match":{}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.gem.count",
+  "args": {
+    "where": "pouch",
+    "count": 1,
+    "match": {}
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.gem.count` → `RunState.gemInventory + socketed pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `120` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `recut`
+
+- Presentation label: "Recut a gem from your pouch"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeGem",
+  "mode": "transform",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `gemsellers_mishap` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `gemsellers_mishap@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "Gemseller's Mishap"
 - Presentation body: "A peddler's cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there's more here than she can gather alone, and more than a few have already rolled to rest against your boots."
 - Discovery: none
@@ -4256,6 +5601,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/100-global-payoffs.json`
 - Identity: `gilded_detour@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Gilded Detour"
 - Presentation body: "A broker's bright pavilion blocks the road. The richest travelers are invited to turn a little fortune into something rarer."
 - Discovery: `heavy_purse` · Heavy Purse · account `future`
@@ -4361,11 +5707,97 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `glass_cutter` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `glass_cutter@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Glass-Cutter"
+- Presentation body: "A glass-cutter claims she can split a card along its grain into two lesser copies. Merge them again and you are back where you started."
+- Discovery: none
+
+- Story: `glass_cutter` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"any","count":1,"match":{},"tierAtLeast":"silver"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "any",
+    "count": 1,
+    "match": {},
+    "tierAtLeast": "silver"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `120` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `shatter`
+
+- Presentation label: "Shatter a card into two copies"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "shatter",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards whole"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `grave_wax_seals` · current version `2`
 
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
 - Identity: `grave_wax_seals@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Grave-Wax Seals"
 - Presentation body: "Three seals of black grave-wax lie unbroken in a crumbled niche, each stamped with a mark that only a dark-tempered hand can read."
 - Discovery: none
@@ -4489,11 +5921,103 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `hallowfield_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `hallowfield_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Relic Swapper"
+- Presentation body: "A pilgrim trades blessed relics for whatever travelers can spare. Give her something holy and she returns a grade better."
+- Discovery: none
+
+- Story: `hallowfield_trader` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `hallowfield`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["hallowfield"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "hallowfield"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Holy card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `hanged_stranger` · current version `1`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `hanged_stranger@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Hanged Stranger"
 - Presentation body: "A stranger hangs a lantern at the shrine's foot, trading omens for anything bright you're willing to part with."
 - Discovery: none
@@ -4572,6 +6096,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `hermits_riddle@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Hermit's Riddle"
 - Presentation body: "On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you've even stopped walking. Answer it right, she says, and you'll understand something about yourself no sparring ring could teach. Answer wrong, and you'll simply keep walking, no worse for it."
 - Discovery: none
@@ -4637,6 +6162,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
 - Identity: `hoarfrost_reliquary@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Hoarfrost Reliquary"
 - Presentation body: "A traveling reliquary keeper has set up a stall of frost-worked wares between two dead pines, each piece rimed white and humming faintly with cold."
 - Discovery: none
@@ -4769,6 +6295,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `hollow_stash@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Hollow Stash"
 - Presentation body: "A hollow stash beneath a fallen log holds mender's tools, worth two gold to whoever digs it out properly."
 - Discovery: none
@@ -4875,6 +6402,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
 - Identity: `howling_cairn@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Howling Cairn"
 - Presentation body: "A cairn of bleached bone and antler stands where Howlmoor's packs gather at dusk, a single fanged trophy wedged into its crown for whoever can call the howl back."
 - Discovery: none
@@ -4971,11 +6499,639 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `howlmoor_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `howlmoor_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Beast-Tamer"
+- Presentation body: "A tamer with a leash in each hand offers one of her beasts for any card you carry. Bring her a beast and she gives a grade better."
+- Discovery: none
+
+- Story: `howlmoor_trader` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `uncommon` · biome `howlmoor`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["howlmoor"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "howlmoor"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Beast card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `ironmoot_hafter` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `ironmoot_hafter@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Axe-Hafter"
+- Presentation body: "An old hafter fits axe-heads to anything with a handle. He will rework one card into an axe, though not one you pick."
+- Discovery: none
+
+- Story: `ironmoot_hafter` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `ironmoot`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["ironmoot"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "ironmoot"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `150` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `retype`
+
+- Presentation label: "Have a card rehafted as an Axe card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "weapons": [
+        "axe"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `ironmoot_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `ironmoot_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Axe Broker"
+- Presentation body: "An axe broker has racked his stock along a wall of the moot hall. He swaps any card for an axe, and an axe trades a grade better."
+- Discovery: none
+
+- Story: `ironmoot_trader` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `ironmoot`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["ironmoot"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "ironmoot"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Axe card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "weapons": [
+        "axe"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `jewelers_window` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `jewelers_window@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Jeweler's Window"
+- Presentation body: "A jeweler opens his shutter only for travelers who look like they can pay. Today, that is you."
+- Discovery: none
+
+- Story: `jewelers_window` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(wallet.current gte 15, node.depth gte 9)`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "wallet.current",
+      "args": {
+        "op": "gte",
+        "value": 15
+      }
+    },
+    {
+      "fact": "node.depth",
+      "args": {
+        "op": "gte",
+        "value": 9
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `wallet.current` → `RunState.gold`
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `buy_gold`
+
+- Presentation label: "Buy a Gold card (8 gold)"
+- Cost: `8` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `buy_diamond`
+
+- Presentation label: "Buy a Diamond card (14 gold)"
+- Cost: `14` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "diamond",
+  "minTier": "diamond"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Window-shop and move on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `lantern_wake` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lantern_wake@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lantern Wake"
+- Presentation body: "Mourners line the barrow road with unlit lanterns, one for each soul the Duskbarrow keeps. A lantern lit for the dead is a debt they repay once the barrow's master falls."
+- Discovery: none
+
+- Story: `lantern_wake` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `duskbarrow`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["duskbarrow"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "duskbarrow"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `220` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `light_lantern`
+
+- Presentation label: "Light a lantern for the dead (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `take_dark_card`
+
+- Presentation label: "Take a Dark card (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Walk past the mourners"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `lanterns_answer` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lanterns_answer@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lanterns Answer"
+- Presentation body: "With the Duskbarrow's master fallen, the lantern you lit drifts back along the road, and the dead keep their word."
+- Discovery: none
+
+- Story: `lantern_wake` · stage `payoff` · role `payoff`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(event.choice(lantern_wake in [light_lantern]), combat.biomeBossDefeated({"biomeId":"duskbarrow"}))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "event.choice",
+      "args": {
+        "eventId": "lantern_wake",
+        "choiceIds": [
+          "light_lantern"
+        ]
+      }
+    },
+    {
+      "fact": "combat.biomeBossDefeated",
+      "args": {
+        "biomeId": "duskbarrow"
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `event.choice` → `RunState.eventResolutions`
+- `combat.biomeBossDefeated` → `RunState.combatFactLedger`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `300` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_any_card`
+
+- Presentation label: "Let the dead copy one of your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lantern_wake"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_dark`
+
+- Presentation label: "Take a gold Dark card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lantern_wake"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `last_acolyte` · current version `2`
 
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
 - Identity: `last_acolyte@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Last Acolyte"
 - Presentation body: "A cloaked figure kneels at the edge of Duskbarrow's rot, the only living student of a dead order. They offer to teach you the rite they alone remember, in exchange for a place on your road."
 - Discovery: none
@@ -5084,6 +7240,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/70-pikewold.json`
 - Identity: `last_hedge@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Last Hedge"
 - Presentation body: "At Pikewold's far boundary, a veteran holds the last living hedge with one weathered lance and a lesson in refusing the road's advance."
 - Discovery: `hold_the_line` · Hold the Line · account `future`
@@ -5215,6 +7372,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `last_light_at_roads_end@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Last Light at Road's End"
 - Presentation body: "After the last defeat, a lone lantern burns where the road divides. Its keeper offers strength for the safer path—or a spark for the unlit one."
 - Discovery: `last_light` · Last Light · account `future`
@@ -5367,6 +7525,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `last_light_secret_route@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Unlit Road"
 - Presentation body: "The lantern's spark reveals a hidden mile between the known roads. It offers one last cache before the darkness closes again."
 - Discovery: none
@@ -5494,6 +7653,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `last_omens_toll@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Last Omen's Toll"
 - Presentation body: "Word of your first felled champion reaches the shrine before you do. The omen-readers already have your fortune half-drawn."
 - Discovery: none
@@ -5576,11 +7736,359 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `last_stand_shrine` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `last_stand_shrine@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Last Stand Shrine"
+- Presentation body: "On your last life, you find a shrine to those who would not fall. Its keeper offers you one last edge."
+- Discovery: none
+
+- Story: `last_stand_shrine` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `common` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `lives.current eq 1`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "lives.current",
+  "args": {
+    "op": "eq",
+    "value": 1
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `lives.current` → `RunState.lives`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_card`
+
+- Presentation label: "Take a Gold card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `take_hp`
+
+- Presentation label: "Take +5 MAX HP"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantStat",
+  "stat": "maxHp"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `lightning_rod` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lightning_rod@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lightning Rod"
+- Presentation body: "A tinker is hammering iron rods into the Stormreach hilltops. \"Plant one,\" he says, \"and the next storm will strike for you.\""
+- Discovery: none
+
+- Story: `lightning_rod` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `stormreach`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["stormreach"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "stormreach"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `220` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `plant_rod`
+
+- Presentation label: "Plant a rod (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `lightning_rod/plant_rod` → `lightning_strikes_twice@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "lightning_strikes_twice",
+  "eventId": "lightning_strikes_twice",
+  "contentVersion": 1,
+  "minDepthDelay": 4,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 16,
+    "fallback": "discard"
+  }
+}
+```
+
+#### Fixed choice 2: `take_lightning_card`
+
+- Presentation label: "Take a Lightning card (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "lightning"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Leave the tinker to his work"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `lightning_strikes_twice` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lightning_strikes_twice@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "Lightning Strikes Twice"
+- Presentation body: "A storm rolls over the road behind you, and far off your rod takes the strike. The tinker catches up, grinning at the scorched iron. \"Twice the strike, twice the steel.\""
+- Discovery: none
+
+- Story: `lightning_rod` · stage `callback` · role `callback`
+- Theme `forge` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"lightning_strikes_twice"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "lightning_strikes_twice"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_any_card`
+
+- Presentation label: "Copy one of your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lightning_rod"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_lightning`
+
+- Presentation label: "Upgrade one of your Lightning cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "lightning"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lightning_rod"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `lightning_struck_spire` · current version `2`
 
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
 - Identity: `lightning_struck_spire@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Lightning-Struck Spire"
 - Presentation body: "A shattered spire juts from Stormreach's ridgeline, its stone still smoking from a strike that split it top to base. A single blackened arc still crawls the crack, waiting for a hand that can hold it."
 - Discovery: none
@@ -5673,11 +8181,346 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `lost_cub` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lost_cub@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lost Cub"
+- Presentation body: "A wolf cub whimpers in the Howlmoor reeds, too young to hunt and too stubborn to leave. Feed it, and it may remember you."
+- Discovery: none
+
+- Story: `lost_cub` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `uncommon` · biome `howlmoor`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["howlmoor"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "howlmoor"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `220` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `feed_cub`
+
+- Presentation label: "Feed the cub (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `lost_cub/feed_cub` → `lost_cub_returns@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "lost_cub_returns",
+  "eventId": "lost_cub_returns",
+  "contentVersion": 1,
+  "minDepthDelay": 4,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 16,
+    "fallback": "discard"
+  }
+}
+```
+
+#### Fixed choice 2: `take_beast_card`
+
+- Presentation label: "Take a Beast card (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Leave it to the moor"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `lost_cub_returns` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `lost_cub_returns@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Wolf Returns"
+- Presentation body: "A grown wolf steps onto the road and drops something at your feet before vanishing into the trees. The cub remembered."
+- Discovery: none
+
+- Story: `lost_cub` · stage `callback` · role `callback`
+- Theme `recruit` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"lost_cub_returns"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "lost_cub_returns"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_gold_beast`
+
+- Presentation label: "Take a gold Beast card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lost_cub"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_beast`
+
+- Presentation label: "Upgrade one of your Beast cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "beast"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "lost_cub"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `mercy_wagon` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `mercy_wagon@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Mercy Wagon"
+- Presentation body: "A field-surgeon's wagon finds you still bleeding from your last fight. She patches you up and presses a parting gift on you."
+- Discovery: none
+
+- Story: `mercy_wagon` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `common` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `combat.recentLoss({"withinDepth":2})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "combat.recentLoss",
+  "args": {
+    "withinDepth": 2
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `combat.recentLoss` → `RunState.combatFactLedger + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_card`
+
+- Presentation label: "Take a Silver card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold`
+
+- Presentation label: "Take 4 gold"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 4
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `mirror_of_the_board` · current version `2`
 
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `mirror_of_the_board@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Mirror of the Board"
 - Presentation body: "A road-forge holds a mirror wide enough for your whole formation. It reflects a single shared purpose more clearly than any face."
 - Discovery: `one_purpose` · One Purpose · account `future`
@@ -6038,6 +8881,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `mirror_transformation@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Beyond the Board's Mirror"
 - Presentation body: "The reflection returns at another forge, still holding the affinity it witnessed. One final transformation waits behind the silvered road."
 - Discovery: none
@@ -6342,6 +9186,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `missing_road_destination@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Missing Road"
 - Presentation body: "The cartographer's mark appears beneath your feet in the biome it named. For a moment, the road opens onto a cache hidden outside every common map."
 - Discovery: none
@@ -6468,11 +9313,227 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `moneylender` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `moneylender@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Moneylender"
+- Presentation body: "A moneylender in a fur collar is raising a stake for a caravan. Lend him coin now and he swears to pay it back nearly twice over down the road."
+- Discovery: none
+
+- Story: `moneylender` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `common` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 2`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 2
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `lend`
+
+- Presentation label: "Lend 5 gold (1 gold interest now)"
+- Cost: `5` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 1
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `moneylender/lend` → `moneylender_repays@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "moneylender_repays",
+  "eventId": "moneylender_repays",
+  "contentVersion": 1,
+  "minDepthDelay": 4,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 20,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 5
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your coin"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `moneylender_repays` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `moneylender_repays@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Moneylender Pays"
+- Presentation body: "The moneylender catches up with you, caravan sold and purse fat. He counts out what he owes, or offers a finer piece of the cargo instead."
+- Discovery: none
+
+- Story: `moneylender` · stage `callback` · role `callback`
+- Theme `market` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"moneylender_repays"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "moneylender_repays"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `collect`
+
+- Presentation label: "Collect 9 gold"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 9
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "moneylender"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `cargo`
+
+- Presentation label: "Take a Silver card from the cargo"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "moneylender"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `moon_scented_hunt` · current version `2`
 
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
 - Identity: `moon_scented_hunt@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Moon Hunt"
 - Presentation body: "The silver trail reaches its quarry beneath a low moon. Hunter and hunted wait for you to decide how the chase ends."
 - Discovery: none
@@ -6602,6 +9663,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/50-howlmoor.json`
 - Identity: `moon_scented_trail@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Moon-Scented Trail"
 - Presentation body: "Silver tracks cross the Howlmoor road and vanish into heather. The trail bends for a hunter who runs with beasts—or has already broken a pack."
 - Discovery: `hunted_the_hunter` · Hunted the Hunter · account `future`
@@ -6749,6 +9811,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
 - Identity: `names_under_stone@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Names Under Stone"
 - Presentation body: "Beyond Duskbarrow's fallen lord, a mile of grave markers leans toward the road. One stone speaks a name that only a bearer of dark craft could answer."
 - Discovery: `the_grave_answers` · The Grave Answers · account `future`
@@ -6900,6 +9963,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/20-duskbarrow.json`
 - Identity: `names_under_stone_answer@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Grave Answers"
 - Presentation body: "Three roads later, the stolen silver rings against a nameless marker. The earth answers in a voice that has followed beneath every mile."
 - Discovery: none
@@ -7033,6 +10097,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/85-swornhold.json`
 - Identity: `oathsmiths_forge@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Oathsmith"
 - Presentation body: "Swornhold's forge never truly cools. Its smith takes no coin, only oaths, and the blade she sets aside today is already promised to whoever swears to carry it into the line."
 - Discovery: none
@@ -7138,6 +10203,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `overloaded_caravan@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Overloaded Caravan"
 - Presentation body: "A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. A bundle of bowstaves is lashed to the tailgate where anyone can see it; the trunks behind it are packed with no order at all and could hold anything. Push, and she'll let you take from either — or just toss you a coin for a shoulder at the wheel."
 - Discovery: none
@@ -7204,11 +10270,3355 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `patron_axe` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_axe@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Axe Patron"
+- Presentation body: "A broad-shouldered woodcutter weighs your Axe cards with a craftsman's eye. \"Heavy hands, honest work,\" she says. \"I'll stake you.\""
+- Discovery: none
+
+- Story: `patron_axe` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"axe"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "axe"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Axe card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "axe"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the axe"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_axe/swear_to_patron` → `patron_axe_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_axe_gift",
+  "eventId": "patron_axe_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_axe_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_axe_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Axe Patron's Gift"
+- Presentation body: "The woodcutter waits at a fork in the road, axe across her knees. \"You held your grip. Here is my stake.\""
+- Discovery: none
+
+- Story: `patron_axe` · stage `callback` · role `callback`
+- Theme `forge` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_axe_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_axe_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Axe cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "weapons": [
+        "axe"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_axe"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Axe card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "axe"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_axe"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Axe cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "axe"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_axe"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_beast` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_beast@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Beast Patron"
+- Presentation body: "A hunter with a wolf at heel looks over your Beast cards and whistles low. \"The pack likes you,\" she says. \"That's rare.\""
+- Discovery: none
+
+- Story: `patron_beast` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"beast"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "beast"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Beast card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Run with the pack"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_beast/swear_to_patron` → `patron_beast_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_beast_gift",
+  "eventId": "patron_beast_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_beast_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_beast_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Beast Patron's Gift"
+- Presentation body: "Howls rise behind you, and the hunter strides out of the brush with her wolf. \"The pack remembers. Choose your share.\""
+- Discovery: none
+
+- Story: `patron_beast` · stage `callback` · role `callback`
+- Theme `recruit` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_beast_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_beast_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Beast cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_beast"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Beast card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "beast"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_beast"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Beast cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "beast"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_beast"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_bow` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_bow@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Bow Patron"
+- Presentation body: "An archer on a fence post lowers her bow as your Bow cards catch her eye. \"Patient hands,\" she says. \"I train those worth the arrows.\""
+- Discovery: none
+
+- Story: `patron_bow` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"bow"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "bow"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Bow card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "bow"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the string"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_bow/swear_to_patron` → `patron_bow_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_bow_gift",
+  "eventId": "patron_bow_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_bow_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_bow_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Bow Patron's Gift"
+- Presentation body: "An arrow thuds into a post beside you, a note tied to its shaft. The archer is waiting below. \"Your lesson is ready.\""
+- Discovery: none
+
+- Story: `patron_bow` · stage `callback` · role `callback`
+- Theme `training` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_bow_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_bow_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Bow cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "weapons": [
+        "bow"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_bow"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Bow card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "bow"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_bow"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Bow cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "bow"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_bow"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_dark` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_dark@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Dusk Patron"
+- Presentation body: "A hooded figure falls into step beside you, interested only in your Dark cards. \"Shadow rewards the faithful,\" it whispers. \"Eventually.\""
+- Discovery: none
+
+- Story: `patron_dark` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"dark"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "dark"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Dark card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the dusk"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_dark/swear_to_patron` → `patron_dark_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_dark_gift",
+  "eventId": "patron_dark_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_dark_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_dark_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Dusk Patron's Gift"
+- Presentation body: "The hooded figure steps out of a lengthening shadow. \"You kept faith with the dark. Take what you are owed.\""
+- Discovery: none
+
+- Story: `patron_dark` · stage `callback` · role `callback`
+- Theme `omen` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_dark_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_dark_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Dark cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_dark"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Dark card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "dark"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_dark"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Dark cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "dark"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_dark"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_fire` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_fire@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Ember Patron"
+- Presentation body: "A smith with soot to the elbow watches your Fire cards burn and nods once. \"I back those who commit to the flame,\" she says, and opens her strongbox."
+- Discovery: none
+
+- Story: `patron_fire` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"fire"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "fire"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Fire card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the flame"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_fire/swear_to_patron` → `patron_fire_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_fire_gift",
+  "eventId": "patron_fire_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_fire_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_fire_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Ember Patron's Gift"
+- Presentation body: "The soot-armed smith finds you again, true to her word. \"You kept the fire lit. Choose your due.\""
+- Discovery: none
+
+- Story: `patron_fire` · stage `callback` · role `callback`
+- Theme `forge` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_fire_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_fire_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Fire cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_fire"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Fire card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "fire"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_fire"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Fire cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "fire"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_fire"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_frost` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_frost@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Rime Patron"
+- Presentation body: "An old woman sits unbothered in a ring of frost, studying your Frost cards. \"Cold that patient deserves a backer,\" she says."
+- Discovery: none
+
+- Story: `patron_frost` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"frost"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "frost"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Frost card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "frost"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the cold"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_frost/swear_to_patron` → `patron_frost_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_frost_gift",
+  "eventId": "patron_frost_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_frost_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_frost_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Rime Patron's Gift"
+- Presentation body: "Frost creeps across the road ahead, and the old woman is waiting inside it. \"Patience pays. Choose.\""
+- Discovery: none
+
+- Story: `patron_frost` · stage `callback` · role `callback`
+- Theme `omen` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_frost_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_frost_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Frost cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "frost"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_frost"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Frost card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "frost"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_frost"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Frost cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "frost"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_frost"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_holy` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_holy@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Dawn Patron"
+- Presentation body: "A priestess in white stops you at a roadside shrine. \"The light follows your Holy cards,\" she says. \"Let it follow you further.\""
+- Discovery: none
+
+- Story: `patron_holy` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"holy"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "holy"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Holy card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Take the dawn vow"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_holy/swear_to_patron` → `patron_holy_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_holy_gift",
+  "eventId": "patron_holy_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_holy_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_holy_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Dawn Patron's Gift"
+- Presentation body: "At first light the priestess is waiting on the road. \"Your vow held. Receive the dawn's gift.\""
+- Discovery: none
+
+- Story: `patron_holy` · stage `callback` · role `callback`
+- Theme `omen` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_holy_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_holy_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Holy cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_holy"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Holy card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_holy"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Holy cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "holy"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_holy"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_lance` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_lance@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lance Patron"
+- Presentation body: "A drillmaster plants a banner by the road and watches your Lance cards with approval. \"A line that holds is worth backing.\""
+- Discovery: none
+
+- Story: `patron_lance` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"lance"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "lance"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Lance card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "lance"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Join the drillmaster's line"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_lance/swear_to_patron` → `patron_lance_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_lance_gift",
+  "eventId": "patron_lance_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_lance_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_lance_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Lance Patron's Gift"
+- Presentation body: "The drillmaster's banner rises over the next ridge. \"You held the line. Collect your commission.\""
+- Discovery: none
+
+- Story: `patron_lance` · stage `callback` · role `callback`
+- Theme `training` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_lance_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_lance_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Lance cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "weapons": [
+        "lance"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lance"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Lance card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "lance"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lance"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Lance cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "lance"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lance"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_lightning` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_lightning@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Storm Patron"
+- Presentation body: "A merchant whose hair stands on end leans over his stall, eyeing your Lightning cards. \"Lightning sells itself,\" he grins. \"Let me invest.\""
+- Discovery: none
+
+- Story: `patron_lightning` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"lightning"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "lightning"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Lightning card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "lightning"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Shake on a storm contract"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_lightning/swear_to_patron` → `patron_lightning_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_lightning_gift",
+  "eventId": "patron_lightning_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_lightning_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_lightning_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Storm Patron's Gift"
+- Presentation body: "The storm merchant flags you down, sparks dancing across his ledger. \"Contract's due. Pick your return.\""
+- Discovery: none
+
+- Story: `patron_lightning` · stage `callback` · role `callback`
+- Theme `market` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_lightning_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_lightning_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Lightning cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "lightning"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lightning"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Lightning card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "lightning"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lightning"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Lightning cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "lightning"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_lightning"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_nature` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_nature@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Grove Patron"
+- Presentation body: "Roots part around a moss-covered chest as you pass, as if your Nature cards were a key. A voice in the leaves offers a gift now, or a promise."
+- Discovery: none
+
+- Story: `patron_nature` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"nature"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "nature"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Nature card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "nature"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Promise to tend the grove"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_nature/swear_to_patron` → `patron_nature_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_nature_gift",
+  "eventId": "patron_nature_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_nature_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_nature_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Grove Patron's Gift"
+- Presentation body: "Roots open again on a far road, and the moss-covered chest is heavier than before. The grove keeps its promises."
+- Discovery: none
+
+- Story: `patron_nature` · stage `callback` · role `callback`
+- Theme `cache` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_nature_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_nature_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Nature cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "elements": [
+        "nature"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_nature"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Nature card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "nature"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_nature"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Nature cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "nature"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_nature"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_sword` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_sword@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Blade Patron"
+- Presentation body: "A retired champion polishes a rack of blades and studies your Sword cards. \"Good steel in good hands,\" he says. \"I can arm you now, or back you later.\""
+- Discovery: none
+
+- Story: `patron_sword` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `board.affinity({"affinityId":"sword"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "board.affinity",
+  "args": {
+    "affinityId": "sword"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `board.affinity` → `RunState.pieces`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `hidden_until_eligible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_silver_card`
+
+- Presentation label: "Take a silver Sword card (2 gold)"
+- Cost: `2` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "sword"
+      ]
+    }
+  ],
+  "maxTier": "silver",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `swear_to_patron`
+
+- Presentation label: "Swear to the blade"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `patron_sword/swear_to_patron` → `patron_sword_gift@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "patron_sword_gift",
+  "eventId": "patron_sword_gift",
+  "contentVersion": 1,
+  "minDepthDelay": 3,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 12,
+    "fallback": {
+      "outcome": {
+        "kind": "grantGold",
+        "amount": 4
+      }
+    }
+  }
+}
+```
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `patron_sword_gift` · current version `1`
+
+- Source pack: `src/data/content/event-packs/130-patron-chains.json`
+- Identity: `patron_sword_gift@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Blade Patron's Gift"
+- Presentation body: "The old champion has ridden ahead to meet you, a cloth-wrapped bundle across his saddle. \"As promised.\""
+- Discovery: none
+
+- Story: `patron_sword` · stage `callback` · role `callback`
+- Theme `forge` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"patron_sword_gift"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "patron_sword_gift"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `copy_card`
+
+- Presentation label: "Copy one of your Sword cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "duplicate",
+  "pickFrom": [
+    {
+      "weapons": [
+        "sword"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_sword"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `take_gold_card`
+
+- Presentation label: "Take a gold Sword card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "weapons": [
+        "sword"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "gold"
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_sword"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 3: `upgrade_card`
+
+- Presentation label: "Upgrade one of your Sword cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "weapons": [
+          "sword"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "patron_sword"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `paupers_purse` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `paupers_purse@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Pauper's Purse"
+- Presentation body: "\"No one should walk this road with nothing,\" says the pilgrim who sees your empty purse. She offers what she can spare."
+- Discovery: none
+
+- Story: `paupers_purse` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(wallet.current lte 1, node.depth gte 3)`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "wallet.current",
+      "args": {
+        "op": "lte",
+        "value": 1
+      }
+    },
+    {
+      "fact": "node.depth",
+      "args": {
+        "op": "gte",
+        "value": 3
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `wallet.current` → `RunState.gold`
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `250` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_gold`
+
+- Presentation label: "Take 5 gold"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantGold",
+  "amount": 5
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `take_card`
+
+- Presentation label: "Take a card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `peddlers_token` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `peddlers_token@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Peddler's Token"
+- Presentation body: "A shop-runner hands out brass tokens to drum up trade. Each one buys a free reroll at any shop down the road."
+- Discovery: none
+
+- Story: `peddlers_token` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `common` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 1`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 1
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_tokens`
+
+- Presentation label: "Take 2 shop tokens"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantShopRerolls",
+  "amount": 2
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `buy_tokens`
+
+- Presentation label: "Buy 3 tokens instead (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "grantShopRerolls",
+  "amount": 3
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "No thanks"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `penitents_road` · current version `2`
 
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
 - Identity: `penitents_road@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Penitent's Road"
 - Presentation body: "A stretch of Hallowfield's road runs bare of grass, worn smooth by knees rather than boots. At its end a plain altar holds one blade of consecrated light, left for whoever finishes the walk."
 - Discovery: none
@@ -7313,6 +13723,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/70-pikewold.json`
 - Identity: `pike_forge@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Pike-Forge"
 - Presentation body: "A field-forge still glows at Pikewold's rear line, its bellows worked by no one and its rack holding a single braced shaft, cooling from the last quench."
 - Discovery: none
@@ -7418,11 +13829,451 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `pikewold_shaft_turner` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `pikewold_shaft_turner@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Shaft-Turner"
+- Presentation body: "A turner lengthens hafts into pike shafts for the drill yard. Hand him a card and it comes back as a lance."
+- Discovery: none
+
+- Story: `pikewold_shaft_turner` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `pikewold`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["pikewold"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "pikewold"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `150` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `retype`
+
+- Presentation label: "Have a card turned into a Lance card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "weapons": [
+        "lance"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `pikewold_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `pikewold_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Pike Trader"
+- Presentation body: "A quartermaster trades spare lances off the back of a wagon. Any card buys one; a lance buys one a grade better."
+- Discovery: none
+
+- Story: `pikewold_trader` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `pikewold`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["pikewold"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "pikewold"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Lance card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "weapons": [
+        "lance"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `pilgrims_relic` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `pilgrims_relic@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Pilgrim's Relic"
+- Presentation body: "A dying pilgrim presses a wrapped relic into your hands. \"Carry it beyond the Hallowfield,\" she breathes, \"and the light will thank you.\""
+- Discovery: none
+
+- Story: `pilgrims_relic` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `hallowfield`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["hallowfield"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "hallowfield"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `220` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `carry_relic`
+
+- Presentation label: "Carry the relic onward"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback edge: `pilgrims_relic/carry_relic` → `pilgrims_relic_delivered@v1`
+- Typed callback (including bindings and expiry/fallback):
+
+```json
+{
+  "callbackId": "pilgrims_relic_delivered",
+  "eventId": "pilgrims_relic_delivered",
+  "contentVersion": 1,
+  "minDepthDelay": 5,
+  "destinationThemes": [
+    "training",
+    "cache",
+    "recruit",
+    "forge",
+    "market",
+    "omen"
+  ],
+  "destinationBiomeIds": [
+    "arrowfell",
+    "duskbarrow",
+    "emberwaste",
+    "frostmarch",
+    "howlmoor",
+    "ironmoot",
+    "pikewold",
+    "stormreach",
+    "swornhold",
+    "thornwild"
+  ],
+  "priority": 700,
+  "bind": [],
+  "expiry": {
+    "expiresAfterNodes": 20,
+    "fallback": "discard"
+  }
+}
+```
+
+#### Fixed choice 2: `take_holy_card`
+
+- Presentation label: "Take a Holy card (1 gold)"
+- Cost: `1` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "elements": [
+        "holy"
+      ]
+    }
+  ],
+  "maxTier": "bronze"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `leave`
+
+- Presentation label: "Leave the relic at the shrine"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `pilgrims_relic_delivered` · current version `1`
+
+- Source pack: `src/data/content/event-packs/140-biome-chains.json`
+- Identity: `pilgrims_relic_delivered@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Relic Delivered"
+- Presentation body: "Far from the Hallowfield, the relic warms in your pack and unwraps itself in a burst of light."
+- Discovery: none
+
+- Story: `pilgrims_relic` · stage `callback` · role `callback`
+- Theme `training` · art `theme fallback` · rarity `rare` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `callback.queued({"callbackId":"pilgrims_relic_delivered"})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "callback.queued",
+  "args": {
+    "callbackId": "pilgrims_relic_delivered"
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `callback.queued` → `RunState.eventCallbackQueue`
+
+### Delivery and selection
+
+- Delivery `queued_callback` · visibility `teased_when_due` · priority `700` · once `run` · cooldown `0` nodes
+
+### Accepted callback bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `upgrade_holy`
+
+- Presentation label: "Upgrade one of your Holy cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "any",
+      "match": {
+        "elements": [
+          "holy"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "pilgrims_relic"
+  }
+]
+```
+
+- Callback: none
+
+#### Fixed choice 2: `relic_gem`
+
+- Presentation label: "Choose a relic gem"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "gemChoice",
+  "filter": [
+    {
+      "ids": [
+        "prism_barrier_echo",
+        "second_wind_echo",
+        "sanctuary_sliver"
+      ]
+    }
+  ]
+}
+```
+
+- Typed mutations:
+
+```json
+[
+  {
+    "op": "completeStory",
+    "storyId": "pilgrims_relic"
+  }
+]
+```
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `pyre_watch` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `pyre_watch@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Pyre-Watch"
 - Presentation body: "A watch-fire burns at the crossroads for the road's dead, tended by a hooded keeper who does not ask whose name you are carrying. The fire already knows: you left a life on a field behind you, and the pyre-watch keeps the old custom for anyone who limps past it — alms for the mourner, or arms for the living."
 - Discovery: none
@@ -7508,6 +14359,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `quartermasters_error@v1`
 - Retained versions: v1 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Quartermaster's Error"
 - Presentation body: "A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. \"Take the armor plating — it's all defensive issue, wards and guards and nothing that hits back,\" he says, \"or the loose gemstone in the corner. Don't care which — just take it and go before someone notices.\""
 - Discovery: none
@@ -7564,6 +14416,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `quiet_ledger@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Quiet Ledger"
 - Presentation body: "A quiet ledger-keeper flags you down before the next stall. Eight gold through her books earns a courtesy the regulars get."
 - Discovery: none
@@ -7655,6 +14508,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `quiet_muster@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: repeatable
 - Presentation title: "The Quiet Muster"
 - Presentation body: "A quiet muster gathers off the road's shoulder, support-hands and menders comparing notes over a cookfire. Two gold buys a seat at their circle."
 - Discovery: none
@@ -7757,6 +14611,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `recruiter@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Recruiter"
 - Presentation body: "A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. \"Swords are racked on their own — anything else, you take your chances with what's in the cart,\" he grins, laying out a row of five either way. \"Or take the coin instead. I won't haggle.\""
 - Discovery: none
@@ -7841,6 +14696,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/60-ironmoot.json`
 - Identity: `red_standard@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Red Standard"
 - Presentation body: "An old Ironmoot standard hangs above a silent drill yard. Three victories won beneath the axe are stitched into its ragged edge."
 - Discovery: `under_the_red_standard` · Under the Red Standard · account `future`
@@ -7956,6 +14812,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `retiring_smith@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Smith's Last Commission"
 - Presentation body: "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"No charge,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you."
 - Discovery: none
@@ -8004,6 +14861,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
 - Identity: `rime_locked_sledge@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Rime-Locked Sledge"
 - Presentation body: "A frost-smith's sledge lies half-forged in a block of ice at the Frostmarch's edge, its head shaped for a binding cold that never finished setting."
 - Discovery: none
@@ -8107,6 +14965,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `roadside_wager@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Roadside Wager"
 - Presentation body: "A drill instructor at the practice yard slaps a coin on the rail: stake it against your own form, and you might walk off richer — or just walk off."
 - Discovery: none
@@ -8230,6 +15089,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
 - Identity: `rootbound_hermit@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Rootbound Hermit"
 - Presentation body: "A hermit sits half-grown into Thornwild's tangle, bark climbing one arm and thorns threading through their hair. They offer to walk with you, if you'll carry the thorn they can no longer wield."
 - Discovery: none
@@ -8326,6 +15186,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `ruined_anvil@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Ruined Anvil"
 - Presentation body: "One of the Cinderworks' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go. The anvil will still take a heavier job for nothing: lay one piece of your gear across it and it beats down a step further along its own grade."
 - Discovery: none
@@ -8394,6 +15255,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
 - Identity: `sanctum_vigil@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Sanctum Vigil"
 - Presentation body: "Past Hallowfield's consecrated line, a keeper still holds a vigil no map explains. The ward has stood since before the road, and it has never once let anything back out."
 - Discovery: none
@@ -8526,6 +15388,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/45-hallowfield.json`
 - Identity: `sanctum_vigil_answer@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "What the Ward Kept Out"
 - Presentation body: "The vigil answers: a wisp of dark magic, held at the boundary since long before you crossed it, still restless against the consecrated line. The keeper offers you the choosing of what becomes of it."
 - Discovery: none
@@ -8648,11 +15511,95 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `scavengers_field` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `scavengers_field@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Scavenger's Field"
+- Presentation body: "Your last victory left gear strewn across the ground. A drill-master nods at the pile: \"Use what beat you, or near enough.\""
+- Discovery: none
+
+- Story: `scavengers_field` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `common` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `run.tally.wins gte 1`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "run.tally",
+  "args": {
+    "stat": "wins",
+    "op": "gte",
+    "value": 1
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `run.tally` → `RunState.wins`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `120` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `scavenge`
+
+- Presentation label: "Take a card your last foes used"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "scavengeCard",
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Leave it"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `scrap_reclaimer` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `scrap_reclaimer@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Scrap Reclaimer"
 - Presentation body: "A reclaimer picks through scrap at the forge's edge, trading facets no one else wants for the ones that ward, cleanse, and taunt."
 - Discovery: none
@@ -8736,6 +15683,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/90-thornwild.json`
 - Identity: `seedvault@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Seedvault"
 - Presentation body: "A stone vault stands sealed beneath Thornwild's oldest tree, its lid grown shut with roots. Inside, a keeper's hoard of seeds waits for a nature-tempered hand to crack it open."
 - Discovery: none
@@ -8864,6 +15812,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `sellsword_camp@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Sellsword Camp"
 - Presentation body: "A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and waves at the camp: the axes stand in their own rack by the mess tent, company-issue and nothing but axes, while the armory tent behind it is steel of every make thrown in together. Or, if you'd rather not linger, a coin for the road."
 - Discovery: none
@@ -8946,6 +15895,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `sellswords_bazaar@v1`
 - Retained versions: v1 (schema 3)
+- Draw: repeatable
 - Presentation title: "Sellsword's Bazaar"
 - Presentation body: "A bazaar stall at the market's edge sells warding charms to anyone passing, one gold and no haggling."
 - Discovery: none
@@ -9032,6 +15982,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/06-challenges.json`
 - Identity: `sellswords_wager@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Sellswords' Wager"
 - Presentation body: "A band of sellswords has pooled a purse and is offering it to anyone who can put their toughest down. Odds are chalked on a barrel head, and the crowd is already loud about which way they think this goes."
 - Discovery: none
@@ -9131,6 +16082,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/110-global-chains.json`
 - Identity: `signature_card_capstone@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Remembered Art"
 - Presentation body: "At the next forge, the bound card names the victories that shaped it. Its answer is a final refinement—or permission to rest."
 - Discovery: none
@@ -9270,6 +16222,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `silent_augury@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Silent Augury"
 - Presentation body: "A hush falls at the crossroads shrine as an augur reads smoke rising off cold coals — a glimpse of the road ahead, if you'll trade a moment's patience for it."
 - Discovery: none
@@ -9348,6 +16301,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `silt_reliquary@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Silt Reliquary"
 - Presentation body: "A half-sunk reliquary in the Silt Hollows holds one true relic, waiting to be beaten a step further."
 - Discovery: none
@@ -9441,6 +16395,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/30-emberwaste.json`
 - Identity: `slag_glass_cache@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Slag-Glass Cache"
 - Presentation body: "Fused slag has cooled into a glassy shell around a hoard from some earlier traveler, its contents visible but sealed. Only fire-tempered hands can crack it open."
 - Discovery: none
@@ -9566,6 +16521,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `smiths_temper@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "A Smith's Tempering"
 - Presentation body: "Sparks scatter from a wayside forge as a smith works a plate of scarred steel, quenching it again and again until it rings true. She catches you watching and nods toward your own gear. \"Bring it here,\" she says. \"One more pass never hurt anyone who lived to need it.\""
 - Discovery: none
@@ -9678,6 +16634,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `sparring_circle@v1`
 - Retained versions: v1 (schema 1)
+- Draw: repeatable
 - Presentation title: "Sparring Circle"
 - Presentation body: "A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: \"Two gold buys you a real lesson. Or help yourself to the practice rack — it's every kind of gear anyone ever left here, all of it meant for hitting things, and no two pieces alike.\""
 - Discovery: none
@@ -9734,6 +16691,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `standing_stone@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Standing Stone"
 - Presentation body: "A weathered stone leans at the crossroads, worn smooth by hands that pressed against it long before yours. The old markings promise nothing you can read, but the stone is warm under your palm — warmer than the air around it, as though it has been waiting."
 - Discovery: none
@@ -9830,11 +16788,103 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `stormreach_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `stormreach_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Storm Barterer"
+- Presentation body: "A barterer whose hair stands on end swaps charged wares for anything you carry. Lightning buys a grade better."
+- Discovery: none
+
+- Story: `stormreach_trader` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `stormreach`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["stormreach"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "stormreach"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Lightning card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "lightning"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `sweep_drill` · current version `2`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `sweep_drill@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Sweep Drill"
 - Presentation body: "A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever's standing next to your actual target, whether you meant it to or not. \"Newer recruits call it splash,\" she snorts, resting a training axe on her shoulder. \"I call it not missing twice. Two gold, and I'll teach you the sweep itself.\""
 - Discovery: none
@@ -9901,6 +16951,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `sworn_company@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Sworn Company"
 - Presentation body: "A sworn company drills three-deep at the roadside, offering to temper one piece of your gear the way they beat their own ranks into shape."
 - Discovery: none
@@ -9997,11 +17048,103 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `swornhold_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `swornhold_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Blade Exchange"
+- Presentation body: "The garrison armorer swaps blades for whatever a recruit brings in. Hand him a sword and he returns a grade better."
+- Discovery: none
+
+- Story: `swornhold_trader` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `swornhold`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["swornhold"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "swornhold"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Sword card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "weapons": [
+        "sword"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `temper_or_break` · current version `2`
 
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `temper_or_break@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "Temper or Break"
 - Presentation body: "A forge-hand offers to temper your gear over open coals — three gold gets you a real chance at something better, or nothing but scorch marks."
 - Discovery: none
@@ -10123,6 +17266,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `the_bell_unbound@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Bell Unbound"
 - Presentation body: "In the Emberwaste the Frostmarch bell finally thaws. Steam curls from its silver throat, and it speaks the name you once gave it."
 - Discovery: none
@@ -10233,6 +17377,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `the_lands_measure@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Land's Measure"
 - Presentation body: "A surveyor's drop-box juts from the mud of the Silt Hollows, stenciled with the mark of whatever country you are crossing. The locals cache what the land makes, and any land worth naming only makes one thing well — the box is local work to the last piece. Lashed underneath it rides a hunter's kit, picked to hurt what lives here. When anything can."
 - Discovery: none
@@ -10301,6 +17446,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `the_lapidary@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Lapidary"
 - Presentation body: "A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. \"Reject bin's free to pick through,\" she says, without looking up, \"and if you've got a stone you're done carrying, I'll take it off your hands too — fair price, no haggling.\" The good tray, though, isn't free."
 - Discovery: none
@@ -10375,6 +17521,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `the_reckoning@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Reckoning"
 - Presentation body: "The shrine finds you, this time. A cairn of crossroads stone stands where no cairn stood yesterday, sun-mark and moon-mark cut fresh into its face — and beneath them, in scratches you never made, a tally of everything you ever left at the Crossroads Unquiet. Whatever keeps the shrine's accounts has ruled your devotion paid up, and tonight it settles its side of the ledger."
 - Discovery: none
@@ -10468,6 +17615,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `the_second_toll@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Second Toll"
 - Presentation body: "The bell you cut from the ice sounds once inside your pack, though nothing has touched it. Across the white distance, a cairn answers."
 - Discovery: none
@@ -10561,6 +17709,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `thorn_garden_shrine@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Thorn Garden Shrine"
 - Presentation body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it."
 - Discovery: none
@@ -10628,11 +17777,194 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
+## `thornwild_rootgraft` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `thornwild_rootgraft@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Rootgraft"
+- Presentation body: "A druid grafts living root into whatever you hold out. The card that comes back grows wild."
+- Discovery: none
+
+- Story: `thornwild_rootgraft` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `uncommon` · biome `thornwild`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["thornwild"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "thornwild"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `150` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `retype`
+
+- Presentation label: "Let a card be grafted into a Nature card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "retype",
+  "retypeTo": [
+    {
+      "elements": [
+        "nature"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `thornwild_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/150-biome-traders.json`
+- Identity: `thornwild_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Root Trader"
+- Presentation body: "A trader grown half into her stall offers living-wood wares for any card. Nature buys a grade better."
+- Discovery: none
+
+- Story: `thornwild_trader` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `thornwild`
+
+### Eligibility
+
+- Readable requirement: `biome.current({"ids":["thornwild"]})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "biome.current",
+  "args": {
+    "ids": [
+      "thornwild"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `biome.current` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `155` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade`
+
+- Presentation label: "Trade a card for a Nature card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "trade",
+  "retypeTo": [
+    {
+      "elements": [
+        "nature"
+      ]
+    }
+  ],
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 2
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `thunder_in_a_bottle` · current version `2`
 
 - Source pack: `src/data/content/event-packs/80-stormreach.json`
 - Identity: `thunder_in_a_bottle@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Thunder in a Bottle"
 - Presentation body: "A Stormreach tinker has trapped the echo of your swiftest lightning victory. The bottle shakes whenever the road turns toward another fight."
 - Discovery: `storm_in_hand` · Storm in Hand · account `future`
@@ -10750,6 +18082,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `toll_bridge@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Toll Bridge"
 - Presentation body: "A rickety toll bridge spans the worst of the Tolling Road's ravines, where the spray off the melt below freezes onto the ropes before it lands. Its keeper wants coin before he'll lower the gate, and he has two crates behind him: one is frost-work to the last piece, taken off the traders coming down from the pass, and the other is a jumble of whatever else he has confiscated, all of it made for hitting things. Refuse, and there's a longer, drier road around."
 - Discovery: none
@@ -10828,6 +18161,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `toll_collectors_ledger@v1`
 - Retained versions: v1 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Toll Collector's Ledger"
 - Presentation body: "A toll collector flags you down on the Tolling Road, ledger open, insisting a road tax is overdue for the wear you've caused passing through. Pay it and he waves you past with a stone from his confiscated crate — refuse, and he shrugs, scrawls something illegible, and lets you walk on regardless."
 - Discovery: none
@@ -10876,6 +18210,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `toll_of_plenty@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Toll of Plenty"
 - Presentation body: "A tollkeeper on the Tolling Road offers a wager instead of a toll: stake five gold and the gate might swing wide with more than you paid — or simply take your coin and go."
 - Discovery: none
@@ -11001,6 +18336,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `tutors_return@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Tutor's Return"
 - Presentation body: "You know the gnarled staff before you know the face: the old sellsword from the Hollow Yard, planted at the edge of the practice ring as if the two of you had set an appointment. \"You paid for a lesson,\" she says. \"You got half of one. I don't leave debts standing — mine or anybody's.\" The second half won't cost you a coin. Her sparring circle, though, still charges for the privilege."
 - Discovery: none
@@ -11079,6 +18415,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `two_ravens@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "Two Ravens"
 - Presentation body: "Two ravens perch unnervingly still on the crossroads shrine's arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin's trouble, or walk the long way around and let them watch you go."
 - Discovery: none
@@ -11144,6 +18481,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `underdogs_stand@v3`
 - Retained versions: v1 (schema 3), v2 (schema 3), v3 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Underdog's Stand"
 - Presentation body: "Word spreads fast when the road costs a life. A company of stubborn holdouts waves you over, offering to beat one piece of your gear into something that might hold better next time."
 - Discovery: none
@@ -11238,6 +18576,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `venomers_den@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: repeatable
 - Presentation title: "The Venomer's Den"
 - Presentation body: "Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn't quite smoke. \"The weak batch is yours for nothing,\" she says, nodding at a dull green vial, \"or two gold buys off the real shelf. Every jar on it does the one job — leaves whatever you use it on worse off than it started. Past that I make no promises about what's in the glass.\""
 - Discovery: none
@@ -11301,6 +18640,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `veterans_last_lesson@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Veteran's Last Lesson"
 - Presentation body: "At the far end of the Hollow Yard, a retiring blade-master sets down her practice cane and offers you her signature weapon, still humming faintly with old battles. \"Take it, and carry what I built,\" she says, \"or take my years instead — I've more use for rest now than for steel.\""
 - Discovery: none
@@ -11351,6 +18691,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/05-wayside.json`
 - Identity: `veterans_wisdom@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Veteran's Wisdom"
 - Presentation body: "Three wins in, and the yard's old veterans finally wave you into their circle. What they teach next won't come from any drill."
 - Discovery: none
@@ -11438,6 +18779,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/100-global-payoffs.json`
 - Identity: `victors_table@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Victor's Table"
 - Presentation body: "Veterans from many roads raise their cups as you pass. Five victories earn a place beside them and first choice of the spoils."
 - Discovery: `proven_fivefold` · Proven Fivefold · account `future`
@@ -11544,6 +18886,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `wandering_smith@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "Wandering Smith"
 - Presentation body: "Deep in the Cinderworks, a traveling smith works an anvil under a lean-to, hammer still ringing from the last commission. \"Four gold,\" she grunts, \"and I'll temper a blade proper — not the bronze rubbish you find lying about.\" Two gold, and you can have your pick of the pike-blanks stacked against the lean-to instead; she forges nothing else on spec, so lance-work is all that stack has ever been. Anything less, and she won't bother lighting the forge."
 - Discovery: none
@@ -11617,6 +18960,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `wandering_tutor@v1`
 - Retained versions: v1 (schema 1)
+- Draw: once per biome stay
 - Presentation title: "The Wandering Tutor"
 - Presentation body: "The dust of the Hollow Yard has barely settled from the last duel when an old sellsword rises to meet you, gnarled staff in hand. \"Two gold,\" she says, \"and I'll show you where you're wasting your strength.\" Her lesson won't be free — but it won't be forgotten, either."
 - Discovery: none
@@ -11665,6 +19009,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `warded_hermit@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Warded Hermit"
 - Presentation body: "A hermit sits inside a ring of chalk sigils that no storm has managed to wash away. He traces one of the marks onto the back of your hand with an ink-stained thumb. \"Spells find the easy door,\" he says. \"This one is shut.\""
 - Discovery: none
@@ -11771,6 +19116,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/00-core.json`
 - Identity: `weighing_stone@v2`
 - Retained versions: v1 (schema 1), v2 (schema 1)
+- Draw: retired (never drawn)
 - Presentation title: "The Weighing Stone"
 - Presentation body: "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them."
 - Discovery: none
@@ -11835,6 +19181,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/121-rare-boons.json`
 - Identity: `wellspring_of_sparks@v1`
 - Retained versions: v1 (schema 3)
+- Draw: retired (never drawn)
 - Presentation title: "The Wellspring of Sparks"
 - Presentation body: "A spring bubbles up between cracked flagstones, and every droplet that breaks the surface flickers with pale light before it falls. The air above it hums against your teeth. Cupped in your hands, the water is cold, bright, and faintly alive."
 - Discovery: none
@@ -11934,6 +19281,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/60-ironmoot.json`
 - Identity: `whetting_pit@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Whetting Pit"
 - Presentation body: "A stone pit worn smooth by generations of axe-edges sits at Ironmoot's heart, its grindstones still turning under no visible hand."
 - Discovery: none
@@ -12062,6 +19410,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
 - Identity: `whiteout_guidance@v2`
 - Retained versions: v1 (schema 3), v2 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "The Pilgrim's Marker"
 - Presentation body: "A white-road marker rises where the storm should have erased every trail. The pilgrim's sign points through the safest break in the gale."
 - Discovery: none
@@ -12183,6 +19532,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Source pack: `src/data/content/event-packs/40-frostmarch.json`
 - Identity: `whiteout_pilgrim@v1`
 - Retained versions: v1 (schema 3)
+- Draw: once per biome stay
 - Presentation title: "Whiteout Pilgrim"
 - Presentation body: "A pilgrim steps out of the Frostmarch white, following a road visible only to those who have won beneath frost's banner."
 - Discovery: `white_road_walker` · White Road Walker · account `future`

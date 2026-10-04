@@ -13,6 +13,73 @@ three, in the same commit. The renderer is `src/game/ui/FantasyCardTemplateV2.ts
 
 ---
 
+## Anime Relic candidate (`printed-v2`)
+
+`DEFAULT_CARD_TEMPLATE_VARIANT` remains `classic`. The opt-in candidate uses
+the same `FantasyCardTemplateV2` renderer, selected through `template:
+'printed-v2'` or `?cardTemplate=printed-v2`. Its workbench is
+`docs/mockups/card-template-workbench.html`.
+
+The approved layout reference is archived at
+`art-src/template-references/anime-relic-approved-layout.png`. This candidate
+section owns its geometry; the implementation workflow is documented separately.
+
+`PRINTED_CARD_TEMPLATE_SPEC` owns the candidate's 420 x 690 geometry:
+
+| Region | x, y, w, h |
+|---|---|
+| `artFrame` | 0, 0, 420, 690 |
+| `header` | 18, 12, 384, 50 |
+| `typeBadge` | 20, 12, 48, 48 |
+| `titleBox` | 76, 22, 302, 30 |
+| `rightRail` | 354, 76, 48, 160 |
+| `rulesBand` | 18, 416, 384, 38 |
+| `rulesCaption` | 76, 430, 268, 28 |
+| `headerTrim` | 76, 8, 302, 4 |
+| `rulesTrim` | 44, 424, 332, 4 |
+| `bodyTrim` | 44, 640, 332, 4 |
+| `tierFrame` (white rules paper) | 18, 454, 384, 182 |
+| `bodyBox` | 34, 468, 352, 152 |
+| `footer` | 18, 646, 384, 44 |
+| `progress` | 160, 674, 100, 12 |
+| `wtPlate` | 32, 650, 110, 20 |
+| `slotLabel` | 248, 650, 140, 20 |
+| `tierDiamond` | 198, 647, 24, 24 |
+
+Art covers the entire silhouette. The upper/middle illustration has no
+enclosing border or corner filigree. The shared runtime loader fetches
+`/game-art/template/anime-relic-chrome.webp` (master:
+`art-src/templates/anime-relic-chrome.png`) as one transparent raster aligned
+to the full canvas. It carries only the illustrated header and lower chrome;
+titles, badges, rules, and footer values are runtime objects. Simple panel
+fills remain the loading/error fallback. White rules paper remains beneath
+the overlay even if the raster has a transparent text opening.
+
+The served raster is 840 x 1380 RGBA, displayed at 420 x 690 without sprite
+crop frames. The encoder's alpha threshold of 8 removes transparent exterior
+padding before normalization. Header chrome occupies approximately y=0..61;
+lower chrome occupies y=416..690, with a transparent upper/middle art opening.
+Draw order is artwork, chrome container, then dynamic badges, weight, tier,
+progress, slots, title, and rules body. An asynchronous raster arrival stays
+inside the chrome container, below all dynamic footer objects. Footer ink is
+light over blue; dark ink is reserved for the title and white rules body.
+
+Header and lower-panel trim use the actual tier skin, together with the tier
+diamond and merge progress. No tint is applied to art, raster, or white paper.
+The `RULES` caption uses the candidate typography fields and `FONT.display`.
+Titles fit one centered line within `titleBox` (y=22, height=30, center y=37),
+placing the normal title between the icons; readability is checked in screenshot review.
+The right rail contains only
+the actual archetypes (at most three), using 48 x 48 badges at 56-unit pitch.
+
+`fantasyCardPrintedBody.ts` renders only actual `model.rows`, preserving its
+centering, semantic styles, glued phrases, compact labels, and explicit
+overflow cue. `fantasyCardRulesRows.ts` owns display copy and categories;
+Affinity, Timing, and other rows are never fixed mock content. Preview
+`data-chrome-ready` distinguishes the loaded raster from its fallback.
+
+---
+
 ## 1. The no-nudging contract (hard rules)
 
 The legacy V1 template accumulated `numberOffsetByTier`, `frameCenterOffsetX: 5`,
@@ -63,7 +130,9 @@ is a single thin tier-colored trim line hugging the silhouette.
 
 ```
  ┌────────────────────────────┐  0
- │ ◈ type          archetype ◈│  38: small uniform 48×48 badges over art, inside the corner filigree
+ │ ◈     Card Title       ◈   │  titleBox at 100,40,222,48
+ │       ─── divider ───       │  74: title divider
+ │                 archetype ◈│  38: badges beside the title
  │                 (stack ×3)◈│
  │                            │
  │        FULL-BLEED ART      │  artFrame 0,0 → 420×690 (whole card)
@@ -71,8 +140,8 @@ is a single thin tier-colored trim line hugging the silhouette.
  │       x 80–340, y 130–420) │
  │                            │
  │░░ gradient scrim starts ░░░│  440: tierFrame (scrim, no border)
- │        Card Title          │  titleBox 500
- │  ──────── divider ───────  │  550
+ │                            │
+ │                            │
  │  Body rules text, up to    │  bodyBox 562
  │  five lines at minimum pt. │
  │  WT 20    ◆     Slot ▢▢▢   │  644: footer row — weight left, tier diamond
@@ -88,14 +157,14 @@ the human-readable contract for the same numbers.
 | Region | Rect (x, y, w, h) | Contents & rules |
 |---|---|---|
 | `artFrame` | 0, 0, 420, 690 | Full-bleed art window — the whole card, corner radius 28. Art is **cover-fit** (fill, center-crop), masked to the card silhouette. |
-| `leftRail` | 34, 34, 56, 56 | Left identity column (envelope around the type badge). |
-| `typeBadge` | 38, 38, 48, 48 | The card's **type badge** — EVERY card is typed by exactly one weapon or element (buffs/shields/auras included; a TRUE card's type is cosmetic). Centered in its rect. All badges on the card are the same 48×48 size. **The template draws no chrome behind badges** — the badge PNG carries its own plate/shape; only the no-texture text fallback gets a minimal dark disc. |
+| `leftRail` | 34, 38, 56, 56 | Left identity column beside the title. |
+| `typeBadge` | 38, 38, 48, 48 | The card's **type badge** — EVERY card is typed by exactly one weapon or element (buffs/shields/auras included; a TRUE card's type is cosmetic). Centered in its rect. All badges on the card are the same 48×48 size. Illustrated badge WebPs carry their plate/shape; the renderer adds a soft cast shadow. Only the no-texture text fallback gets a minimal dark disc. |
 | `wtPlate` | 34, 644, 110, 20 | **Weight marker**, bottom-left of the footer row: the word `WT` (9 pt) + the bare weight number (WT ladder, §5), left-aligned, frameless — same typography treatment as the slot marker opposite it. |
 | `tierDiamond` | 198, 642, 24, 24 | **Tier diamond**, centered in the footer row between weight and slots. Its fill is the tier color (bronze / silver / gold / diamond); dark outline + inner accent facet. Drawn by code from `TIER` skin colors — no PNG. |
 | `rightRail` | 334, 38, 48, 160 | **Archetype badges** (1–3, in `SkillDef.archetypes` order), 48×48, centered on the rail's x-axis; first center 24 below the rail top, pitch 56 (`archetypeStack`). |
 | `tierFrame` | 0, 440, 420, 250 | **Text scrim**: a soft dark gradient (alpha 0 → 0.85 over the top 30%, then solid 0.85) with the card's bottom corner radius. No box, no border — the full-art direction keeps frames minimal. |
-| `titleBox` | 40, 500, 340, 44 | Card name. Center-aligned, title ladder (§5). |
-| `divider` | 60, 550, 300, 2 | Horizontal rule between title and body (tier divider color). |
+| `titleBox` | 100, 40, 222, 48 | Card name centered between the icons. Base font capped at 20; uniformly shrink the complete name to fit with 10-unit side padding. No truncation. |
+| `divider` | 110, 94, 202, 2 | Horizontal rule below the top title (tier divider color). |
 | `bodyBox` | 40, 562, 340, 76 | The card's GENERATED body (`renderSkillText`, `src/engine/keywords/compose.ts`) with `{{keyword}}` markup styled inline (§5c). Left-aligned, body ladder (§5). At `cardScale` below ~0.5 the 8px font floor pins this box to TWO lines whatever the ladder says, so an overflowing body ends in an ellipsis — see §5c. |
 | `slotLabel` | 230, 644, 156, 20 | Board footprint: the word `Slot` (9 pt) + one box glyph per occupied slot (12 pt, gap 8; `slotDisplay`), **right-aligned, bottom-right after the text block**. Boxes, not numerals. |
 
@@ -182,7 +251,7 @@ the template's legibility guarantee, not a per-card choice.
 
 | Role | Face / weight | Color / stroke | Align | Ladder (auto-fit, never moves the box) |
 |---|---|---|---|---|
-| Title | Display, bold | `#ffffff`, stroke `#111722` × 3 | center in `titleBox` | 24 pt / 1 line (≤14 chars) → 22 pt / 1 line (≤24) → 20 pt / 2 lines, line-spacing −5/−5/−6 |
+| Title | Display, bold | `#ffffff`, stroke `#111722` × 2 | centered between the icons | 20 pt maximum, single line; scale the full name uniformly into the title box with 10-unit side padding, never truncate |
 | Body | Body, regular (keywords bold + semantic color, §5c) | `#f1efe8`, stroke `#111722` × 2 | left in `bodyBox`, top-anchored | 13 pt / 3 lines (density ≤90) → 12 pt / 4 (≤145) → 11 pt / 5; line-spacing +5/+4/+3. Density = `body.length + 28 × (clauses − 1)`, where `body` is the GENERATED text (`renderSkillText`, markup and all — the braces count) and `clauses` is the POST-MERGE printed clause count (`renderSkillClauses(skill).length`), NOT `effects.length`. The generator collapses the piles the engine itself merges and folds a multi-hit into one counted clause, so the raw action count would over-penalise exactly the cards the merge rule exists to help. |
 | Weight marker | `WT` word: Body bold 9 pt `#f4ead0`; number: Display bold `#ffffff`, stroke `#111722` × 2 | — | left in `wtPlate` footer row, gap 8 | number: 15 pt (1 digit) → 13 pt (2) → 11 pt (3) |
 | Slot label | Body, bold | `#f4ead0` | right-aligned in `slotLabel` (bottom-right, after the text block) | fixed 9 pt word + 12 pt box glyphs, gap 8 |
@@ -194,6 +263,9 @@ Ladder rules:
   `selectWtRule`. No measuring-then-nudging.
 - Point sizes scale by the same uniform card scale as geometry, floored at
   13 pt title / 8 pt body-equivalent legibility at the 720×1280 canvas.
+- The classic title's actual rendered height is capped to `titleBox` with
+  uniform text scaling after wrapping and the overflow cue. At thumbnail
+  widths, the box can reduce the two-line title step to one visible line.
 - If a generated body cannot fit 5 lines at the smallest body step, that is
   measured overflow on a card whose `effects` list is too dense for the
   template, not a hand-authoring fix (there is no `text` to edit — see §5c).

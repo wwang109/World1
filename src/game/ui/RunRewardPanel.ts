@@ -28,10 +28,7 @@ import {
   type Box,
   type RewardPickerWindow,
 } from './runRewardGeometry';
-import {
-  layoutMergePicker, mergeChipIdeal,
-  type MergeCandidateEntry, type MergeSpentEntry, type RunMergeViewModel,
-} from './runMergeViewModel';
+import type { MergeConfirmView, MergePickCard, MergeSelectView, MergeUiState } from './runMergeViewModel';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
@@ -961,6 +958,105 @@ export function renderRunSellGemPicker(
   });
 }
 
+export interface RunTradeOption {
+  skillId: string;
+  tier: SkillTier;
+  resultSkillId?: string;
+  resultTier?: SkillTier;
+}
+
+export function renderRunTradePicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  options: readonly RunTradeOption[],
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    title: string;
+    onPick: (option: RunTradeOption) => void;
+    inspectedIndex?: number | null;
+    onInspect?: (index: number | null) => void;
+  } & RewardPickerPagingOptions,
+): void {
+  renderPickHeader(scene, template, choiceArtKey('reshapeCard'), opts.title, opts.eventTitle, opts.font, 'Run reward trade picker title');
+  const { feature } = template.contentSlots.reward;
+  const cardIdeal = cardRowIdeal(feature, template.platform);
+  const labelH = UPGRADE_TIER_LABEL_H[template.platform];
+  const idealH = cardIdeal.h + labelH;
+  const pickerWindow = layoutRewardPickerWindow('upgradeCard', template.platform, feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  let inspecting: SkillDef | undefined;
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const i = pickerWindow.startIndex + localIndex;
+    const option = options[i];
+    const given = option ? skillBook[option.skillId] : undefined;
+    const received = option?.resultSkillId ? skillBook[option.resultSkillId] : undefined;
+    if (!option || !given || !received) return;
+    const resultTier = option.resultTier ?? option.tier;
+    const shown = resultTier === received.tier ? received : applyTier(received, resultTier);
+    const scale = cell.h / idealH;
+    const cellLabelH = labelH * scale;
+    const caption = `FOR YOUR ${given.name.toUpperCase()} · ${option.tier.toUpperCase()}`;
+    const label = scene.add.text(cell.x + cell.w / 2, cell.y + cellLabelH / 2, caption, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(8, Math.round(11 * scale))}px`,
+      color: resultTier !== option.tier ? rewardColors(template).textAccent : rewardColors(template).textBright, align: 'center',
+    }).setOrigin(0.5);
+    auditTextBlock(label, { name: 'Run reward trade label', maxWidth: cell.w, maxHeight: Math.max(1, cellLabelH), minFontSize: 7 });
+    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH, w: cell.w, h: cell.h - cellLabelH };
+    const hit = renderPickableCardRow(scene, cell, cardCell, shown, () => opts.onPick(option),
+      opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    attachCellHoverTip(scene, template, hit, cardCell, shown);
+    if (opts.inspectedIndex === i) inspecting = shown;
+  });
+  if (inspecting) {
+    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+  }
+}
+
+export interface RunReshapeGemOption {
+  id: string;
+  gemIds: readonly string[];
+}
+
+export function renderRunReshapeGemPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  options: readonly RunReshapeGemOption[],
+  opts: { font: LayoutProfile['font']; eventTitle: string; title: string; onPick: (option: RunReshapeGemOption) => void } & RewardPickerPagingOptions,
+): void {
+  renderPickHeader(scene, template, choiceArtKey('sellGemPick'), opts.title, opts.eventTitle, opts.font, 'Run reward gem reshape title');
+  const { feature } = template.contentSlots.reward;
+  const ideal = rowIdeal(feature, FEATURE_GEM_CHIP_H[template.platform]);
+  const pickerWindow = layoutRewardPickerWindow('sellGem', template.platform, feature, options.length, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  const colors = rewardColors(template);
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const option = options[pickerWindow.startIndex + localIndex];
+    if (!option) return;
+    const gems = option.gemIds.map((gemId) => gemBook[gemId]).filter((gem): gem is GemDef => gem !== undefined);
+    if (gems.length !== option.gemIds.length || gems.length === 0) return;
+    const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+    if (gems.length === 1) {
+      const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
+      renderGemChip(scene, box, gems[0]!, template.platform, 'TRANSFORM', colors);
+      attachGemCellInspect(scene, template, hit, box, gems[0]!);
+    } else {
+      const plusW = Math.max(16, Math.round(cell.h * 0.28));
+      const chipW = (cell.w - plusW) / 2;
+      gems.slice(0, 2).forEach((gem, index) => {
+        const box: Box = { x: cell.x + index * (chipW + plusW), y: cell.y, w: chipW, h: cell.h };
+        renderGemChip(scene, box, gem, template.platform, undefined, colors);
+      });
+      scene.add.text(cell.x + chipW + plusW / 2, cell.y + cell.h / 2, '+', {
+        fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(cell.h * 0.3)}px`, color: colors.textAccent,
+      }).setOrigin(0.5);
+    }
+    hit.setDepth(1);
+    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
+  });
+}
+
 /**
  * The market's "PICK A STAT TO BUY" picker for `buyStatPick` — reuses
  * `renderRunChoicePanel`'s existing SELECT/LOCKED row shell (`RunChoicePanel.ts`,
@@ -1010,145 +1106,219 @@ export function renderRunStatPickPicker(
   });
 }
 
-/**
- * ONE consumed card's chip in the merge picker's SPENT strip — the visual
- * counterpart of `renderGemChip` above, for a card the trade is about to
- * destroy rather than a gem it is about to grant. Deliberately NOT a
- * `CardToken`: these three are not choices and not rewards, they are the price,
- * and drawing them at the same weight as the three tappable candidates below
- * would invite a tap on the wrong half of the screen. A chip says everything
- * identification needs — name, grade, and where it is sitting right now — in
- * one row.
- *
- * The plate is stroked in the INPUT tier's own colour (`TIER_COLOR`) so the
- * "three of one grade" rule is visible as three matching frames, and carries a
- * left rail in `UI.bad` — the palette's "this is a loss" colour, the same one
- * the RETIRE action uses — because nothing else on a reward screen ever
- * subtracts. Every internal offset is a fraction of `box`'s own height, the
- * same rule `renderGemChip` follows, so the chip scales with whatever the
- * shared reward-picker window hands it.
- */
-function renderMergeSpentChip(scene: Phaser.Scene, box: Box, entry: MergeSpentEntry, colors: RewardColors = UI): void {
-  const rail = Math.max(3, Math.round(box.h * 0.09));
-  scene.add.rectangle(box.x, box.y, box.w, box.h, colors.panelMuted, 0.92)
+const MERGE_BAR_H: Record<RunTemplatePlatform, number> = { desktop: 40, mobile: 44 };
+const MERGE_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 18, mobile: 16 };
+
+function renderPaneButton(
+  scene: Phaser.Scene,
+  box: Box,
+  text: string,
+  enabled: boolean,
+  primary: boolean,
+  font: LayoutProfile['font'],
+  onPress: () => void,
+  colors: RewardColors = UI,
+): void {
+  const fill = !enabled ? colors.panelMuted : primary ? colors.chip : colors.panelAlt;
+  const btn = scene.add.rectangle(box.x, box.y, box.w, box.h, fill, enabled ? 1 : 0.6)
     .setOrigin(0, 0)
-    .setStrokeStyle(1, TIER_COLOR[entry.tier], 0.85);
-  scene.add.rectangle(box.x, box.y, rail, box.h, UI.bad, 0.9).setOrigin(0, 0);
-  const pad = Math.max(6, Math.round(box.h * 0.16));
-  const textX = box.x + rail + pad;
-  const textW = Math.max(0, box.w - rail - pad * 2);
-  // TWO LINES, not one row of three columns: a card name is the long part and a
-  // one-row chip made it compete with its own metadata for width, which cost
-  // exactly the thing this strip exists to show (the first cut of this rendered
-  // "Aegis C…" and "Arc Cas…" — two cards the player could no longer identify).
-  // Name gets the full width; grade and place share the quieter line below.
-  const namePx = Math.max(9, Math.round(box.h * 0.30));
-  const metaPx = Math.max(8, Math.round(box.h * 0.23));
-  const name = scene.add.text(textX, box.y + box.h * 0.28, entry.name, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: colors.text,
-  }).setOrigin(0, 0.5);
-  const meta = scene.add.text(textX, box.y + box.h * 0.71, `${entry.tierLabel} · ${entry.whereLabel}`, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${metaPx}px`, color: colors.textSoft,
-  }).setOrigin(0, 0.5);
-  auditTextBlock(name, { name: 'Run merge spent card name', maxWidth: textW, maxHeight: box.h * 0.5, minFontSize: 8 });
-  auditTextBlock(meta, { name: 'Run merge spent card place', maxWidth: textW, maxHeight: box.h * 0.45, minFontSize: 7 });
+    .setStrokeStyle(2, enabled ? colors.chip : colors.border, enabled ? 0.9 : 0.45);
+  const label = scene.add.text(box.x + box.w / 2, box.y + box.h / 2, text, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.name}px`,
+    color: !enabled ? colors.textSoft : primary ? UI.textOnChip : colors.text,
+  }).setOrigin(0.5);
+  auditControlLabel(btn, label, { name: `Run merge ${text}`, horizontalPadding: 10, verticalPadding: 6, minFontSize: 9 });
+  if (!enabled) return;
+  btn.setInteractive({ useHandCursor: true });
+  attachButtonFeel(scene, btn, {
+    fill,
+    hover: primary ? (colors === UI ? UI.chipDark : 0xe4bd72) : colors.panelMuted,
+    follow: [label],
+    onPress: () => { playSfx('uiClick'); onPress(); },
+  });
 }
 
-/** Small centered caption drawn at the top of one of the merge picker's two
- * bands. Returns the y the band's own content should start at, so the caption
- * can never overlap what it labels. */
-function renderMergeBandCaption(
+function renderMergeCaption(
   scene: Phaser.Scene,
   rect: Rect,
-  text: string,
+  lines: readonly { text: string; color: string }[],
   font: LayoutProfile['font'],
-  color: string,
-  auditName: string,
-): number {
-  const label = scene.add.text(rect.x + rect.width / 2, rect.y, text, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.tiny}px`, color, align: 'center',
-  }).setOrigin(0.5, 0);
-  auditTextBlock(label, { name: auditName, maxWidth: rect.width, maxHeight: font.tiny * 2, minFontSize: 7 });
-  return rect.y + label.height + 4;
+): void {
+  let y = rect.y;
+  for (const line of lines) {
+    const label = scene.add.text(rect.x + rect.width / 2, y, line.text, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.tiny + 1}px`, color: line.color, align: 'center',
+    }).setOrigin(0.5, 0);
+    auditTextBlock(label, { name: 'Run merge caption', maxWidth: rect.width, maxHeight: font.tiny * 2.4, minFontSize: 7 });
+    y += label.height + 3;
+  }
 }
 
-/**
- * THE CARD MERGE PICKER — `mergeCards`'s counterpart to the four pickers above,
- * called by both `DesktopRunEventScene` and `MobileRunEventScene` for a
- * resolved `mergeCardsPick` outcome. Same `renderPickHeader` + grid shell as
- * its siblings, with the one thing none of them needs: the PRICE, shown beside
- * the reward.
- *
- * Three owned cards leave and one arrives, and this is the only screen in the
- * run where tapping destroys something. So the spent strip is not behind a
- * confirm and not on a second page — the three named instances (`buildRunMerge
- * ViewModel`, which resolves each one's board slot) sit directly above the
- * three candidates, both visible when the tap happens. `layoutMergePicker`
- * hands the strip the otherwise-unused `detail` rect and lets it borrow from
- * the top of `feature` only when it must, so on desktop the candidate cards
- * still render at the bonus-draft picker's exact size.
- *
- * The candidates keep the SAME inspect affordance as the other two card
- * pickers (`attachCellInspect`: a desktop hover-tip, a mobile ⓘ badge) — an
- * irreversible three-for-one trade that showed less about its output than the
- * reversible turn-zero draft would be the same information gap that helper was
- * written to close.
- */
-export function renderRunMergeCardsPicker(
+function hexColor(value: number): string {
+  return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+function renderMergeCardCell(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
-  model: RunMergeViewModel,
+  cell: Box,
+  idealH: number,
+  card: { skill: SkillDef; label: string; selected: boolean; enabled: boolean },
+  onTap: () => void,
+): void {
+  const labelH = MERGE_LABEL_H[template.platform] * (cell.h / idealH);
+  const cardBox: Box = { x: cell.x, y: cell.y + labelH, w: cell.w, h: Math.max(0, cell.h - labelH) };
+  const colors = rewardColors(template);
+  const label = scene.add.text(cell.x + 4, cell.y + labelH / 2, card.label, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(8, Math.round(labelH * 0.62))}px`,
+    color: card.selected ? colors.textAccent : card.enabled ? colors.textSoft : UI.textDisabled,
+  }).setOrigin(0, 0.5);
+  auditTextBlock(label, { name: 'Run merge card label', maxWidth: cell.w - 8, maxHeight: Math.max(1, labelH), minFontSize: 7 });
+  renderPickableCardRow(scene, cell, cardBox, card.skill, onTap, undefined);
+  if (card.selected) {
+    scene.add.rectangle(cardBox.x, cardBox.y, cardBox.w, cardBox.h, UI.chip, 0.12)
+      .setOrigin(0, 0)
+      .setStrokeStyle(3, UI.chip, 1);
+  } else if (!card.enabled) {
+    scene.add.rectangle(cardBox.x, cardBox.y, cardBox.w, cardBox.h, UI.bg, 0.6).setOrigin(0, 0);
+  }
+}
+
+function mergeBodyRects(
+  template: RunScreenTemplate,
+  captionLines: number,
+  font: LayoutProfile['font'],
+): { caption: Rect; grid: Rect; bar: Rect } {
+  const { detail, feature } = template.contentSlots.reward;
+  const gap = GRID_GAP[template.platform];
+  const barH = MERGE_BAR_H[template.platform];
+  const captionH = captionLines * (font.tiny + 6);
+  const top = detail.y;
+  const bottom = feature.y + feature.height;
+  const bar: Rect = { x: feature.x, y: bottom - barH, width: feature.width, height: barH };
+  const caption: Rect = { x: detail.x, y: top, width: detail.width, height: captionH };
+  const grid: Rect = { x: feature.x, y: top + captionH + gap, width: feature.width, height: Math.max(0, bar.y - gap - (top + captionH + gap)) };
+  return { caption, grid, bar };
+}
+
+export function renderRunMergeSelectPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  view: MergeSelectView,
   opts: {
     font: LayoutProfile['font'];
     eventTitle: string;
-    onPick: (candidate: MergeCandidateEntry) => void;
-    inspectedIndex?: number | null;
-    onInspect?: (index: number | null) => void;
+    detailIndex: number | null;
+    onDetail: (index: number | null) => void;
+    onToggle: (instanceId: string) => void;
+    onNext: () => void;
   } & RewardPickerPagingOptions,
 ): void {
-  renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), model.title, opts.eventTitle, opts.font, 'Run reward merge picker title');
+  renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), view.title, opts.eventTitle, opts.font, 'Run reward merge select title');
+  const colors = rewardColors(template);
+  const rects = mergeBodyRects(template, 2, opts.font);
+  renderMergeCaption(scene, rects.caption, [
+    { text: view.caption, color: colors.textAccent },
+    { text: view.hint, color: view.blocked ? hexColor(UI.bad) : colors.textSoft },
+  ], opts.font);
 
-  const { detail, feature } = template.contentSlots.reward;
-  const bands = layoutMergePicker(detail, feature, template.platform, model.spent.length);
-
-  // ---- what LEAVES ----
-  const spentTop = renderMergeBandCaption(scene, bands.spent, model.spentCaption, opts.font, rewardColors(template).textSoft, 'Run reward merge spent caption');
-  const spentRect: Rect = {
-    x: bands.spent.x,
-    y: spentTop,
-    width: bands.spent.width,
-    height: Math.max(0, bands.spent.y + bands.spent.height - spentTop),
-  };
-  const chipIdeal = mergeChipIdeal(spentRect, template.platform);
-  const spentWindow = layoutRewardPickerWindow('mergeSpent', template.platform, spentRect, model.spent.length, chipIdeal.w, chipIdeal.h, GRID_GAP[template.platform], 0);
-  spentWindow.cells.forEach((cell, localIndex) => {
-    const entry = model.spent[spentWindow.startIndex + localIndex];
-    if (!entry) return;
-    renderMergeSpentChip(scene, cell, entry, rewardColors(template));
-  });
-
-  // ---- what ARRIVES ----
-  const pickTop = renderMergeBandCaption(scene, bands.candidates, model.pickCaption, opts.font, rewardColors(template).textAccent, 'Run reward merge pick caption');
-  const gridRect: Rect = {
-    x: bands.candidates.x,
-    y: pickTop,
-    width: bands.candidates.width,
-    height: Math.max(0, bands.candidates.y + bands.candidates.height - pickTop),
-  };
-  const cardIdeal = cardRowIdeal(gridRect, template.platform);
-  const pickerWindow = layoutRewardPickerWindow('mergeCandidates', template.platform, gridRect, model.candidates.length, cardIdeal.w, cardIdeal.h, GRID_GAP[template.platform], opts.page);
-  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
-  let inspecting: SkillDef | undefined;
+  const cardIdeal = cardRowIdeal(rects.grid, template.platform);
+  const idealH = cardIdeal.h + MERGE_LABEL_H[template.platform];
+  const pickerWindow = layoutRewardPickerWindow('mergeCandidates', template.platform, rects.grid, view.cards.length, cardIdeal.w, idealH, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, colors);
   pickerWindow.cells.forEach((cell, localIndex) => {
-    const i = pickerWindow.startIndex + localIndex;
-    const candidate = model.candidates[i];
-    if (!candidate) return;
-    const hit = renderPickableCardRow(scene, cell, cell, candidate.skill, () => opts.onPick(candidate),
-      opts.onInspect ? () => opts.onInspect?.(i) : undefined);
-    attachCellHoverTip(scene, template, hit, cell, candidate.skill);
-    if (opts.inspectedIndex === i) inspecting = candidate.skill;
+    const index = pickerWindow.startIndex + localIndex;
+    const card = view.cards[index];
+    if (!card) return;
+    renderMergeCardCell(scene, template, cell, idealH, card, () => opts.onDetail(index));
   });
-  if (inspecting) {
-    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+
+  const remaining = 3 - view.cards.filter((card) => card.selected).length;
+  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: rects.bar.width, h: rects.bar.height },
+    view.ready ? 'SEE REWARDS ›' : view.blocked ? 'NO REWARD FITS' : `PICK ${remaining} MORE`,
+    view.ready, true, opts.font, opts.onNext, colors);
+
+  const shown = opts.detailIndex === null ? undefined : view.cards[opts.detailIndex];
+  if (shown) {
+    renderCardDetailOverlay(scene, shown.skill, {
+      font: opts.font,
+      onClose: () => opts.onDetail(null),
+      primaryAction: { label: shown.actionLabel, enabled: shown.enabled, onPress: () => opts.onToggle(shown.instanceId) },
+    });
+  }
+}
+
+export function renderRunMergeConfirmPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  view: MergeConfirmView,
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    detail: MergeUiState['detail'];
+    onDetail: (detail: MergeUiState['detail']) => void;
+    onChoose: (skillId: string) => void;
+    onBack: () => void;
+    onMerge: () => void;
+  } & RewardPickerPagingOptions,
+): void {
+  renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), view.title, opts.eventTitle, opts.font, 'Run reward merge confirm title');
+  const colors = rewardColors(template);
+  const gap = GRID_GAP[template.platform];
+  const rects = mergeBodyRects(template, 1, opts.font);
+  renderMergeCaption(scene, rects.caption, [{ text: view.spentCaption, color: hexColor(UI.bad) }], opts.font);
+
+  const spentH = Math.min(template.platform === 'mobile' ? 64 : 56, rects.grid.height * 0.3);
+  const spentW = (rects.grid.width - gap * 2) / 3;
+  view.spent.forEach((card: MergePickCard, index: number) => {
+    const box: Box = { x: rects.grid.x + index * (spentW + gap), y: rects.grid.y, w: spentW, h: spentH };
+    renderPickableCardRow(scene, box, box, card.skill, () => opts.onDetail({ list: 'spent', index }), undefined);
+    scene.add.rectangle(box.x, box.y, box.w, box.h, UI.bad, 0.08).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 0.9);
+  });
+
+  const pickTop = rects.grid.y + spentH + gap;
+  renderMergeCaption(scene, { x: rects.grid.x, y: pickTop, width: rects.grid.width, height: opts.font.tiny + 6 },
+    [{ text: view.pickCaption, color: colors.textAccent }], opts.font);
+  const rewardRect: Rect = {
+    x: rects.grid.x,
+    y: pickTop + opts.font.tiny + 6 + gap / 2,
+    width: rects.grid.width,
+    height: Math.max(0, rects.grid.y + rects.grid.height - (pickTop + opts.font.tiny + 6 + gap / 2)),
+  };
+  const cardIdeal = cardRowIdeal(rewardRect, template.platform);
+  const pickerWindow = layoutRewardPickerWindow('mergeCandidates', template.platform, rewardRect, view.rewards.length, cardIdeal.w, cardIdeal.h, gap, opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, colors);
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const index = pickerWindow.startIndex + localIndex;
+    const reward = view.rewards[index];
+    if (!reward) return;
+    renderPickableCardRow(scene, cell, cell, reward.skill, () => opts.onDetail({ list: 'reward', index }), undefined);
+    if (reward.selected) {
+      scene.add.rectangle(cell.x, cell.y, cell.w, cell.h, UI.chip, 0.12).setOrigin(0, 0).setStrokeStyle(3, UI.chip, 1);
+    }
+  });
+
+  const backW = Math.round(rects.bar.width * 0.38);
+  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: backW, h: rects.bar.height },
+    '‹ CHANGE CARDS', true, false, opts.font, opts.onBack, colors);
+  renderPaneButton(scene, { x: rects.bar.x + backW + gap, y: rects.bar.y, w: rects.bar.width - backW - gap, h: rects.bar.height },
+    view.ready ? 'MERGE' : 'PICK A REWARD', view.ready, true, opts.font, opts.onMerge, colors);
+
+  if (opts.detail?.list === 'spent') {
+    const card = view.spent[opts.detail.index];
+    if (card) renderCardDetailOverlay(scene, card.skill, { font: opts.font, onClose: () => opts.onDetail(null) });
+  } else if (opts.detail?.list === 'reward') {
+    const reward = view.rewards[opts.detail.index];
+    if (reward) {
+      renderCardDetailOverlay(scene, reward.skill, {
+        font: opts.font,
+        onClose: () => opts.onDetail(null),
+        primaryAction: {
+          label: reward.selected ? 'YOUR PICK' : 'CHOOSE THIS CARD',
+          enabled: !reward.selected,
+          onPress: () => opts.onChoose(reward.skillId),
+        },
+      });
+    }
   }
 }

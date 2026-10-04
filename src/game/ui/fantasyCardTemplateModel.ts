@@ -7,13 +7,21 @@ import {
   selectBodyRule,
   selectTitleRule,
   selectWtRule,
+  cardTemplateSpec,
+  resolveCardTemplateVariant,
+  type FantasyCardTemplateVariant,
+  type FantasyCardTemplateSpec,
 } from './fantasyCardTemplateSpec';
 import { getFantasyCardTierSkin } from './fantasyCardTierSkins';
 import { tierProgressPips } from './tierProgressDisplay';
+import { fantasyCardRulesRows, type FantasyCardRulesRow } from './fantasyCardRulesRows';
 
 export type FantasyArtAnchor = 'center' | 'upper-center' | 'lower-center';
 
 export interface FantasyCardTemplateModel {
+  template: FantasyCardTemplateVariant;
+  spec: FantasyCardTemplateSpec;
+  rows: FantasyCardRulesRow[];
   size: { width: number; height: number };
   tier: SkillTier;
   skin: ReturnType<typeof getFantasyCardTierSkin>;
@@ -52,6 +60,7 @@ export function buildFantasyCardTemplateModel(
     tier?: SkillTier;
     artAnchor?: FantasyArtAnchor;
     progress?: TierProgress;
+    template?: FantasyCardTemplateVariant;
   } = {},
 ): FantasyCardTemplateModel {
   const tier = options.tier ?? skill.tier;
@@ -67,12 +76,17 @@ export function buildFantasyCardTemplateModel(
   // raw action count would over-penalise exactly the cards the merge rule
   // exists to help — `rimebarb_vigil@diamond` prints 2 clauses from 5 actions.
   const clauseCount = renderSkillClauses(skill).length;
+  const template = resolveCardTemplateVariant(options.template);
+  const spec = cardTemplateSpec(template);
 
   return {
+    template,
+    spec,
+    rows: fantasyCardRulesRows(skill),
     size: { width, height },
     tier,
     skin: getFantasyCardTierSkin(tier),
-    regions: FANTASY_CARD_TEMPLATE_SPEC.regions,
+    regions: spec.regions,
     titleRule: selectTitleRule(skill.name),
     bodyRule: selectBodyRule(body, clauseCount),
     wtRule: selectWtRule(weight),

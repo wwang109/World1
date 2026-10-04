@@ -4,6 +4,7 @@
   "events": [
     {
       "id": "abandoned_cache",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -82,6 +83,7 @@
     },
     {
       "id": "banner_scribe",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -162,6 +164,7 @@
     },
     {
       "id": "beast_nest",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -354,6 +357,7 @@
     },
     {
       "id": "broken_axle",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -426,6 +430,7 @@
     },
     {
       "id": "cinderworks_regrind",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -824,11 +829,48 @@
               }
             ]
           }
+        },
+        {
+          "version": 4,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "2026-10-03: the 3-card merge is back as its own event type at the user's request — the player picks which three same-grade cards to spend, previews them beside the three rewards, and confirms with MERGE. Distinct from copy merging (shop UPGRADE CARD), which feeds copies of one card."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Or choose any three pieces of one grade and feed them in together: they come back out as a single piece of the grade above, and the tender lets you pick which.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed three pieces of one grade to the coals",
+                "outcome": {
+                  "kind": "mergeCards"
+                }
+              }
+            ]
+          }
         }
       ]
     },
     {
       "id": "factors_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -954,6 +996,7 @@
     },
     {
       "id": "fences_offer",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -985,6 +1028,7 @@
     },
     {
       "id": "field_medic",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1037,6 +1081,7 @@
     },
     {
       "id": "flaw_finder",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1084,6 +1129,7 @@
     },
     {
       "id": "fortune_teller",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1185,6 +1231,7 @@
     },
     {
       "id": "gemsellers_mishap",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1242,6 +1289,7 @@
     },
     {
       "id": "hermits_riddle",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1313,6 +1361,7 @@
     },
     {
       "id": "overloaded_caravan",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1405,6 +1454,7 @@
     },
     {
       "id": "pyre_watch",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1506,6 +1556,7 @@
     },
     {
       "id": "quartermasters_error",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1544,6 +1595,7 @@
     },
     {
       "id": "recruiter",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1656,6 +1708,7 @@
     },
     {
       "id": "retiring_smith",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1710,6 +1763,7 @@
     },
     {
       "id": "ruined_anvil",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1897,6 +1951,7 @@
     },
     {
       "id": "sparring_circle",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2083,6 +2138,7 @@
     },
     {
       "id": "the_lands_measure",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2169,6 +2225,7 @@
     },
     {
       "id": "the_lapidary",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2384,6 +2441,7 @@
     },
     {
       "id": "thorn_garden_shrine",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2526,6 +2584,7 @@
     },
     {
       "id": "toll_collectors_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2602,6 +2661,7 @@
     },
     {
       "id": "two_ravens",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2665,6 +2725,7 @@
     },
     {
       "id": "venomers_den",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2853,6 +2914,7 @@
     },
     {
       "id": "weighing_stone",
+      "retired": true,
       "versions": [
         {
           "version": 1,

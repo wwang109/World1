@@ -13,6 +13,7 @@
   "events": [
     {
       "id": "duelists_grip",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -370,6 +371,7 @@
     },
     {
       "id": "wellspring_of_sparks",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -426,6 +428,7 @@
     },
     {
       "id": "courier_shortcut",
+      "retired": true,
       "versions": [
         {
           "version": 1,

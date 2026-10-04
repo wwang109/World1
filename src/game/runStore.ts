@@ -18,6 +18,7 @@ import {
   finalizeSellGemV3,
   finalizeTargetedUpgradeV3,
   finalizeReshapeCardV3,
+  finalizeReshapeGemV3,
   finalizeUpgradeCardV3,
   materializeReachedEventV3,
   recordChallengeFightResult,
@@ -110,7 +111,7 @@ import {
   recordExtraGhostFightResult,
   shouldRollGhostSubstitute,
 } from '../run/ghostMatch';
-import { getOrCreateLocalId } from '../meta/localId';
+import { accountDisplayName, accountOwnerId, accountToken, initAccount } from './accountSession';
 import { fetchGhost, reportGhostResult, uploadGhost } from './ghostApi';
 
 /**
@@ -368,8 +369,7 @@ async function maybeSubstituteBoss(node: RunNode): Promise<void> {
   if (!run || !shouldRollGhostSubstitute(run, node.id)) return;
   ghostSubstituteFetchesInFlight.add(node.id);
   try {
-    const localId = getOrCreateLocalId(localStorageDriver);
-    const result = await fetchGhost(ghostBandOf(node.fightNumber!), localId);
+    const result = await fetchGhost(ghostBandOf(node.fightNumber!), accountOwnerId());
     const latest = activeRun;
     if (!latest || latest.currentNodeId !== node.id) return;
     if (!result.ok) return;
@@ -534,8 +534,7 @@ async function maybeOfferExtraGhostFight(node: RunNode): Promise<void> {
   if (!run || !canOfferExtraGhostFight(run, node.id)) return;
   ghostExtraOfferFetchesInFlight.add(node.id);
   try {
-    const localId = getOrCreateLocalId(localStorageDriver);
-    const result = await fetchGhost(ghostBandOf(node.fightNumber!), localId);
+    const result = await fetchGhost(ghostBandOf(node.fightNumber!), accountOwnerId());
     const latest = activeRun;
     if (!latest || !canOfferExtraGhostFight(latest, node.id)) return;
     if (!result.ok) return;
@@ -614,7 +613,7 @@ export interface GhostSaveOfferViewModel {
 export function offerGhostSave(): GhostSaveOfferViewModel | null {
   if (!activeRun) return null;
   const prompt = ghostSavePromptOf(activeRun);
-  return prompt ? { fightNumber: prompt.fightNumber, band: prompt.band, defaultName: 'Hero' } : null;
+  return prompt ? { fightNumber: prompt.fightNumber, band: prompt.band, defaultName: accountDisplayName() ?? 'Hero' } : null;
 }
 
 export async function saveGhost(name: string): Promise<{ ok: true } | { ok: false; reason: string }> {
@@ -622,8 +621,11 @@ export async function saveGhost(name: string): Promise<{ ok: true } | { ok: fals
   const prompt = ghostSavePromptOf(activeRun);
   if (!prompt) return { ok: false, reason: 'no save prompt pending' };
   const code = ghostCodeOf(activeRun);
-  const localId = getOrCreateLocalId(localStorageDriver);
-  const result = await uploadGhost({ code, displayName: name, fightNumber: prompt.fightNumber, ownerLocalId: localId });
+  await initAccount();
+  const result = await uploadGhost(
+    { code, displayName: name, fightNumber: prompt.fightNumber, ownerLocalId: accountOwnerId() },
+    accountToken(),
+  );
   if (activeRun) setActiveRun(clearGhostSavePrompt(activeRun));
   return result.ok ? { ok: true } : { ok: false, reason: result.reason };
 }
@@ -809,9 +811,10 @@ export type RunEventOfferSelection =
   | { kind: 'upgrade'; instanceId: string }
   | { kind: 'gem'; gemId: string }
   | { kind: 'sellGem'; pouchIndex: number }
-  | { kind: 'mergeCards'; skillId: string }
+  | { kind: 'mergeCards'; skillId: string; consumedIds?: readonly string[] }
   | { kind: 'statPick'; stat: MarketStat }
-  | { kind: 'reshape'; instanceId: string };
+  | { kind: 'reshape'; instanceId: string }
+  | { kind: 'reshapeGem'; optionId: string };
 
 interface CurrentCommittedEvent {
   node: RunNode;
@@ -984,12 +987,14 @@ function finishCurrentV3Offer(
             : selection.kind === 'sellGem' && offer.kind === 'sellGem'
               ? finalizeSellGemV3(activeRun, committed.instanceId, resolution.choiceId, selection.pouchIndex, lookup)
               : selection.kind === 'mergeCards' && offer.kind === 'mergeCards'
-                ? finalizeMergeCardsV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup)
+                ? finalizeMergeCardsV3(activeRun, committed.instanceId, resolution.choiceId, selection.skillId, lookup, selection.consumedIds)
                 : selection.kind === 'statPick' && offer.kind === 'buyStatPick'
                   ? finalizeBuyStatPickV3(activeRun, committed.instanceId, resolution.choiceId, selection.stat, lookup)
                   : selection.kind === 'reshape' && offer.kind === 'reshapeCard'
                     ? finalizeReshapeCardV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
-                    : undefined;
+                    : selection.kind === 'reshapeGem' && offer.kind === 'reshapeGem'
+                      ? finalizeReshapeGemV3(activeRun, committed.instanceId, resolution.choiceId, selection.optionId, lookup)
+                      : undefined;
   if (result === undefined || !result.ok) return undefined;
   if (result.state !== activeRun) setActiveRun(result.state);
   return result.outcome;
@@ -1029,7 +1034,7 @@ function finishCurrentLegacyOffer(
   }
   if (reopened.outcome.kind === 'mergeCardsPick' && selection.kind === 'mergeCards'
     && reopened.outcome.candidates.some((candidate) => candidate.skillId === selection.skillId)) {
-    const result = applyMergeCardsPick(reopened.state, selection.skillId);
+    const result = applyMergeCardsPick(reopened.state, selection.skillId, selection.consumedIds);
     setActiveRun(result.state);
     return result.outcome;
   }

@@ -193,6 +193,12 @@ function effectFaceSegments(
 
 const GRADIENT_KEY = 'cardtoken-gradient';
 
+const TIER_SHINE: Partial<Record<SkillTier, { alpha: number; duration: number; every: number }>> = {
+  silver: { alpha: 0.1, duration: 1100, every: 7000 },
+  gold: { alpha: 0.18, duration: 1000, every: 5000 },
+  diamond: { alpha: 0.24, duration: 900, every: 3500 },
+};
+
 /**
  * THE shared card token strip. One component for battle boards, deck build,
  * bag, and prep skill columns. Everything is derived from the real SkillDef +
@@ -285,6 +291,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     const accent = scene.add.rectangle(spec.accent.x, 0, spec.accent.width, h, accentColor).setOrigin(0.5);
     if (this.cornerRadius) accent.setMask(artMask);
     this.add(accent);
+    if (opts.tier) this.addTierShine(scene, w, h, opts.tier, artMask);
 
     // text block: NAME · effects summary · affinity(n/3) — all from data,
     // positioned/clamped by the spec's line entries.
@@ -409,6 +416,18 @@ export class CardToken extends Phaser.GameObjects.Container {
     }
     this.setSize(w, h);
     scene.add.existing(this);
+  }
+
+  private addTierShine(scene: Phaser.Scene, w: number, h: number, tier: SkillTier, mask: Phaser.Display.Masks.GeometryMask): void {
+    const shine = TIER_SHINE[tier];
+    if (!shine) return;
+    const band = scene.add.rectangle(-w, 0, Math.max(6, w * 0.16), h * 1.8, 0xffffff, shine.alpha)
+      .setOrigin(0.5).setAngle(18).setBlendMode('ADD').setMask(mask);
+    this.add(band);
+    scene.tweens.add({
+      targets: band, x: w, duration: shine.duration, ease: 'Sine.easeInOut',
+      delay: Math.floor(Math.random() * shine.every), repeat: -1, repeatDelay: shine.every,
+    });
   }
 
   /**

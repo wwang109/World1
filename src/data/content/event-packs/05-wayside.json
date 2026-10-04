@@ -13,6 +13,7 @@
   "events": [
     {
       "id": "roadside_wager",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -51,6 +52,7 @@
     },
     {
       "id": "cold_iron_drill",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -168,6 +170,7 @@
     },
     {
       "id": "underdogs_stand",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -421,6 +424,7 @@
     },
     {
       "id": "crooked_dice",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -486,6 +490,7 @@
     },
     {
       "id": "hanged_stranger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -513,6 +518,7 @@
     },
     {
       "id": "last_omens_toll",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -692,6 +698,7 @@
     },
     {
       "id": "quiet_muster",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -967,6 +974,7 @@
     },
     {
       "id": "sworn_company",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1106,6 +1114,7 @@
     },
     {
       "id": "temper_or_break",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1177,6 +1186,7 @@
     },
     {
       "id": "scrap_reclaimer",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1299,6 +1309,7 @@
     },
     {
       "id": "toll_of_plenty",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1529,6 +1540,7 @@
     },
     {
       "id": "sellswords_bazaar",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1561,6 +1573,7 @@
     },
     {
       "id": "silt_reliquary",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1878,6 +1891,7 @@
     },
     {
       "id": "forgotten_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,

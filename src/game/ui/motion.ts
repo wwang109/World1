@@ -19,10 +19,7 @@
 //
 // NO RUNTIME PHASER IMPORT, deliberately: every Phaser touch goes through the
 // `scene`/`target` objects the caller already owns, and the colour maths below is
-// written out rather than borrowed from `Phaser.Display.Color`. That keeps this
-// module (and the token table and colour maths that carry the actual design
-// decisions) importable by `tests/game` without standing up a Phaser runtime —
-// the same property `skillPresentation.ts` has.
+// written out rather than borrowed from `Phaser.Display.Color`.
 //
 // PRESENTATION ONLY. Nothing here is part of the simulation: `src/game` never
 // runs combat (CLAUDE.md's thin-client rule), so tween timing cannot affect a
@@ -57,10 +54,7 @@ export interface MoveTarget {
 }
 
 /**
- * MOTION TOKENS — durations in ms, offsets in px. Pinned by
- * `tests/game/motion.test.ts` so a change here is a deliberate design decision
- * rather than a drifting magic number, the same drift-lock stance `PRICE` takes
- * on the balance side.
+ * MOTION TOKENS — durations in ms, offsets in px.
  *
  * THE DURATIONS ARE ASYMMETRIC ON PURPOSE. Hover-IN is faster than hover-OUT
  * (90 vs 140): the response to the cursor arriving should feel immediate, while
@@ -87,6 +81,16 @@ export const MOTION = {
   panelIn: 200,
   /** A one-shot confirmation flash on the thing that was just chosen. */
   selectPulse: 260,
+  /** How long a committed choice plays its confirmation before the screen moves on. */
+  commitHold: 230,
+  /** Alpha multiplier the unchosen options fade to while a choice commits. */
+  commitDim: 0.35,
+  /** A freshly started scene fading in from the background colour. */
+  sceneIn: 240,
+  /** Stagger between list rows assembling on first render. */
+  rowStagger: 60,
+  /** Delay spread, top to bottom, when a whole pane assembles. */
+  assembleSpread: 180,
 
   /** How far a hovered control rises, in px (negative y). Subtle by design. */
   hoverLift: 2,
@@ -365,4 +369,46 @@ export function flashConfirm(scene: MotionScene, target: MoveTarget, opts: { dip
  */
 export function hoverFillFor(role: 'primary' | 'default', tokens: typeof UI): number {
   return role === 'primary' ? tokens.chipDark : tokens.slotHover;
+}
+
+const lastRenderKey = new WeakMap<MotionScene, string>();
+const renderKeyCleanup = new WeakSet<MotionScene>();
+
+export function isFreshRender(scene: MotionScene, key: string): boolean {
+  if (!renderKeyCleanup.has(scene)) {
+    renderKeyCleanup.add(scene);
+    scene.events.on('shutdown', () => lastRenderKey.delete(scene));
+  }
+  if (lastRenderKey.get(scene) === key) return false;
+  lastRenderKey.set(scene, key);
+  return true;
+}
+
+export function installSceneFadeIn(game: Phaser.Game, skip: readonly string[], color: number): void {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  game.events.once('ready', () => {
+    for (const scene of game.scene.scenes) {
+      if (skip.includes(scene.sys.settings.key)) continue;
+      scene.events.on('create', () => scene.cameras.main.fadeIn(MOTION.sceneIn, r, g, b));
+    }
+  });
+}
+
+export function assembleObjects(scene: MotionScene, objects: readonly unknown[], area: { y: number; height: number }): void {
+  for (const object of objects) {
+    const o = object as Partial<MoveTarget>;
+    if (typeof o.y !== 'number' || typeof o.alpha !== 'number') continue;
+    const target = o as MoveTarget;
+    const depth = area.height > 0 ? Math.min(1, Math.max(0, (target.y - area.y) / area.height)) : 0;
+    const homeY = target.y;
+    const homeAlpha = target.alpha;
+    target.alpha = 0;
+    target.y = homeY + MOTION.panelRise;
+    scene.tweens.add({
+      targets: target, y: homeY, alpha: homeAlpha, duration: MOTION.panelIn,
+      delay: Math.round(depth * MOTION.assembleSpread), ease: MOTION.easePanel,
+    });
+  }
 }

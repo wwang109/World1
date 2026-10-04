@@ -85,11 +85,15 @@ export function eventCardChoiceV3(
   spec: Extract<EventDirectOutcomeSpecV3, { kind: 'cardChoice' }>,
 ): Extract<EventDeferredOfferV3, { kind: 'cardChoice'; status: 'pending' }> {
   const maximum = effectiveOfferMaximum(node, source, spec);
+  const floor = lowerTier(spec.minTier ?? 'bronze', maximum);
+  const floorFor = (minimum: SkillTier): SkillTier => (TIER_ORDER.indexOf(minimum) >= TIER_ORDER.indexOf(floor) ? minimum : floor);
   const pool = Object.values(skillBook).filter((skill, index, book) => {
     if (book.findIndex((entry) => entry.id === skill.id) !== index) return false;
     if (!cardMatchesFilter(skill, spec.filter)) return false;
     const minimum = minOfferableTier(skill);
-    return minimum !== null && TIER_ORDER.indexOf(minimum) <= TIER_ORDER.indexOf(maximum);
+    return minimum !== null
+      && TIER_ORDER.indexOf(minimum) <= TIER_ORDER.indexOf(maximum)
+      && cardOfferableAtTier(skill, floorFor(minimum));
   });
   if (pool.length < EVENT_CHOICE_SIZE) {
     throw new Error(
@@ -113,7 +117,7 @@ export function eventCardChoiceV3(
       skill.id,
       optionIndex,
     ) % 100);
-    const tier = clampTier(desired, minimum, maximum);
+    const tier = clampTier(desired, floorFor(minimum), maximum);
     if (!cardOfferableAtTier(skill, tier)) {
       throw new Error(`eventCardChoiceV3: ${skill.id} is not offerable at ${tier}`);
     }

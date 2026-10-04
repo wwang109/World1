@@ -278,6 +278,10 @@ function defenseSuffix(ctx: RenderCtx): string {
   return ctx.property === 'physical' ? '(+DEF)' : '(+MDEF)';
 }
 
+function turnsPhrase(turns: number): string {
+  return `${turns} ${turns === 1 ? 'turn' : 'turns'}`;
+}
+
 /** `physical`/`magical`/`TRUE` — a property named on an action, not the card. */
 function propertyWord(property: Property): string {
   return property === 'true' ? 'TRUE' : property;
@@ -603,11 +607,11 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a, ctx) => {
       // `more` is the same word the heal repeat uses, for the same shape.
       const more = ctx.repeatsHeadline ? ' more' : '';
-      return hostless(ctx)
-        ? `Gain ${a.power}${more} {{shield}}`
-        : ctx.property === 'true'
-          ? `Gain ${a.power} TRUE${more} {{shield}}`
-          : tidy(`Gain ${a.power} ${defenseSuffix(ctx)}${more} ${ctx.property} {{shield}}`);
+      const label = hostless(ctx) ? 'Shield' : ctx.property === 'true' ? 'True Shield' : ctx.property === 'physical' ? 'P. Shield' : 'M. Shield';
+      const keyword = label === 'Shield' ? '{{Shield}}' : `{{${label}|shield}}`;
+      return ctx.gated
+        ? tidy(`${keyword} ${a.power}${more} ${defenseSuffix(ctx)}`)
+        : tidy(`${keyword}: Gain ${a.power}${more} ${defenseSuffix(ctx)}`);
     },
     ruleTitle: 'Shield',
     ruleSentence: 'Absorb X matching damage and prevent Bleed while active.',
@@ -732,7 +736,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     // for not knowing. Still reachable via the unconditional glossary
     // attachment, just without a coloured word inviting the tap.
     displayToken: undefined,
-    faceClause: (a) => `-${a.pct}% enemy ${STAT_TOKEN[a.stat]} (${a.turns}t)`,
+    faceClause: (a) => `-${a.pct}% enemy ${STAT_TOKEN[a.stat]} (${turnsPhrase(a.turns)})`,
     ruleTitle: 'Stat debuff',
     ruleSentence: 'Reduce the named stat by X% for X turns.',
     faceToken: (a) => ({ text: `-${a.pct}% ${STAT_TOKEN[a.stat]} ${a.turns}t` }),
@@ -740,7 +744,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   expose: {
     composeGroup: 'payload',
     displayToken: 'expose',
-    faceClause: (a) => `{{Expose}} +${a.pct}% (${a.turns}t)`,
+    faceClause: (a) => `{{Expose}} +${a.pct}% (${turnsPhrase(a.turns)})`,
     ruleTitle: 'Expose',
     ruleSentence: 'Deal X% more damage on next attacks for X turns.',
     faceToken: (a) => ({ text: `${STATUS_TOKEN.expose} ${a.pct}% ${a.turns}t`, keyword: 'expose' }),
@@ -764,7 +768,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   curse: {
     composeGroup: 'payload',
     displayToken: 'curse',
-    faceClause: (a) => `{{Curse}} -${a.amount} (${a.turns}t)`,
+    faceClause: (a) => `{{Curse}} -${a.amount} (${turnsPhrase(a.turns)})`,
     ruleTitle: 'Curse',
     ruleSentence: 'Reduce the target card’s damage by X for X turns.',
     faceToken: (a) => ({ text: `CURSE -${a.amount} DMG ${a.turns}t`, keyword: 'curse' }),
@@ -806,7 +810,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   guard: {
     composeGroup: 'selfGrant',
     displayToken: 'guard',
-    faceClause: (a, ctx) => `{{${a.property === 'magical' ? 'Magic' : a.property === 'physical' ? 'Physical' : 'True'} Guard|guard}} ${a.pct}% (${ctx.host === 'gem' ? `${a.turns} ${a.turns === 1 ? 'turn' : 'turns'}` : `${a.turns}t`})`,
+    faceClause: (a) => `{{${a.property === 'magical' ? 'Magic' : a.property === 'physical' ? 'Physical' : 'True'} Guard|guard}} ${a.pct}% (${turnsPhrase(a.turns)})`,
     ruleTitle: 'Guard',
     ruleSentence: 'Reduce matching damage by X% for X turns.',
     faceToken: (a) => ({
@@ -837,7 +841,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     composeGroup: 'selfGrant',
     // EXEMPT for the same reason as `debuffStat` above.
     displayToken: undefined,
-    faceClause: (a) => `+${a.pct}% ${STAT_TOKEN[a.stat]} (${a.turns}t)`,
+    faceClause: (a) => `+${a.pct}% ${STAT_TOKEN[a.stat]} (${turnsPhrase(a.turns)})`,
     ruleTitle: 'Stat buff',
     ruleSentence: 'Increase the named stat by X% for X turns.',
     faceToken: (a) => ({ text: `+${a.pct}% ${STAT_TOKEN[a.stat]} ${a.turns}t` }),

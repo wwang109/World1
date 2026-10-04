@@ -570,6 +570,12 @@ dialogues with 2-3 choices, seeded outcomes.
     traded for ~1.3 extra Silvers. `tests/run/cardMerge.test.ts`.
 - No-repeat bags: a per-run `eventBag` plus per-theme bags
   (`eventThemeBags`), reshuffled deterministically via refill counters.
+- Retired and repeatable (2026-10-03): `"retired": true` events never enter a
+  pool (and are dropped from saved bags); an event already drawn in the
+  current biome band is skipped unless `"repeatable": true` (gold market,
+  generic card/gem picks), falling back to a repeat only when nothing else
+  is eligible. Repeats across biome stays are expected: a full 11-biome run
+  has ~110 event stops against ~80 drawable events.
 - Affordability: `isEventChoiceAffordable` (gold) and `isEventChoiceUsable`
   (gold PLUS any outcome-specific precondition) are the single predicates both
   the resolver and the UI use; `rollEventForNode` skips events with no

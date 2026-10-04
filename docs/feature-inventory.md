@@ -159,6 +159,7 @@ the active run's own state — `isRunDrafting()`, `currentNode()?.kind`,
 | Feature | D | M |
 |---|---|---|
 | LANDING / FRONT DOOR (`StartScene`): full-bleed illustrated map; centered WORLD1 hierarchy; primary BEGIN/RESUME journey action; quiet SANDBOX route; conditional lifetime line; pending seed with >=44px REROLL target. Start opens the run Draft, Resume returns to the active Run Map, and Sandbox opens Prep. | [x] *(1440x900)* | [x] *(412x892)* |
+| ACCOUNT chip + panel (`ui/accountPanel.ts`, top-left of `StartScene`): `ACCOUNT · <name>` opens a modal with NAME/RENAME, STEAM/LINK STEAM, EMAIL/LINK EMAIL (row says "Not available yet" without a server email sender), a switch-account hint, a one-line notice after a Steam/email return, and CLOSE. Guest name like `Thorn-F988` is the ghost upload default. | [ ] *(built; awaiting user check)* | [ ] *(built; awaiting user check)* |
 | RUN MAP: expedition route through five-day regions; noncombat columns keep three event/shop choices with at most one shop, non-boss combat columns keep homogeneous EASY/MEDIUM/HARD, and boss columns have one mandatory destination. Internal `wave` state and map generation are unchanged. | [x] | [x] |
 | RUN MAP: shop node choice panel shows its theme name ("SHOP · Arcanum") | [x] | [x] |
 | RUN MAP: fight/elite node choice panel previews the rolled foe (name/LV/title) | [x] | [x] |

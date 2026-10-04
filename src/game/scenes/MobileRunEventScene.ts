@@ -10,13 +10,14 @@ import { FONT, SCREEN, textRole, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { marketPurchaseConfirmText, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
 import { isMarketBuyOutcomeKind } from '../../run/market';
-import { buildMergeSpentEntries, mergeConfirmPreviewForChoice } from '../ui/runMergeViewModel';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import {
   renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud,
   renderSellGemConfirm, snapshotRunProgress,
 } from '../ui/RunProgressStrip';
-import { addBrightRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
+import { addBrightRunArt, addRunArt, choiceArtKey, driftRunArt, eventArtKey } from '../ui/runArt';
+import { addBiomeAmbience } from '../ui/ambience';
+import { attachButtonFeel, isFreshRender } from '../ui/motion';
 import { renderEventArtBorder } from '../ui/eventArtBorder';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
 import { EVENT_REWARD_COLORS, renderRunEventOutcomePane } from '../ui/RunRewardPanel';
@@ -188,6 +189,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     positionRunDestination(this, this.embedded, this.embedded
       ? { x: 0, y: 0, width: this.embedded.bounds.width, height: this.embedded.bounds.height }
       : content);
+    addBiomeAmbience(this, presentation.context.biomeId, content);
     if (!this.embedded) this.renderHud(run);
     if (this.storyOpen) {
       this.renderStoryReader(presentation, content);
@@ -213,23 +215,13 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.renderRetirementConfirm();
     if (this.mergeConfirmChoiceId !== null) {
       const choiceId = this.mergeConfirmChoiceId;
-      // UNCONDITIONAL (2026-09-06 user ruling): a merge always costs three
-      // cards, so it always shows this confirm. V3 reads the exact clicked
-      // choice's persisted offer; legacy keeps its live preview.
       const choice = view.choices.find((candidate) => candidate.id === choiceId);
-      const preview = choice === undefined
-        ? null
-        : mergeConfirmPreviewForChoice(choice.outcomeHint, run);
-      if (!preview) {
-        // The live trio vanished between the tap and this render (e.g. a
-        // reload landed here with a since-changed board) — nothing to
-        // confirm against, so close silently rather than show an empty box.
+      if (choice?.outcomeHint.kind !== 'mergeCards') {
         this.mergeConfirmChoiceId = null;
       } else {
-        const spent = buildMergeSpentEntries(preview.consumed, run);
         renderMergeConsumeConfirm(this, {
           compact: true,
-          body: mergeConfirmBody(preview.from, preview.to, spent),
+          body: mergeConfirmBody(),
           onCancel: () => { this.mergeConfirmChoiceId = null; this.rerender(); },
           onConfirm: () => { this.mergeConfirmChoiceId = null; this.resolveAndEnter(choiceId); },
         });
@@ -393,8 +385,8 @@ export class MobileRunEventScene extends Phaser.Scene {
   private storyButton(x: number, y: number, width: number, label: string, onPress: () => void): void {
     const button = roundRect(this.add.rectangle(x, y, width, 40, UI.chipDark), 12).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
-    this.add.text(x + width / 2, y + 20, label, textRole('label', { ink: 'accent' })).setOrigin(0.5);
-    button.on('pointerdown', onPress);
+    const text = this.add.text(x + width / 2, y + 20, label, textRole('label', { ink: 'accent' })).setOrigin(0.5);
+    attachButtonFeel(this, button, { fill: UI.chipDark, hover: UI.slotHover, follow: [text], onPress });
   }
 
   private renderPager(bounds: MobileEventChoosingRect, page: number, pages: number, onPage: (page: number) => void): void {
@@ -407,6 +399,10 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   private renderStory(event: RunEventScenePresentation, story: MobileEventChoosingRect): void {
     roundRect(this.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94), 12).setOrigin(0, 0).setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.7);
+    const banner = { x: story.x + 4, y: story.y + 4, width: story.width - 8, height: story.height - 8 };
+    const bannerArt = addRunArt(this, eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined), banner, 0.42);
+    driftRunArt(this, bannerArt, banner);
+    this.add.rectangle(banner.x, banner.y, banner.width, banner.height, EVENT_REWARD_COLORS.panelAlt, 0.5).setOrigin(0, 0);
     const title = this.add.text(story.x + 10, story.y + 8, event.title, {
       fontSize: `${F.title}px`, color: EVENT_REWARD_COLORS.text, fontFamily: FONT.display,
       fontStyle: 'bold', wordWrap: { width: story.width - 20 },
@@ -429,6 +425,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     if (artH > 0) {
       const art = addBrightRunArt(this, eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined),
         { x, y, width, height: artH }, BRIGHT_ART_TREATMENT.story);
+      driftRunArt(this, art.image, { width, height: artH });
       if (event.art.kind === 'event') renderEventArtBorder(this, event.art.kind, { x, y, width, height: artH });
       else art.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.4);
       y += artH + 10;
@@ -483,6 +480,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       auditTextBlock(count, { name: 'Compact event outcome choice count', maxWidth: outcomes.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 8 });
     }
 
+    const fresh = isFreshRender(this, `choices:${event.choices.map((choice) => choice.id).join('|')}`);
     event.choices.forEach((choice, choiceIndex: number) => {
       const row = choiceRows[choiceIndex];
       if (!row) return;
@@ -499,6 +497,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       renderRunChoicePanel(this, { x: row.x, y: row.y, w: row.width, h: row.height }, model, {
         font: F,
         sfx: choice.cost > 0 ? 'purchase' : 'uiClick',
+        appearIndex: fresh ? choiceIndex : undefined,
         onSelect: () => {
           // mergeCards (UNCONDITIONAL, 2026-09-06 user ruling: a merge always
           // costs three cards, so it always pauses here) gets a confirm

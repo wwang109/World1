@@ -1103,10 +1103,15 @@ function validateV3CardChoice(
   problems: ContentProblem[],
   context: V3OutcomeContext,
 ): void {
-  rejectUnknownFields(raw, ['kind', 'filter', 'maxTier', 'capstone'], where, problems);
+  rejectUnknownFields(raw, ['kind', 'filter', 'maxTier', 'minTier', 'capstone'], where, problems);
   if (!Object.hasOwn(raw, 'filter')) problems.push({ where: `${where}.filter`, message: 'missing required field filter' });
   else validateCardFilter(raw.filter, `${where}.filter`, problems);
   required(raw, 'maxTier', (entry) => TIERS.includes(entry as SkillTier), TIERS.join('|'), where, problems);
+  optional(raw, 'minTier', (entry) => TIERS.includes(entry as SkillTier), TIERS.join('|'), where, problems);
+  if (TIERS.includes(raw.minTier as SkillTier) && TIERS.includes(raw.maxTier as SkillTier)
+    && TIERS.indexOf(raw.minTier as SkillTier) > TIERS.indexOf(raw.maxTier as SkillTier)) {
+    problems.push({ where: `${where}.minTier`, message: 'minTier must not exceed maxTier' });
+  }
   optional(raw, 'capstone', (entry) => entry === true, 'exactly true', where, problems);
   if (raw.capstone === true) {
     const authorized = context.rarity === 'secret'
@@ -1278,15 +1283,17 @@ function validateV3ChallengeFight(
 }
 
 function validateV3ReshapeCard(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
-  const modes = ['transform', 'retype', 'duplicate', 'sacrifice'];
+  rejectUnknownFields(raw, ['kind', 'mode', 'retypeTo', 'pickFrom', 'reward', 'fallback'], where, problems);
+  if (raw.pickFrom !== undefined) validateCardFilter(raw.pickFrom, `${where}.pickFrom`, problems);
+  const modes = ['transform', 'retype', 'duplicate', 'sacrifice', 'trade', 'shatter'];
   if (!modes.includes(String(raw.mode))) {
     problems.push({ where: `${where}.mode`, message: `mode must be ${modes.join('|')}` });
   }
-  if (raw.mode === 'retype') {
-    if (raw.retypeTo === undefined) problems.push({ where: `${where}.retypeTo`, message: 'retype needs retypeTo' });
+  if (raw.mode === 'retype' || raw.mode === 'trade') {
+    if (raw.retypeTo === undefined) problems.push({ where: `${where}.retypeTo`, message: `${String(raw.mode)} needs retypeTo` });
     else validateCardFilter(raw.retypeTo, `${where}.retypeTo`, problems);
   } else if (raw.retypeTo !== undefined) {
-    problems.push({ where: `${where}.retypeTo`, message: 'retypeTo is only for retype' });
+    problems.push({ where: `${where}.retypeTo`, message: 'retypeTo is only for retype or trade' });
   }
   if (raw.reward !== undefined) {
     if (raw.mode !== 'sacrifice') problems.push({ where: `${where}.reward`, message: 'reward is only for sacrifice' });
@@ -1329,6 +1336,22 @@ function validateV3DirectOutcome(
   }
   if (value.kind === 'reshapeCard') {
     validateV3ReshapeCard(value, where, problems);
+    return;
+  }
+  if (value.kind === 'reshapeGem' || value.kind === 'scavengeCard') {
+    rejectUnknownFields(value, value.kind === 'reshapeGem' ? ['kind', 'mode', 'fallback'] : ['kind', 'fallback'], where, problems);
+    if (value.kind === 'reshapeGem' && value.mode !== 'transform' && value.mode !== 'fuse') {
+      problems.push({ where: `${where}.mode`, message: 'mode must be transform|fuse' });
+    }
+    const fallback = value.fallback;
+    const fallbackOk = isObj(fallback) && (fallback.kind === 'nothing'
+      || (fallback.kind === 'grantGold' && Number.isInteger(fallback.amount) && (fallback.amount as number) > 0));
+    if (!fallbackOk) problems.push({ where: `${where}.fallback`, message: 'fallback must be nothing or grantGold{amount>0}' });
+    return;
+  }
+  if (value.kind === 'grantShopRerolls') {
+    rejectUnknownFields(value, ['kind', 'amount'], where, problems);
+    required(value, 'amount', inRange(1, 9), 'an integer 1..9', where, problems);
     return;
   }
   if (value.kind === 'weighted') {
@@ -1454,13 +1477,14 @@ function validateV3Choice(
   }
   required(value, 'label', (entry) => typeof entry === 'string' && entry.trim() !== '', 'a non-empty string', where, problems);
   optional(value, 'cost', inRange(0, 999), 'an integer 0..999', where, problems);
+  optional(value, 'lifeCost', inRange(1, 2), 'an integer 1..2', where, problems);
   if (value.requires !== undefined) validateGate(value.requires, `${where}.requires`, problems);
   if (value.requiresTally !== undefined) validateTallyGate(value.requiresTally, `${where}.requiresTally`, problems);
   if (!Object.hasOwn(value, 'outcome')) problems.push({ where: `${where}.outcome`, message: 'missing required field outcome' });
   else validateV3Outcome(value.outcome, `${where}.outcome`, problems, context);
   if (value.mutations !== undefined) validateV3Mutations(value.mutations, `${where}.mutations`, problems);
   if (value.callback !== undefined) validateV3Callback(value.callback, `${where}.callback`, problems);
-  rejectUnknownFields(value, ['id', 'label', 'cost', 'requires', 'requiresTally', 'outcome', 'mutations', 'callback'], where, problems);
+  rejectUnknownFields(value, ['id', 'label', 'cost', 'lifeCost', 'requires', 'requiresTally', 'outcome', 'mutations', 'callback'], where, problems);
 }
 
 function validateV3ChoiceSet(
@@ -1482,7 +1506,7 @@ function validateV3ChoiceSet(
       choice, `${where}.fixed[${index}]`, seenIds, problems, context,
     ));
     const fixedChoices = value.fixed.filter(isObj);
-    if (!fixedChoices.some((choice) => (choice.cost === undefined || choice.cost === 0) && choice.requires === undefined && choice.requiresTally === undefined)) {
+    if (!fixedChoices.some((choice) => (choice.cost === undefined || choice.cost === 0) && choice.lifeCost === undefined && choice.requires === undefined && choice.requiresTally === undefined)) {
       problems.push({ where: `${where}.fixed`, message: 'fixed choices need a guaranteed cost-zero ungated safe exit' });
     }
   }
@@ -2098,7 +2122,12 @@ export function validateEventDocument(
       if (seenIds.has(id)) problems.push({ where: id, message: `duplicate document for id ${id}` });
       seenIds.add(id);
     }
-    rejectUnknownFields(event, ['id', 'versions'], base, problems);
+    rejectUnknownFields(event, ['id', 'retired', 'repeatable', 'versions'], base, problems);
+    for (const flag of ['retired', 'repeatable'] as const) {
+      if (event[flag] !== undefined && event[flag] !== true) {
+        problems.push({ where: `${base}.${flag}`, message: `${flag} must be true when present` });
+      }
+    }
     if (!Array.isArray(event.versions) || event.versions.length === 0) {
       problems.push({ where: `${base}.versions`, message: 'versions must be a non-empty array of { version, def }' });
       return;

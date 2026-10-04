@@ -288,6 +288,7 @@
     },
     {
       "id": "capacitor_vault",
+      "retired": true,
       "versions": [
         {
           "version": 1,

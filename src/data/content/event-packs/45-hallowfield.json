@@ -292,6 +292,7 @@
     },
     {
       "id": "penitents_road",
+      "retired": true,
       "versions": [
         {
           "version": 1,

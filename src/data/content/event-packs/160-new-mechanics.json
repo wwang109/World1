@@ -1,0 +1,1064 @@
+{
+  "schemaVersion": 3,
+  "storyStateSchema": {
+    "oath_mercy": {
+      "kind": "boolean",
+      "default": false
+    },
+    "grave_path": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "opened",
+        "answered"
+      ],
+      "default": "none"
+    },
+    "honorable_choice": {
+      "kind": "boolean",
+      "default": false
+    },
+    "reliquary_oath": {
+      "kind": "boolean",
+      "default": false
+    },
+    "oath_gate": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "sworn",
+        "kept",
+        "released"
+      ],
+      "default": "none"
+    },
+    "venom_bloom": {
+      "kind": "enum",
+      "values": [
+        "none",
+        "cultivated"
+      ],
+      "default": "none"
+    },
+    "rival_spared": {
+      "kind": "boolean",
+      "default": false
+    },
+    "moon_quarry_released": {
+      "kind": "boolean",
+      "default": false
+    }
+  },
+  "events": [
+    {
+      "id": "moneylender",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moneylender",
+            "body": "A moneylender in a fur collar is raising a stake for a caravan. Lend him coin now and he swears to pay it back nearly twice over down the road.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "moneylender",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "lend",
+                  "label": "Lend 5 gold (1 gold interest now)",
+                  "cost": 5,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "moneylender_repays",
+                    "eventId": "moneylender_repays",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 5
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moneylender_repays",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moneylender Pays",
+            "body": "The moneylender catches up with you, caravan sold and purse fat. He counts out what he owes, or offers a finer piece of the cargo instead.",
+            "theme": "market",
+            "rarity": "rare",
+            "story": {
+              "storyId": "moneylender",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "moneylender_repays"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "collect",
+                  "label": "Collect 9 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 9
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moneylender"
+                    }
+                  ]
+                },
+                {
+                  "id": "cargo",
+                  "label": "Take a Silver card from the cargo",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moneylender"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cracked_idol",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Cracked Idol",
+            "body": "A cracked stone idol sits at the crossroads with its palm held out. Pilgrims say it blesses what it is given, when it isn't hungry.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "cracked_idol",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "offer_card",
+                  "label": "Lay a card in its palm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "blessed",
+                        "label": "Blessed (60%)",
+                        "weight": 3,
+                        "outcome": {
+                          "kind": "upgradeCardTargeted",
+                          "target": {
+                            "filter": {
+                              "where": "any",
+                              "match": {
+                                "archetypes": [
+                                  "offense",
+                                  "defensive",
+                                  "healing",
+                                  "support",
+                                  "debuff"
+                                ]
+                              }
+                            }
+                          },
+                          "fallback": {
+                            "kind": "grantGold",
+                            "amount": 2
+                          }
+                        }
+                      },
+                      {
+                        "id": "swallowed",
+                        "label": "Swallowed (40%)",
+                        "weight": 2,
+                        "outcome": {
+                          "kind": "reshapeCard",
+                          "mode": "sacrifice",
+                          "fallback": {
+                            "kind": "nothing"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the idol be",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fortunes_crate",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Fortune's Crate",
+            "body": "A sealed crate fell off a merchant's cart and split along one side. Something glints inside, but most of it is straw.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fortunes_crate",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "pry_open",
+                  "label": "Pry it open (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "gilded",
+                        "label": "Gilded card (30%)",
+                        "weight": 3,
+                        "outcome": {
+                          "kind": "cardChoice",
+                          "filter": [
+                            {
+                              "properties": [
+                                "physical",
+                                "magical",
+                                "true"
+                              ]
+                            }
+                          ],
+                          "maxTier": "gold",
+                          "minTier": "gold"
+                        }
+                      },
+                      {
+                        "id": "straw",
+                        "label": "Straw and splinters (70%)",
+                        "weight": 7,
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mercy_wagon",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Mercy Wagon",
+            "body": "A field-surgeon's wagon finds you still bleeding from your last fight. She patches you up and presses a parting gift on you.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "mercy_wagon",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "combat.recentLoss",
+              "args": {
+                "withinDepth": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_card",
+                  "label": "Take a Silver card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "take_gold",
+                  "label": "Take 4 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_stand_shrine",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Stand Shrine",
+            "body": "On your last life, you find a shrine to those who would not fall. Its keeper offers you one last edge.",
+            "theme": "omen",
+            "rarity": "common",
+            "story": {
+              "storyId": "last_stand_shrine",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "eq",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_card",
+                  "label": "Take a Gold card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "take_hp",
+                  "label": "Take +5 MAX HP",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "paupers_purse",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pauper's Purse",
+            "body": "\"No one should walk this road with nothing,\" says the pilgrim who sees your empty purse. She offers what she can spare.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "paupers_purse",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "lte",
+                    "value": 1
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 3
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_gold",
+                  "label": "Take 5 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 5
+                  }
+                },
+                {
+                  "id": "take_card",
+                  "label": "Take a card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "jewelers_window",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Jeweler's Window",
+            "body": "A jeweler opens his shutter only for travelers who look like they can pay. Today, that is you.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "jewelers_window",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 15
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 9
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_gold",
+                  "label": "Buy a Gold card (8 gold)",
+                  "cost": 8,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "buy_diamond",
+                  "label": "Buy a Diamond card (14 gold)",
+                  "cost": 14,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "diamond",
+                    "minTier": "diamond"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Window-shop and move on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "glass_cutter",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Glass-Cutter",
+            "body": "A glass-cutter claims she can split a card along its grain into two lesser copies. Merge them again and you are back where you started.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "glass_cutter",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "any",
+                "count": 1,
+                "match": {},
+                "tierAtLeast": "silver"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "shatter",
+                  "label": "Shatter a card into two copies",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "shatter",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards whole",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gem_cutters_wheel",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Gem-Cutter's Wheel",
+            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "gem_cutters_wheel",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 1,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "recut",
+                  "label": "Recut a gem from your pouch",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeGem",
+                    "mode": "transform",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fusing_kiln",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fusing Kiln",
+            "body": "An alchemist's kiln melts two stones of one grade into a single gem of the next. Nothing that goes in comes out the same.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fusing_kiln",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 2,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "fuse",
+                  "label": "Fuse two gems from your pouch",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeGem",
+                    "mode": "fuse",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "blood_altar",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blood Altar",
+            "body": "A black altar asks for the one thing gold cannot buy back. Bleed on it, and it gives up a treasure.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "blood_altar",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "lives.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 2
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 4
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "bleed",
+                  "label": "Pay a life for a Gold card (1 life)",
+                  "cost": 0,
+                  "lifeCost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk away",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "scavengers_field",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Scavenger's Field",
+            "body": "Your last victory left gear strewn across the ground. A drill-master nods at the pile: \"Use what beat you, or near enough.\"",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "scavengers_field",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "scavenge",
+                  "label": "Take a card your last foes used",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "scavengeCard",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "peddlers_token",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Peddler's Token",
+            "body": "A shop-runner hands out brass tokens to drum up trade. Each one buys a free reroll at any shop down the road.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "peddlers_token",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_tokens",
+                  "label": "Take 2 shop tokens",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantShopRerolls",
+                    "amount": 2
+                  }
+                },
+                {
+                  "id": "buy_tokens",
+                  "label": "Buy 3 tokens instead (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "grantShopRerolls",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "No thanks",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

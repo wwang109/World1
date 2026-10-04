@@ -4,17 +4,22 @@ import type { RunState } from '../../run/runState';
 import type { LayoutProfile } from '../layoutProfile';
 import type { RunEventOfferSelection, RunEventOutcome } from '../runStore';
 import { choiceArtKey } from './runArt';
+import { burstReward } from './ambience';
+import { assembleObjects, isFreshRender } from './motion';
 import { eventOutcomePaneTemplate } from './runRewardGeometry';
 import type { RunScreenTemplate } from './runScreenTemplate';
 import { buildRunRewardViewModel } from './runRewardViewModel';
-import { RESHAPE_PICK_TITLE } from './eventOutcomeText';
+import { GEM_RESHAPE_PICK_TITLE, RESHAPE_PICK_TITLE } from './eventOutcomeText';
 import {
-  mergeReceiptForEventPicker, presentRunEventOutcome,
+  presentRunEventOutcome,
   type RunEventPickerPresentation, type RunEventPresentableOutcome, type RunEventScenePresentation,
 } from './runEventScenePresenter';
 import {
-  renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeCardsPicker,
-  renderRunRewardPanel, renderRunSellGemPicker, renderRunStatPickPicker, renderRunUpgradeCardPicker,
+  buildMergeConfirmView, buildMergeSelectView, INITIAL_MERGE_UI, mergeReceiptFor, toggleMergeCard, type MergeUiState,
+} from './runMergeViewModel';
+import {
+  renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeConfirmPicker, renderRunMergeSelectPicker, renderRunReshapeGemPicker,
+  renderRunRewardPanel, renderRunSellGemPicker, renderRunStatPickPicker, renderRunTradePicker, renderRunUpgradeCardPicker,
 } from './RunRewardPanel';
 
 /** Scene-independent UI state. A null receipt is a committed/re-entered choice,
@@ -47,11 +52,12 @@ export interface RunEventOutcomePaneContext {
 type PickerKind = RunEventPickerPresentation['kind'];
 type PickerFor<K extends PickerKind, P = RunEventPickerPresentation> =
   P extends { kind: infer Kind } ? K extends Kind ? P : never : never;
-type InspectionKind = 'draft' | 'upgrade' | 'merge';
+type InspectionKind = 'draft' | 'upgrade';
 interface PickerContext extends RunEventOutcomePaneContext {
   rewardTemplate: RunScreenTemplate;
   paging: { page: number; onPageChange: (page: number) => void };
   inspect: (kind: InspectionKind) => { inspectedIndex?: number | null; onInspect?: (index: number | null) => void };
+  merge: { ui: MergeUiState; update: (next: MergeUiState) => void };
 }
 type PickerRegistry = { [K in PickerKind]: (picker: PickerFor<K>, context: PickerContext) => void };
 type StateRegistry = {
@@ -99,19 +105,48 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
   sellGem: (picker, ctx) => renderRunSellGemPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title, onPick: ctx.onSell,
   }),
-  mergeCards: (picker, ctx) => renderRunMergeCardsPicker(ctx.scene, ctx.rewardTemplate, picker.model, {
-    ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
-    onPick: candidate => ctx.onFinalize(
-      { kind: 'mergeCards', skillId: candidate.skillId }, mergeReceiptForEventPicker(picker, candidate.skillId),
-    ),
-    ...ctx.inspect('merge'),
-  }),
+  mergeCards: (picker, ctx) => {
+    const { ui, update } = ctx.merge;
+    const rewards = ui.ids.length === 3 ? picker.rewardsFor(ui.ids) : null;
+    const base = { ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title };
+    if (ui.step === 'reward' && rewards !== null && rewards.rewards.length > 0) {
+      renderRunMergeConfirmPicker(ctx.scene, ctx.rewardTemplate, buildMergeConfirmView(picker.owned, rewards, ui.reward), {
+        ...base,
+        detail: ui.detail?.list === 'spent' || ui.detail?.list === 'reward' ? ui.detail : null,
+        onDetail: detail => update({ ...ui, detail }),
+        onChoose: skillId => update({ ...ui, reward: skillId, detail: null }),
+        onBack: () => update({ ...ui, step: 'cards', reward: null, detail: null }),
+        onMerge: () => {
+          if (ui.reward === null) return;
+          ctx.onFinalize({ kind: 'mergeCards', skillId: ui.reward, consumedIds: ui.ids }, mergeReceiptFor(rewards, ui.reward));
+        },
+      });
+      return;
+    }
+    renderRunMergeSelectPicker(ctx.scene, ctx.rewardTemplate, buildMergeSelectView(picker.owned, ui, rewards), {
+      ...base,
+      detailIndex: ui.detail?.list === 'cards' ? ui.detail.index : null,
+      onDetail: index => update({ ...ui, detail: index === null ? null : { list: 'cards', index } }),
+      onToggle: instanceId => update(toggleMergeCard(ui, instanceId)),
+      onNext: () => update({ ...ui, step: 'reward', reward: null, detail: null }),
+    });
+  },
   buyStatPick: (picker, ctx) => renderRunStatPickPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     onPick: stat => ctx.onFinalize({ kind: 'statPick', stat }),
     onCancel: ctx.onCancel,
   }),
-  reshapeCard: (picker, ctx) => renderRunBonusDraftPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
+  reshapeCard: (picker, ctx) => picker.mode === 'trade'
+    ? renderRunTradePicker(ctx.scene, ctx.rewardTemplate, picker.options, {
+      ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
+      title: RESHAPE_PICK_TITLE[picker.mode],
+      onPick: option => {
+        const chosen = picker.options.find(candidate => candidate === option);
+        if (chosen !== undefined) ctx.onFinalize({ kind: 'reshape', instanceId: chosen.instanceId });
+      },
+      ...ctx.inspect('draft'),
+    })
+    : renderRunBonusDraftPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     title: RESHAPE_PICK_TITLE[picker.mode],
     onPick: card => {
@@ -120,20 +155,27 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     },
     ...ctx.inspect('draft'),
   }),
+  reshapeGem: (picker, ctx) => renderRunReshapeGemPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
+    ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
+    title: GEM_RESHAPE_PICK_TITLE[picker.mode],
+    onPick: option => ctx.onFinalize({ kind: 'reshapeGem', optionId: option.id }),
+  }),
 } satisfies PickerRegistry & StateRegistry;
 
 export class RunEventOutcomePaneController {
   private current: RunEventOutcomePaneState = { kind: 'choices' };
   private page = 0;
   // Separate indexes preserve the compact picker arrays' independent identity.
-  private inspected: Record<InspectionKind, number | null> = { draft: null, upgrade: null, merge: null };
+  private inspected: Record<InspectionKind, number | null> = { draft: null, upgrade: null };
+  private mergeUi: MergeUiState = INITIAL_MERGE_UI;
 
   get state(): Readonly<RunEventOutcomePaneState> { return this.current; }
 
   reset(): void {
     this.current = { kind: 'choices' };
     this.page = 0;
-    this.inspected = { draft: null, upgrade: null, merge: null };
+    this.inspected = { draft: null, upgrade: null };
+    this.mergeUi = INITIAL_MERGE_UI;
   }
 
   settle(): void { this.current = { kind: 'receipt', outcome: null }; }
@@ -145,6 +187,7 @@ export class RunEventOutcomePaneController {
     if (presented.kind === 'picker') {
       this.current = { kind: 'picker', picker: presented.picker };
       this.page = 0;
+      this.mergeUi = INITIAL_MERGE_UI;
     } else {
       this.current = { kind: 'receipt', outcome: presented.outcome, mergeReceipt };
     }
@@ -153,6 +196,18 @@ export class RunEventOutcomePaneController {
 
   render(ctx: RunEventOutcomePaneContext): void {
     const state = this.current;
+    if (state.kind === 'choices') return RUN_EVENT_OUTCOME_RENDERERS.choices(state, ctx);
+    const firstNew = ctx.scene.children.list.length;
+    this.renderState(state, ctx);
+    const key = state.kind === 'picker' ? `picker:${state.picker.kind}:${this.page}` : `receipt:${state.outcome ? 'fresh' : 'settled'}`;
+    if (!isFreshRender(ctx.scene, key)) return;
+    assembleObjects(ctx.scene, ctx.scene.children.list.slice(firstNew), ctx.panel);
+    if (state.kind === 'receipt' && state.outcome && state.outcome.kind !== 'nothing' && state.outcome.kind !== 'loseGold') {
+      burstReward(ctx.scene, ctx.panel);
+    }
+  }
+
+  private renderState(state: RunEventOutcomePaneState, ctx: RunEventOutcomePaneContext): void {
     switch (state.kind) {
       case 'choices': return RUN_EVENT_OUTCOME_RENDERERS.choices(state, ctx);
       case 'receipt': return RUN_EVENT_OUTCOME_RENDERERS.receipt(state, ctx);
@@ -175,6 +230,14 @@ export class RunEventOutcomePaneController {
             inspectedIndex: this.inspected[kind],
             onInspect: index => { this.inspected[kind] = index; ctx.onChange(); },
           } : {},
+          merge: {
+            ui: this.mergeUi,
+            update: next => {
+              if (next.step !== this.mergeUi.step) this.page = 0;
+              this.mergeUi = next;
+              ctx.onChange();
+            },
+          },
         });
       }
       default: {

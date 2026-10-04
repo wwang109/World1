@@ -1,8 +1,8 @@
 import { validateGhostSubmission, type GhostSubmissionInput } from '../src/run/ghostValidate';
 import { createD1GhostStore } from './ghostStoreD1';
-import type { D1Database } from './d1';
+import { accountServiceFor, type AccountEnv } from './accountService';
 
-interface Env { GHOSTS_DB?: D1Database }
+type Env = AccountEnv;
 
 const CORS_HEADERS: Record<string, string> = { 'access-control-allow-origin': '*' };
 const MAX_BODY_BYTES = 8192;
@@ -12,7 +12,7 @@ export const onRequestOptions = (): Response => new Response(null, {
   headers: {
     ...CORS_HEADERS,
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    'access-control-allow-headers': 'content-type, authorization',
   },
 });
 
@@ -52,7 +52,11 @@ export const onRequestPost = async ({ request, env }: { request: Request; env: E
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400, headers: CORS_HEADERS });
   }
-  const result = validateGhostSubmission(input);
+  const account = await accountServiceFor(env)?.authenticate(request.headers.get('authorization')).catch(() => null);
+  if (!account) {
+    return Response.json({ error: 'missing-account' }, { status: 401, headers: CORS_HEADERS });
+  }
+  const result = validateGhostSubmission({ ...input, ownerLocalId: account.id });
   if (!result.ok) {
     return Response.json({ error: result.reason, detail: result.detail }, { status: 400, headers: CORS_HEADERS });
   }

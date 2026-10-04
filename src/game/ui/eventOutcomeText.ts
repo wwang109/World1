@@ -1,8 +1,8 @@
 import type { EventOutcomeSpec, MarketStat } from '../../data/events';
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import type { EventOutcomeV3 } from '../../run/eventsV3';
-import type { EventReshapeModeV3 } from '../../data/eventContentV3';
-import type { EventReshapeSettlementV3 } from '../../run/eventReshape';
+import type { EventReshapeGemModeV3, EventReshapeModeV3 } from '../../data/eventContentV3';
+import type { EventGemReshapeSettlementV3, EventReshapeSettlementV3 } from '../../run/eventReshape';
 import { LIVES_PER_RUN } from '../../run/runState';
 import type { SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
@@ -30,6 +30,8 @@ export const RESHAPE_HINT: Record<EventReshapeModeV3, string> = {
   retype: 'CHANGE A CARD\'S TYPE',
   duplicate: 'COPY A CARD',
   sacrifice: 'SACRIFICE A CARD',
+  trade: 'TRADE A CARD',
+  shatter: 'SHATTER A CARD',
 };
 
 export const RESHAPE_PICK_TITLE: Record<EventReshapeModeV3, string> = {
@@ -37,7 +39,31 @@ export const RESHAPE_PICK_TITLE: Record<EventReshapeModeV3, string> = {
   retype: 'CHOOSE A CARD TO CHANGE',
   duplicate: 'CHOOSE A CARD TO COPY',
   sacrifice: 'CHOOSE A CARD TO SACRIFICE',
+  trade: 'CHOOSE A TRADE',
+  shatter: 'CHOOSE A CARD TO SHATTER',
 };
+
+export const GEM_RESHAPE_HINT: Record<EventReshapeGemModeV3, string> = {
+  transform: 'TRANSFORM A GEM',
+  fuse: 'FUSE TWO GEMS',
+};
+
+export const GEM_RESHAPE_PICK_TITLE: Record<EventReshapeGemModeV3, string> = {
+  transform: 'CHOOSE A GEM TO TRANSFORM',
+  fuse: 'CHOOSE TWO GEMS TO FUSE',
+};
+
+function gemName(gemId: string): string {
+  return gemBook[gemId]?.name ?? gemId;
+}
+
+function gemReshapeHeadline(outcome: EventGemReshapeSettlementV3): { headline: string; detail: string } {
+  const result = gemName(outcome.resultGemId);
+  if (outcome.mode === 'fuse') {
+    return { headline: `Fused into ${result}`, detail: outcome.gemIds.map(gemName).join(' + ') };
+  }
+  return { headline: `${gemName(outcome.gemIds[0] ?? outcome.resultGemId)} became ${result}`, detail: '' };
+}
 
 function reshapeHeadline(outcome: EventReshapeSettlementV3): { headline: string; detail: string } {
   const from = skillName(outcome.skillId);
@@ -46,6 +72,16 @@ function reshapeHeadline(outcome: EventReshapeSettlementV3): { headline: string;
     case 'transform':
     case 'retype':
       return { headline: `${from} became ${skillName(outcome.resultSkillId ?? outcome.skillId)}`, detail: tier };
+    case 'trade':
+      return {
+        headline: `Traded ${from} for ${skillName(outcome.resultSkillId ?? outcome.skillId)}`,
+        detail: (outcome.resultTier ?? outcome.tier).toUpperCase(),
+      };
+    case 'shatter':
+      return {
+        headline: `Shattered ${from}`,
+        detail: `${tier} → ${(outcome.keptTier ?? outcome.resultTier ?? outcome.tier).toUpperCase()} + ${(outcome.resultTier ?? outcome.tier).toUpperCase()}`,
+      };
     case 'duplicate':
       return { headline: `Copied ${from}`, detail: tier };
     case 'sacrifice': {
@@ -71,54 +107,14 @@ export function marketPurchaseConfirmText(outcome: EventOutcome | EventOutcomeV3
   return null;
 }
 
-/** "Shadow Bolt (BOARD 1)" — ONE consumed card, named AND placed. The single
- * per-card phrase the pre-resolution confirm dialog uses for each of its
- * lines (`mergeConfirmBody` below) — there is room there for the full name
- * plus WHERE it sits; the choice row's own single-line budget does not have
- * that much room (see `mergeRowPreviewText`'s doc comment), so the row omits
- * it and confirms it here instead. */
-function mergeSpentPhrase(entry: MergeSpentEntry): string {
-  return `${entry.name} (${entry.whereLabel})`;
-}
-
-/**
- * The mergeCards choice ROW's pre-tap price line — enough to tell the player
- * THIS rung eats cards before they tap it, without gambling on fitting every
- * name on one line.
- *
- * THIS USED TO NAME EVERY CARD ("SPENDS Shadow Bolt · Prism Barrier · Line
- * Breaker") and its own doc comment here used to claim "nothing here ever
- * drops one" — FALSE, per a real measurement (2026-09-06 audit): the choice
- * row shares its `detail` line's height with every other choice's plain
- * "REWARD · ..." hint (`RunChoicePanel.ts`'s `runChoicePanelMinHeight`
- * reserves exactly one line), and at mobile's 300px detail column and
- * `font.small`, the three-name line overflows that one-line budget for the
- * three longest bronze-offerable names AND for 1.6% of every distinct bronze
- * trio in the catalog (16,544 of 1,004,731) — `auditTextBlock` shrinks the
- * font first, but once shrinking bottoms out at `TEXT_SHRINK_FLOOR_PX` it
- * falls back to a truncating ellipsis, which would silently drop the third
- * name (the exact bug this whole pass exists to close, just relocated onto
- * the row instead of fixed).
- *
- * So the row states a COUNT instead: "SPENDS 3 CARDS · TAP TO SEE WHICH".
- * This is safe to do NOW (it would not have been safe before) because the
- * pre-resolution CONFIRM dialog (`mergeConfirmBody` below,
- * `renderMergeConsumeConfirm`, RunProgressStrip.ts) is UNCONDITIONAL as of
- * the same pass (a merge always costs three cards, so it always pauses
- * there before resolving, whether the trio is bag-only or touches the
- * board) and names every consumed card AND where it sits, full fidelity,
- * before anything is spent. The row only has to promise the confirm is
- * coming; the confirm is the actual disclosure.
- */
 export function mergeRowPreviewText(spent: readonly MergeSpentEntry[]): string {
-  return `SPENDS ${spent.length} CARD${spent.length === 1 ? '' : 'S'} · TAP TO SEE WHICH`;
+  return `SPENDS ${spent.length} CARD${spent.length === 1 ? '' : 'S'} · YOU PICK WHICH`;
 }
 
 /**
  * Pre-resolution CONFIRM copy for a rung whose outcome costs GOLD
- * (`choice.cost > 0`) — every kind EXCEPT `mergeCards`, which gets its own
- * richer confirm (`mergeConfirmBody` below) naming the exact consumed
- * instances instead of a generic hint. One line naming what the gold buys —
+ * (`choice.cost > 0`) — every kind EXCEPT `mergeCards`, which has its own
+ * confirm (`mergeConfirmBody`). One line naming what the gold buys —
  * the SAME `hint` text `eventOutcomeHintText` already puts on the choice
  * row's own "REWARD · ..." line, so the confirm can never promise something
  * the row didn't — one line naming the price.
@@ -131,10 +127,8 @@ export function eventCostConfirmBody(hint: string, cost: number): string {
 }
 
 /**
- * Pre-resolution CONFIRM copy for the `sellGem` picker's own tap. Unlike
- * `mergeCards` (whose three consumed instances are the run layer's decision,
- * knowable before the picker even opens), WHICH gem leaves the pouch here is
- * the PLAYER's choice, made inside the picker itself — so this confirm sits
+ * Pre-resolution CONFIRM copy for the `sellGem` picker's own tap. WHICH gem
+ * leaves the pouch here is the PLAYER's choice, made inside the picker itself — so this confirm sits
  * at that later point (the picker's `onPick`, both RunEvent scenes) rather
  * than before the picker opens, once the exact gem and its price are known.
  */
@@ -146,21 +140,8 @@ export function sellGemConfirmBody(price: number): string {
   return `+${price} GOLD`;
 }
 
-/**
- * The pre-resolution CONFIRM dialog's body (`renderMergeConsumeConfirm`,
- * RunProgressStrip.ts) — the trade headline (`mergeTradeLine`, the SAME
- * phrasing the picker's title and the resolved receipt already use) over one
- * line per consumed card, named AND placed. UNCONDITIONAL (2026-09-06 user
- * ruling: a merge always costs three cards, so this dialog always shows
- * before resolving — it used to skip a bag-only trade on the theory the
- * choice row's own compact line was pause enough; the row can no longer
- * name all three cards on one line for every trio (see
- * `mergeRowPreviewText`'s doc comment above), so this is now the ONLY place
- * a bag-only trio is named too, not just a board-touching one).
- */
-export function mergeConfirmBody(from: SkillTier, to: SkillTier, spent: readonly MergeSpentEntry[]): string {
-  const headline = mergeTradeLine(spent.length, from, to);
-  return [headline, ...spent.map(mergeSpentPhrase)].join('\n');
+export function mergeConfirmBody(): string {
+  return 'Next you pick the 3 cards and see the rewards.\nNothing is spent until you press MERGE.\nThe other choices close.';
 }
 
 /** Short inline reward hint shown on a choice button ("→ CARD (BRONZE)",
@@ -243,6 +224,7 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
     case 'grantGem':
       if ('offer' in hint) return (gemBook[hint.offer.gemId]?.name ?? hint.offer.gemId).toUpperCase();
       return hint.gemId === undefined ? 'GEM' : (gemBook[hint.gemId]?.name ?? hint.gemId).toUpperCase();
+    case 'grantShopRerolls': return `${hint.amount} FREE SHOP REROLL${hint.amount === 1 ? '' : 'S'}`;
     case 'grantGold': return `+${hint.amount} GOLD`;
     case 'loseGold': return `-${hint.amount} GOLD`;
     case 'grantLevel': return '+1 LEVEL';
@@ -281,6 +263,7 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
         : '3 CARDS → 1 BETTER';
     case 'buyStatPick': return 'CHOICE OF STATS';
     case 'reshapeCard': return RESHAPE_HINT[hint.offer.mode];
+    case 'reshapeGem': return GEM_RESHAPE_HINT[hint.offer.mode];
     default: {
       const exhaustive: never = hint;
       throw new Error(`eventOutcomeHintText: unknown outcome ${String((exhaustive as RunEventOutcomeHint).kind)}`);
@@ -439,6 +422,15 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
       return { headline: RESHAPE_PICK_TITLE[outcome.offer.mode], detail: '' };
     case 'cardReshaped':
       return reshapeHeadline(outcome);
+    case 'reshapeGem':
+      return { headline: GEM_RESHAPE_PICK_TITLE[outcome.offer.mode], detail: '' };
+    case 'gemReshaped':
+      return gemReshapeHeadline(outcome);
+    case 'grantShopRerolls':
+      return {
+        headline: `${outcome.amount} free shop reroll${outcome.amount === 1 ? '' : 's'}`,
+        detail: `${outcome.total} saved for your next shops`,
+      };
     case 'alreadySettled':
       return { headline: 'Reward already claimed', detail: '' };
     // The scene intercepts `challengeFight` before it reaches this

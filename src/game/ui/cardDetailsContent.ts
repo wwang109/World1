@@ -2,7 +2,7 @@ import { TIER_ORDER, tierResolved, weightOf, type Action, type SkillDef, type Sk
 import type { GemDef } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { applyTier, gemCardMods, resolveDisplaySkill } from '../../engine/cards';
-import { cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
+import { AFFINITY_SEPARATOR, cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
 import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN, withTermEntries } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
 import { typeBadgeEntries } from './cardGlossary';
@@ -82,19 +82,19 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
   const entries = renderSkillClauses(skill).map(clause => {
     const gated = clause.startsWith('{{Affinity}}');
     const action = candidates.find(candidate => Boolean(candidate.affinity) === gated && (clause === faceClauseOf(candidate, ctx)
-      || clause.endsWith(` — ${faceClauseOf(candidate, { ...ctx, gated: true })}`)));
+      || clause.endsWith(`${AFFINITY_SEPARATOR}${faceClauseOf(candidate, { ...ctx, gated: true })}`)));
     if (action?.kind === 'exploit') {
       const status = titleCase(action.status);
       const target = action.status === 'stun' ? 'stunned targets' : `targets with ${action.status === 'debuff' ? 'a debuff' : status}`;
       return { title: `Exploit — ${status}`, body: `${action.affinity ? `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board. ` : ''}Deal ${action.amount} additional damage against ${target}.` };
     }
     if (action?.kind === 'debuffStat' || action?.kind === 'buffStat') {
-      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(' — ')))} — ` : '';
+      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(AFFINITY_SEPARATOR)))}${AFFINITY_SEPARATOR}` : '';
       const verb = action.kind === 'debuffStat' ? 'Reduce enemy' : 'Increase';
       return { title: ruleTitleOf(action), body: `${prefix}${verb} ${STAT_TOKEN[action.stat]} by ${action.pct}% for ${action.turns} ${action.turns === 1 ? 'turn' : 'turns'}.` };
     }
     if (action?.kind === 'shieldBurst' || action?.kind === 'wardRelease') {
-      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(' — ')))} — ` : '';
+      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(AFFINITY_SEPARATOR)))}${AFFINITY_SEPARATOR}` : '';
       const maxCharges = action.kind === 'wardRelease' ? Math.ceil(action.cap / action.per) : 0;
       const rule = action.kind === 'shieldBurst'
         ? `Consume Shield to deal up to ${action.cap} damage.`

@@ -13,6 +13,7 @@
   "events": [
     {
       "id": "brokers_scale",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,

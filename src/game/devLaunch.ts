@@ -336,9 +336,9 @@ function draftedDevRun(seed: number): RunState {
 
 /** The smallest deterministic change that arms a `mergeCards` rung ENABLED
  * rather than LOCKED ("need 3 cards of one grade") — three owned BRONZE
- * copies of the same size-1 skill, in the bag's own first three slots (the
- * board is cleared so nothing else can also match and complicate which trio
- * gets read). No `Rng` involved: the skill id is a static catalog lookup.
+ * copies of the same size-1 skill, in the bag's own first three slots, beside
+ * the drafted board so the picker has more than one trio to choose from.
+ * No `Rng` involved: the skill id is a static catalog lookup.
  * `bagSlots` is PADDED to at least 3 entries rather than assumed to already
  * hold that many — a freshly drafted run's bag is sized to what the draft
  * actually placed there (as few as 0 slots, the rest of the picks landing on
@@ -355,7 +355,7 @@ function withMergeableBronzeTrio(state: RunState): RunState {
   for (let index = 0; index < 3; index += 1) {
     bagSlots[index] = { instanceId: `dev-merge-trio-${index}`, skillId: trioSkillId, tier: 'bronze' };
   }
-  return { ...state, pieces: [], bagSlots };
+  return { ...state, bagSlots };
 }
 
 /** Park a fixture on a node already present in its map. Keeping the scalar

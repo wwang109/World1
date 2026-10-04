@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>World1 Card Template V2</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f0f2f1; color: #232a28; font: 14px Arial, sans-serif; letter-spacing: 0; }
+    header { padding: 20px 28px; background: #fff; border-bottom: 1px solid #d3d9d6; display: flex; align-items: center; gap: 16px; }
+    h1 { margin: 0; font-size: 22px; } header span { color: #64726c; margin-left: auto; }
+    main { max-width: 1200px; margin: auto; padding: 24px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; padding-bottom: 22px; border-bottom: 1px solid #d3d9d6; }
+    label { display: grid; gap: 7px; font-size: 12px; font-weight: bold; }
+    select, input[type=text] { font: 14px Arial, sans-serif; padding: 9px; border: 1px solid #abb9b1; border-radius: 4px; background: #fff; color: #232a28; max-width: 100%; }
+    #card { width: 240px; } .check { display: flex; align-items: center; gap: 7px; padding: 10px 0; }
+    .stage { display: grid; grid-template-columns: 1fr 1fr 240px; gap: 30px; padding: 28px 0; align-items: start; }
+    h2 { margin: 0 0 16px; font-size: 15px; font-weight: 600; } .caption { text-align: center; color: #58675f; margin-top: 14px; font-size: 12px; }
+    .card-host { width: 100%; max-width: 330px; aspect-ratio: 420 / 690; margin: auto; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .editor { border-left: 1px solid #ced7d1; padding-left: 20px; display: grid; gap: 16px; }
+    .editor p { font-size: 12px; line-height: 1.6; margin: 0; color: #58675f; }
+    #rules { list-style: none; padding: 0; margin: 0; }
+    #rules li { border-top: 1px solid #ced7d1; padding: 10px 0; font-size: 12px; line-height: 1.5; }
+    #rules b { display: block; margin-bottom: 4px; font-size: 10px; }
+    .tier-strip { padding-top: 24px; border-top: 1px solid #d3d9d6; }
+    .tier-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .tier-grid .card-host { max-width: 240px; }
+    #error { color: #9b2828; }
+    @media(max-width: 900px) { .stage { grid-template-columns: 1fr 1fr; } .editor { grid-column: 1 / -1; border-left: 0; padding-left: 0; } }
+    @media(max-width: 560px) { header { padding: 16px; flex-wrap: wrap; } header span { margin-left: 0; } main { padding: 16px; } .stage { grid-template-columns: 1fr; gap: 28px; } .tier-grid { grid-template-columns: 1fr 1fr; gap: 18px; } .toolbar { gap: 12px; } #card { width: 215px; } }
+  </style>
+</head>
+<body>
+  <header><h1>World1 Card Template V2</h1><span>Candidate preview</span></header>
+  <main>
+    <div class="toolbar">
+      <label>Card<select id="card"></select></label>
+      <label>Tier<select id="tier"><option>bronze</option><option>silver</option><option selected>gold</option><option>diamond</option></select></label>
+      <label>Template<select id="template"><option value="printed-v2">Anime Relic</option><option value="classic">Current</option></select></label>
+      <label class="check"><input id="art-toggle" type="checkbox" checked>Artwork</label>
+      <label class="check"><input id="progress-toggle" type="checkbox">Upgrade progress</label>
+    </div>
+    <p id="error" role="alert"></p>
+    <div class="stage">
+      <section><h2>Card Face</h2><div id="selected" class="card-host"></div><div class="caption" id="selected-caption"></div></section>
+      <section><h2>Reusable Master</h2><div id="master" class="card-host"></div><div class="caption">420 &times; 690 &middot; Shared layout contract</div></section>
+      <aside class="editor">
+        <h2>Rules Rows</h2><ul id="rules"></ul>
+        <label>Title<input type="text" id="title" maxlength="90"></label>
+        <label class="check"><input id="stress" type="checkbox">Dense rules fixture</label>
+        <p id="fit-status" aria-live="polite"></p>
+      </aside>
+    </div>
+    <section class="tier-strip"><h2>Tier Variants</h2><div id="tiers" class="tier-grid"></div></section>
+  </main>
+  <script type="module">
+    import { skillBook } from '../../src/data/skills.ts';
+    import { applyTier } from '../../src/engine/cards.ts';
+    import { buildFantasyCardTemplateModel } from '../../src/game/ui/fantasyCardTemplateModel.ts';
+    import { stripCardTextMarkup } from '../../src/game/ui/cardTextMarkup.ts';
+    import { mountCardTemplatePreview } from '../../src/game/ui/fantasyCardTemplatePreview.ts';
+    const $ = id => document.getElementById(id);
+    const tiers = ['bronze','silver','gold','diamond'];
+    const sorted = Object.values(skillBook).sort((a,b) => a.name.localeCompare(b.name));
+    for (const skill of sorted) $('card').add(new Option(skill.name,skill.id));
+    $('card').value = 'chain_spark';
+    const state = () => ({ id: $('card').value, tier: $('tier').value, template: $('template').value,
+      artwork: $('art-toggle').checked, progress: $('progress-toggle').checked,
+      title: $('title').value || undefined, stress: $('stress').checked });
+    const selected = mountCardTemplatePreview($('selected'),state());
+    const master = mountCardTemplatePreview($('master'),{ ...state(),guide: true });
+    const tierPreviews = tiers.map(tier => {
+      const group = document.createElement('div');
+      const host = document.createElement('div'); host.className = 'card-host';
+      const caption = document.createElement('div'); caption.className = 'caption'; caption.textContent = tier.toUpperCase();
+      group.append(host,caption); $('tiers').append(group);
+      return { tier,preview: mountCardTemplatePreview(host,{ ...state(),tier }) };
+    });
+    function render(reset = false) {
+      try {
+        const model = buildFantasyCardTemplateModel(applyTier(skillBook[$('card').value],$('tier').value),{ template: $('template').value });
+        if (reset) $('title').value = model.title;
+        selected.update(state()); master.update({ ...state(),guide: true });
+        tierPreviews.forEach(({ tier,preview }) => preview.update({ ...state(),tier }));
+        $('selected-caption').textContent = $('stress').checked ? 'Synthetic layout fixture' : model.type.label + ' / ' + model.tier.toUpperCase();
+        $('rules').replaceChildren(...model.rows.map(row => {
+          const li = document.createElement('li'); const b = document.createElement('b'); b.textContent = row.label;
+          li.append(b,document.createTextNode(stripCardTextMarkup(row.text))); return li;
+        }));
+        $('fit-status').textContent = $('stress').checked ? 'Dense layout fixture selected.' : 'Full generated clauses shown above.';
+        $('error').textContent = ''; document.documentElement.dataset.ready = 'true';
+      } catch(error) { $('error').textContent = error.message; }
+    }
+    $('card').addEventListener('change',() => render(true)); $('tier').addEventListener('change',() => render(true));
+    for (const id of ['art-toggle','progress-toggle','template','stress']) $(id).addEventListener('change',() => render());
+    $('title').addEventListener('input',() => render());
+    render(true);
+  </script>
+</body>
+</html>

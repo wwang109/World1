@@ -63,14 +63,16 @@ function describeCardFilterAxis(filter: CardFilter | undefined): CardRewardAxis 
   return { axis: populated[0]!.axis, value: populated[0]!.values![0]! };
 }
 
-const RESHAPE_CHIP = { transform: 'TRANSFORM', retype: 'CHANGE TYPE', duplicate: 'COPY', sacrifice: 'SACRIFICE' } as const;
+const RESHAPE_CHIP = { transform: 'TRANSFORM', retype: 'CHANGE TYPE', duplicate: 'COPY', sacrifice: 'SACRIFICE', trade: 'TRADE', shatter: 'SHATTER' } as const;
+
+const GEM_RESHAPE_CHIP = { transform: 'GEM · TRANSFORM', fuse: 'GEM · FUSE' } as const;
 
 const REWARD_PRIORITY = [
-  'challengeFight', 'reshapeCard',
+  'challengeFight', 'reshapeCard', 'reshapeGem',
   'mergeCards', 'upgradeCard', 'upgradeCardTargeted', 'awardCardPoint',
-  'grantCard', 'cardChoice',
+  'grantCard', 'cardChoice', 'scavengeCard',
   'gemChoice',
-  'grantLevel', 'grantMapInfo', 'grantGold', 'sellGem',
+  'grantLevel', 'grantMapInfo', 'grantGold', 'sellGem', 'grantShopRerolls',
 ] as const;
 
 interface RewardCandidate {
@@ -94,7 +96,9 @@ function candidateOf(outcome: EventOutcomeSpec | EventDirectOutcomeSpecV3): Rewa
     }
     case 'cardChoice': {
       const axis = describeCardFilterAxis(outcome.filter);
-      const chip = axis ? `CARD · ${axis.value.toUpperCase()}` : 'CARD';
+      const base = axis ? `CARD · ${axis.value.toUpperCase()}` : 'CARD';
+      const minTier = 'minTier' in outcome ? outcome.minTier : undefined;
+      const chip = minTier !== undefined && minTier !== 'bronze' ? `${base} · ${minTier.toUpperCase()}` : base;
       return { kind: 'cardChoice', chip, rewardKind: 'card', cardAxis: axis };
     }
     case 'gemChoice':
@@ -115,8 +119,18 @@ function candidateOf(outcome: EventOutcomeSpec | EventDirectOutcomeSpecV3): Rewa
       return { kind: 'mergeCards', chip: 'MERGE', rewardKind: 'merge' };
     case 'sellGem':
       return { kind: 'sellGem', chip: 'GOLD', rewardKind: 'gold' };
-    case 'reshapeCard':
-      return { kind: 'reshapeCard', chip: RESHAPE_CHIP[outcome.mode], rewardKind: 'upgrade' };
+    case 'reshapeCard': {
+      const filter = outcome.mode === 'trade' ? outcome.retypeTo : outcome.pickFrom;
+      const axis = filter === undefined ? undefined : describeCardFilterAxis(filter);
+      const chip = axis ? `${RESHAPE_CHIP[outcome.mode]} · ${axis.value.toUpperCase()}` : RESHAPE_CHIP[outcome.mode];
+      return { kind: 'reshapeCard', chip, rewardKind: 'upgrade', ...(outcome.mode === 'trade' && axis ? { cardAxis: axis } : {}) };
+    }
+    case 'reshapeGem':
+      return { kind: 'reshapeGem', chip: GEM_RESHAPE_CHIP[outcome.mode], rewardKind: 'gem' };
+    case 'scavengeCard':
+      return { kind: 'scavengeCard', chip: 'CARD · SCAVENGE', rewardKind: 'card' };
+    case 'grantShopRerolls':
+      return { kind: 'grantShopRerolls', chip: 'FREE REROLL', rewardKind: 'gold' };
     case 'challengeFight': {
       const inner = candidateOf(outcome.reward as EventDirectOutcomeSpecV3);
       return {
@@ -133,7 +147,8 @@ function candidateOf(outcome: EventOutcomeSpec | EventDirectOutcomeSpecV3): Rewa
 
 function candidatesOfOutcome(outcome: EventOutcomeSpec | EventOutcomeSpecV3): readonly RewardCandidate[] {
   if (outcome.kind === 'weighted') {
-    return (outcome.branches as readonly EventWeightedBranchV3[]).flatMap((branch) => candidatesOfOutcome(branch.outcome));
+    const best = bestCandidate((outcome.branches as readonly EventWeightedBranchV3[]).flatMap((branch) => candidatesOfOutcome(branch.outcome)));
+    return best ? [{ kind: best.kind, chip: 'GAMBLE', rewardKind: best.rewardKind }] : [];
   }
   const candidate = candidateOf(outcome);
   return candidate ? [candidate] : [];

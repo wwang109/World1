@@ -6,6 +6,7 @@ import { instancePowerLevelDeci } from '../../engine/balance';
 import { CardDetailActivation } from '../ui/cardDetailActivation';
 import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
 import { positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
+import { addBiomeAmbience, runAmbienceBiomeId } from '../ui/ambience';
 import { renderSkillText } from '../../engine/keywords/compose';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier, resolveDisplaySkill } from '../../engine/cards';
@@ -397,6 +398,8 @@ export class MobileShopScene extends Phaser.Scene {
     this.sellZoneRectObj = null;
     this.sellZoneLabelObj = null;
     if (!this.embedded) this.cameras.main.setBackgroundColor(UI.bg);
+    const ambienceRun = runShop ? getActiveRun() : undefined;
+    if (ambienceRun) addBiomeAmbience(this, runAmbienceBiomeId(ambienceRun), { x: 0, y: 0, width: this.W, height: this.H });
     if (runShop) {
       if (!this.embedded) this.renderHud();
     } else {
@@ -594,7 +597,7 @@ export class MobileShopScene extends Phaser.Scene {
       const cost = runShop ? currentShopRerollCost() : 1;
       const canReroll = this.activeGold() >= cost;
       const rr = roundRect(this.add.rectangle(header.stock.x, rerollY, rerollW, header.stock.height, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5), 6).setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(header.stock.x + rerollW / 2, header.labelY, `REROLL · ${cost}G`, { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(header.stock.x + rerollW / 2, header.labelY, (cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`), { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
         rr.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
@@ -745,7 +748,7 @@ export class MobileShopScene extends Phaser.Scene {
     const rerollX = layout.header.x + layout.header.width - rerollW - 6;
     const rerollY = layout.header.y + layout.header.height - rerollH - 5;
     const reroll = roundRect(this.add.rectangle(rerollX, rerollY, rerollW, rerollH, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.6), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.45);
-    const rerollLabel = info.fullStock ? 'FULL STOCK' : `REROLL · ${cost}G`;
+    const rerollLabel = info.fullStock ? 'FULL STOCK' : (cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`);
     this.add.text(rerollX + rerollW / 2, rerollY + rerollH / 2, rerollLabel, textRole('micro', { ink: canReroll ? 'onAccent' : 'disabled' })).setOrigin(0.5);
     if (canReroll) reroll.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       playSfx('purchase'); this.selectedCardIndex = null; this.runBrowsePage = 0; rerollCurrentShop(); this.rerender();

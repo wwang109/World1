@@ -47,6 +47,7 @@ import { eventRequirementMet } from './eventEligibility';
 import { eventRequirementMetV3 } from './eventEligibilityV3';
 import { eventIsChainStarter, eventRarityEligible } from './eventOpportunityHint';
 import { materializeReachedEventV3 } from './eventsV3';
+import { reshapeGemOfferV3, scavengeOptionsV3 } from './eventReshape';
 import { BOSS_EVERY } from './runMap';
 import { previewEventChoicesV3, type EventDeferredOfferV3 } from './eventV3Materialization';
 import {
@@ -137,7 +138,11 @@ export function eventSelectionIdsForCatalog(catalogIds: readonly string[]): read
   return Object.freeze([...PRE_JSON_EVENT_SELECTION_IDS, ...appended]);
 }
 
-const EVENT_SELECTION_IDS = eventSelectionIdsForCatalog(eventRuntimeCatalogIds);
+function isRetiredEvent(eventId: string): boolean {
+  return eventContentMeta[eventId]?.retired === true;
+}
+
+const EVENT_SELECTION_IDS = eventSelectionIdsForCatalog(eventRuntimeCatalogIds).filter((id) => !isRetiredEvent(id));
 const ORDINARY_EVENT_SELECTION_IDS = ordinaryEventIdsForCatalog(eventRuntimeCatalog, EVENT_SELECTION_IDS);
 
 /** One versioned content source for the live selector. Tests may inject a
@@ -215,7 +220,7 @@ function activeComebackOffer(
   for (const record of records) {
     const event = content.catalog[record.eventId];
     if (event === undefined || content.currentVersionOf(event.id) !== record.contentVersion) continue;
-    if (!eventIsChainStarter(event, content.catalog)) continue;
+    if (isRetiredEvent(event.id) || !eventIsChainStarter(event, content.catalog)) continue;
     const node = eventNodes.find((candidate) => (
       candidate.wave % BOSS_EVERY !== 0
       && candidate.biomeId === record.biomeId
@@ -248,6 +253,7 @@ import {
   availableChoices,
   chooseNode,
   currentEventNode,
+  nodeById,
   LIVES_PER_RUN,
   MAX_LEVEL,
   runBagHasRoomFor,
@@ -1215,6 +1221,8 @@ function v3OutcomeHasUsableReward(state: RunState, outcome: EventOutcomeSpecV3):
   if (outcome.kind === 'nothing') return false;
   if (outcome.kind === 'sellGem') return state.gemInventory.length > 0;
   if (outcome.kind === 'mergeCards') return mergeCardsPlan(state) !== null;
+  if (outcome.kind === 'scavengeCard') return scavengeOptionsV3(state).length > 0;
+  if (outcome.kind === 'reshapeGem') return reshapeGemOfferV3(state, '', '', outcome).options.length > 0;
   return true;
 }
 
@@ -1223,12 +1231,24 @@ function hasAffordableChoice(state: RunState, event: LoadedEventDef, node?: RunN
     if (node === undefined) return false;
     return previewEventChoicesV3(state.map.seed, `event:${node.id}`, event).some((choice) => (
       (choice.cost ?? 0) <= state.gold
+      && (choice.lifeCost ?? 0) < state.lives
       && (choice.requires === undefined || eventGateMet(state, choice.requires))
       && (choice.requiresTally === undefined || eventTallyMet(state, choice.requiresTally))
       && v3OutcomeHasUsableReward(state, choice.outcome)
     ));
   }
   return event.choices.some((c) => isEventChoiceUsable(state, c) && c.outcome.kind !== 'nothing');
+}
+
+/** Whether `eventId` was already drawn at another node of `node`'s biome band. */
+function drawnThisBiomeStay(state: RunState, eventId: string, node: RunNode): boolean {
+  if (eventContentMeta[eventId]?.repeatable === true) return false;
+  const band = bandIndexOf(node.wave);
+  return Object.entries(state.eventInstances).some(([nodeId, instance]) => {
+    if (nodeId === node.id || instance.eventId !== eventId) return false;
+    const drawnAt = nodeById(state, nodeId);
+    return drawnAt !== undefined && bandIndexOf(drawnAt.wave) === band;
+  });
 }
 
 /** First id in `ids` (fixed order) eligible at `state.gold`, or -1. */
@@ -1238,7 +1258,7 @@ function firstEligibleIndex(
   node: RunNode,
   catalog: Readonly<Record<string, LoadedEventDef>>,
 ): number {
-  return ids.findIndex((id) => hasAffordableChoice(state, catalog[id]!, node));
+  return ids.findIndex((id) => !drawnThisBiomeStay(state, id, node) && hasAffordableChoice(state, catalog[id]!, node));
 }
 
 /** Resolve the widen/fallback ID from an explicit ordered catalog. The widen
@@ -1253,7 +1273,9 @@ export function eventIdFromOrdinaryWiden(
   node?: RunNode,
 ): string | undefined {
   const widenPool = withoutDrawnOnceRun(state, ordinaryEventIdsForCatalog(catalog, orderedIds), catalog);
-  const eligibleId = widenPool.find((id) => hasAffordableChoice(state, catalog[id]!, node));
+  const eligibleId = widenPool.find((id) => (
+    (node === undefined || !drawnThisBiomeStay(state, id, node)) && hasAffordableChoice(state, catalog[id]!, node)
+  ));
   return eligibleId ?? themedBag[0] ?? widenPool[0];
 }
 
@@ -1295,6 +1317,7 @@ export function firstEligibleConditionalEvent(
   });
 
   const ready = candidates.filter((event) => {
+    if (drawnThisBiomeStay(state, event.id, node)) return false;
     if (!isEventDefV3(event)) {
       if (isEventDefV2(event)) {
         return event.delivery.kind === 'ambient'
@@ -1532,7 +1555,7 @@ export function rollEventForNode(
     // excludes conditional ids for the same starvation reason `idsForTheme`
     // does; conditional content only ever arrives through the fully eligible
     // themed pre-bag scan below.
-    let bag = state.eventBag;
+    let bag = state.eventBag.filter((id) => !isRetiredEvent(id));
     let refills = state.eventBagRefills;
     if (bag.length === 0) {
       const pool = withoutDrawnOnceRun(state, content === ACTIVE_EVENT_SELECTION_CONTENT
@@ -1580,7 +1603,7 @@ export function rollEventForNode(
   const themePool = idsForTheme(theme, content);
   const themeBags = state.eventThemeBags ?? {};
   const themeRefills = state.eventThemeBagRefills ?? {};
-  let bag = themeBags[theme] ?? [];
+  let bag = (themeBags[theme] ?? []).filter((id) => !isRetiredEvent(id));
   let refills = themeRefills[theme] ?? 0;
   if (bag.length === 0) {
     const rng = new Rng(hashSeed('eventBag', state.seed, theme, refills));
@@ -2084,7 +2107,7 @@ export interface MergeCardsReceipt {
 /** `MergeCardsOffer` plus the two things only the resolver needs: the state the
  * removal leaves behind, and the FULL set of cards deliverable into it (the
  * offer's `candidates` are `EVENT_CHOICE_SIZE` drawn from this). */
-interface MergeCardsPlan {
+export interface MergeCardsPlan {
   from: SkillTier;
   to: SkillTier;
   consumed: readonly MergeInputCard[];
@@ -2196,6 +2219,64 @@ function mergeCardsPlan(state: RunState): MergeCardsPlan | null {
     return { from, to, consumed, after, pool };
   }
   return null;
+}
+
+export function mergeableOwnedCards(state: RunState): MergeInputCard[] {
+  const out: MergeInputCard[] = [];
+  const byIndex: number[] = [];
+  for (let i = 0; i < state.pieces.length; i += 1) byIndex.push(i);
+  byIndex.sort((a, b) => state.pieces[a]!.slot - state.pieces[b]!.slot);
+  for (let k = 0; k < byIndex.length; k += 1) {
+    const i = byIndex[k]!;
+    const piece = state.pieces[i]!;
+    if (piece.tier === 'diamond') continue;
+    out.push({ instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier, location: 'board', index: i });
+  }
+  for (let i = 0; i < state.bagSlots.length; i += 1) {
+    const card = state.bagSlots[i];
+    if (!card || card.tier === 'diamond') continue;
+    out.push({ instanceId: card.instanceId, skillId: card.skillId, tier: card.tier, location: 'bag', index: i });
+  }
+  return out;
+}
+
+export function planMergeTrio(state: RunState, instanceIds: readonly string[]): MergeCardsPlan | null {
+  if (instanceIds.length !== MERGE_INPUT_COUNT) return null;
+  const owned = mergeableOwnedCards(state);
+  const consumed: MergeInputCard[] = [];
+  for (let i = 0; i < instanceIds.length; i += 1) {
+    const id = instanceIds[i]!;
+    if (instanceIds.indexOf(id) !== i) return null;
+    const card = owned.find((candidate) => candidate.instanceId === id);
+    if (!card) return null;
+    consumed.push(card);
+  }
+  const from = consumed[0]!.tier;
+  if (from === 'diamond' || consumed.some((card) => card.tier !== from)) return null;
+  const to = TIER_UP[from as Exclude<SkillTier, 'diamond'>];
+  const after = removeOwnedCards(state, consumed);
+  const pool = offerableBook(to).filter((s) => runBagHasRoomFor(after, s.id));
+  return pool.length === 0 ? null : { from, to, consumed, after, pool };
+}
+
+export interface MergeTrioRewards {
+  from: SkillTier;
+  to: SkillTier;
+  consumed: readonly MergeInputCard[];
+  rewards: readonly MergeCardsCandidate[];
+}
+
+export function mergeTrioRewards(
+  state: RunState,
+  instanceIds: readonly string[],
+  candidateSkillIds: readonly string[],
+): MergeTrioRewards | null {
+  const plan = planMergeTrio(state, instanceIds);
+  if (!plan) return null;
+  const rewards = candidateSkillIds
+    .filter((skillId) => plan.pool.some((skill) => skill.id === skillId))
+    .map((skillId) => ({ skillId, tier: plan.to }));
+  return { from: plan.from, to: plan.to, consumed: plan.consumed, rewards };
 }
 
 /** The part of a `MergeCardsOffer` that never needed the choice's `Rng` draw
@@ -2320,10 +2401,9 @@ function mergeCardsOutcome(
 
 /**
  * Finalizes a `mergeCards` offer: consumes the three inputs and inserts
- * `skillId` at tier+1. THE ONLY PLACE THE TRADE IS EXECUTED, and it re-derives
- * the plan from `state` rather than trusting the offer it was shown — the
- * consumed instances therefore cannot be chosen by the caller, which is what
- * keeps a UI bug from turning into "consume any three cards I name".
+ * `skillId` at tier+1. THE ONLY PLACE THE TRADE IS EXECUTED. Player-chosen
+ * `consumedIds` pass through `planMergeTrio` (owned, distinct, one tier);
+ * without them the plan is re-derived from `state`.
  *
  * ATOMIC IN BOTH DIRECTIONS. The insert runs against the POST-REMOVAL state, so
  * the three freed slots are available to the output (a size-3 output can sit
@@ -2343,15 +2423,17 @@ function mergeCardsOutcome(
 export function applyMergeCardsPick(
   state: RunState,
   skillId: string,
+  consumedIds?: readonly string[],
 ): { state: RunState; outcome: EventOutcome; merged?: MergeCardsReceipt } {
-  return delivered(mergeCardsPickResult(state, skillId));
+  return delivered(mergeCardsPickResult(state, skillId, consumedIds));
 }
 
 function mergeCardsPickResult(
   state: RunState,
   skillId: string,
+  consumedIds?: readonly string[],
 ): { state: RunState; outcome: EventOutcome; merged?: MergeCardsReceipt } {
-  const plan = mergeCardsPlan(state);
+  const plan = consumedIds === undefined ? mergeCardsPlan(state) : planMergeTrio(state, consumedIds);
   const deliverable = plan ? plan.pool.some((s) => s.id === skillId) : false;
   const inserted = plan && deliverable ? tryInsertRunCard(plan.after, skillId, plan.to) : null;
   if (!plan || !inserted) {

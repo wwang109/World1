@@ -21,13 +21,13 @@ export * from './runArtKeys';
 export const RUN_ART_ASSETS = [
   { key: RUN_ART_KEYS.shopBanner, path: '/game-art/placeholders/shop-banner.webp' },
   { key: RUN_ART_KEYS.runMap, path: '/game-art/placeholders/run-map.webp' },
-  { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/placeholders/icon-choice-card.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGamble, path: '/game-art/placeholders/icon-choice-gamble.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGem, path: '/game-art/placeholders/icon-choice-gem.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGold, path: '/game-art/placeholders/icon-choice-gold.webp' },
-  { key: RUN_ART_KEYS.icon.choiceLevel, path: '/game-art/placeholders/icon-choice-level.webp' },
-  { key: RUN_ART_KEYS.icon.choiceNothing, path: '/game-art/placeholders/icon-choice-nothing.webp' },
-  { key: RUN_ART_KEYS.icon.coin, path: '/game-art/placeholders/icon-coin.webp' },
+  { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/ui/event-icons/card.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGamble, path: '/game-art/ui/event-icons/gamble.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGem, path: '/game-art/ui/event-icons/gem.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGold, path: '/game-art/ui/event-icons/gold.webp' },
+  { key: RUN_ART_KEYS.icon.choiceLevel, path: '/game-art/ui/event-icons/level.webp' },
+  { key: RUN_ART_KEYS.icon.choiceNothing, path: '/game-art/ui/event-icons/nothing.webp' },
+  { key: RUN_ART_KEYS.icon.coin, path: '/game-art/ui/event-icons/gold.webp' },
   { key: RUN_ART_KEYS.icon.lifeHeart, path: '/game-art/placeholders/icon-life-heart.webp' },
   { key: RUN_ART_KEYS.icon.bossSkull, path: '/game-art/placeholders/icon-boss-skull.webp' },
   { key: RUN_ART_KEYS.icon.storefront, path: '/game-art/placeholders/icon-storefront.webp' },
@@ -156,6 +156,30 @@ export function addRunArt(
     .setCrop(geometry.cropX, geometry.cropY, geometry.cropWidth, geometry.cropHeight)
     .setScale(geometry.scaleX, geometry.scaleY)
     .setAlpha(alpha);
+}
+
+export function driftRunArt(
+  scene: Phaser.Scene,
+  image: Phaser.GameObjects.Image | undefined,
+  bounds: { width: number; height: number },
+  zoomTo = 1.06,
+  duration = 9000,
+): void {
+  if (!image) return;
+  const source = image.texture.getSourceImage();
+  const base = runArtCropGeometry({ width: source.width, height: source.height }, bounds);
+  scene.tweens.addCounter({
+    from: 1, to: zoomTo, duration, ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
+    onUpdate: (tween: Phaser.Tweens.Tween) => {
+      if (!image.active) return;
+      const zoom = tween.getValue() ?? 1;
+      const width = base.cropWidth / zoom;
+      const height = base.cropHeight / zoom;
+      image
+        .setCrop(base.cropX + (base.cropWidth - width) / 2, base.cropY + (base.cropHeight - height) / 2, width, height)
+        .setScale(base.scaleX * zoom, base.scaleY * zoom);
+    },
+  });
 }
 
 interface BrightArtTreatment {

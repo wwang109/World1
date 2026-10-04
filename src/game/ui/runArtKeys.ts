@@ -117,6 +117,7 @@ export function choiceArtKey(kind: string): string {
     case 'cardUpgraded':
     case 'reshapeCard':
     case 'cardReshaped':
+    case 'scavengeCard':
     case 'bonusDraft':
     case 'upgradeCard':
     case 'upgradeCardTargeted':
@@ -151,9 +152,12 @@ export function choiceArtKey(kind: string): string {
     // one, but it's the same subject on the button/panel — same gem icon.
     case 'sellGem':
     case 'sellGemPick':
+    case 'reshapeGem':
+    case 'gemReshaped':
       return RUN_ART_KEYS.icon.choiceGem;
     case 'grantGold':
     case 'loseGold':
+    case 'grantShopRerolls':
       return RUN_ART_KEYS.icon.choiceGold;
     case 'grantLevel':
       return RUN_ART_KEYS.icon.choiceLevel;

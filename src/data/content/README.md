@@ -125,6 +125,35 @@ rename/reorder the existing packs or edit the historical payloads.
 biome slice (eight anchors and three callbacks) in filename/biome order.
 `events.v1.json` remains the frozen parity baseline, not a runtime source.
 
+Two optional event-level flags sit beside `id` (not inside a version):
+`"retired": true` stops new draws while the id and every version stay in the
+catalog, so saves and the pre-JSON selection order keep resolving; never delete
+a shipped event, retire it. An event is drawn at most once per biome stay
+(5-wave band) unless it carries `"repeatable": true`, which is reserved for
+the gold market and generic card/gem picks. When nothing else is eligible the
+draw falls back to a repeat rather than an empty node.
+
+Schema-v3 `cardChoice.maxTier` is a cap, not a promise: each of the three
+offered cards rolls its own tier, capped by `maxTier` and the node depth. Add
+`minTier` (equal to `maxTier`) to guarantee the tier; it clamps to the depth
+cap, so an early node can still deal it. `reshapeCard` accepts an optional
+`pickFrom` card filter that limits which owned cards may be picked (for
+example, copy only a Fire card). `awardCardPoint` resolves only in schema-1/2
+events; the v3 resolver has no materializer for it.
+
+`reshapeCard` modes: `transform` (random same-size card, same tier),
+`retype` (same, but of the `retypeTo` type), `duplicate`, `sacrifice`,
+`trade` (needs `retypeTo`: each owned card is offered against a known card of
+that type; a card already of that type trades one tier up), and `shatter`
+(a Silver+ card splits into two copies one tier lower, the exact reverse of a
+merge; needs bag room). `reshapeGem` with `mode` `transform` (a pouch gem
+becomes another gem of the same rarity) or `fuse` (two pouch gems of one
+rarity become one gem of the next). `scavengeCard` offers the cards of the
+foes from the last won fight. `grantShopRerolls` banks free shop rerolls
+(`amount` 1..9); free rerolls do not raise the paid reroll price. A choice
+may carry `lifeCost` (1..2): it is locked while it would cost the last life
+and never counts as the free safe exit.
+
 Schema-v2 definitions include `title`, `body`, `theme`, `rarity`, optional
 `biomeIds`/`artId`, `story`, `eligibility`, `delivery`, `visibility`, `priority`,
 `once`, `cooldownNodes`, and two or three choices. Themes are `training`,
@@ -446,6 +475,27 @@ second cast can never lock a card out. Splash is priced FLAT and STANDALONE
 (`PRICE.splashFlatDeci`, 20 deci per cast — user-locked 2026-08-21, never a
 multiplier on its siblings), which is why a spread line costs its anchor-only
 form plus one fixed spreader price, whatever the payload's magnitude.
+
+### Candidate keyword wording notes
+
+These are **design notes, not authorable action kinds yet**. Do not put them in
+`skills.v1.json` until the `Action` union, pricing table, validator, keyword
+registry and combat log all support them. Keep the face compact and put the
+mechanism in the keyword definition, matching the current registry style:
+
+| keyword | face | definition |
+|---|---|---|
+| Mark | `MARK N` | Direct hits deal +X damage. |
+| Skip | `SKIP N` | Bypass the next X cards. Keep Readiness. |
+| Execute | `EXECUTE N` | Deal X more damage to targets at or below half HP. |
+| Dispel | `DISPEL N` | Remove X buffs from the target. |
+| Riposte | `RIPOSTE N` | Deal X more damage after blocking damage. |
+| Rally | `RALLY N` | Add X damage to the next ally card. |
+
+Mark is the buildup lane: new Mark adds stacks, and direct skill hits against
+that target add the current Mark as flat damage. Mark is not consumed by hits.
+If a separate cash-out payoff is added later, name it separately instead of
+overloading Mark.
 
 This mirrors the `Action` union in `src/engine/types.ts`. The validator's switch
 ends in `assertNever`, so **adding an action kind to the engine fails `tsc` until

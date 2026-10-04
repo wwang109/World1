@@ -218,7 +218,7 @@ export type EventGemChoiceSpecV3 =
 
 export type EventDirectOutcomeSpecV3 =
   | Exclude<EventOutcomeSpec, { kind: 'cardChoice' } | { kind: 'gemChoice' }>
-  | { kind: 'cardChoice'; filter: CardFilter; maxTier: SkillTier; capstone?: true }
+  | { kind: 'cardChoice'; filter: CardFilter; maxTier: SkillTier; minTier?: SkillTier; capstone?: true }
   | EventGemChoiceSpecV3
   | {
     kind: 'upgradeCardTargeted';
@@ -226,14 +226,26 @@ export type EventDirectOutcomeSpecV3 =
     fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
   }
   | { kind: 'challengeFight'; difficulty: EventChallengeDifficultyV3; reward: EventChallengeRewardSpecV3 }
-  | EventReshapeCardSpecV3;
+  | EventReshapeCardSpecV3
+  | EventReshapeGemSpecV3
+  | { kind: 'scavengeCard'; fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' } }
+  | { kind: 'grantShopRerolls'; amount: number };
 
-export type EventReshapeModeV3 = 'transform' | 'retype' | 'duplicate' | 'sacrifice';
+export type EventReshapeModeV3 = 'transform' | 'retype' | 'duplicate' | 'sacrifice' | 'trade' | 'shatter';
+
+export type EventReshapeGemModeV3 = 'transform' | 'fuse';
+
+export interface EventReshapeGemSpecV3 {
+  kind: 'reshapeGem';
+  mode: EventReshapeGemModeV3;
+  fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+}
 
 export interface EventReshapeCardSpecV3 {
   kind: 'reshapeCard';
   mode: EventReshapeModeV3;
   retypeTo?: CardFilter;
+  pickFrom?: CardFilter;
   reward?: { kind: 'grantGold'; amount: number } | { kind: 'grantLevel' };
   fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
 }
@@ -271,6 +283,7 @@ export type EventOutcomeSpecV3 =
 
 export interface EventChoiceV3 extends Omit<EventChoiceDef, 'outcome'> {
   outcome: EventOutcomeSpecV3;
+  lifeCost?: number;
   mutations?: readonly EventMutationV3[];
   callback?: EventCallbackSpecV3;
 }

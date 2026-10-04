@@ -647,33 +647,18 @@ export function renderRetireConfirm(
   });
 }
 
-/**
- * The mergeCards choice's pre-resolution CONFIRM — the danger-toned instance
- * of `renderConfirmDialog`. UNCONDITIONAL (2026-09-06 user ruling: a merge
- * always costs three cards, so it always pauses here — this used to skip
- * the dialog for a bag-only trade on the theory that the choice row's own
- * compact price line was pause enough for that case; the row can no longer
- * name all three cards on one line for every trio (see
- * `mergeRowPreviewText`'s doc comment, eventOutcomeText.ts), so this dialog
- * is now the ONLY place a bag-only trio is named too, not just a
- * board-touching one). `body` is `mergeConfirmBody`'s output,
- * eventOutcomeText.ts — the headline over one named+placed line per
- * consumed card. Cancel returns to the choice list with NOTHING resolved and
- * the rung still takeable — this is a pause before
- * `resolveCurrentRunEventChoice` is ever called, not a way out of the
- * picker that call opens.
- */
+/** Cancel returns to the choice list with NOTHING resolved. */
 export function renderMergeConsumeConfirm(
   scene: Phaser.Scene,
   opts: { compact: boolean; body: string; onConfirm: ConfirmHandler; onCancel: ConfirmHandler },
 ): void {
   renderConfirmDialog(scene, {
     compact: opts.compact,
-    title: 'MERGE — CARDS LEAVE YOUR BOARD',
+    title: 'MERGE 3 CARDS INTO 1 BETTER',
     body: opts.body,
     cancelLabel: 'CANCEL',
-    confirmLabel: 'MERGE',
-    tone: 'danger',
+    confirmLabel: 'PICK CARDS',
+    tone: 'accent',
     onCancel: opts.onCancel,
     onConfirm: opts.onConfirm,
   });

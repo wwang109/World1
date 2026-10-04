@@ -571,7 +571,7 @@ function isDeferredOffer(value: unknown): boolean {
   }
   if (value.kind === 'bonusDraft') {
     const options = value.options;
-    if (!eventCardOffers(options, 5, 5)) return false;
+    if (!eventCardOffers(options, 1, 5)) return false;
     return pendingOrSettled(value, ['kind', 'options'], options.map((entry) => entry.skillId));
   }
   if (value.kind === 'gemChoice') {
@@ -633,11 +633,12 @@ function isDeferredOffer(value: unknown): boolean {
       value.candidates.map((entry) => entry.skillId));
   }
   if (value.kind === 'reshapeCard') {
-    if (!['transform', 'retype', 'duplicate', 'sacrifice'].includes(String(value.mode))
+    if (!['transform', 'retype', 'duplicate', 'sacrifice', 'trade', 'shatter'].includes(String(value.mode))
       || !Array.isArray(value.options) || !isRecord(value.fallback)) return false;
     const ids: string[] = [];
     for (const option of value.options) {
-      if (!isRecord(option) || !hasExactKeys(option, ['instanceId', 'skillId', 'tier'], ['resultSkillId'])
+      if (!isRecord(option) || !hasExactKeys(option, ['instanceId', 'skillId', 'tier'], ['resultSkillId', 'resultTier'])
+        || (option.resultTier !== undefined && !['bronze', 'silver', 'gold', 'diamond'].includes(String(option.resultTier)))
         || typeof option.instanceId !== 'string' || ids.includes(option.instanceId)
         || typeof option.skillId !== 'string' || skillBook[option.skillId] === undefined
         || !['bronze', 'silver', 'gold', 'diamond'].includes(String(option.tier))
@@ -660,6 +661,28 @@ function isDeferredOffer(value: unknown): boolean {
     if (value.status === 'pending') return hasExactKeys(value, [...required, ...optional]);
     return value.status === 'settled'
       && hasExactKeys(value, [...required, ...optional], ['selectedId'])
+      && (value.selectedId === undefined || (typeof value.selectedId === 'string' && ids.includes(value.selectedId)));
+  }
+  if (value.kind === 'reshapeGem') {
+    if (!['transform', 'fuse'].includes(String(value.mode)) || !Array.isArray(value.options) || !isRecord(value.fallback)) return false;
+    const ids: string[] = [];
+    for (const option of value.options) {
+      if (!isRecord(option) || !hasExactKeys(option, ['id', 'pouchIndexes', 'gemIds', 'resultGemId'])
+        || typeof option.id !== 'string' || ids.includes(option.id)
+        || !Array.isArray(option.pouchIndexes) || !option.pouchIndexes.every(isNonNegativeInteger)
+        || !isStringArray(option.gemIds) || option.gemIds.length !== option.pouchIndexes.length
+        || option.gemIds.some((gemId) => gemBook[gemId] === undefined)
+        || typeof option.resultGemId !== 'string' || gemBook[option.resultGemId] === undefined) return false;
+      ids.push(option.id);
+    }
+    const fallbackOk = value.fallback.kind === 'nothing'
+      ? hasExactKeys(value.fallback, ['kind'])
+      : value.fallback.kind === 'grantGold' && hasExactKeys(value.fallback, ['kind', 'amount'])
+        && isPositiveInteger(value.fallback.amount);
+    if (!fallbackOk) return false;
+    if (value.status === 'pending') return hasExactKeys(value, ['kind', 'mode', 'options', 'fallback', 'status']);
+    return value.status === 'settled'
+      && hasExactKeys(value, ['kind', 'mode', 'options', 'fallback', 'status'], ['selectedId'])
       && (value.selectedId === undefined || (typeof value.selectedId === 'string' && ids.includes(value.selectedId)));
   }
   if (value.kind === 'buyStatPick') {
@@ -988,7 +1011,8 @@ function isRunStateV3(value: unknown): value is RunState {
     && (candidate.purchasedStats === undefined || isRecord(candidate.purchasedStats))
     && (candidate.activeChallengeFight === undefined || candidate.activeChallengeFight === null
       || isActiveChallengeFight(candidate.activeChallengeFight))
-    && (candidate.challengeFights === undefined || isChallengeFights(candidate.challengeFights));
+    && (candidate.challengeFights === undefined || isChallengeFights(candidate.challengeFights))
+    && (candidate.freeShopRerolls === undefined || isNonNegativeInteger(candidate.freeShopRerolls));
   return shapeValid && isV3EventTopology(candidate);
 }
 

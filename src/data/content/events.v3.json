@@ -52,6 +52,7 @@
   "events": [
     {
       "id": "abandoned_cache",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -132,6 +133,7 @@
     },
     {
       "id": "banner_scribe",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -214,6 +216,7 @@
     },
     {
       "id": "beast_nest",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -410,6 +413,7 @@
     },
     {
       "id": "broken_axle",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -484,6 +488,7 @@
     },
     {
       "id": "cinderworks_regrind",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -892,11 +897,49 @@
               }
             ]
           }
+        },
+        {
+          "version": 4,
+          "schemaVersion": 1,
+          "def": {
+            "title": "The Ember Pit",
+            "theme": "forge",
+            "notes": [
+              "2026-10-03: the 3-card merge is back as its own event type at the user's request — the player picks which three same-grade cards to spend, previews them beside the three rewards, and confirms with MERGE. Distinct from copy merging (shop UPGRADE CARD), which feeds copies of one card."
+            ],
+            "body": "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Or choose any three pieces of one grade and feed them in together: they come back out as a single piece of the grade above, and the tender lets you pick which.",
+            "choices": [
+              {
+                "id": "reach_in",
+                "label": "Thrust your gear into the coals",
+                "outcome": {
+                  "kind": "cardChoice",
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "pay_tender",
+                "label": "Pay 2 gold to steady the coals first",
+                "cost": 2,
+                "outcome": {
+                  "kind": "gemChoice"
+                }
+              },
+              {
+                "id": "feed_the_coals",
+                "label": "Feed three pieces of one grade to the coals",
+                "outcome": {
+                  "kind": "mergeCards"
+                }
+              }
+            ]
+          }
         }
       ]
     },
     {
       "id": "factors_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1025,6 +1068,7 @@
     },
     {
       "id": "fences_offer",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1057,6 +1101,7 @@
     },
     {
       "id": "field_medic",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1110,6 +1155,7 @@
     },
     {
       "id": "flaw_finder",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1158,6 +1204,7 @@
     },
     {
       "id": "fortune_teller",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1262,6 +1309,7 @@
     },
     {
       "id": "gemsellers_mishap",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1321,6 +1369,7 @@
     },
     {
       "id": "hermits_riddle",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1394,6 +1443,7 @@
     },
     {
       "id": "overloaded_caravan",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1488,6 +1538,7 @@
     },
     {
       "id": "pyre_watch",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1591,6 +1642,7 @@
     },
     {
       "id": "quartermasters_error",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1630,6 +1682,7 @@
     },
     {
       "id": "recruiter",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -1744,6 +1797,7 @@
     },
     {
       "id": "retiring_smith",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1800,6 +1854,7 @@
     },
     {
       "id": "ruined_anvil",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -1991,6 +2046,7 @@
     },
     {
       "id": "sparring_circle",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2181,6 +2237,7 @@
     },
     {
       "id": "the_lands_measure",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2269,6 +2326,7 @@
     },
     {
       "id": "the_lapidary",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2488,6 +2546,7 @@
     },
     {
       "id": "thorn_garden_shrine",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2633,6 +2692,7 @@
     },
     {
       "id": "toll_collectors_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2711,6 +2771,7 @@
     },
     {
       "id": "two_ravens",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -2776,6 +2837,7 @@
     },
     {
       "id": "venomers_den",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -2969,6 +3031,7 @@
     },
     {
       "id": "weighing_stone",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3041,6 +3104,7 @@
     },
     {
       "id": "roadside_wager",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3113,6 +3177,7 @@
     },
     {
       "id": "cold_iron_drill",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3230,6 +3295,7 @@
     },
     {
       "id": "underdogs_stand",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3509,6 +3575,7 @@
     },
     {
       "id": "crooked_dice",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3636,6 +3703,7 @@
     },
     {
       "id": "hanged_stranger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3690,6 +3758,7 @@
     },
     {
       "id": "last_omens_toll",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -3869,6 +3938,7 @@
     },
     {
       "id": "quiet_muster",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -4178,6 +4248,7 @@
     },
     {
       "id": "sworn_company",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -4343,6 +4414,7 @@
     },
     {
       "id": "temper_or_break",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -4480,6 +4552,7 @@
     },
     {
       "id": "scrap_reclaimer",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -4669,6 +4742,7 @@
     },
     {
       "id": "toll_of_plenty",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -4934,6 +5008,7 @@
     },
     {
       "id": "sellswords_bazaar",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -4996,6 +5071,7 @@
     },
     {
       "id": "silt_reliquary",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -5339,6 +5415,7 @@
     },
     {
       "id": "forgotten_ledger",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -8661,6 +8738,7 @@
     },
     {
       "id": "brokers_scale",
+      "repeatable": true,
       "versions": [
         {
           "version": 1,
@@ -8721,6 +8799,7 @@
     },
     {
       "id": "duelists_grip",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -9078,6 +9157,7 @@
     },
     {
       "id": "wellspring_of_sparks",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -9217,6 +9297,7 @@
     },
     {
       "id": "courier_shortcut",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -9267,6 +9348,5225 @@
                 {
                   "id": "decline",
                   "label": "Let her run on",
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_fire",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Patron",
+            "body": "A smith with soot to the elbow watches your Fire cards burn and nods once. \"I back those who commit to the flame,\" she says, and opens her strongbox.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_fire",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "fire"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Fire card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the flame",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_fire_gift",
+                    "eventId": "patron_fire_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_fire_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Patron's Gift",
+            "body": "The soot-armed smith finds you again, true to her word. \"You kept the fire lit. Choose your due.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_fire",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_fire_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Fire cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_fire"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_fire"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Fire cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "fire"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_fire"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_frost",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rime Patron",
+            "body": "An old woman sits unbothered in a ring of frost, studying your Frost cards. \"Cold that patient deserves a backer,\" she says.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_frost",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "frost"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Frost card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the cold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_frost_gift",
+                    "eventId": "patron_frost_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_frost_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rime Patron's Gift",
+            "body": "Frost creeps across the road ahead, and the old woman is waiting inside it. \"Patience pays. Choose.\"",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_frost",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_frost_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Frost cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_frost"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_frost"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Frost cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "frost"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_frost"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_lightning",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Storm Patron",
+            "body": "A merchant whose hair stands on end leans over his stall, eyeing your Lightning cards. \"Lightning sells itself,\" he grins. \"Let me invest.\"",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_lightning",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "lightning"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Lightning card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Shake on a storm contract",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_lightning_gift",
+                    "eventId": "patron_lightning_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_lightning_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Storm Patron's Gift",
+            "body": "The storm merchant flags you down, sparks dancing across his ledger. \"Contract's due. Pick your return.\"",
+            "theme": "market",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_lightning",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_lightning_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Lightning cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lightning"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Lightning card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lightning"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Lightning cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lightning"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_nature",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grove Patron",
+            "body": "Roots part around a moss-covered chest as you pass, as if your Nature cards were a key. A voice in the leaves offers a gift now, or a promise.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_nature",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "nature"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Nature card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Promise to tend the grove",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_nature_gift",
+                    "eventId": "patron_nature_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_nature_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grove Patron's Gift",
+            "body": "Roots open again on a far road, and the moss-covered chest is heavier than before. The grove keeps its promises.",
+            "theme": "cache",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_nature",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_nature_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Nature cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_nature"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_nature"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Nature cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "nature"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_nature"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_holy",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Dawn Patron",
+            "body": "A priestess in white stops you at a roadside shrine. \"The light follows your Holy cards,\" she says. \"Let it follow you further.\"",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_holy",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "holy"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Holy card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Take the dawn vow",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_holy_gift",
+                    "eventId": "patron_holy_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_holy_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Dawn Patron's Gift",
+            "body": "At first light the priestess is waiting on the road. \"Your vow held. Receive the dawn's gift.\"",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_holy",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_holy_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Holy cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_holy"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Holy card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_holy"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Holy cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "holy"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_holy"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_dark",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Dusk Patron",
+            "body": "A hooded figure falls into step beside you, interested only in your Dark cards. \"Shadow rewards the faithful,\" it whispers. \"Eventually.\"",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_dark",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "dark"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Dark card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the dusk",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_dark_gift",
+                    "eventId": "patron_dark_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_dark_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Dusk Patron's Gift",
+            "body": "The hooded figure steps out of a lengthening shadow. \"You kept faith with the dark. Take what you are owed.\"",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_dark",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_dark_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Dark cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_dark"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_dark"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Dark cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "dark"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_dark"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_sword",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blade Patron",
+            "body": "A retired champion polishes a rack of blades and studies your Sword cards. \"Good steel in good hands,\" he says. \"I can arm you now, or back you later.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_sword",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "sword"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Sword card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the blade",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_sword_gift",
+                    "eventId": "patron_sword_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_sword_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blade Patron's Gift",
+            "body": "The old champion has ridden ahead to meet you, a cloth-wrapped bundle across his saddle. \"As promised.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_sword",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_sword_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Sword cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_sword"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Sword card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_sword"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Sword cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "sword"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_sword"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_axe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe Patron",
+            "body": "A broad-shouldered woodcutter weighs your Axe cards with a craftsman's eye. \"Heavy hands, honest work,\" she says. \"I'll stake you.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_axe",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "axe"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Axe card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the axe",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_axe_gift",
+                    "eventId": "patron_axe_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_axe_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe Patron's Gift",
+            "body": "The woodcutter waits at a fork in the road, axe across her knees. \"You held your grip. Here is my stake.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_axe",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_axe_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Axe cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_axe"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_axe"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Axe cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "axe"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_axe"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_lance",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lance Patron",
+            "body": "A drillmaster plants a banner by the road and watches your Lance cards with approval. \"A line that holds is worth backing.\"",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_lance",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "lance"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Lance card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Join the drillmaster's line",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_lance_gift",
+                    "eventId": "patron_lance_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_lance_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lance Patron's Gift",
+            "body": "The drillmaster's banner rises over the next ridge. \"You held the line. Collect your commission.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_lance",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_lance_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Lance cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lance"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lance"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Lance cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "lance"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_lance"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_bow",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bow Patron",
+            "body": "An archer on a fence post lowers her bow as your Bow cards catch her eye. \"Patient hands,\" she says. \"I train those worth the arrows.\"",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_bow",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "bow"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Bow card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Swear to the string",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_bow_gift",
+                    "eventId": "patron_bow_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_bow_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bow Patron's Gift",
+            "body": "An arrow thuds into a post beside you, a note tied to its shaft. The archer is waiting below. \"Your lesson is ready.\"",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_bow",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_bow_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Bow cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_bow"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_bow"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Bow cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "bow"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_bow"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_beast",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Beast Patron",
+            "body": "A hunter with a wolf at heel looks over your Beast cards and whistles low. \"The pack likes you,\" she says. \"That's rare.\"",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "patron_beast",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "board.affinity",
+              "args": {
+                "affinityId": "beast"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_silver_card",
+                  "label": "Take a silver Beast card (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "swear_to_patron",
+                  "label": "Run with the pack",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "patron_beast_gift",
+                    "eventId": "patron_beast_gift",
+                    "contentVersion": 1,
+                    "minDepthDelay": 3,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 12,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "patron_beast_gift",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Beast Patron's Gift",
+            "body": "Howls rise behind you, and the hunter strides out of the brush with her wolf. \"The pack remembers. Choose your share.\"",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": {
+              "storyId": "patron_beast",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "patron_beast_gift"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_card",
+                  "label": "Copy one of your Beast cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "pickFrom": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_beast"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_card",
+                  "label": "Take a gold Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_beast"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_card",
+                  "label": "Upgrade one of your Beast cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "beast"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "patron_beast"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lantern_wake",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lantern Wake",
+            "body": "Mourners line the barrow road with unlit lanterns, one for each soul the Duskbarrow keeps. A lantern lit for the dead is a debt they repay once the barrow's master falls.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "lantern_wake",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "light_lantern",
+                  "label": "Light a lantern for the dead (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "take_dark_card",
+                  "label": "Take a Dark card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk past the mourners",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lanterns_answer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lanterns Answer",
+            "body": "With the Duskbarrow's master fallen, the lantern you lit drifts back along the road, and the dead keep their word.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "lantern_wake",
+              "stage": "payoff",
+              "role": "payoff"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "event.choice",
+                  "args": {
+                    "eventId": "lantern_wake",
+                    "choiceIds": [
+                      "light_lantern"
+                    ]
+                  }
+                },
+                {
+                  "fact": "combat.biomeBossDefeated",
+                  "args": {
+                    "biomeId": "duskbarrow"
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "hidden_until_eligible",
+            "priority": 300,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_any_card",
+                  "label": "Let the dead copy one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lantern_wake"
+                    }
+                  ]
+                },
+                {
+                  "id": "take_gold_dark",
+                  "label": "Take a gold Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lantern_wake"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ember_debt",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Debt",
+            "body": "A forge-master with more coal than coin offers you a purse against the future. \"Pay me back with a little interest,\" he says, \"or I'll send someone to ask.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "ember_debt",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "emberwaste"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "borrow",
+                  "label": "Borrow 8 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 8
+                  },
+                  "callback": {
+                    "callbackId": "ember_debt_collector",
+                    "eventId": "ember_debt_collector",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_fire_card",
+                  "label": "Take a Fire card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Decline the purse",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ember_debt_collector",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Collector",
+            "body": "A soot-black collector blocks the road with the forge-master's ledger. \"Ten gold,\" she says, \"and he sends a gift for your trouble. Or we settle it the other way.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "ember_debt",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "ember_debt_collector"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "repay",
+                  "label": "Repay 10 gold",
+                  "cost": 10,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "ember_debt"
+                    }
+                  ]
+                },
+                {
+                  "id": "refuse",
+                  "label": "Refuse, and fight the collector",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "challengeFight",
+                    "difficulty": "hard",
+                    "reward": {
+                      "kind": "upgradeCardTargeted",
+                      "target": {
+                        "filter": {
+                          "where": "any",
+                          "match": {
+                            "elements": [
+                              "fire"
+                            ]
+                          }
+                        }
+                      },
+                      "fallback": {
+                        "kind": "grantGold",
+                        "amount": 3
+                      }
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "ember_debt"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lightning_rod",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lightning Rod",
+            "body": "A tinker is hammering iron rods into the Stormreach hilltops. \"Plant one,\" he says, \"and the next storm will strike for you.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "lightning_rod",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "plant_rod",
+                  "label": "Plant a rod (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "lightning_strikes_twice",
+                    "eventId": "lightning_strikes_twice",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 16,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_lightning_card",
+                  "label": "Take a Lightning card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the tinker to his work",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lightning_strikes_twice",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Lightning Strikes Twice",
+            "body": "A storm rolls over the road behind you, and far off your rod takes the strike. The tinker catches up, grinning at the scorched iron. \"Twice the strike, twice the steel.\"",
+            "theme": "forge",
+            "rarity": "rare",
+            "story": {
+              "storyId": "lightning_rod",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "lightning_strikes_twice"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "copy_any_card",
+                  "label": "Copy one of your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "duplicate",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lightning_rod"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_lightning",
+                  "label": "Upgrade one of your Lightning cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "lightning"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lightning_rod"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lost_cub",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Lost Cub",
+            "body": "A wolf cub whimpers in the Howlmoor reeds, too young to hunt and too stubborn to leave. Feed it, and it may remember you.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "lost_cub",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "howlmoor"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "feed_cub",
+                  "label": "Feed the cub (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "lost_cub_returns",
+                    "eventId": "lost_cub_returns",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 16,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_beast_card",
+                  "label": "Take a Beast card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it to the moor",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lost_cub_returns",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Wolf Returns",
+            "body": "A grown wolf steps onto the road and drops something at your feet before vanishing into the trees. The cub remembered.",
+            "theme": "recruit",
+            "rarity": "rare",
+            "story": {
+              "storyId": "lost_cub",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "lost_cub_returns"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_gold_beast",
+                  "label": "Take a gold Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lost_cub"
+                    }
+                  ]
+                },
+                {
+                  "id": "upgrade_beast",
+                  "label": "Upgrade one of your Beast cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "weapons": [
+                            "beast"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "lost_cub"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pilgrims_relic",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pilgrim's Relic",
+            "body": "A dying pilgrim presses a wrapped relic into your hands. \"Carry it beyond the Hallowfield,\" she breathes, \"and the light will thank you.\"",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "pilgrims_relic",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "hallowfield"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 220,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "carry_relic",
+                  "label": "Carry the relic onward",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  },
+                  "callback": {
+                    "callbackId": "pilgrims_relic_delivered",
+                    "eventId": "pilgrims_relic_delivered",
+                    "contentVersion": 1,
+                    "minDepthDelay": 5,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "destinationBiomeIds": [
+                      "arrowfell",
+                      "duskbarrow",
+                      "emberwaste",
+                      "frostmarch",
+                      "howlmoor",
+                      "ironmoot",
+                      "pikewold",
+                      "stormreach",
+                      "swornhold",
+                      "thornwild"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": "discard"
+                    }
+                  }
+                },
+                {
+                  "id": "take_holy_card",
+                  "label": "Take a Holy card (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the relic at the shrine",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pilgrims_relic_delivered",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Relic Delivered",
+            "body": "Far from the Hallowfield, the relic warms in your pack and unwraps itself in a burst of light.",
+            "theme": "training",
+            "rarity": "rare",
+            "story": {
+              "storyId": "pilgrims_relic",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "pilgrims_relic_delivered"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "upgrade_holy",
+                  "label": "Upgrade one of your Holy cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "any",
+                        "match": {
+                          "elements": [
+                            "holy"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "pilgrims_relic"
+                    }
+                  ]
+                },
+                {
+                  "id": "relic_gem",
+                  "label": "Choose a relic gem",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "gemChoice",
+                    "filter": [
+                      {
+                        "ids": [
+                          "prism_barrier_echo",
+                          "second_wind_echo",
+                          "sanctuary_sliver"
+                        ]
+                      }
+                    ]
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "pilgrims_relic"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arrowfell_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fletcher's Trade",
+            "body": "A fletcher has spread her best bows on a blanket by the road and will swap any one of them for something of yours. Bring her a bow and she pays a grade better.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "arrowfell_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "arrowfell"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duskbarrow_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Grave-Barterer",
+            "body": "A hooded barterer deals in whatever the barrows give up. He takes any card for one of his dark ones, and a dark card buys a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "duskbarrow"
+            ],
+            "story": {
+              "storyId": "duskbarrow_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "duskbarrow"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Dark card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "dark"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "emberwaste_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ember Trader",
+            "body": "A smith with soot to the elbows swaps finished fire-work for whatever you carry. Hand her fire and she trades a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "emberwaste"
+            ],
+            "story": {
+              "storyId": "emberwaste_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "emberwaste"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Fire card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "fire"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "frostmarch_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rime Peddler",
+            "body": "A peddler's sled is stacked with frost-worked wares, each one rimed white. He swaps any card for one of his, and frost buys a grade better.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "frostmarch"
+            ],
+            "story": {
+              "storyId": "frostmarch_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "frostmarch"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Frost card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "frost"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hallowfield_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Relic Swapper",
+            "body": "A pilgrim trades blessed relics for whatever travelers can spare. Give her something holy and she returns a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "hallowfield"
+            ],
+            "story": {
+              "storyId": "hallowfield_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "hallowfield"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Holy card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "holy"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "howlmoor_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Beast-Tamer",
+            "body": "A tamer with a leash in each hand offers one of her beasts for any card you carry. Bring her a beast and she gives a grade better.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "howlmoor"
+            ],
+            "story": {
+              "storyId": "howlmoor_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "howlmoor"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Beast card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "beast"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironmoot_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe Broker",
+            "body": "An axe broker has racked his stock along a wall of the moot hall. He swaps any card for an axe, and an axe trades a grade better.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "ironmoot_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "ironmoot"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pikewold_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pike Trader",
+            "body": "A quartermaster trades spare lances off the back of a wagon. Any card buys one; a lance buys one a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pikewold_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormreach_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Storm Barterer",
+            "body": "A barterer whose hair stands on end swaps charged wares for anything you carry. Lightning buys a grade better.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "stormreach"
+            ],
+            "story": {
+              "storyId": "stormreach_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "stormreach"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Lightning card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "lightning"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "swornhold_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blade Exchange",
+            "body": "The garrison armorer swaps blades for whatever a recruit brings in. Hand him a sword and he returns a grade better.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "swornhold"
+            ],
+            "story": {
+              "storyId": "swornhold_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "swornhold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Sword card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "sword"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thornwild_trader",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Root Trader",
+            "body": "A trader grown half into her stall offers living-wood wares for any card. Nature buys a grade better.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "thornwild_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 155,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade",
+                  "label": "Trade a card for a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "trade",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arrowfell_bowyer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Bowyer's Bench",
+            "body": "A bowyer restrings anything handed across her bench into a bow of the same weight. What comes back is hers to choose.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "arrowfell"
+            ],
+            "story": {
+              "storyId": "arrowfell_bowyer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "arrowfell"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card restrung as a Bow card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "bow"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironmoot_hafter",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Axe-Hafter",
+            "body": "An old hafter fits axe-heads to anything with a handle. He will rework one card into an axe, though not one you pick.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "ironmoot"
+            ],
+            "story": {
+              "storyId": "ironmoot_hafter",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "ironmoot"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card rehafted as an Axe card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "axe"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pikewold_shaft_turner",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Shaft-Turner",
+            "body": "A turner lengthens hafts into pike shafts for the drill yard. Hand him a card and it comes back as a lance.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "pikewold"
+            ],
+            "story": {
+              "storyId": "pikewold_shaft_turner",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "pikewold"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Have a card turned into a Lance card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "weapons": [
+                          "lance"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "thornwild_rootgraft",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Rootgraft",
+            "body": "A druid grafts living root into whatever you hold out. The card that comes back grows wild.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "biomeIds": [
+              "thornwild"
+            ],
+            "story": {
+              "storyId": "thornwild_rootgraft",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "biome.current",
+              "args": {
+                "ids": [
+                  "thornwild"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 150,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "retype",
+                  "label": "Let a card be grafted into a Nature card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "retype",
+                    "retypeTo": [
+                      {
+                        "elements": [
+                          "nature"
+                        ]
+                      }
+                    ],
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moneylender",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moneylender",
+            "body": "A moneylender in a fur collar is raising a stake for a caravan. Lend him coin now and he swears to pay it back nearly twice over down the road.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "moneylender",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "lend",
+                  "label": "Lend 5 gold (1 gold interest now)",
+                  "cost": 5,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 1
+                  },
+                  "callback": {
+                    "callbackId": "moneylender_repays",
+                    "eventId": "moneylender_repays",
+                    "contentVersion": 1,
+                    "minDepthDelay": 4,
+                    "destinationThemes": [
+                      "training",
+                      "cache",
+                      "recruit",
+                      "forge",
+                      "market",
+                      "omen"
+                    ],
+                    "priority": 700,
+                    "bind": [],
+                    "expiry": {
+                      "expiresAfterNodes": 20,
+                      "fallback": {
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 5
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your coin",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "moneylender_repays",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Moneylender Pays",
+            "body": "The moneylender catches up with you, caravan sold and purse fat. He counts out what he owes, or offers a finer piece of the cargo instead.",
+            "theme": "market",
+            "rarity": "rare",
+            "story": {
+              "storyId": "moneylender",
+              "stage": "callback",
+              "role": "callback"
+            },
+            "eligibility": {
+              "fact": "callback.queued",
+              "args": {
+                "callbackId": "moneylender_repays"
+              }
+            },
+            "delivery": {
+              "kind": "queued_callback"
+            },
+            "visibility": "teased_when_due",
+            "priority": 700,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "collect",
+                  "label": "Collect 9 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 9
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moneylender"
+                    }
+                  ]
+                },
+                {
+                  "id": "cargo",
+                  "label": "Take a Silver card from the cargo",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  },
+                  "mutations": [
+                    {
+                      "op": "completeStory",
+                      "storyId": "moneylender"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cracked_idol",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Cracked Idol",
+            "body": "A cracked stone idol sits at the crossroads with its palm held out. Pilgrims say it blesses what it is given, when it isn't hungry.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "cracked_idol",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "offer_card",
+                  "label": "Lay a card in its palm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "blessed",
+                        "label": "Blessed (60%)",
+                        "weight": 3,
+                        "outcome": {
+                          "kind": "upgradeCardTargeted",
+                          "target": {
+                            "filter": {
+                              "where": "any",
+                              "match": {
+                                "archetypes": [
+                                  "offense",
+                                  "defensive",
+                                  "healing",
+                                  "support",
+                                  "debuff"
+                                ]
+                              }
+                            }
+                          },
+                          "fallback": {
+                            "kind": "grantGold",
+                            "amount": 2
+                          }
+                        }
+                      },
+                      {
+                        "id": "swallowed",
+                        "label": "Swallowed (40%)",
+                        "weight": 2,
+                        "outcome": {
+                          "kind": "reshapeCard",
+                          "mode": "sacrifice",
+                          "fallback": {
+                            "kind": "nothing"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave the idol be",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fortunes_crate",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "Fortune's Crate",
+            "body": "A sealed crate fell off a merchant's cart and split along one side. Something glints inside, but most of it is straw.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fortunes_crate",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "pry_open",
+                  "label": "Pry it open (2 gold)",
+                  "cost": 2,
+                  "outcome": {
+                    "kind": "weighted",
+                    "branches": [
+                      {
+                        "id": "gilded",
+                        "label": "Gilded card (30%)",
+                        "weight": 3,
+                        "outcome": {
+                          "kind": "cardChoice",
+                          "filter": [
+                            {
+                              "properties": [
+                                "physical",
+                                "magical",
+                                "true"
+                              ]
+                            }
+                          ],
+                          "maxTier": "gold",
+                          "minTier": "gold"
+                        }
+                      },
+                      {
+                        "id": "straw",
+                        "label": "Straw and splinters (70%)",
+                        "weight": 7,
+                        "outcome": {
+                          "kind": "grantGold",
+                          "amount": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mercy_wagon",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Mercy Wagon",
+            "body": "A field-surgeon's wagon finds you still bleeding from your last fight. She patches you up and presses a parting gift on you.",
+            "theme": "recruit",
+            "rarity": "common",
+            "story": {
+              "storyId": "mercy_wagon",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "combat.recentLoss",
+              "args": {
+                "withinDepth": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_card",
+                  "label": "Take a Silver card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "silver",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "take_gold",
+                  "label": "Take 4 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 4
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "last_stand_shrine",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Last Stand Shrine",
+            "body": "On your last life, you find a shrine to those who would not fall. Its keeper offers you one last edge.",
+            "theme": "omen",
+            "rarity": "common",
+            "story": {
+              "storyId": "last_stand_shrine",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "lives.current",
+              "args": {
+                "op": "eq",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_card",
+                  "label": "Take a Gold card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "take_hp",
+                  "label": "Take +5 MAX HP",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantStat",
+                    "stat": "maxHp"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "paupers_purse",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Pauper's Purse",
+            "body": "\"No one should walk this road with nothing,\" says the pilgrim who sees your empty purse. She offers what she can spare.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "paupers_purse",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "lte",
+                    "value": 1
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 3
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_gold",
+                  "label": "Take 5 gold",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantGold",
+                    "amount": 5
+                  }
+                },
+                {
+                  "id": "take_card",
+                  "label": "Take a card",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "bronze"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "jewelers_window",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Jeweler's Window",
+            "body": "A jeweler opens his shutter only for travelers who look like they can pay. Today, that is you.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "jewelers_window",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "wallet.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 15
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 9
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 250,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "buy_gold",
+                  "label": "Buy a Gold card (8 gold)",
+                  "cost": 8,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "buy_diamond",
+                  "label": "Buy a Diamond card (14 gold)",
+                  "cost": 14,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "diamond",
+                    "minTier": "diamond"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Window-shop and move on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "glass_cutter",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Glass-Cutter",
+            "body": "A glass-cutter claims she can split a card along its grain into two lesser copies. Merge them again and you are back where you started.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "glass_cutter",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "any",
+                "count": 1,
+                "match": {},
+                "tierAtLeast": "silver"
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "shatter",
+                  "label": "Shatter a card into two copies",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "shatter",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep your cards whole",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "gem_cutters_wheel",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Gem-Cutter's Wheel",
+            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "gem_cutters_wheel",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 1,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "recut",
+                  "label": "Recut a gem from your pouch",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeGem",
+                    "mode": "transform",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fusing_kiln",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fusing Kiln",
+            "body": "An alchemist's kiln melts two stones of one grade into a single gem of the next. Nothing that goes in comes out the same.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fusing_kiln",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.gem.count",
+              "args": {
+                "where": "pouch",
+                "count": 2,
+                "match": {}
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "fuse",
+                  "label": "Fuse two gems from your pouch",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeGem",
+                    "mode": "fuse",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "blood_altar",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Blood Altar",
+            "body": "A black altar asks for the one thing gold cannot buy back. Bleed on it, and it gives up a treasure.",
+            "theme": "omen",
+            "rarity": "rare",
+            "story": {
+              "storyId": "blood_altar",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "lives.current",
+                  "args": {
+                    "op": "gte",
+                    "value": 2
+                  }
+                },
+                {
+                  "fact": "node.depth",
+                  "args": {
+                    "op": "gte",
+                    "value": 4
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "bleed",
+                  "label": "Pay a life for a Gold card (1 life)",
+                  "cost": 0,
+                  "lifeCost": 1,
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "gold"
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Walk away",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "scavengers_field",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Scavenger's Field",
+            "body": "Your last victory left gear strewn across the ground. A drill-master nods at the pile: \"Use what beat you, or near enough.\"",
+            "theme": "training",
+            "rarity": "common",
+            "story": {
+              "storyId": "scavengers_field",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "run.tally",
+              "args": {
+                "stat": "wins",
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 120,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "scavenge",
+                  "label": "Take a card your last foes used",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "scavengeCard",
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 2
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Leave it",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "peddlers_token",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Peddler's Token",
+            "body": "A shop-runner hands out brass tokens to drum up trade. Each one buys a free reroll at any shop down the road.",
+            "theme": "market",
+            "rarity": "common",
+            "story": {
+              "storyId": "peddlers_token",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 1
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_tokens",
+                  "label": "Take 2 shop tokens",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "grantShopRerolls",
+                    "amount": 2
+                  }
+                },
+                {
+                  "id": "buy_tokens",
+                  "label": "Buy 3 tokens instead (1 gold)",
+                  "cost": 1,
+                  "outcome": {
+                    "kind": "grantShopRerolls",
+                    "amount": 3
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "No thanks",
+                  "cost": 0,
                   "outcome": {
                     "kind": "nothing"
                   }
@@ -9596,6 +14896,7 @@
     },
     {
       "id": "last_acolyte",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -9745,6 +15046,7 @@
     },
     {
       "id": "grave_wax_seals",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -10057,6 +15359,7 @@
     },
     {
       "id": "ash_oracle",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -10199,6 +15502,7 @@
     },
     {
       "id": "slag_glass_cache",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -10662,6 +15966,7 @@
     },
     {
       "id": "rime_locked_sledge",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -11381,6 +16686,7 @@
     },
     {
       "id": "penitents_road",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -11941,6 +17247,7 @@
     },
     {
       "id": "howling_cairn",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -13283,6 +18590,7 @@
     },
     {
       "id": "capacitor_vault",
+      "retired": true,
       "versions": [
         {
           "version": 1,

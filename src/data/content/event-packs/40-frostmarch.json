@@ -188,6 +188,7 @@
     },
     {
       "id": "rime_locked_sledge",
+      "retired": true,
       "versions": [
         {
           "version": 1,

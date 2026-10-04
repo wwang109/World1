@@ -235,6 +235,7 @@
     },
     {
       "id": "last_acolyte",
+      "retired": true,
       "versions": [
         {
           "version": 1,
@@ -384,6 +385,7 @@
     },
     {
       "id": "grave_wax_seals",
+      "retired": true,
       "versions": [
         {
           "version": 1,
