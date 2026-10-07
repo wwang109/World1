@@ -67,6 +67,7 @@ export interface RulesBodyStyle {
   labelFontSize?: number;
   markerWidth: number;
   center: boolean;
+  centerVertically?: boolean;
   alignColons?: boolean;
   useLabelDisplay: boolean;
 }
@@ -212,7 +213,7 @@ export function makeRulesBody(
   const contentHeight = finalRows.at(-1)?.bottom ?? 0;
   const contentWidth = labelWidth + Math.max(0, ...finalRows.map(row => row.right));
   const fits = contentHeight <= box.h;
-  const contentTop = box.y + (style.center && fits ? Math.floor((box.h - contentHeight) / 2) : 0);
+  const contentTop = box.y + ((style.center || style.centerVertically) && fits ? Math.floor((box.h - contentHeight) / 2) : 0);
   const contentLeft = box.x + (style.center && fits ? Math.max(0, Math.floor((box.w - contentWidth) / 2)) : 0);
 
   let clipped = false;
@@ -314,6 +315,7 @@ export function makeTokenCardBody(
     labelWidth: 0,
     markerWidth: 0,
     center: false,
+    centerVertically: true,
     alignColons: true,
     useLabelDisplay: false,
   });
