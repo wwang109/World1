@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { embeddedEventLayout, positionRunDestination, type EmbeddedRunDestination } from '../ui/RunDestinationHost';
+import { type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
 import { RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
@@ -9,13 +9,11 @@ import { FONT, SCREEN, textRole, UI } from '../theme';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { marketPurchaseConfirmText, stayOpenOutcome, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
-import { isMarketBuyOutcomeKind } from '../../run/market';
 import {
-  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm, renderRunHud,
-  renderSellGemConfirm, snapshotRunProgress,
+  renderEventCostConfirm, renderMergeConsumeConfirm, renderRetireConfirm,
+  renderSellGemConfirm,
 } from '../ui/RunProgressStrip';
 import { addBrightRunArt, addRunArt, choiceArtKey, driftRunArt, eventArtKey } from '../ui/runArt';
-import { addBiomeAmbience } from '../ui/ambience';
 import { isFreshRender } from '../ui/motion';
 import { renderEventArtBorder } from '../ui/eventArtBorder';
 import { BRIGHT_ART_TREATMENT } from '../ui/brightArtTreatment';
@@ -25,8 +23,8 @@ import {
   type RunEventScenePresentation,
 } from '../ui/runEventScenePresenter';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
-import { rebuildScene } from '../sceneRebuild';
-import { setDeckBuildContext } from '../deckBuildContext';
+import { openRunModal, type RunModalLayout } from '../ui/RunModal';
+import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { setBattleContext } from '../battleContext';
 import {
   cancelCurrentBuyStatPick,
@@ -100,6 +98,9 @@ export function desktopEventChoosingLayout(
  * and picker states have none. Reward mechanics remain in the shared store. */
 export class DesktopRunEventScene extends Phaser.Scene {
   private embedded: EmbeddedRunDestination | undefined;
+  private modalView: Phaser.Scene | undefined;
+  private renderedRun: ReturnType<typeof getActiveRun> | undefined;
+  private get viewScene(): Phaser.Scene { return this.modalView ?? this; }
   private readonly pane = new RunEventOutcomePaneController();
   private retireConfirmOpen = false;
   /** See `MobileRunEventScene`'s own field doc — the id of a `mergeCards`
@@ -132,7 +133,26 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.marketConfirmText = null;
   }
 
-  private rerender(): void { rebuildScene(this); this.embedded?.onChanged(); }
+  private rerender(): void {
+    if (this.renderedRun !== getActiveRun()) this.embedded?.onChanged();
+    this.openModal();
+  }
+
+  private openModal(): void {
+    const view = currentRunEventViewModel(), run = getActiveRun();
+    if (!view || !run) { this.continueToMap(); return; }
+    if (this.pane.state.kind === 'choices') this.adoptRecordedResolution(view, run);
+    const state = this.pane.state;
+    const feature = state.kind === 'receipt' && state.outcome ? buildRunRewardViewModel(state.outcome, state.mergeReceipt).feature.kind : 'icon';
+    const choosing = state.kind === 'choices';
+    const gem = state.kind === 'receipt' && feature === 'gem';
+    openRunModal(this, { id: 'run-event', title: choosing ? 'EVENT' : state.kind === 'picker' ? 'CHOOSE YOUR REWARD' : 'EVENT OUTCOME',
+      compact: false, width: choosing ? 1080 : gem ? 668 : 900,
+      height: choosing ? 700 : gem ? 500 : state.kind === 'receipt' && feature !== 'card' ? 400 : 680,
+      onClose: choosing ? () => { if (this.embedded) this.embedded.onDismiss?.(); else this.scene.stop(); } : undefined,
+      render: (scene, layout) => { this.modalView = scene; this.renderContents(layout); },
+    });
+  }
 
   private continueToMap(): void {
     leaveCurrentEvent();
@@ -141,9 +161,13 @@ export class DesktopRunEventScene extends Phaser.Scene {
   }
 
   create(): void {
-    if (!this.embedded) this.cameras.main.setBackgroundColor(UI.bg);
-    if (!this.embedded) this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg).setOrigin(0, 0);
+    this.cameras.main.setBackgroundColor('rgba(0,0,0,0)').clearMask().setScroll(0, 0);
+    this.data.set('reopenRunEventModal', () => this.openModal());
+    if (!this.embedded && !this.scene.isActive('DesktopRunMap')) this.scene.launch('DesktopRunMap');
+    this.openModal();
+  }
 
+  private renderContents(modal: RunModalLayout): void {
     const view = currentRunEventViewModel();
     let run = getActiveRun();
     if (!run || !view) {
@@ -157,24 +181,19 @@ export class DesktopRunEventScene extends Phaser.Scene {
     run = getActiveRun() ?? run;
     const presentation = buildRunEventScenePresentation(view, run, 'desktop');
 
-    const embeddedLayout = this.embedded ? embeddedEventLayout(this.embedded.bounds, presentation.choices.length, false) : null;
-    const layout = embeddedLayout ?? desktopEventChoosingLayout(TEMPLATE.regions.content, presentation.choices.length, runChoicePanelMinHeight(F));
-    const content = embeddedLayout?.content ?? TEMPLATE.regions.content;
-    const template = embeddedLayout ? { ...TEMPLATE, canvas: { width: content.width, height: content.height }, regions: { ...TEMPLATE.regions, content } } : TEMPLATE;
-    if (this.embedded) {
-      this.data.set('embeddedEventOutcomeBounds', layout.outcomes);
-      if (this.costConfirmChoiceId || this.mergeConfirmChoiceId || this.sellGemConfirmOption) {
-        this.embedded.scrollY = Math.max(0, layout.outcomes.y);
-      }
-    } else this.data.remove('embeddedEventOutcomeBounds');
-    positionRunDestination(this, this.embedded, content);
-    addBiomeAmbience(this, presentation.context.biomeId, content);
-    if (!this.embedded) this.renderHud(run);
-    this.renderStory(presentation, layout.story);
-    const paneTemplate = eventOutcomePaneTemplate(template, 'icon', layout.outcomes, layout.outcomeHeader);
-    renderRunEventOutcomePane(this, paneTemplate);
+    const layout = desktopEventChoosingLayout(modal.body, presentation.choices.length, runChoicePanelMinHeight(F));
+    const state = this.pane.state;
+    const gem = state.kind === 'receipt' && state.outcome && buildRunRewardViewModel(state.outcome, state.mergeReceipt).feature.kind === 'gem';
+    const outcomeBounds = state.kind === 'choices' ? { panel: layout.outcomes, header: layout.outcomeHeader }
+      : gem ? { panel: modal.body, header: { ...modal.body, height: 0 } } : { panel: modal.panel, header: modal.header };
+    const template = { ...TEMPLATE, canvas: { width: SCREEN.width, height: SCREEN.height } };
+    this.renderedRun = getActiveRun();
+    if (state.kind === 'choices') {
+      this.renderStory(presentation, layout.story);
+      renderRunEventOutcomePane(this.viewScene, eventOutcomePaneTemplate(template, 'icon', outcomeBounds.panel, outcomeBounds.header));
+    }
     this.pane.render({
-      scene: this, template, panel: layout.outcomes, header: layout.outcomeHeader,
+      scene: this.viewScene, template, panel: outcomeBounds.panel, header: outcomeBounds.header,
       font: F, compact: false, presentation,
       onChoices: () => this.renderChoosing(presentation, layout),
       onContinue: () => this.continueToMap(),
@@ -191,7 +210,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       // mechanism that guard exists for cannot manifest here. No guard
       // needed. (Contrast `MobileRunEventScene`, which DOES have one — its
       // scroll listener for the event body text.)
-      renderRetireConfirm(this, {
+      renderRetireConfirm(this.viewScene, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
         onConfirm: () => { playSfx('runLose'); retireActiveRun(); this.scene.start('DesktopRunMap'); },
@@ -205,7 +224,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       if (choice?.outcomeHint.kind !== 'mergeCards') {
         this.mergeConfirmChoiceId = null;
       } else {
-        renderMergeConsumeConfirm(this, {
+        renderMergeConsumeConfirm(this.viewScene, {
           compact: false,
           body: mergeConfirmBody(),
           onCancel: () => { this.mergeConfirmChoiceId = null; this.rerender(); },
@@ -222,7 +241,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         this.costConfirmChoiceId = null;
       } else {
         const { costConfirm } = choice;
-        renderEventCostConfirm(this, {
+        renderEventCostConfirm(this.viewScene, {
           compact: false,
           title: costConfirm.title,
           body: costConfirm.body,
@@ -236,7 +255,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     // picker's `onPick`) rather than before the picker opens.
     if (this.sellGemConfirmOption !== null) {
       const option = this.sellGemConfirmOption;
-      renderSellGemConfirm(this, {
+      renderSellGemConfirm(this.viewScene, {
         compact: false,
         title: sellGemConfirmTitle(option.gemId),
         body: sellGemConfirmBody(option.price),
@@ -348,20 +367,6 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.rerender();
   }
 
-  /** Normal run chrome; CONTINUE belongs only to the outcome receipt pane. */
-  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    renderRunHud(this, {
-      screen: 'EVENT',
-      compact: false,
-      snapshot: snapshotRunProgress(run),
-      actions: {
-        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
-        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
-        primary: undefined,
-      },
-    });
-  }
-
   // ---------- persistent story + replaceable outcome contents ----------
 
   private renderChoosing(event: RunEventScenePresentation, layout: DesktopEventChoosingLayout): void {
@@ -372,7 +377,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const inset = 18;
     const innerX = story.x + inset;
     const innerW = story.width - inset * 2;
-    const storyPanel = this.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94)
+    const storyPanel = this.viewScene.add.rectangle(story.x, story.y, story.width, story.height, EVENT_REWARD_COLORS.panelAlt, 0.94)
       .setOrigin(0, 0)
       .setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.72);
     storyPanel.setData('layoutAuditName', 'Desktop event story pane');
@@ -389,7 +394,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       .join(' · ');
 
     // Area intro — the stop reads as a place before it reads as a decision.
-    const areaLine = this.add.text(
+    const areaLine = this.viewScene.add.text(
       innerX,
       story.y + inset,
       `${event.context.biomeName} · ${event.context.areaName} — ${event.context.areaBlurb}`,
@@ -409,26 +414,26 @@ export class DesktopRunEventScene extends Phaser.Scene {
       : Math.min(220, Math.round(artW * 0.5));
     const artX = innerX;
     const storyArt = addBrightRunArt(
-      this,
+      this.viewScene,
       eventArtKey(event.context.theme, event.art.kind === 'event' ? event.art.artId : undefined),
       { x: artX, y: cursor, width: artW, height: artH },
       BRIGHT_ART_TREATMENT.story,
     );
-    driftRunArt(this, storyArt.image, { width: artW, height: artH });
+    driftRunArt(this.viewScene, storyArt.image, { width: artW, height: artH });
     if (event.art.kind === 'event') {
-      renderEventArtBorder(this, event.art.kind, { x: artX, y: cursor, width: artW, height: artH });
+      renderEventArtBorder(this.viewScene, event.art.kind, { x: artX, y: cursor, width: artW, height: artH });
     } else storyArt.lift.setStrokeStyle(1, EVENT_REWARD_COLORS.border, 0.45);
     cursor += artH + 16;
 
     // Title and story remain directly below their art in the left pane.
-    const title = this.add.text(innerX, cursor, event.title, {
+    const title = this.viewScene.add.text(innerX, cursor, event.title, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: EVENT_REWARD_COLORS.text, wordWrap: { width: innerW },
     });
     auditTextBlock(title, { name: 'Run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
     cursor += title.height;
     if (metadata) {
       cursor += 4;
-      const metadataLabel = this.add.text(innerX, cursor, metadata, {
+      const metadataLabel = this.viewScene.add.text(innerX, cursor, metadata, {
         ...textRole('kicker'),
         wordWrap: { width: innerW },
       });
@@ -442,9 +447,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const bodyPad = 16;
     const bodyBoxTop = cursor;
     const bodyMaxHeight = Math.max(40, story.y + story.height - inset - bodyBoxTop - bodyPad * 2);
-    const bodyBox = this.add.rectangle(story.x, bodyBoxTop, story.width, 10, EVENT_REWARD_COLORS.panelAlt, 0.94).setOrigin(0, 0).setStrokeStyle(2, EVENT_REWARD_COLORS.chip, 0.7);
-    const bodyRail = this.add.rectangle(story.x, bodyBoxTop, 6, 10, EVENT_REWARD_COLORS.chip, 0.92).setOrigin(0, 0);
-    const body = this.add.text(innerX, bodyBoxTop + bodyPad, bodyCopy, {
+    const bodyBox = this.viewScene.add.rectangle(story.x, bodyBoxTop, story.width, 10, EVENT_REWARD_COLORS.panelAlt, 0.94).setOrigin(0, 0).setStrokeStyle(2, EVENT_REWARD_COLORS.chip, 0.7);
+    const bodyRail = this.viewScene.add.rectangle(story.x, bodyBoxTop, 6, 10, EVENT_REWARD_COLORS.chip, 0.92).setOrigin(0, 0);
+    const body = this.viewScene.add.text(innerX, bodyBoxTop + bodyPad, bodyCopy, {
       fontFamily: FONT.body, fontSize: `${F.body}px`, color: EVENT_REWARD_COLORS.textDim, wordWrap: { width: innerW }, lineSpacing: 6,
     });
     auditTextBlock(body, { name: 'Run event body', maxWidth: innerW, maxHeight: bodyMaxHeight, minFontSize: 10 });
@@ -466,20 +471,20 @@ export class DesktopRunEventScene extends Phaser.Scene {
     // the right-aligned choice count here rather than drawing at the same
     // origin and overlapping it.
     if (this.marketConfirmText) {
-      const confirm = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, this.marketConfirmText, {
+      const confirm = this.viewScene.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, this.marketConfirmText, {
         ...textRole('kicker'),
         color: UI.textGem,
       }).setOrigin(1, 0);
       auditTextBlock(confirm, { name: 'Market purchase confirmation', maxWidth: outcomeHeader.width * 0.55, maxHeight: outcomeHeader.height, minFontSize: 9 });
     } else {
-      const count = this.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${event.choices.length}`, {
+      const count = this.viewScene.add.text(outcomeHeader.x + outcomeHeader.width, outcomeHeader.y, `CHOOSE 1 OF ${event.choices.length}`, {
         ...textRole('kicker'),
         color: UI.textSoft,
       }).setOrigin(1, 0);
       auditTextBlock(count, { name: 'Event outcome choice count', maxWidth: outcomeHeader.width * 0.4, maxHeight: outcomeHeader.height, minFontSize: 9 });
     }
 
-    const fresh = isFreshRender(this, `choices:${event.choices.map((choice) => choice.id).join('|')}`);
+    const fresh = isFreshRender(this.viewScene, `choices:${event.choices.map((choice) => choice.id).join('|')}`);
     event.choices.forEach((choice, choiceIndex: number) => {
       const row = choiceRows[choiceIndex];
       if (!row) return;
@@ -493,7 +498,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         accent: choice.taken ? UI.good : UI.chip,
         enabled: choice.enabled,
       };
-      renderRunChoicePanel(this, { x: row.x, y: row.y, w: row.width, h: row.height }, model, {
+      renderRunChoicePanel(this.viewScene, { x: row.x, y: row.y, w: row.width, h: row.height }, model, {
         font: F,
         sfx: choice.cost > 0 ? 'purchase' : 'uiClick',
         appearIndex: fresh ? choiceIndex : undefined,

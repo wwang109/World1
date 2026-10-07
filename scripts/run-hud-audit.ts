@@ -698,18 +698,11 @@ async function waitForSceneChange(page: Page, platform: Platform, step: string, 
   return landed;
 }
 
-/** EVENT (desktop only) and SHOP (both platforms) resolve INLINE — the map
- * launches them as a camera-clipped EMBEDDED child scene
- * (`RunDestinationHost.render()`, `src/game/ui/RunDestinationHost.ts`)
- * rather than a `scene.start()` transition, so the parent map scene stays
- * `sys.isActive()` and `activeSceneKey()`'s "first active scene" reading
- * never changes. `game.scene.isActive(key)` is the one signal that actually
- * reflects it. Mobile's EVENT is the one case that IS a real transition
- * (`MobileRunMapScene`: `this.scene.start('MobileRunEvent')`), so it is not
- * in this list. */
+/** Events and shops keep the parent map active on both platforms. Events
+ * render in the shared modal; shops use a clipped child camera. */
 const EMBEDDED_DESTINATION_KEYS: Record<Platform, string[]> = {
   desktop: ['DesktopRunEvent', 'DesktopShop'],
-  mobile: ['MobileShop'],
+  mobile: ['MobileRunEvent', 'MobileShop'],
 };
 
 async function activeEmbeddedDestination(page: Page, platform: Platform): Promise<string | null> {
@@ -900,17 +893,10 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   await auditScreen(page, `node-${landedOn}`, platform, REQUIRED_STATS.filter(Boolean));
   console.log(`[${platform}] picked "${picked}" -> landed on scene "${landedOn}"`);
 
-  // An embedded destination (desktop EVENT/SHOP, mobile SHOP) keeps its
-  // parent map scene active underneath it, skips its OWN HUD entirely
-  // (`if (!this.embedded) this.renderHud(run)` — `DesktopRunEventScene.ts`
-  // and its shop/prep siblings), and captures pointer input even outside its
-  // own camera viewport (`RunDestinationHost.hide()`'s own doc comment) — so
-  // neither a DECK/BAG button nor a working click for one exists while it's
-  // open. Close it first, the same way a player would ('‹ BACK' everywhere
-  // except MobileShop, which draws its own 'LEAVE SHOP' in the shop scene).
+  // Close the active destination before clicking the retained map's BAG.
   const closedEmbeddedDestination = EMBEDDED_DESTINATION_KEYS[platform].includes(landedOn);
   if (closedEmbeddedDestination) {
-    const closeLabel = landedOn === 'MobileShop' ? 'LEAVE SHOP' : '‹ BACK';
+    const closeLabel = landedOn.endsWith('RunEvent') ? '×' : landedOn === 'MobileShop' ? 'LEAVE SHOP' : '‹ BACK';
     await clickUntil(
       page, platform, `node-${landedOn} -> close destination`,
       (attempt) => clickExactText(page, closeLabel, platform, `node-${landedOn} -> close destination (attempt ${attempt})`),
@@ -920,11 +906,7 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   }
 
   // ---- 5. DECK / BAG (secondary HUD slot) ----
-  // Desktop's bare run map spells its own HUD slot 'BAG' (`DesktopRunMapScene`
-  // — closing an embedded destination lands back here); every other desktop
-  // run screen (`DesktopRunPrep`/standalone `DesktopRunEvent`/`DesktopShop`)
-  // spells it 'DECK / BAG'. Mobile is 'DECK/BAG' everywhere, map included.
-  const deckLabel = desktop ? (closedEmbeddedDestination ? 'BAG' : 'DECK / BAG') : 'DECK/BAG';
+  const deckLabel = closedEmbeddedDestination ? 'BAG' : desktop ? 'DECK / BAG' : 'DECK/BAG';
   const wentToDeck = await clickUntil(
     page, platform, `node-${landedOn} -> DECK/BAG`,
     (attempt) => clickExactText(page, deckLabel, platform, `node-${landedOn} -> DECK/BAG (attempt ${attempt})`),

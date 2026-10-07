@@ -1,15 +1,15 @@
 import type Phaser from 'phaser';
 import { roundRect } from './roundedRect';
 import type { GemDef } from '../../data/gems';
-import { STAT_RULE } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI, textRoleFor, type TextRole } from '../theme';
+import { FONT, GEM_RARITY_COLOR, UI, textRoleFor, type TextRole } from '../theme';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import type { DetailsRect } from './cardDetailsLayout';
 import { gemDetailsLayout } from './gemDetailsLayout';
 import { GemToken } from './GemToken';
-import { gemChipLines, gemHoverEntries } from './gemPresentation';
+import { gemChipLines, gemStandaloneRuleEntries } from './gemPresentation';
 import { renderDetailText } from './detailText';
+import { openRunModal, type RunModalLayout, type RunModalOptions } from './RunModal';
 
 export interface GemDetailsAction { label: string; enabled: boolean; onPress(): void }
 export interface GemDetailsSlot { key: string; label: string; gem: GemDef; action?: GemDetailsAction }
@@ -20,11 +20,25 @@ export interface GemDetailsOptions {
   context?: string; emptyText?: string;
 }
 
-/** One host-less gem inspector. Selection is read-only until an explicit contextual action. */
-export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, opts: GemDetailsOptions): void {
-  const view = opts.view ?? { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height };
+export function renderGemDetailsDrawer(owner: Phaser.Scene, gem: GemDef | null, opts: GemDetailsOptions): void {
+  const options = (shown: GemDef | null, selectedKey = opts.selectedKey): RunModalOptions => ({
+    id: 'gem-details', title: 'GEM DETAILS', compact: opts.compact, width: 620, height: opts.compact ? 760 : 640,
+    footerHeight: opts.compact ? 66 : 60, onClose: opts.onClose, dismissOnScrim: true,
+    render: (scene, layout, handle) => {
+      const action = (value: GemDetailsAction | undefined) => value && { ...value, onPress: () => { handle.close(); value.onPress(); } };
+      renderGemDetailsBody(scene, shown, {
+        ...opts, selectedKey, onClose: () => { handle.close(); opts.onClose(); },
+        primaryAction: action(opts.primaryAction), slots: opts.slots?.map(slot => ({ ...slot, action: action(slot.action) })),
+      }, layout, slot => handle.update(options(slot.gem, slot.key)));
+    },
+  });
+  openRunModal(owner, options(gem));
+}
+
+function renderGemDetailsBody(scene: Phaser.Scene, gem: GemDef | null, opts: GemDetailsOptions, frame: RunModalLayout, onSelect: (slot: GemDetailsSlot) => void): void {
+  const view = frame.view;
   const root = scene.add.container(0, 0).setDepth(2600);
-  const initial = gemDetailsLayout(view, opts.compact, 140);
+  const initial = gemDetailsLayout(view, opts.compact, 140, frame);
   const content = scene.add.container(0, 0);
   root.add(content);
   const text = (x: number, y: number, value: string, width: number, role: TextRole = 'body', color = UI.textBright, display = false) => {
@@ -46,14 +60,7 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
       style: { ...textRoleFor(opts.compact ? 'mobile' : 'desktop', 'body'), fontFamily: FONT.body, color: UI.textBright, lineSpacing: 3 } });
     content.add(effect.container);
     cy = Math.max(cy + effect.height, initial.art.height) + 16;
-    // The concrete face is authoritative. Generic parameter templates are not useful
-    // standalone; keep only already-resolved registry definitions, without re-authoring.
-    for (const entry of gemHoverEntries(gem).slice(1)) {
-      if (/\b\d*X\b|\bPL\b|power level|example/i.test(`${entry.title} ${entry.body}`)) continue;
-      // The legacy weight helper maps to SPD, whose current definition no longer
-      // explains Weight. Keep the concrete weight clause, not an implied speed buff.
-      if (gem.kind === 'effect' && gem.weightIncreasePct !== undefined && entry.title === STAT_RULE.speed.title
-        && !gem.actions.some(action => 'stat' in action && action.stat === 'speed')) continue;
+    for (const entry of gemStandaloneRuleEntries(gem)) {
       const line = text(0, cy, `${entry.title.toUpperCase()} — ${entry.body}`, initial.body.width - 12, 'body', UI.textMuted);
       content.add(line); cy += line.height + 12;
     }
@@ -76,17 +83,9 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
     content.add(heading); cy += heading.height + 8; slotTop = cy;
     cy += Math.ceil(slots.length / columns) * (slotHeight + 8);
   }
-  const layout = gemDetailsLayout(view, opts.compact, cy);
-  const { pane, body, footer } = layout;
+  const layout = gemDetailsLayout(view, opts.compact, cy, frame);
+  const { body, footer } = layout;
   const stop = (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => event.stopPropagation();
-  const veil = scene.add.rectangle(view.x, view.y, view.width, view.height, UI.shadow, 0.65).setOrigin(0).setInteractive();
-  veil.on('pointerdown', (...args: Parameters<typeof stop>) => { stop(...args); opts.onClose(); });
-  const panel = scene.add.rectangle(pane.x, pane.y, pane.width, pane.height, UI.panel, 1).setOrigin(0).setStrokeStyle(1, UI.chip, 1).setInteractive();
-  if (opts.compact) roundRect(panel, 12);
-  // Root child order keeps the modal shield below its content and controls.
-  root.add([veil, panel]); root.remove(content); root.add(content);
-  root.add(text(layout.title.x, layout.title.y, 'GEM DETAILS', layout.title.width, 'title', UI.textAccent, true));
-  root.add(scene.add.rectangle(layout.divider.x, layout.divider.y, layout.divider.width, layout.divider.height, UI.chip, 0.65).setOrigin(0));
   const button = (rect: DetailsRect, label: string, action: () => void, enabled = true, filled = false) => {
     const bg = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, filled ? UI.chip : UI.panelMuted, enabled ? 1 : 0.5).setOrigin(0).setStrokeStyle(1, UI.chip, 0.7);
     if (opts.compact) roundRect(bg, label === '×' ? 6 : 10);
@@ -94,7 +93,6 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
     root.add([bg, caption]);
     if (enabled) bg.setInteractive({ useHandCursor: true }).on('pointerdown', (...args: Parameters<typeof stop>) => { stop(...args); action(); });
   };
-  button(layout.close, '×', opts.onClose);
   const chosen = slots.find(slot => slot.key === opts.selectedKey);
   const action = chosen?.action ?? opts.primaryAction;
   if (action) button(footer, action.label, action.onPress, action.enabled, true);
@@ -131,7 +129,8 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
   });
   slots.forEach((slot, index) => {
     const x = index % columns * (slotWidth + 8), y = slotTop + Math.floor(index / columns) * (slotHeight + 8);
-    const bg = scene.add.rectangle(x, y, slotWidth, slotHeight, UI.panelAlt, 1).setOrigin(0).setStrokeStyle(slot.key === opts.selectedKey ? 2 : 1, GEM_RARITY_COLOR[slot.gem.rarity], 1).setInteractive({
+    const bg = scene.add.rectangle(x, y, slotWidth, slotHeight, UI.panelAlt, 1).setOrigin(0).setData('gemDetailsSlot', slot.key)
+      .setStrokeStyle(slot.key === opts.selectedKey ? 2 : 1, GEM_RARITY_COLOR[slot.gem.rarity], 1).setInteractive({
       useHandCursor: true, hitArea: { x: 0, y: 0, width: slotWidth, height: slotHeight },
       hitAreaCallback: (_area: unknown, localX: number, localY: number) => localX >= 0 && localX <= slotWidth && localY >= 0 && localY <= slotHeight
         && y + localY - scroll >= 0 && y + localY - scroll <= body.height,
@@ -148,8 +147,7 @@ export function renderGemDetailsDrawer(scene: Phaser.Scene, gem: GemDef | null, 
       event.stopPropagation();
       if (!press || !inBody(p) || Math.hypot(p.worldX - press.x, p.worldY - press.y) > 8) { press = null; return; }
       press = null;
-      root.destroy();
-      renderGemDetailsDrawer(scene, slot.gem, { ...opts, selectedKey: slot.key });
+      onSelect(slot);
     });
   });
 }

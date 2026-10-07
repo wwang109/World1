@@ -42,7 +42,7 @@ export function renderRunMapChoiceViewport(scene: Phaser.Scene,
     for (const object of inputs) {
       const target = object as Phaser.GameObjects.Rectangle;
       const rect = target.getBounds();
-      if (object.input) object.input.enabled = opts.enabled && rect.y >= bounds.y - 1 && rect.bottom <= bounds.y + viewportHeight + 1;
+      if (object.input) object.input.enabled = opts.enabled && !object.getData('runTravelCommittedLocked') && rect.y >= bounds.y - 1 && rect.bottom <= bounds.y + viewportHeight + 1;
     }
     opts.onScroll(scroll);
     scrollHint.setVisible(maxScroll > 0 && scroll < maxScroll - 1);
@@ -52,14 +52,15 @@ export function renderRunMapChoiceViewport(scene: Phaser.Scene,
   let startX = 0;
   let startY = 0;
   let startScroll = 0;
+  const equipmentOverlayOpen = (): boolean => scene.children.list.some(object => object.getData('equipmentChanceOverlay') || object.getData('equipmentLootOverlay'));
   const inside = (pointer: Phaser.Input.Pointer): boolean => pointer.worldX >= bounds.x && pointer.worldX <= bounds.x + bounds.width
     && pointer.worldY >= bounds.y && pointer.worldY <= bounds.y + viewportHeight;
   scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-    if (!opts.enabled || wasPointerConsumedByRebuild(scene, pointer) || !inside(pointer)) return;
+    if (!opts.enabled || equipmentOverlayOpen() || wasPointerConsumedByRebuild(scene, pointer) || !inside(pointer)) return;
     dragging = true; startX = pointer.worldX; startY = pointer.worldY; startScroll = scroll;
   });
   scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-    if (!dragging) return;
+    if (!dragging || equipmentOverlayOpen()) return;
     if (Math.hypot(pointer.worldX - startX, pointer.worldY - startY) > 8) {
       selection = undefined;
       apply(startScroll + startY - pointer.worldY);
@@ -69,10 +70,10 @@ export function renderRunMapChoiceViewport(scene: Phaser.Scene,
     dragging = false;
     const pending = selection;
     selection = undefined;
-    if (pending && pending.pointerId === pointer.id && opts.enabled && inside(pointer)
+    if (pending && pending.pointerId === pointer.id && opts.enabled && !equipmentOverlayOpen() && inside(pointer)
       && Math.hypot(pointer.worldX - pending.x, pointer.worldY - pending.y) <= 8) pending.select();
   });
   scene.input.on('pointerupoutside', () => { dragging = false; selection = undefined; });
-  scene.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => { if (opts.enabled && inside(pointer)) apply(scroll + dy); });
+  scene.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => { if (opts.enabled && !equipmentOverlayOpen() && inside(pointer)) apply(scroll + dy); });
   if (maxScroll === 0) { track.setVisible(false).disableInteractive(); thumb.setVisible(false); }
 }

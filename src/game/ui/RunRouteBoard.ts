@@ -22,6 +22,7 @@ import type { MapIntelRecord } from '../../run/runState';
 import { EXPEDITION_DAYS, expeditionDay } from './travelDay';
 import { renderRunHostButton } from './RunDestinationHost';
 import { roundRect } from './roundedRect';
+import { renderPaintedChrome } from './paintedChrome';
 
 export { snapshotRunRoute } from './runRouteLayout';
 export type { RunRouteColumnSnapshot, RunRouteSnapshot } from './runRouteLayout';
@@ -195,12 +196,14 @@ export function renderRunRouteBoard(
   remember(scene.add.rectangle(bounds.x + 1, bounds.y + 32, bounds.w - 2, bounds.h - 33, 0x0d2a3c, 0.78).setOrigin(0, 0));
   remember(scene.add.rectangle(bounds.x + 1, bounds.y + 1, bounds.w - 2, 31, 0x102e42, 0.55).setOrigin(0, 0));
   remember(scene.add.line(0, 0, bounds.x + 1, bounds.y + 32, bounds.x + bounds.w - 1, bounds.y + 32, gold, 0.42).setOrigin(0));
-  const header = scene.add.text(bounds.x + 12, bounds.y + 9,
+  const frame = renderPaintedChrome(scene, bounds.x, bounds.y, bounds.w, bounds.h, { borderOnly: true, corner: 16 });
+  if (frame) remember(frame);
+  const header = scene.add.text(bounds.x + 20, bounds.y + 9,
     `EXPEDITION ROUTE${opts.regionName ? ` \u00b7 ${compact ? '' : 'CROSSING '}${opts.regionName.toUpperCase().replace(compact ? /^THE\s+/ : /^$/, '')}` : ''}`,
     { ...textRole('micro'), fontFamily: FONT.display, fontSize: compact ? 11 : 15, color: '#f4dea2', fontStyle: 'bold' });
   remember(header);
-  auditTextBlock(header, { name: `Day chapters heading (${opts.mode})`, maxWidth: bounds.w - (compact ? 85 : 114), maxHeight: 20, minFontSize: 9 });
-  remember(scene.add.text(bounds.x + bounds.w - 12, bounds.y + 9, model.currentLabel,
+  auditTextBlock(header, { name: `Day chapters heading (${opts.mode})`, maxWidth: bounds.w - (compact ? 101 : 130), maxHeight: 20, minFontSize: 9 });
+  remember(scene.add.text(bounds.x + bounds.w - 20, bounds.y + 9, model.currentLabel,
     { ...textRole('micro'), fontFamily: FONT.display, fontSize: compact ? 12 : 16, color: '#f4dea2', fontStyle: 'bold' }).setOrigin(1, 0));
   const selections = opts.selectedStops ?? [];
   const currentNodes = selections.filter((stop) => stop.wave >= bandStart && stop.wave < bandStart + 5);

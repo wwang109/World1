@@ -2,16 +2,16 @@ export interface DetailsRect { x: number; y: number; width: number; height: numb
 export type CardDetailsPresentation = 'default' | 'mobile-shop';
 
 /** Coordinates are in the scene camera's visible world area, including embedded shops. */
-export function cardDetailsLayout(view: DetailsRect, compact: boolean, presentation: CardDetailsPresentation = 'default') {
+export function cardDetailsLayout(view: DetailsRect, compact: boolean, presentation: CardDetailsPresentation = 'default', frame?: { panel: DetailsRect; body: DetailsRect; footer: DetailsRect }) {
   const margin = compact ? 6 : 12;
   const width = compact ? view.width - margin * 2 : Math.min(1240, view.width * 0.88);
   const height = compact ? view.height - margin * 2 : Math.min(720, view.height - margin * 2);
-  const pane = { x: view.x + (view.width - width) / 2, y: view.y + (view.height - height) / 2, width, height };
+  const pane = frame?.panel ?? { x: view.x + (view.width - width) / 2, y: view.y + (view.height - height) / 2, width, height };
   const pad = compact ? 14 : 24;
   const headerHeight = compact ? 52 : 74;
   const footerHeight = compact ? 64 : 82;
-  const body = { x: pane.x + pad, y: pane.y + headerHeight, width: width - pad * 2, height: pane.height - headerHeight - footerHeight - 12 };
-  const footer = { x: pane.x + pad, y: pane.y + pane.height - footerHeight + 12, width: body.width, height: 44 };
+  const body = frame?.body ?? { x: pane.x + pad, y: pane.y + headerHeight, width: width - pad * 2, height: pane.height - headerHeight - footerHeight - 12 };
+  const footer = frame ? { ...frame.footer, height: 44 } : { x: pane.x + pad, y: pane.y + pane.height - footerHeight + 12, width: body.width, height: 44 };
   if (compact && presentation === 'mobile-shop') {
     const cardWidth = Math.min(150, Math.max(82, Math.min(body.width * 0.38, body.height * 0.35 / (690 / 420))));
     const cardHeight = cardWidth * (690 / 420);

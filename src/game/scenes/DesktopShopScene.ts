@@ -1244,7 +1244,7 @@ export class DesktopShopScene extends Phaser.Scene {
       compact: false, view: this.detailsView(),
       gem: piece?.gem ? gemBook[piece.gem.id] : null,
       powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
-      onClose: () => { this.inspectOwned = null; this.rerender(); },
+      onClose: () => { this.inspectOwned = null; },
     });
   }
 
@@ -1256,7 +1256,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const affordable = this.activeGold() >= offer.price;
     renderGemDetailsDrawer(this, gem, {
       compact: false, view: this.detailsView(),
-      onClose: () => { this.detailGemIndex = null; this.rerender(); },
+      onClose: () => { this.detailGemIndex = null; },
       primaryAction: { label: affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, enabled: affordable,
         onPress: () => { this.pendingBuy = { kind: 'gem', index }; this.rerender(); } },
     });
@@ -1279,7 +1279,7 @@ export class DesktopShopScene extends Phaser.Scene {
     if (!selected) { this.inspectGemIndex = null; return; }
     renderGemDetailsDrawer(this, selected.gem, {
       compact: false, view: this.detailsView(), slots, selectedKey: selected.key,
-      onClose: () => { this.inspectGemIndex = null; this.rerender(); },
+      onClose: () => { this.inspectGemIndex = null; },
     });
   }
   private renderCardDetail(): void {
@@ -1296,7 +1296,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
     renderCardDetailsDrawer(this, shown, {
       compact: false, view: this.detailsView(),
-      onClose: () => { this.detailCardIndex = null; this.rerender(); },
+      onClose: () => { this.detailCardIndex = null; },
       primaryAction: { label, enabled: canBuy, onPress: () => {
         this.pendingBuy = { kind: 'card', index }; this.rerender();
       } },
@@ -1643,7 +1643,7 @@ export class DesktopShopScene extends Phaser.Scene {
           this.detailCardIndex = src.index;
           this.detailTier = shelf.cards[src.index]?.tier ?? 'bronze';
           this.inspectOwned = null;
-          this.rerender();
+          this.renderCardDetail();
           return;
         }
         const hit = this.columnHitTest(p.worldX, p.worldY);
@@ -1676,8 +1676,8 @@ export class DesktopShopScene extends Phaser.Scene {
           playSfx('uiClick');
           this.detailGemIndex = src.index;
           this.inspectOwned = null;
+          this.renderGemDetail();
         }
-        this.rerender();
         return;
       }
 
@@ -1686,7 +1686,7 @@ export class DesktopShopScene extends Phaser.Scene {
         if (totalMove < 6) {
           playSfx('uiClick');
           this.inspectGemIndex = src.index;
-          this.rerender();
+          this.renderOwnedGemDetail();
           return;
         }
         if (!releasedProxy) draggedObj.setDepth(0).setAlpha(1);
@@ -1704,7 +1704,7 @@ export class DesktopShopScene extends Phaser.Scene {
         draggedObj.setDepth(0).setAlpha(1);
         if (this.detailActivation.release(`${src.kind}:${src.index}`, p.upTime)) {
           this.inspectOwned = { location: src.kind, index: src.index };
-          this.rerender();
+          this.renderOwnedCardDetail();
         }
         return;
       }

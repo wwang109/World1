@@ -13,7 +13,7 @@ import { eventThemeBlurb } from './eventThemeBlurb';
 import { biomeArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
 import { shopMapFooter } from './shopMapFooter';
 import { isEquipmentEvent } from './equipmentEventCategory';
-import { trackedEncounterLoot, trackedEventLoot, type EquipmentLootChance } from './equipmentLootTrackingModel';
+import { encounterLootChances, trackedEncounterLoot, trackedEventLoot, type EquipmentLootChance } from './equipmentLootTrackingModel';
 
 export interface RunTravelChoiceFooterSegment {
   text: string;
@@ -41,6 +41,7 @@ export interface RunTravelChoiceViewModel {
   accent: number;
   enabled: boolean;
   trackedLoot?: readonly EquipmentLootChance[];
+  equipmentDrops?: readonly EquipmentLootChance[];
   event?: {
     eventId: string;
     chainUnlocked: boolean;
@@ -124,6 +125,7 @@ export function buildRunTravelChoiceViewModel(
       ...(showsEncounter ? { artKey: biomeArtKey(biome.id) } : {}),
       ...(node.kind === 'boss' ? { artKey: RUN_ART_KEYS.icon.bossSkull } : {}),
       ...(encounter ? { trackedLoot: trackedEncounterLoot(encounter.units.map(unit => unit.enemyId)) } : {}),
+      ...(encounter ? { equipmentDrops: encounterLootChances(encounter.units.map(unit => unit.enemyId)) } : {}),
     };
   }
   const detail = eventThemeBlurb(node.eventTheme);

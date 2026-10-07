@@ -33,6 +33,7 @@ import type Phaser from 'phaser';
 import type { UI } from '../theme';
 import { playSfx } from '../audio/sfxSynth';
 import type { SfxKey } from '../audio/sfxRecipes';
+import { renderPaintedChrome } from './paintedChrome';
 
 /** The scene whose tween manager drives all of this. */
 export type MotionScene = Phaser.Scene;
@@ -200,7 +201,20 @@ export function attachButtonFeel(scene: MotionScene, target: FillTarget, opts: B
   const alpha = opts.alpha ?? 1;
   const pressFill = opts.press ?? pressedFill(opts.hover);
   const lift = opts.lift ?? MOTION.hoverLift;
-  const follow = opts.follow ?? [];
+  const usesPaintedChrome = target.height >= 28 && target.height <= 64 && target.width >= 40
+    && ['RunModal', 'DesktopRunMap', 'MobileRunMap'].includes(scene.sys.settings.key);
+  const chrome = usesPaintedChrome ? renderPaintedChrome(scene, target.x - target.width * target.originX, target.y - target.height * target.originY, target.width, target.height, { button: true }) : undefined;
+  if (chrome) {
+    chrome.setAlpha(target.alpha);
+    target.setData('paintedButton', true);
+    target.setData('paintedButtonChrome', chrome);
+    if (target.parentContainer) {
+      target.parentContainer.add(chrome);
+      target.parentContainer.moveTo(chrome, target.parentContainer.getIndex(target) + 1);
+    } else scene.children.moveAbove(chrome, target);
+    target.once('destroy', () => chrome.destroy());
+  }
+  const follow = [...(opts.follow ?? []), ...(chrome ? [chrome] : [])];
   // Home positions are captured ONCE, at attach time, so repeated
   // hover/press cycles can never accumulate drift — every restore is absolute,
   // never a relative "move back by N".

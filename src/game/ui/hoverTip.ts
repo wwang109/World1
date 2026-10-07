@@ -52,6 +52,8 @@ export interface HoverTipEntry { title: string; body: string; }
  * already deletes the entry the instant that tip closes by any path. */
 const activeTipByScene = new WeakMap<Phaser.Scene, () => void>();
 
+export function dismissHoverTip(scene: Phaser.Scene): void { activeTipByScene.get(scene)?.(); }
+
 const TIP_WIDTH = 260;
 const PAD = 10;
 

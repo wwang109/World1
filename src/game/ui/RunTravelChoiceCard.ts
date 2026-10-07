@@ -9,6 +9,7 @@ import type { Rect } from './runScreenTemplate';
 import { roundRect } from './roundedRect';
 import { trackedLootSummary } from './equipmentLootTrackingModel';
 import { renderEquipmentChancePanel } from './equipmentPossibleLoot';
+import { renderPaintedChrome } from './paintedChrome';
 
 interface TravelCardOptions { compact: boolean; pending?: boolean }
 
@@ -23,6 +24,7 @@ export interface RunTravelChoiceCardLayout {
   trackedLoot?: Rect;
   requirements?: { heading: Rect; lines: Rect[] };
   action: Rect;
+  equipmentDrops?: Rect;
 }
 
 /** Existing semantic tones carry destination and risk, never a new palette. */
@@ -36,7 +38,7 @@ function travelCardColors(model: RunTravelChoiceViewModel): { edge: number; ink:
 }
 
 function roleHeight(role: TextRole, compact: boolean): number {
-  return Math.ceil(TEXT_ROLE_SPEC[role].size[compact ? 'mobile' : 'desktop'] * 1.4);
+  return Math.ceil(TEXT_ROLE_SPEC[role].size[compact ? 'mobile' : 'desktop'] * (compact ? 1.4 : 1.2));
 }
 
 /** Conservative word-wrap budget; the renderer also audits real font metrics.
@@ -69,23 +71,25 @@ export function runTravelChoiceCardLayout(
   opts: TravelCardOptions,
 ): RunTravelChoiceCardLayout {
   const { compact } = opts;
-  const pad = compact ? 6 : 12;
+  const pad = compact ? 6 : 10;
   const headerInsetX = compact ? 12 : 16;
-  const headerInsetY = compact ? 10 : 12;
-  const headerGap = compact ? 10 : 12;
+  const headerInsetY = compact ? 10 : 4;
+  const headerGap = compact ? 10 : 4;
   // The 1.4× line boxes already include leading. Keep compact inter-block
   // spacing small enough for three independently earned receipts on a phone.
-  const gap = compact ? 1 : 6;
+  const gap = compact ? 1 : 4;
   const innerW = Math.max(1, bounds.width - pad * 2);
   const copy = runTravelChoiceCardCopy(model, opts.pending);
   const titleRole = compact ? 'statValue' : 'section';
   const detailRole = compact ? 'micro' : 'body';
-  const artW = model.artKey ? compact ? 72 : innerW : 0;
+  const artW = model.artKey ? compact ? 72 : Math.min(220, Math.round(innerW * 0.28)) : 0;
   const artH = artW > 0 ? compact ? 60 : Math.min(160, Math.max(104, Math.round(innerW * 0.48))) : 0;
-  const textX = bounds.x + pad + (compact && artW > 0 ? artW + 10 : 0);
-  const textW = innerW - (compact && artW > 0 ? artW + 10 : 0);
+  const textX = bounds.x + pad + (artW > 0 ? artW + (compact ? 10 : 16) : 0);
+  const textW = bounds.x + bounds.width - pad - textX;
   const art = artW > 0 ? { x: bounds.x + pad, y: bounds.y + pad, width: artW, height: artH } : undefined;
-  let cursor = bounds.y + pad + (!compact && art ? artH + 8 : 0);
+  let cursor = bounds.y + pad;
+  const bodyX = compact ? bounds.x + pad : textX;
+  const bodyW = compact ? innerW : textW;
   const block = (text: string, role: TextRole, x = textX, width = textW, minimumLines = 1): Rect => {
     const rect = { x, y: cursor, width, height: Math.max(minimumLines, textLines(text, width, role, compact)) * roleHeight(role, compact) };
     cursor += rect.height + gap;
@@ -97,31 +101,40 @@ export function runTravelChoiceCardLayout(
   cursor += headerInsetY;
   const iconInset = model.categoryIconKey ? (compact ? 24 : 30) : 0;
   const eyebrow = block(copy.eyebrow, 'kicker', headerTextX + iconInset, headerTextW - iconInset);
-  cursor = eyebrow.y + eyebrow.height + 6;
+  cursor = eyebrow.y + eyebrow.height + (compact ? 6 : 4);
   const title = block(copy.title, titleRole, headerTextX, headerTextW);
   const header = { x: textX, y: headerY, width: textW, height: title.y + title.height + headerInsetY - headerY };
   cursor = header.y + header.height + headerGap;
-  const detail = block(copy.detail, detailRole);
+  const inlineFooter = !compact && model.equipmentDrops !== undefined && model.footer !== undefined;
+  const detail = block(copy.detail, detailRole, textX, inlineFooter ? textW / 2 - 6 : textW);
   if (compact && art) cursor = Math.max(cursor, art.y + art.height + gap);
+  const detailBottom = cursor;
+  if (inlineFooter) cursor = detail.y;
   const footer = model.footer
-    ? block(model.footer, 'micro', bounds.x + pad, innerW, model.footerSegments?.length ?? 1)
+    ? block(model.footer, 'micro', inlineFooter ? textX + textW / 2 + 6 : bodyX,
+      inlineFooter ? textW / 2 - 6 : bodyW, model.footerSegments?.length ?? 1)
     : undefined;
+  if (inlineFooter) cursor = Math.max(cursor, detailBottom);
   const trackedLoot = model.trackedLoot?.length
-    ? block(trackedLootSummary(model.trackedLoot), 'micro', bounds.x + pad, innerW)
+    ? block(trackedLootSummary(model.trackedLoot), 'micro', bodyX, bodyW)
     : undefined;
   let requirements: RunTravelChoiceCardLayout['requirements'];
   if (copy.requirementLines.length > 0) {
     cursor += gap;
-    const heading = block(copy.requirementHeading, 'kicker', bounds.x + pad, innerW);
-    const lines = copy.requirementLines.map((line) => block(line, 'micro', bounds.x + pad, innerW, compact ? 1 : 2));
+    const heading = block(copy.requirementHeading, 'kicker', bodyX, bodyW);
+    const lines = copy.requirementLines.map((line) => block(line, 'micro', bodyX, bodyW));
     requirements = { heading, lines };
   }
   const actionH = 40;
   const minHeight = cursor - bounds.y + 6 + actionH + pad;
   const height = Math.max(bounds.height, minHeight);
+  if (!compact && art) art.height = height - pad * 2;
+  const actionW = model.equipmentDrops ? (bodyW - 8) / 2 : bodyW;
+  const actionY = bounds.y + height - pad - actionH;
   return {
     bounds: { ...bounds, height }, art, header, eyebrow, title, detail, footer, trackedLoot, requirements,
-    action: { x: bounds.x + pad, y: bounds.y + height - pad - actionH, width: innerW, height: actionH },
+    action: { x: bodyX + (model.equipmentDrops ? actionW + 8 : 0), y: actionY, width: actionW, height: actionH },
+    ...(model.equipmentDrops ? { equipmentDrops: { x: bodyX, y: actionY, width: actionW, height: actionH } } : {}),
   };
 }
 
@@ -141,24 +154,23 @@ export function runTravelChoiceCardsLayout(
 ): { cards: Rect[]; height: number } {
   if (models.length === 0) return { cards: [], height: 0 };
   const gap = opts.compact ? 8 : 12;
-  const width = opts.compact ? bounds.width : (bounds.width - gap * (models.length - 1)) / models.length;
+  const width = bounds.width;
   const heights = models.map((model) => runTravelChoiceCardMinHeight(model, { ...opts, width }));
-  const desktopH = Math.max(...heights);
   let y = bounds.y;
   const cards = models.map((_model, index) => {
-    const height = opts.compact ? heights[index]! : desktopH;
-    const rect = { x: bounds.x + (opts.compact ? 0 : index * (width + gap)), y: opts.compact ? y : bounds.y, width, height };
+    const height = heights[index]!;
+    const rect = { x: bounds.x, y, width, height };
     y += height + gap;
     return rect;
   });
-  return { cards, height: opts.compact ? y - bounds.y - gap : desktopH };
+  return { cards, height: y - bounds.y - gap };
 }
 
 export function renderRunTravelChoiceCard(
   scene: Phaser.Scene,
   bounds: Rect,
   model: RunTravelChoiceViewModel,
-  opts: TravelCardOptions & { onSelect: () => void; appearIndex?: number },
+  opts: TravelCardOptions & { onSelect: () => void; appearIndex?: number; deferSelection?: (select: () => void) => () => void },
 ): void {
   const layout = runTravelChoiceCardLayout(bounds, model, opts);
   const copy = runTravelChoiceCardCopy(model, opts.pending);
@@ -169,7 +181,9 @@ export function renderRunTravelChoiceCard(
   const alpha = model.enabled ? 0.98 : 0.6;
   const plate = roundRect(scene.add.rectangle(bounds.x, bounds.y, bounds.width, layout.bounds.height, fill, alpha), opts.compact ? 12 : 0).setOrigin(0, 0)
     .setStrokeStyle(chain ? 3 : 1, colors.edge, model.enabled ? 0.95 : 0.4);
-  const parts: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Image> = [plate];
+  const parts: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Image | Phaser.GameObjects.Container> = [plate];
+  const frame = renderPaintedChrome(scene, bounds.x, bounds.y, bounds.width, layout.bounds.height, { borderOnly: true, corner: opts.compact ? 12 : 16 });
+  if (frame) parts.push(frame.setAlpha(alpha));
   const edgeInset = opts.compact ? 12 : 0;
   const edge = scene.add.rectangle(bounds.x + edgeInset, bounds.y, bounds.width - edgeInset * 2, 3, colors.edge, alpha).setOrigin(0, 0);
   parts.push(edge);
@@ -240,11 +254,25 @@ export function renderRunTravelChoiceCard(
     label.setData('equipmentTrackedLoot', model.nodeId).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => renderEquipmentChancePanel(scene, opts.compact, model.trackedLoot!));
   }
+  if (layout.equipmentDrops && model.equipmentDrops) {
+    const rect = layout.equipmentDrops;
+    const dropButton = roundRect(scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.panelMuted, 1), opts.compact ? 12 : 0)
+      .setOrigin(0).setStrokeStyle(1, UI.border).setData('equipmentDropButton', model.nodeId).setInteractive({ useHandCursor: true });
+    const dropLabel = scene.add.text(rect.x + rect.width / 2, rect.y + rect.height / 2, 'EQUIPMENT DROPS',
+      textRoleFor(profile, 'label', { ink: 'accent' })).setOrigin(0.5);
+    auditControlLabel(dropButton, dropLabel, { name: `${model.nodeId} equipment drops`, horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    parts.push(dropButton, dropLabel);
+    const showDrops = () => renderEquipmentChancePanel(scene, opts.compact, model.equipmentDrops!);
+    attachButtonFeel(scene, dropButton, { fill: UI.panelMuted, hover: UI.chipDark, lift: 0, follow: [dropLabel],
+      onPress: opts.deferSelection ? opts.deferSelection(showDrops) : showDrops });
+    const dropChrome = dropButton.getData('paintedButtonChrome') as Phaser.GameObjects.Container | undefined;
+    if (dropChrome) parts.splice(parts.indexOf(dropLabel), 0, dropChrome);
+  }
   const actionFill = chain && model.enabled ? UI.chip : UI.panelMuted;
   const action = roundRect(scene.add.rectangle(layout.action.x, layout.action.y, layout.action.width, layout.action.height, actionFill, alpha), opts.compact ? 12 : 0)
-    .setOrigin(0, 0).setStrokeStyle(1, colors.edge, model.enabled ? 0.9 : 0.4);
+    .setOrigin(0, 0).setStrokeStyle(1, colors.edge, model.enabled ? 0.9 : 0.4).setData('runTravelAction', model.nodeId);
   const label = scene.add.text(layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, copy.action,
-    textRoleFor(profile, 'label', { ink: !model.enabled ? 'disabled' : chain ? 'onAccent' : colors.ink })).setOrigin(0.5);
+    textRoleFor(profile, 'label', { ink: !model.enabled ? 'disabled' : chain ? 'onAccent' : colors.ink })).setOrigin(0.5).setData('runTravelActionLabel', model.nodeId);
   auditControlLabel(action, label, { name: `${model.nodeId} travel action`, horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
   parts.push(action, label);
   if (opts.appearIndex !== undefined) {

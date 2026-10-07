@@ -130,7 +130,7 @@ export class MobileDraftScene extends Phaser.Scene {
   private selectOrInspect(key: DraftSetKey, skillId: string, time: number): void {
     if (this.detailActivation.release(`draft:${key}:${skillId}`, time)) {
       this.detailSkillId = skillId;
-      this.rerender();
+      this.renderDetail();
       return;
     }
     this.pick(key, skillId);
@@ -248,7 +248,7 @@ export class MobileDraftScene extends Phaser.Scene {
         onInspect: () => {
           playSfx('uiClick');
           this.detailSkillId = card.skillId;
-          this.rerender();
+          this.renderDetail();
         },
       });
       if (isPicked) {
@@ -340,7 +340,7 @@ export class MobileDraftScene extends Phaser.Scene {
     if (!skill) { this.detailSkillId = null; return; }
     renderCardDetailsDrawer(this, skill, {
       compact: true,
-      onClose: () => { this.detailSkillId = null; this.rerender(); },
+      onClose: () => { this.detailSkillId = null; },
     });
   }
 

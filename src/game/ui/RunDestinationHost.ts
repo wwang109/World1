@@ -63,6 +63,7 @@ export interface EmbeddedRunDestination {
   scrollY: number;
   onClose: () => void;
   onChanged: () => void;
+  onDismiss?: () => void;
 }
 
 export function positionRunDestination(
@@ -127,7 +128,31 @@ export class RunDestinationHost {
     this.key = key;
     this.nodeId = nodeId;
     this.savedChoices = [...choices];
-    this.redraw();
+    if (key.endsWith('RunEvent')) { this.lockRetainedChoices(nodeId); this.launchEvent(key); }
+    else this.redraw();
+  }
+
+  private lockRetainedChoices(nodeId: string): void {
+    const visit = (object: Phaser.GameObjects.GameObject): void => {
+      const actionId = object.getData('runTravelAction');
+      if (actionId) {
+        object.setData('runTravelCommittedLocked', actionId !== nodeId);
+        if (object.input && actionId !== nodeId) object.input.enabled = false;
+      }
+      const labelId = object.getData('runTravelActionLabel');
+      if (labelId) (object as Phaser.GameObjects.Text).setText(labelId === nodeId ? 'RETURN TO EVENT ›' : 'LOCKED');
+      const children = (object as Phaser.GameObjects.Container).list;
+      if (Array.isArray(children)) children.forEach(visit);
+    };
+    this.owner.children.list.forEach(visit);
+  }
+
+  private launchEvent(key: string): void {
+    if (this.owner.scene.isActive(key)) { this.owner.scene.get(key).data.get('reopenRunEventModal')?.(); return; }
+    const view = { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height };
+    this.embedded = { bounds: view, source: view, scrollY: 0, onClose: () => this.close(),
+      onDismiss: () => this.close(false), onChanged: () => this.owner.data.get('refreshRunHud')?.() };
+    this.owner.scene.launch(key, { embedded: this.embedded });
   }
 
   close(redraw = true): void {
@@ -159,6 +184,7 @@ export class RunDestinationHost {
   render(bounds: Rect): boolean {
     if (!this.key) return false;
     const key = this.key;
+    if (key.endsWith('RunEvent')) { this.launchEvent(key); return false; }
     const compact = key.startsWith('Mobile');
     const horizontal = compact ? 12 : 16;
     const denseShopToolbar = key === 'DesktopShop';

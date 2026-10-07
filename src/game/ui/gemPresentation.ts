@@ -1,8 +1,10 @@
 import type { Rarity } from '../../engine/types';
 import { gemRuleEntries, renderGemText } from '../../engine/keywords/gemText';
+import { CARD_MOD_KEYS, CARD_MOD_TEXT, ruleTitleOf, STAT_RULE, type RenderCtx } from '../../engine/keywords/text';
 import type { GemDef } from '../../data/gems';
 import { stripCardTextMarkup } from './cardTextMarkup';
 import type { HoverTipEntry } from './hoverTip';
+import { specificRule } from './cardDetailsContent';
 
 /**
  * GEM PRESENTATION — the twin of `skillPresentation.ts`, and deliberately NOT
@@ -46,6 +48,30 @@ export function gemHoverEntries(gem: GemDef): HoverTipEntry[] {
     body: `${gem.name} · ${gem.rarity.toUpperCase()} — ${stripCardTextMarkup(renderGemText(gem))}`,
   };
   return [header, ...gemRuleEntries(gem)];
+}
+
+export function gemStandaloneRuleEntries(gem: GemDef): HoverTipEntry[] {
+  const ctx: RenderCtx = { property: 'physical', archetypes: [], size: 1, aoe: false, gated: false, host: 'gem' };
+  return gemHoverEntries(gem).slice(1).map(entry => {
+    if (gem.kind === 'effect') {
+      const action = gem.actions.find(candidate => ruleTitleOf(candidate) === entry.title);
+      if (action && action.kind !== 'overhealShield') {
+        const { rule } = specificRule(action, ctx);
+        if (rule) return { ...entry, body: rule };
+      }
+    } else if (gem.mods.card) {
+      const key = CARD_MOD_KEYS.find(candidate => CARD_MOD_TEXT[candidate].rule?.title === entry.title);
+      const amount = key === undefined ? undefined : gem.mods.card?.[key];
+      if (amount !== undefined && (entry.body.match(/\bX\b/g) ?? []).length === 1) {
+        return { ...entry, body: entry.body.replace(/\bX\b/g, String(amount)) };
+      }
+    }
+    return entry;
+  }).filter(entry => {
+    if (/\b\d*X\b|\bPL\b|power level|example/i.test(`${entry.title} ${entry.body}`)) return false;
+    return !(gem.kind === 'effect' && gem.weightIncreasePct !== undefined && entry.title === STAT_RULE.speed.title
+      && !gem.actions.some(action => 'stat' in action && action.stat === 'speed'));
+  });
 }
 
 /**

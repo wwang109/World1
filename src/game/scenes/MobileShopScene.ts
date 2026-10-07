@@ -659,7 +659,7 @@ export class MobileShopScene extends Phaser.Scene {
           const pointer = this.input.activePointer;
           const v = this.shelfViewport;
           if (pointer.worldY < v.y || pointer.worldY > v.y + v.height) return;
-          this.detailCardIndex = i; this.detailTier = offer.tier; this.inspectOwned = null; this.rerender();
+          this.detailCardIndex = i; this.detailTier = offer.tier; this.inspectOwned = null; this.renderCardDetail();
         } });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index: i }, obj: tok });
@@ -799,7 +799,7 @@ export class MobileShopScene extends Phaser.Scene {
             const pointer = this.input.activePointer;
             const v = this.shelfViewport;
             if (pointer.worldY < v.y || pointer.worldY > v.y + v.height) return;
-            this.selectedCardIndex = index; this.detailCardIndex = index; this.detailTier = offer.tier; this.rerender();
+            this.selectedCardIndex = index; this.detailCardIndex = index; this.detailTier = offer.tier; this.renderCardDetail();
           },
         }));
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index }, obj: token });
@@ -895,14 +895,14 @@ export class MobileShopScene extends Phaser.Scene {
       if (this.manageTab === 'gems') {
         const gem = gemBook[this.gemInventory[index]!];
         if (!gem) continue;
-        this.runBrowseButton({ x: area.x, y, width: area.width, height: rows.rowHeight }, gem.name, () => { this.inspectGemIndex = index; this.rerender(); });
+        this.runBrowseButton({ x: area.x, y, width: area.width, height: rows.rowHeight }, gem.name, () => { this.inspectGemIndex = index; this.renderOwnedGemDetail(); });
         continue;
       }
       const entry = entries[index]!;
       const base = skillBook[entry.card.skillId];
       if (!base) continue;
       const location = this.manageTab;
-      const inspect = (): void => { this.inspectOwned = { location, index: entry.index }; this.rerender(); };
+      const inspect = (): void => { this.inspectOwned = { location, index: entry.index }; this.renderOwnedCardDetail(); };
       const token = new CardToken(this, area.x + area.width / 2, y + rows.rowHeight / 2, applyTier(base, entry.card.tier), {
         width: area.width, height: rows.rowHeight, side: 'left', tier: entry.card.tier, onInspect: inspect,
       });
@@ -1030,7 +1030,7 @@ export class MobileShopScene extends Phaser.Scene {
         this.detailCardIndex = null;
         this.detailGemIndex = null;
         this.inspectOwned = { location: 'board', index: this.pieces.indexOf(piece) };
-        this.rerender();
+        this.renderOwnedCardDetail();
       },
     });
     this.wireColumnDraggables(boardCol, boardX, colTop, colW, rowH, rowGap, (slot) => {
@@ -1060,7 +1060,7 @@ export class MobileShopScene extends Phaser.Scene {
         this.detailCardIndex = null;
         this.detailGemIndex = null;
         this.inspectOwned = { location: 'bag', index: slot };
-        this.rerender();
+        this.renderOwnedCardDetail();
       },
     });
     this.wireColumnDraggables(bagCol, bagX, colTop, colW, rowH, rowGap, (slot) => {
@@ -1182,7 +1182,7 @@ export class MobileShopScene extends Phaser.Scene {
       compact: true, view: this.detailsView(),
       gem: piece?.gem ? gemBook[piece.gem.id] : null,
       powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
-      onClose: () => { this.inspectOwned = null; this.rerender(); },
+      onClose: () => { this.inspectOwned = null; },
       primaryAction: this.isRunMode() ? { label: `SELL · ${sellPriceOfCard(card.tier)} GOLD`, enabled: true, onPress: () => {
         this.inspectOwned = null;
         this.pendingSell = { location: owned.location, index: owned.index };
@@ -1211,7 +1211,6 @@ export class MobileShopScene extends Phaser.Scene {
         const next = closeMobileShopCardDetails({ selectedCardIndex: this.selectedCardIndex, detailCardIndex: this.detailCardIndex });
         this.selectedCardIndex = next.selectedCardIndex;
         this.detailCardIndex = next.detailCardIndex;
-        this.rerender();
       },
       primaryAction: { label, enabled: canBuy, onPress: () => {
         this.pendingBuy = { kind: 'card', index }; this.rerender();
@@ -1230,7 +1229,7 @@ export class MobileShopScene extends Phaser.Scene {
     const affordable = this.activeGold() >= offer.price;
     renderGemDetailsDrawer(this, gem, {
       compact: true, view: this.detailsView(),
-      onClose: () => { this.detailGemIndex = null; this.rerender(); },
+      onClose: () => { this.detailGemIndex = null; },
       primaryAction: { label: affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, enabled: affordable,
         onPress: () => { this.pendingBuy = { kind: 'gem', index }; this.rerender(); } },
     });
@@ -1253,7 +1252,7 @@ export class MobileShopScene extends Phaser.Scene {
     if (!selected) { this.inspectGemIndex = null; return; }
     renderGemDetailsDrawer(this, selected.gem, {
       compact: true, view: this.detailsView(), slots, selectedKey: selected.key,
-      onClose: () => { this.inspectGemIndex = null; this.rerender(); },
+      onClose: () => { this.inspectGemIndex = null; },
     });
   }
   // ---------- unified manual drag: shelf→board/bag (BUY) · owned→SELL ZONE (SELL) ----------
@@ -1468,7 +1467,8 @@ export class MobileShopScene extends Phaser.Scene {
           this.detailTier = shelf.cards[src.index]?.tier ?? 'bronze';
           playSfx('uiClick');
           this.inspectOwned = null;
-          this.rerender(this.isRunMode() && !openDetails);
+          if (openDetails) this.renderCardDetail();
+          else this.rerender(this.isRunMode());
           return;
         }
         const hit = this.columnHitTest(p.worldX, p.worldY);
@@ -1501,8 +1501,8 @@ export class MobileShopScene extends Phaser.Scene {
           playSfx('uiClick');
           this.detailGemIndex = src.index;
           this.inspectOwned = null;
+          this.renderGemDetail();
         }
-        this.rerender();
         return;
       }
 
@@ -1511,7 +1511,7 @@ export class MobileShopScene extends Phaser.Scene {
         if (totalMove < 8) {
           playSfx('uiClick');
           this.inspectGemIndex = src.index;
-          this.rerender();
+          this.renderOwnedGemDetail();
           return;
         }
         draggedObj.setDepth(0).setAlpha(1);
@@ -1529,7 +1529,7 @@ export class MobileShopScene extends Phaser.Scene {
         draggedObj.setDepth(0).setAlpha(1);
         if ((this.isRunMode() && this.manageOpen) || this.detailActivation.release(`${src.kind}:${src.index}`, p.upTime)) {
           this.inspectOwned = { location: src.kind, index: src.index };
-          this.rerender();
+          this.renderOwnedCardDetail();
         }
         return;
       }

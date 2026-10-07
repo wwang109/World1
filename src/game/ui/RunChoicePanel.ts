@@ -6,6 +6,7 @@ import type { RunNodeKind } from '../runStore';
 import { FONT, INK, UI, type InkRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { appearPanel, attachButtonFeel, flashConfirm, MOTION } from './motion';
+import { renderPaintedChrome } from './paintedChrome';
 
 export interface RunChoiceImage {
   textureKey: string;
@@ -268,6 +269,8 @@ export function renderRunChoicePanel(
     .setOrigin(0, 0)
     .setStrokeStyle(2, model.accent, model.enabled ? 0.9 : 0.38);
   if (compact) roundRect(panel, 12);
+  const frame = renderPaintedChrome(scene, bounds.x, bounds.y, bounds.w, bounds.h, { borderOnly: true, corner: compact ? 12 : 16 });
+  frame?.setAlpha(alpha);
   const rail = scene.add.rectangle(bounds.x, bounds.y + (compact ? 12 : 0), railW, bounds.h - (compact ? 24 : 0), model.accent, model.enabled ? 1 : 0.48).setOrigin(0, 0);
   if (compact) roundRect(rail, 3);
   const image = model.image
@@ -346,6 +349,7 @@ export function renderRunChoicePanel(
   }
 
   trackObject(opts.track, panel);
+  if (frame) trackObject(opts.track, frame);
   trackObject(opts.track, rail);
   if (image) trackObject(opts.track, image);
   trackObject(opts.track, title);
@@ -363,7 +367,7 @@ export function renderRunChoicePanel(
   // layout audit above has measured the final geometry — `appearPanel` only
   // touches `y`/`alpha` at runtime, so the audits still see the authored
   // positions and nothing about layout verification changes.
-  const parts = [panel, rail, title, action, detail, ...(image ? [image] : []), ...(footer ? [footer] : [])];
+  const parts = [panel, ...(frame ? [frame] : []), rail, title, action, detail, ...(image ? [image] : []), ...(footer ? [footer] : [])];
   if (opts.appearIndex !== undefined) {
     appearPanel(scene, parts, { delay: opts.appearIndex * MOTION.rowStagger, stagger: 0 });
   }
@@ -385,10 +389,13 @@ export function renderRunChoicePanel(
       group.committing = true;
       flashConfirm(scene, rail);
       playCommit(scene, group, { panel, title, accent: model.accent, bounds });
-      scene.time.delayedCall(MOTION.commitHold, () => {
+      const commit = scene.time.delayedCall(MOTION.commitHold, () => {
+        panel.off('destroy', cancel);
         group.committing = false;
         opts.onSelect();
       });
+      const cancel = (): void => { commit.remove(false); group.committing = false; };
+      panel.once('destroy', cancel);
     },
   });
 }

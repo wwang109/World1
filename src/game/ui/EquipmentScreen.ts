@@ -37,6 +37,13 @@ export abstract class EquipmentScreen extends Phaser.Scene {
   private salvageArmed: string | null = null;
   constructor(key: string, private readonly compact: boolean) { super(key); }
   private rerender = () => rebuildScene(this);
+  private openLoot(ref: EquipmentItemPin): void {
+    const run = getActiveRun();
+    if (!run) return;
+    this.lootTarget = ref; this.lootOpen = true; this.lootPage = 0;
+    renderEquipmentLootPanel(this, this.compact, equipmentDetailsModel(ref, equipmentCatalog, equipmentLootSourcesFromJson()), this.lootPage,
+      page => { this.lootPage = page; }, () => { this.lootOpen = false; }, { ref, run, onChanged: () => {} });
+  }
   create(): void {
     const run = getActiveRun();
     if (!run) { this.scene.start(this.compact ? 'MobileRunMap' : 'DesktopRunMap'); return; }
@@ -128,7 +135,7 @@ export abstract class EquipmentScreen extends Phaser.Scene {
       const model = equipmentItemPresentation(selected, resolution), preview = equipmentSelectionPreview(run, selected), bw = m ? 72 : 96;
       const titleW = dw - bw * 3 - 56, title = this.add.text(dx + 12, dy + 12, `${model.name}${selected.level ? ` +${selected.level}` : ''}`, { fontFamily: FONT.display, fontSize: `${m ? 18 : 28}px`, color: UI.textBright });
       while (title.width > titleW && Number(title.style.fontSize.toString().replace('px', '')) > (m ? 11 : 16)) title.setFontSize(Number(title.style.fontSize.toString().replace('px', '')) - 1);
-      button(dx + dw - bw * 3 - 28, dy + 10, bw, 'LOOT FROM', () => { this.lootOpen = true; this.lootTarget = null; this.lootPage = 0; this.rerender(); });
+      button(dx + dw - bw * 3 - 28, dy + 10, bw, 'LOOT FROM', () => this.openLoot(selected));
       const armed = this.salvageArmed === selected.instanceId;
       button(dx + dw - bw * 2 - 20, dy + 10, bw, armed ? 'CONFIRM?' : 'SALVAGE', () => {
         if (!armed) { this.salvageArmed = selected.instanceId; this.rerender(); return; }
@@ -162,7 +169,7 @@ export abstract class EquipmentScreen extends Phaser.Scene {
           text(px + 4, pieceY + 33, equipmentCatalog.item(ref.itemId, ref.itemVersion).slot.toUpperCase(), pieceW - 13, 8, UI.textAccent);
           text(px + 4, pieceY + 44, wearing ? '\u2713 EQUIPPED' : owned ? '\u2713 OWNED' : 'MISSING', pieceW - 13, 8,
             owned ? '#9adb9e' : UI.textMuted);
-          plate.on('pointerdown', () => { this.lootTarget = ref; this.lootOpen = true; this.lootPage = 0; this.rerender(); });
+          plate.on('pointerdown', () => this.openLoot(ref));
         });
         this.registry.set('equipmentUiSetPieces', pieces.map(ref => ({ ...ref, owned: inventory.some(item => equipmentItemPinKey(item) === equipmentItemPinKey(ref)) })));
         text(setX, setY, `${model.set.name} \u00b7 ${model.progress?.equippedPieces ?? 0}/3`, setW, m ? 14 : 22, UI.textAccent, true);
@@ -211,8 +218,8 @@ export abstract class EquipmentScreen extends Phaser.Scene {
       if (this.lootOpen) {
         const ref = this.lootTarget ?? selected;
         renderEquipmentLootPanel(this, m, equipmentDetailsModel(ref, equipmentCatalog, equipmentLootSourcesFromJson()), this.lootPage,
-          page => { this.lootPage = page; this.rerender(); }, () => { this.lootOpen = false; this.rerender(); },
-          { ref, run, onChanged: this.rerender });
+          page => { this.lootPage = page; }, () => { this.lootOpen = false; },
+          { ref, run, onChanged: () => {} });
       }
     } else text(dx + 12, dy + 12, 'Select an item to view its stats and set bonuses.', dw - 24);
     if (m) {

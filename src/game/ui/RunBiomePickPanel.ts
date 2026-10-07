@@ -10,6 +10,7 @@ import { attachButtonFeel, flashConfirm } from './motion';
 import { roundRect } from './roundedRect';
 import { enemies } from '../../data/enemies';
 import { enemyDerivedAffinity } from '../../data/enemyAffinity';
+import { renderPaintedChrome } from './paintedChrome';
 
 export interface BiomePickCardModel {
   biomeId: string;
@@ -51,9 +52,9 @@ export function runBiomePickCardsLayout(bounds: Rect, count: number, compact: bo
       x: bounds.x, y: bounds.y + index * (height + gap), width: bounds.width, height,
     }));
   }
-  const width = Math.max(1, (bounds.width - gap * (count - 1)) / Math.max(1, count));
+  const height = Math.min(192, Math.max(144, (bounds.height - gap * (count - 1)) / Math.max(1, count)));
   return Array.from({ length: count }, (_, index) => ({
-    x: bounds.x + index * (width + gap), y: bounds.y, width, height: bounds.height,
+    x: bounds.x, y: bounds.y + index * (height + gap), width: bounds.width, height,
   }));
 }
 
@@ -63,9 +64,38 @@ function renderBiomePickCard(
 ): void {
   const { compact } = opts;
   const profile = compact ? 'mobile' : 'desktop';
-  const pad = compact ? 10 : 16;
+  const pad = compact ? 10 : 12;
+  if (!compact) {
+    const plate = scene.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, UI.panelAlt, 0.98)
+      .setOrigin(0).setStrokeStyle(2, UI.chip, 0.85);
+    renderPaintedChrome(scene, bounds.x, bounds.y, bounds.width, bounds.height, { borderOnly: true, corner: 16 });
+    const artW = Math.min(220, Math.round(bounds.width * 0.28));
+    addRunArt(scene, model.artKey, { x: bounds.x + pad, y: bounds.y + pad, width: artW, height: bounds.height - pad * 2 });
+    const textX = bounds.x + pad + artW + 16, textW = bounds.width - pad - (textX - bounds.x);
+    let cursor = bounds.y + pad;
+    const line = (value: string, role: 'section' | 'micro' | 'label', accent = false) => {
+      const text = scene.add.text(textX, cursor, value, {
+        ...textRoleFor('desktop', role, { ink: accent ? 'accent' : 'primary' }), wordWrap: { width: textW },
+      });
+      auditTextBlock(text, { name: `${model.biomeId} pick ${role}`, maxWidth: textW, maxHeight: role === 'section' ? 26 : 22, minFontSize: 9 });
+      cursor += text.height + 4;
+    };
+    line(model.name, 'section');
+    line(model.tagline, 'micro');
+    line(model.leanChip, 'label', true);
+    line(`${model.bossLine} · ${model.counterLines.join(' · ')}`, 'micro');
+    const actionY = bounds.y + bounds.height - pad - 40;
+    const action = scene.add.rectangle(textX, actionY, textW, 40, UI.chip).setOrigin(0)
+      .setStrokeStyle(1, UI.border).setInteractive({ useHandCursor: true });
+    const label = scene.add.text(textX + textW / 2, actionY + 20, 'CHOOSE REGION', textRoleFor('desktop', 'label', { ink: 'onAccent' })).setOrigin(0.5);
+    auditControlLabel(action, label, { name: `${model.biomeId} pick choose`, horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    attachButtonFeel(scene, action, { fill: UI.chip, hover: UI.border, follow: [label], lift: 0,
+      onPress: () => { flashConfirm(scene, plate); opts.onChoose(); } });
+    return;
+  }
   const plate = roundRect(scene.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, UI.panelAlt, 0.98), compact ? 12 : 0)
     .setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.85);
+  renderPaintedChrome(scene, bounds.x, bounds.y, bounds.width, bounds.height, { borderOnly: true, corner: 12 });
 
   const artSize = compact ? Math.min(56, bounds.height - pad * 2) : 0;
   const artH = compact ? 0 : Math.min(96, bounds.height * 0.3);

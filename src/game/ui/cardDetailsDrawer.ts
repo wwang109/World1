@@ -3,17 +3,18 @@ import { roundRect } from './roundedRect';
 import { TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import type { TierProgress } from '../../run/shop';
-import { FONT, SCREEN, UI, textRoleFor, type TextRole } from '../theme';
+import { FONT, UI, textRoleFor, type TextRole } from '../theme';
 import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
 import { cardDetailsLayout, type CardDetailsPresentation, type DetailsRect } from './cardDetailsLayout';
 import { buildCardDetailsContent, cardDetailsPreviewTiers, resolveCardDetailsPreview, type CardDetailsEntry } from './cardDetailsContent';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { renderDetailText } from './detailText';
+import { openRunModal, type RunModalLayout } from './RunModal';
 
 export interface CardDetailsAction { label: string; enabled: boolean; onPress(): void }
 
 /** Shared inspector. Real card art stays fixed; long information scrolls independently. */
-export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, opts: {
+export interface CardDetailsOptions {
   compact: boolean;
   onClose(): void;
   view?: DetailsRect;
@@ -27,10 +28,24 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
    * is at the card's OWN current tier (a previewed other tier has no progress
    * of its own). `null`/omitted draws nothing (Diamond, or an unowned face). */
   progress?: TierProgress;
-}): void {
-  const view = opts.view ?? { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height };
+}
+
+export function renderCardDetailsDrawer(owner: Phaser.Scene, skill: SkillDef, opts: CardDetailsOptions): void {
+  openRunModal(owner, {
+    id: 'card-details', title: 'CARD DETAILS', compact: opts.compact, width: 1240, height: opts.compact ? 850 : 720,
+    footerHeight: opts.primaryAction || opts.secondaryAction ? 60 : 0,
+    onClose: opts.onClose, dismissOnScrim: true,
+    render: (scene, layout, handle) => {
+      const action = (value: CardDetailsAction | undefined) => value && { ...value, onPress: () => { handle.close(); value.onPress(); } };
+      renderCardDetailsBody(scene, skill, { ...opts, primaryAction: action(opts.primaryAction), secondaryAction: action(opts.secondaryAction) }, layout);
+    },
+  });
+}
+
+function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardDetailsOptions, layout: RunModalLayout): void {
+  const view = layout.view;
   const presentation = opts.presentation ?? 'default';
-  const { pane, card, identity, info, preview, rankButtons, footer } = cardDetailsLayout(view, opts.compact, presentation);
+  const { card, identity, info, preview, rankButtons, footer } = cardDetailsLayout(view, opts.compact, presentation, layout);
   let shown = skill;
   const progressFor = (tier: SkillTier): TierProgress | undefined => (tier === skill.tier ? opts.progress : undefined);
   let content = buildCardDetailsContent(shown, { gem: opts.gem, progress: progressFor(shown.tier) });
@@ -40,14 +55,7 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
     fontFamily: display ? FONT.display : FONT.body, color,
     fontStyle: display ? 'bold' : 'normal', wordWrap: width ? { width, useAdvancedWrap: true } : undefined, lineSpacing: 3,
   }).setOrigin(0, 0).setDepth(depth + 2);
-  const veil = scene.add.rectangle(view.x, view.y, view.width, view.height, UI.shadow, 0.58).setOrigin(0).setDepth(depth).setInteractive();
-  veil.on('pointerdown', opts.onClose);
-  const panel = scene.add.rectangle(pane.x, pane.y, pane.width, pane.height, UI.panel, 1).setOrigin(0).setDepth(depth + 1)
-    .setStrokeStyle(2, UI.chip, 1).setInteractive();
-  if (opts.compact) roundRect(panel, 12);
-  const innerFrame = scene.add.rectangle(pane.x + 5, pane.y + 5, pane.width - 10, pane.height - 10).setOrigin(0).setFillStyle(UI.panel, 0).setStrokeStyle(1, UI.border, 0.65).setDepth(depth + 1);
-  if (opts.compact) roundRect(innerFrame, 8);
-  text(pane.x + 24, pane.y + 16, 'CARD DETAILS', 'title', UI.textAccent, true);
+  const panel = scene.add.container(0, 0).setDepth(depth + 2);
   const button = (r: DetailsRect, label: string, onPress: () => void, enabled = true, filled = false) => {
     const box = scene.add.rectangle(r.x, r.y, r.width, r.height, filled ? UI.chip : UI.panelMuted, enabled ? 1 : 0.55)
       .setOrigin(0).setDepth(depth + 3).setStrokeStyle(1, UI.chip, enabled ? 1 : 0.3);
@@ -57,9 +65,12 @@ export function renderCardDetailsDrawer(scene: Phaser.Scene, skill: SkillDef, op
     if (enabled) box.setInteractive({ useHandCursor: true }).on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); onPress(); });
     return box;
   };
-  button({ x: pane.x + pane.width - 54, y: pane.y + 10, width: 44, height: 40 }, '×', opts.onClose);
-  const makeCard = () => new FantasyCardTemplateV2(scene, card.x + card.width / 2, card.y + card.height / 2, { ...shown, speedWeight: content.weight },
-    { width: card.width, height: card.height, tier: shown.tier, glossary: false, progress: progressFor(shown.tier) }).setDepth(depth + 2);
+  const makeCard = () => {
+    const token = new FantasyCardTemplateV2(scene, card.x + card.width / 2, card.y + card.height / 2, { ...shown, speedWeight: content.weight },
+      { width: card.width, height: card.height, tier: shown.tier, glossary: false, progress: progressFor(shown.tier) });
+    panel.add(token);
+    return token;
+  };
   let cardView = makeCard();
   panel.once('destroy', () => cardView.destroy());
 

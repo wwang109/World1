@@ -110,16 +110,11 @@ const MAP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopRunMap', mobi
 const SHOP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopShop', mobile: 'MobileShop' };
 const DRAFT_SCENE: Record<Platform, string> = { desktop: 'DesktopDraft', mobile: 'MobileDraft' };
 
-/** SHOP (both platforms) and EVENT (desktop only) resolve as a camera-clipped
- * EMBEDDED child scene (`RunDestinationHost.render()`,
- * `src/game/ui/RunDestinationHost.ts`), not a `scene.start()` transition, so
- * the parent map scene stays `sys.isActive()` and a plain "active scene"
- * read never changes. `game.scene.isActive(key)` is the signal that actually
- * reflects it. Mobile's EVENT is a real transition
- * (`MobileRunMapScene`: `this.scene.start('MobileRunEvent')`) and is not here. */
+/** Events and shops keep the parent map active on both platforms. Events
+ * render in the shared modal; shops use a clipped child camera. */
 const EMBEDDED_DESTINATION_KEYS: Record<Platform, string[]> = {
   desktop: ['DesktopRunEvent', 'DesktopShop'],
-  mobile: ['MobileShop'],
+  mobile: ['MobileRunEvent', 'MobileShop'],
 };
 
 async function activeEmbeddedDestination(page: Page, platform: Platform): Promise<string | null> {
@@ -303,9 +298,8 @@ async function waitForSceneChange(page: Page, platform: Platform, step: string, 
 }
 
 /** `waitForSceneChange`'s embedded-aware twin — the postcondition for a
- * map-node click, which may transition for real (FIGHT/BOSS, mobile EVENT)
- * or open an embedded destination in place (desktop EVENT, either platform's
- * SHOP — see `EMBEDDED_DESTINATION_KEYS`). Returns whichever scene is
+ * map-node click, which may transition for real (FIGHT/BOSS)
+ * or open an event/shop over the retained map. Returns whichever scene is
  * actually showing, so callers keep working off a real key either way. */
 async function waitForDestination(page: Page, platform: Platform, step: string, mapSceneKey: string, timeoutMs = 15_000): Promise<string> {
   await waitUntil(page, async () => (await activeSceneKey(page)) !== mapSceneKey || (await activeEmbeddedDestination(page, platform)) !== null, timeoutMs);
@@ -317,12 +311,11 @@ async function waitForDestination(page: Page, platform: Platform, step: string, 
   return transitioned;
 }
 
-/** Whether an EVENT the map opened (either as a real transition on mobile,
- * or embedded on desktop) is still showing — the postcondition for "has this
+/** Whether an EVENT over the retained map is still showing — the postcondition for "has this
  * event actually resolved and returned to the map". */
 async function eventDestinationOpen(page: Page, platform: Platform): Promise<boolean> {
-  if (platform === 'mobile' && (await activeSceneKey(page)) === 'MobileRunEvent') return true;
-  return (await activeEmbeddedDestination(page, platform)) === 'DesktopRunEvent';
+  const eventKey = platform === 'mobile' ? 'MobileRunEvent' : 'DesktopRunEvent';
+  return (await activeSceneKey(page)) === eventKey || (await activeEmbeddedDestination(page, platform)) === eventKey;
 }
 
 async function shot(page: Page, name: string, platform: Platform): Promise<void> {

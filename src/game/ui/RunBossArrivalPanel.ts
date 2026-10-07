@@ -11,6 +11,8 @@ import { addRunArt } from './runArt';
 import { biomeArtKey, RUN_ART_KEYS } from './runArtKeys';
 import { encounterDestinationLabel } from './runTravelChoiceViewModel';
 import type { Rect } from './runScreenTemplate';
+import { encounterLootChances, type EquipmentLootChance } from './equipmentLootTrackingModel';
+import { renderEquipmentChancePanel } from './equipmentPossibleLoot';
 
 export interface RunBossArrivalViewModel {
   nodeId: string;
@@ -21,6 +23,7 @@ export interface RunBossArrivalViewModel {
   leanLabel: string;
   artKey: string;
   regionDay: number;
+  equipmentDrops: readonly EquipmentLootChance[];
 }
 
 /** Only presents the supplied encounter. Selection and deterministic encounter
@@ -42,6 +45,7 @@ export function bossArrivalViewModel(
     leanLabel: leanLabel(biome.lean),
     artKey: biomeArtKey(biome.id),
     regionDay: BAND_WAVES,
+    equipmentDrops: encounterLootChances(encounter.units.map(unit => unit.enemyId)),
   };
 }
 
@@ -141,13 +145,21 @@ export function renderRunBossArrivalPanel(
       textRoleFor(profile, 'label', { ink: 'resource' })).setOrigin(0.5);
     auditControlLabel(chip, label, { name: `Boss arrival fact ${index}`, horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
   });
-  const action = scene.add.rectangle(layout.action.x, layout.action.y, layout.action.width, layout.action.height, UI.bad, 1)
+  const actionWidth = (layout.region.width - 8) / 2;
+  const action = scene.add.rectangle(layout.action.x + actionWidth + 8, layout.action.y, actionWidth, layout.action.height, UI.bad, 1)
     .setOrigin(0, 0).setStrokeStyle(1, UI.bad, 1).setInteractive({ useHandCursor: true });
-  const label = scene.add.text(layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
+  const label = scene.add.text(layout.action.x + actionWidth + 8 + actionWidth / 2, layout.action.y + layout.action.height / 2,
     'FACE THE BOSS ›', textRoleFor(profile, 'label', { ink: 'onAlarm' })).setOrigin(0.5);
   auditControlLabel(action, label, { name: 'Face the boss', horizontalPadding: 12, verticalPadding: 8, minFontSize: 9 });
   attachButtonFeel(scene, action, {
     fill: UI.bad, hover: UI.bad, lift: 1, follow: [label],
     onPress: opts.onFaceBoss,
   });
+  const drops = scene.add.rectangle(layout.action.x, layout.action.y, actionWidth, layout.action.height, UI.panelMuted)
+    .setOrigin(0).setStrokeStyle(1, UI.border).setData('equipmentDropButton', model.nodeId).setInteractive({ useHandCursor: true });
+  const dropsLabel = scene.add.text(layout.action.x + actionWidth / 2, layout.action.y + layout.action.height / 2,
+    'EQUIPMENT DROPS', textRoleFor(profile, 'label', { ink: 'accent' })).setOrigin(0.5);
+  auditControlLabel(drops, dropsLabel, { name: 'Boss equipment drops', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+  attachButtonFeel(scene, drops, { fill: UI.panelMuted, hover: UI.chipDark, lift: 0, follow: [dropsLabel],
+    onPress: () => renderEquipmentChancePanel(scene, opts.compact, model.equipmentDrops) });
 }

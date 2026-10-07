@@ -5,17 +5,32 @@ import { equipmentChanceText, type EquipmentLootChance } from './equipmentLootTr
 import { equipmentDetailsModel } from '../../engine/equipment/details';
 import { equipmentCatalog } from '../../data/equipmentContent';
 import { equipmentLootSourcesFromJson } from '../../data/equipmentLootSources';
-import { renderEquipmentLootPanel } from './equipmentLootPanel';
+import { renderEquipmentDetailsDrawer } from './equipmentDetailsDrawer';
+import { openRunModal, type RunModalOptions } from './RunModal';
 import { getActiveRun } from '../runStore';
-import { rebuildScene } from '../sceneRebuild';
+import { equipmentLootConfig } from '../../data/equipmentLootConfig';
+import { auditTextBlock } from './controlLayoutAudit';
 
-export function renderEquipmentChancePanel(scene: Phaser.Scene, compact: boolean, items: readonly EquipmentLootChance[], page = 0): void {
-  const w = Math.min(scene.scale.width - 20, 600), h = Math.min(scene.scale.height - 40, 550);
-  const x = (scene.scale.width - w) / 2, y = (scene.scale.height - h) / 2, objects: Phaser.GameObjects.GameObject[] = [];
-  const keep = <T extends Phaser.GameObjects.GameObject>(object: T): T => { object.setData('equipmentChanceOverlay', true); objects.push(object); return object; };
-  const close = () => objects.forEach(object => object.destroy());
-  keep(scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, UI.shadow, 0.88).setOrigin(0).setDepth(6100).setInteractive());
-  keep(scene.add.rectangle(x, y, w, h, UI.panel).setOrigin(0).setStrokeStyle(1, UI.chip).setDepth(6101));
+export function renderEquipmentChancePanel(scene: Phaser.Scene, compact: boolean, items: readonly EquipmentLootChance[], page = 0, id = 'equipment-drops', onClose?: () => void): void {
+  const previous = scene.registry.get('equipmentChancePanel');
+  const restore = () => {
+    if (previous) scene.registry.set('equipmentChancePanel', previous); else scene.registry.remove('equipmentChancePanel');
+    onClose?.();
+  };
+  const options = (shownPage: number): RunModalOptions => ({
+    id, title: 'EQUIPMENT DROPS', compact, width: 600, height: 550, footerHeight: 76,
+    onClose: restore,
+    render: (host, layout, handle) => renderEquipmentChanceBody(host, compact, items, shownPage, layout,
+      next => handle.update(options(next))),
+  });
+  openRunModal(scene, options(page));
+}
+
+function renderEquipmentChanceBody(scene: Phaser.Scene, compact: boolean, items: readonly EquipmentLootChance[], page: number,
+  layout: import('./RunModal').RunModalLayout, onPage: (page: number) => void): void {
+  const { body, footer } = layout;
+  const w = body.width, h = body.height, x = body.x, y = body.y;
+  const keep = <T extends Phaser.GameObjects.GameObject>(object: T): T => object.setData('equipmentChanceOverlay', true);
   const text = (tx: number, ty: number, value: string, width: number, size = 14, color = UI.textBright) =>
     keep(scene.add.text(tx, ty, value, { fontFamily: FONT.body, fontSize: `${size}px`, color, wordWrap: { width }, lineSpacing: 3 }).setDepth(6102));
   const control = (tx: number, ty: number, label: string, key: string, action: () => void) => {
@@ -23,37 +38,54 @@ export function renderEquipmentChancePanel(scene: Phaser.Scene, compact: boolean
       .setInteractive({ useHandCursor: true }).on('pointerdown', action));
     text(tx + 22, ty + 22, label, 40, 20, UI.textOnChip).setOrigin(0.5).setDepth(6103);
   };
-  text(x + 16, y + 20, 'POSSIBLE EQUIPMENT', w - 84, compact ? 16 : 20, UI.textAccent);
-  text(x + 16, y + 57, 'Up to one item per victory. Events: new items first.', w - 32, 12, UI.textMuted);
-  control(x + w - 60, y + 12, '\u00d7', 'CLOSE', close);
-  const perPage = Math.max(1, Math.floor((h - 158) / 72)), pages = Math.max(1, Math.ceil(items.length / perPage)), current = Math.max(0, Math.min(page, pages - 1));
-  items.slice(current * perPage, (current + 1) * perPage).forEach((item, index) => {
-    const iy = y + 94 + index * 72;
-    const openSources = () => {
-      const run = getActiveRun();
-      if (!run) return;
-      close();
-      const show = (sourcePage = 0) => {
-        renderEquipmentLootPanel(scene, compact, equipmentDetailsModel(item.ref, equipmentCatalog, equipmentLootSourcesFromJson()), sourcePage,
-          next => { clearSources(); show(next); }, () => { clearSources(); rebuildScene(scene as Phaser.Scene & { create: () => void }); },
-          { ref: item.ref, run, onChanged: () => { clearSources(); show(sourcePage); } });
-      };
-      const clearSources = () => scene.children.list.filter(object => object.getData('equipmentLootOverlay')).forEach(object => object.destroy());
-      show();
-    };
-    keep(scene.add.zone(x + 12, iy, w - 24, 64).setOrigin(0).setDepth(6103).setData('equipmentChanceItem', item.ref.itemId)
-      .setInteractive({ useHandCursor: true }).on('pointerdown', openSources));
-    keep(scene.add.image(x + 42, iy + 25, equipmentArtKey(item.ref.itemId)).setDisplaySize(48, 48).setDepth(6102));
-    text(x + 76, iy, item.name, w - 172, compact ? 14 : 17);
-    if (!item.condition.startsWith('Tracked goal')) text(x + w - 88, iy, equipmentChanceText(item.percent), 72, 16, UI.textAccent);
-    text(x + 76, iy + 26, item.condition, w - 92, 11, UI.textMuted);
+  const victoryPool = items.length > 0 && items.every(item => item.condition === 'On victory');
+  text(x, y, victoryPool
+    ? equipmentLootConfig.fightChanceBps === 10000 ? 'Victory: one equipment item. Item chances below.' : 'Victory: up to one equipment item. Item chances below.'
+    : 'Item chances below. Events: new items first.', w, 12, UI.textMuted);
+  scene.children.list.find(object => object.getData('runModalClose'))?.setData('equipmentChanceControl', 'CLOSE');
+  const measure = (value: string, width: number, size: number): number => {
+    const probe = scene.make.text({ text: value, style: { fontFamily: FONT.body, fontSize: `${size}px`, wordWrap: { width }, lineSpacing: 3 }, add: false });
+    const height = probe.height; probe.destroy(); return height;
+  };
+  const groups: { item: EquipmentLootChance; detail: ReturnType<typeof equipmentDetailsModel>; height: number; nameH: number; conditionH: number; detailH: number }[][] = [[]];
+  let used = 0;
+  items.forEach(item => {
+    const detail = equipmentDetailsModel(item.ref, equipmentCatalog, equipmentLootSourcesFromJson());
+    const nameH = measure(item.name, w - 156, compact ? 14 : 17);
+    const conditionH = measure(`${detail.slot.toUpperCase()} · ${item.condition}`, w - 76, 11);
+    const detailH = measure(detail.baseText, w - 76, 12);
+    const height = Math.max(76, nameH + conditionH + detailH + 20);
+    if (used + height > h - 56 && groups.at(-1)!.length) { groups.push([]); used = 0; }
+    groups.at(-1)!.push({ item, detail, height, nameH, conditionH, detailH }); used += height;
   });
-  text(x + 16, y + h - 86, 'Tap an item to track its sources.', w - 32, 12, UI.textMuted);
+  const pages = groups.length, current = Math.max(0, Math.min(page, pages - 1));
+  let iy = y + 56;
+  if (!items.length) text(x + 16, iy, 'No equipment drops in this encounter.', w - 32, 14, UI.textMuted);
+  groups[current]!.forEach(({ item, detail, height, nameH, conditionH, detailH }) => {
+    const openDetails = () => renderEquipmentDetailsDrawer(scene, compact, item.ref, { run: getActiveRun() ?? undefined });
+    let press: { x: number; y: number } | null = null;
+    keep(scene.add.zone(x, iy, w, height - 8).setOrigin(0).setDepth(6103).setData('equipmentChanceItem', item.ref.itemId)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => { press = { x: pointer.worldX, y: pointer.worldY }; })
+      .on('pointerout', () => { press = null; })
+      .on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (press && Math.hypot(pointer.worldX - press.x, pointer.worldY - press.y) <= 8) openDetails();
+        press = null;
+      }));
+    keep(scene.add.image(x + 24, iy + 25, equipmentArtKey(item.ref.itemId)).setDisplaySize(48, 48).setDepth(6102));
+    text(x + 60, iy, item.name, w - 156, compact ? 14 : 17);
+    if (!item.condition.startsWith('Tracked goal')) text(x + w - 88, iy, equipmentChanceText(item.percent), 72, 16, UI.textAccent);
+    text(x + 60, iy + nameH + 4, `${detail.slot.toUpperCase()} · ${item.condition}`, w - 76, 11, UI.textMuted);
+    const effect = text(x + 60, iy + nameH + conditionH + 8, detail.baseText, w - 76, 12);
+    auditTextBlock(effect, { name: `${item.ref.itemId} drop details`, maxWidth: w - 76, maxHeight: detailH, minFontSize: 12 });
+    iy += height;
+  });
+  text(x, footer.y, 'Tap an item for details and sources.', w, 12, UI.textMuted);
   if (pages > 1) {
-    const fy = y + h - 60;
+    const fy = footer.y + 24;
     text(x + w / 2, fy + 22, `${current + 1} / ${pages}`, 60, 14).setOrigin(0.5);
-    if (current > 0) control(x + 16, fy, '\u2039', 'PREVIOUS', () => { close(); renderEquipmentChancePanel(scene, compact, items, current - 1); });
-    if (current + 1 < pages) control(x + w - 60, fy, '\u203a', 'NEXT', () => { close(); renderEquipmentChancePanel(scene, compact, items, current + 1); });
+    if (current > 0) control(x, fy, '\u2039', 'PREVIOUS', () => onPage(current - 1));
+    if (current + 1 < pages) control(x + w - 44, fy, '\u203a', 'NEXT', () => onPage(current + 1));
   }
   scene.registry.set('equipmentChancePanel', { items, page: current, pages });
 }

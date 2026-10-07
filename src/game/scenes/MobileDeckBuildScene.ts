@@ -272,7 +272,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         const key = src.where === 'deck' ? `deck:${src.instanceId}` : src.where === 'bag' ? `bag:${src.index}` : 'hold';
         if (this.detailActivation.release(key, p.upTime)) {
           this.inspectCard = src;
-          this.rerender();
+          this.renderCardDetails();
         }
         return;
       }
@@ -295,7 +295,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       compact: true,
       gem: piece?.gem ? gemBook[piece.gem.id] : null,
       powerDeci: instancePowerLevelDeci(applyTier(base, card.tier), piece ?? {}),
-      onClose: () => { this.inspectCard = null; this.rerender(); },
+      onClose: () => { this.inspectCard = null; },
       primaryAction: piece ? { label: 'GEM SOCKET', enabled: true, onPress: () => {
         this.inspectCard = null; this.socketFor = piece.instanceId; this.rerender();
       } } : undefined,
@@ -567,7 +567,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, deckX + colW / 2, rowTop(row) + h / 2, skill, {
           width: colW, height: h, side: 'left', slotLabel: label, deck: deckSkills, stats: this.heroStats,
-          onInspect: () => { this.inspectCard = { where: 'deck', instanceId: piece.instanceId, card: piece }; this.rerender(); },
+          onInspect: () => { this.inspectCard = { where: 'deck', instanceId: piece.instanceId, card: piece }; this.renderCardDetails(); },
           // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆
           // badge; while gems WAIT in the pouch, an empty socket shows the
           // muted ◇ outline in the same rail slot — the existing badge's
@@ -605,7 +605,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         const h = rowH * span + gap * (span - 1);
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, bagX + colW / 2, rowTop(row) + h / 2, skill, { width: colW, height: h, side: 'right', slotLabel: label, deck: bagSkills, stats: this.heroStats,
-          onInspect: () => { this.inspectCard = { where: 'bag', index: detailIndex, card }; this.rerender(); },
+          onInspect: () => { this.inspectCard = { where: 'bag', index: detailIndex, card }; this.renderCardDetails(); },
         });
         this.makeDraggable(tok, { where: 'bag', index: row, card: { ...card } });
         row += span - 1;
@@ -911,7 +911,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     });
     renderGemDetailsDrawer(this, current ?? slots[0]?.gem ?? null, {
       compact: true, view: { x: 0, y: 0, width: this.W, height: this.H },
-      onClose: close, context: skill.name,
+      onClose: () => { this.socketFor = null; }, context: skill.name,
       slots, selectedKey: slots[0]?.key,
       emptyText: this.runContext
         ? 'No gems in the pouch — events and shops on the map grant them.'

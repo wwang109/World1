@@ -34,7 +34,7 @@ const GUARD_WORD: Record<Property, string> = { physical: 'physical', magical: 'm
 const SHIELD_WORD: Record<Property, string> = { physical: 'P. Shield', magical: 'M. Shield', true: 'True Shield' };
 const turnsOf = (turns: number) => `${turns} ${turns === 1 ? 'turn' : 'turns'}`;
 
-function specificRule(action: Action, ctx: RenderCtx): { rule: string; standalone: boolean } {
+export function specificRule(action: Action, ctx: RenderCtx): { rule: string; standalone: boolean } {
   const rule = ruleSentenceOf(action);
   const generic = (text: string) => ({ rule: text, standalone: false });
   const own = (text: string) => ({ rule: text, standalone: true });

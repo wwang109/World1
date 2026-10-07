@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { currentEquipmentDropReceipt, getActiveRun } from '../runStore';
 import { equipmentCatalog } from '../../data/equipmentContent';
+import { renderEquipmentDetailsDrawer } from './equipmentDetailsDrawer';
 import type { RunRewardViewModel } from './runRewardViewModel';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import type { RunState } from '../../run/runState';
@@ -10,6 +11,7 @@ import { choiceArtKey } from './runArt';
 import { burstReward } from './ambience';
 import { assembleObjects, isFreshRender } from './motion';
 import { eventOutcomePaneTemplate } from './runRewardGeometry';
+import { layoutRunGemReward } from './runGemRewardLayout';
 import type { RunScreenTemplate } from './runScreenTemplate';
 import { buildRunRewardViewModel } from './runRewardViewModel';
 import { GEM_RESHAPE_PICK_TITLE, REROLL_PICK_TITLE, RESHAPE_PICK_TITLE } from './eventOutcomeText';
@@ -125,7 +127,7 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     const receipt=currentEquipmentDropReceipt();
     if(receipt?.sourceKind==='event'&&receipt.sourceId===instance?.instanceId&&receipt.item){
       const item=equipmentCatalog.item(receipt.item.itemId,receipt.item.itemVersion);
-      model.detail=[model.detail,`Equipment found: ${item.name}`].filter(Boolean).join('\n');
+      model.detail=[model.detail,`Equipment found: ${item.name} · DETAILS ›`].filter(Boolean).join('\n');
       if(model.feature.kind==='icon')model.feature={kind:'equipment',item:receipt.item};
     }
     renderRunRewardPanel(ctx.scene, eventOutcomePaneTemplate(ctx.template, model.feature.kind, ctx.panel, ctx.header), model, {
@@ -133,6 +135,28 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
       inspected: ctx.receiptInspection?.expanded,
       onInspect: ctx.receiptInspection?.onInspect, onCloseInspect: ctx.receiptInspection?.onClose,
     });
+    if (receipt?.sourceKind === 'event' && receipt.sourceId === instance?.instanceId && receipt.item && model.feature.kind !== 'equipment') {
+      const stack = [...ctx.scene.children.list];
+      while (stack.length) {
+        const object = stack.pop()!;
+        if ('list' in object) stack.push(...(object as Phaser.GameObjects.Container).list);
+        if (object.name !== 'run-card-reward-context' && object.name !== 'run-gem-reward-context') continue;
+        const bounds = (object as Phaser.GameObjects.Text).getBounds();
+        const hit = ctx.scene.add.rectangle(bounds.x, bounds.y, bounds.width, bounds.height, 0xffffff, 0)
+          .setOrigin(0).setInteractive({ useHandCursor: true }).setName('run-equipment-bonus-details');
+        if (object.parentContainer) {
+          const local = object.parentContainer.getWorldTransformMatrix().applyInverse(bounds.x, bounds.y);
+          hit.setPosition(local.x, local.y); object.parentContainer.add(hit);
+        }
+        let downY = 0;
+        hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => { downY = pointer.worldY; });
+        hit.on('pointerup', (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+          if (Math.abs(pointer.worldY - downY) > 8) return;
+          event.stopPropagation(); renderEquipmentDetailsDrawer(ctx.scene, ctx.compact, receipt.item!, { run: getActiveRun() ?? undefined });
+        });
+        break;
+      }
+    }
   },
   cardChoice: renderCards,
   bonusDraft: renderCards,
@@ -240,6 +264,16 @@ export class RunEventOutcomePaneController {
   private receiptInspected = false;
 
   get state(): Readonly<RunEventOutcomePaneState> { return this.current; }
+
+  bounds(panel: Rect, header: Rect, compact: boolean): { panel: Rect; header: Rect } {
+    const state = this.current;
+    if (state.kind === 'receipt' && state.outcome
+      && buildRunRewardViewModel(state.outcome, state.mergeReceipt).feature.kind === 'gem') {
+      const layout = layoutRunGemReward(panel, compact);
+      return { panel: layout.panel, header: layout.header };
+    }
+    return { panel, header };
+  }
 
   reset(): void {
     this.current = { kind: 'choices' };

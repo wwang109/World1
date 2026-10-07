@@ -32,7 +32,7 @@ import { reduceMaskCommands, visibleBounds, type Rect } from '../src/game/ui/mas
  */
 export interface TextBound {
   text: string; x: number; y: number; width: number; height: number; scene: string;
-  /** A mask cut part of this text off. The bounds above are what is left. */
+  /** A mask or modal panel cut this text off. The bounds are one visible part. */
   clipped: boolean;
   /** A mask in this text's chain could not be modelled; bounds are UNCLIPPED. */
   unresolvedMask: boolean;
@@ -57,6 +57,8 @@ export interface RawTextBound {
    * first. `null` = a mask that is not a geometry mask (a bitmap mask), which
    * this collector cannot model and therefore refuses to treat as clipping. */
   maskChain: Array<{ commands: number[]; offsetX: number; offsetY: number } | null>;
+  /** Visible modal panels above this scene, in real canvas pixels. */
+  occludedBy?: Rect[];
 }
 
 /**
@@ -72,17 +74,19 @@ export async function collectRawSceneTexts(page: Page): Promise<RawTextBound[]> 
   return page.evaluate(() => {
     const game = (window as any).__game;
     const out: any[] = [];
+    const panels: Array<{ order: number; rect: any }> = [];
     // `masks` is the chain inherited from ancestor containers, outermost first.
-    const stack: Array<{ obj: any; scene: string; camera: any; masks: any[] }> = [];
-    for (const scene of game.scene.scenes) {
-      if (!scene.sys.isActive()) continue;
+    const stack: Array<{ obj: any; scene: string; order: number; camera: any; masks: any[] }> = [];
+    for (let order = 0; order < game.scene.scenes.length; order++) {
+      const scene = game.scene.scenes[order];
+      if (!scene.sys.isActive() || !scene.sys.isVisible()) continue;
       const key = scene.sys.settings.key as string;
       const cam = scene.cameras.main;
       const camera = { x: cam.x, y: cam.y, scrollX: cam.scrollX, scrollY: cam.scrollY, zoom: cam.zoom };
-      for (const obj of scene.children.list) stack.push({ obj, scene: key, camera, masks: [] });
+      for (const obj of scene.children.list) stack.push({ obj, scene: key, order, camera, masks: [] });
     }
     while (stack.length > 0) {
-      const { obj, scene, camera, masks } = stack.pop()!;
+      const { obj, scene, order, camera, masks } = stack.pop()!;
       if (!obj || obj.visible === false || (obj.alpha ?? 1) === 0) continue;
       let chain = masks;
       if (obj.mask) {
@@ -95,11 +99,21 @@ export async function collectRawSceneTexts(page: Page): Promise<RawTextBound[]> 
             : null,
         ]);
       }
+      if (scene === 'RunModal' && obj.type === 'Rectangle' && obj.data?.get('runModalPanel') && obj.fillAlpha >= 0.95) {
+        const b = obj.getBounds();
+        panels.push({ order, rect: { x: camera.x + (b.x - camera.scrollX) * camera.zoom,
+          y: camera.y + (b.y - camera.scrollY) * camera.zoom, width: b.width * camera.zoom, height: b.height * camera.zoom } });
+      }
       if (obj.type === 'Text' && typeof obj.text === 'string' && obj.text.length > 0) {
         const b = obj.getBounds();
-        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene, camera, maskChain: chain });
+        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene, order, camera, maskChain: chain });
       }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene, camera, masks: chain });
+      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene, order, camera, masks: chain });
+    }
+    for (const text of out) {
+      text.occludedBy = [];
+      for (const panel of panels) if (panel.order > text.order) text.occludedBy.push(panel.rect);
+      delete text.order;
     }
     return out;
   });
@@ -116,6 +130,19 @@ function toScreenRect(rect: Rect, camera: SceneCamera): Rect {
   };
 }
 
+function exposedTextRects(rect: Rect, panel: Rect): Rect[] {
+  const left = Math.max(rect.x, panel.x), top = Math.max(rect.y, panel.y);
+  const right = Math.min(rect.x + rect.width, panel.x + panel.width);
+  const bottom = Math.min(rect.y + rect.height, panel.y + panel.height);
+  if (left >= right || top >= bottom) return [rect];
+  const parts: Rect[] = [];
+  if (top > rect.y) parts.push({ x: rect.x, y: rect.y, width: rect.width, height: top - rect.y });
+  if (bottom < rect.y + rect.height) parts.push({ x: rect.x, y: bottom, width: rect.width, height: rect.y + rect.height - bottom });
+  if (left > rect.x) parts.push({ x: rect.x, y: top, width: left - rect.x, height: bottom - top });
+  if (right < rect.x + rect.width) parts.push({ x: right, y: top, width: rect.x + rect.width - right, height: bottom - top });
+  return parts;
+}
+
 /** Resolves raw readings to what the browser ACTUALLY PAINTS. Pure — exported
  * so a test can drive it without a browser. */
 export function resolveDrawnTexts(raw: readonly RawTextBound[]): TextBound[] {
@@ -128,10 +155,11 @@ export function resolveDrawnTexts(raw: readonly RawTextBound[]): TextBound[] {
     const v = visibleBounds(box, masks);
     if (!v.drawn) continue;
     const screen = toScreenRect(v.rect, t.camera);
-    out.push({
-      text: t.text, scene: t.scene,
-      x: screen.x, y: screen.y, width: screen.width, height: screen.height,
-      clipped: v.clipped, unresolvedMask: v.unresolved,
+    let exposed = [screen];
+    for (const panel of t.occludedBy ?? []) exposed = exposed.flatMap(part => exposedTextRects(part, panel));
+    for (const part of exposed) out.push({
+      text: t.text, scene: t.scene, ...part,
+      clipped: v.clipped || part !== screen, unresolvedMask: v.unresolved,
     });
   }
   return out;

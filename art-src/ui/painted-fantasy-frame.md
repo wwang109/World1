@@ -1,0 +1,7 @@
+# Painted fantasy frame
+
+Generated with the built-in ImageGen tool. Master: `painted-fantasy-frame.png`. Runtime derivative: `public/game-art/ui/painted-fantasy-frame.webp`, 512 square, WebP quality 0.9. Shared modal and button borders sample corners and plain edge sections separately to preserve ornament proportions.
+
+## Generation prompt
+
+Use case: stylized-concept. Asset type: production game UI nine-slice texture, one single square panel, straight-on orthographic, fills entire square edge to edge. Primary request: a hand-painted fantasy border with tangible depth for a bright illustrated adventure game. A restrained antique golden bronze frame, small tasteful sculpted leaf scrolls at the four corners, soft painterly texture, warm highlight on upper and left bevel, deep teal shadow on lower and right bevel. The center is a flat very dark muted navy teal painted surface, subtly textured but very low contrast and free of any ornament. Outer frame occupies only outer 9 percent of the square, center 82 percent completely unobstructed. All four edges straight and parallel, edge middles simple repeating gold trim so a nine-slice can stretch them smoothly. Small inset fine gold line. Elegant, readable, tactile hand-painted 2D game UI, no glossy plastic or heavy baroque flourishes. No text, no symbols, no logos, no scene, no people, no extra frames, no cast shadow outside image. Full bleed border touches exact image edges, no outside margins. Single square panel only. Gold corners contained within the 9 percent corner squares.
