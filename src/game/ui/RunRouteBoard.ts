@@ -13,7 +13,9 @@ import {
   type BandBannerViewModel,
 } from './bandBannerViewModel';
 import { addRunArt, RUN_ART_KEYS } from './runArt';
-import type { RunRouteSnapshot } from './runRouteLayout';
+import { dayChaptersGeometry, type RunRouteSnapshot } from './runRouteLayout';
+import { animateDayChapter, chapterMotionAllowed, chapterMotionTransition, chapterPointAt } from './dayChapterMotion';
+import { renderDayChapterViewport } from './dayChapterViewport';
 import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import type { MapIntelLayoutModel } from './mapIntelLayout';
 import type { MapIntelRecord } from '../../run/runState';
@@ -172,107 +174,104 @@ export function renderRunRouteBoard(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },
   route: RunRouteSnapshot,
-  opts: { mode: 'desktop' | 'mobile'; regionName?: string; track?: Phaser.GameObjects.GameObject[] },
+  opts: { mode: 'desktop' | 'mobile'; regionName?: string; biomeArtKey?: string; seed?: number;
+    selectedStops?: readonly { nodeId: string; wave: number; artKey: string; iconKey?: string; kind: 'event' | 'shop' | 'fight' | 'boss'; status?: 'pending' | 'completed' }[];
+    track?: Phaser.GameObjects.GameObject[]; inputEnabled?: boolean },
 ): void {
   if (route.columns.length === 0) return;
-  const model = expeditionRouteTrackModel(route);
-  const inset = opts.mode === 'desktop' ? 12 : 8;
   const compact = opts.mode === 'mobile';
-  const header = scene.add.text(bounds.x + inset, bounds.y + 2,
-    !opts.regionName ? 'EXPEDITION ROUTE' : compact
-      ? `EXPEDITION ROUTE · ${opts.regionName.toUpperCase().replace(/^THE\s+/, '')}`
-      : `EXPEDITION ROUTE · CROSSING ${opts.regionName.toUpperCase()}`, {
-      ...textRole('kicker'),
-      wordWrap: { width: Math.max(80, bounds.w - inset * 2 - (compact ? 62 : 104)) },
-    });
-  trackObject(opts.track, header);
-  auditTextBlock(header, {
-    name: `Run route region header (${opts.mode})`,
-    maxWidth: Math.max(80, bounds.w - inset * 2 - (compact ? 62 : 104)),
-    maxHeight: 18,
-    minFontSize: 8,
-  });
-  const currentDay = scene.add.text(bounds.x + bounds.w - inset, bounds.y + 2, model.currentLabel,
-    textRole('kicker', { ink: 'primary' })).setOrigin(1, 0);
-  trackObject(opts.track, currentDay);
-  auditTextBlock(currentDay, { name: `Run route current day (${opts.mode})`, maxWidth: 116, maxHeight: 18, minFontSize: 8 });
-
-  const mapTop = bounds.y + 22;
-  const mapHeight = Math.max(46, bounds.h - 22);
-  const mapArt = (scene.textures as Phaser.Textures.TextureManager | undefined)?.exists(RUN_ART_KEYS.runMap)
-    ? addRunArt(scene, RUN_ART_KEYS.runMap, { x: bounds.x, y: mapTop, width: bounds.w, height: mapHeight }, 0.52)
-    : undefined;
-  if (mapArt) trackObject(opts.track, mapArt);
-  const mapShade = scene.add.rectangle(bounds.x, mapTop, bounds.w, mapHeight, UI.panelAlt, 0.57).setOrigin(0, 0)
-    .setStrokeStyle(1, UI.border, 0.5);
-  trackObject(opts.track, mapShade);
-
-  const nodeRadius = compact ? 11 : 13;
-  const trackStart = bounds.x + inset + nodeRadius + 2;
-  const trackEnd = bounds.x + bounds.w - inset - nodeRadius - 2;
-  const step = (trackEnd - trackStart) / 4;
-  const centerY = mapTop + (compact ? 20 : 22);
-  const rise = compact ? 4 : 6;
-  const nodeYs = [centerY + rise, centerY - 1, centerY + rise, centerY, centerY + rise] as const;
-  const nodePoints = model.days.map((day) => ({
-    x: trackStart + step * (day.day - 1),
-    y: nodeYs[day.day - 1]!,
-  }));
-
-  for (let dayIndex = 0; dayIndex < nodePoints.length - 1; dayIndex++) {
-    const from = nodePoints[dayIndex]!;
-    const to = nodePoints[dayIndex + 1]!;
-    const color = dayIndex < model.currentDay - 1 ? UI.chip : UI.border;
-    const alpha = dayIndex < model.currentDay - 1 ? 0.9 : 0.62;
-    const dashCount = compact ? 5 : 7;
-    for (let dash = 0; dash < dashCount; dash += 2) {
-      const t0 = dash / dashCount;
-      const t1 = Math.min(1, (dash + 1) / dashCount);
-      const x0 = from.x + (to.x - from.x) * t0;
-      const y0 = from.y + (to.y - from.y) * t0;
-      const x1 = from.x + (to.x - from.x) * t1;
-      const y1 = from.y + (to.y - from.y) * t1;
-      const length = Math.hypot(x1 - x0, y1 - y0);
-      const segment = scene.add.rectangle((x0 + x1) / 2, (y0 + y1) / 2, length, compact ? 2 : 3, color, alpha)
-        .setRotation(Math.atan2(y1 - y0, x1 - x0));
-      trackObject(opts.track, segment);
-    }
+  const model = expeditionRouteTrackModel(route);
+  const currentWave = route.columns.find((column) => column.state === 'current')?.wave
+    ?? [...route.columns].reverse().find((column) => column.state === 'cleared')?.wave ?? 1;
+  const bandStart = currentWave - expeditionDay(currentWave) + 1;
+  const contentWidth = compact ? Math.max(bounds.w, 656) : bounds.w;
+  const geometry = dayChaptersGeometry({ ...bounds, w: contentWidth }, compact);
+  const gold = 0xeac56b;
+  const remember = (object: Phaser.GameObjects.GameObject): void => trackObject(opts.track, object);
+  remember(scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, 0x102c40, 1).setOrigin(0, 0).setStrokeStyle(1.5, gold, 0.8));
+  const art = addRunArt(scene, opts.biomeArtKey ?? RUN_ART_KEYS.runMap,
+    { x: bounds.x + 1, y: bounds.y + 1, width: bounds.w - 2, height: bounds.h - 2 }, 0.46);
+  if (art) remember(art);
+  remember(scene.add.rectangle(bounds.x + 1, bounds.y + 32, bounds.w - 2, bounds.h - 33, 0x0d2a3c, 0.78).setOrigin(0, 0));
+  remember(scene.add.rectangle(bounds.x + 1, bounds.y + 1, bounds.w - 2, 31, 0x102e42, 0.55).setOrigin(0, 0));
+  remember(scene.add.line(0, 0, bounds.x + 1, bounds.y + 32, bounds.x + bounds.w - 1, bounds.y + 32, gold, 0.42).setOrigin(0));
+  const header = scene.add.text(bounds.x + 12, bounds.y + 9,
+    `EXPEDITION ROUTE${opts.regionName ? ` \u00b7 ${compact ? '' : 'CROSSING '}${opts.regionName.toUpperCase().replace(compact ? /^THE\s+/ : /^$/, '')}` : ''}`,
+    { ...textRole('micro'), fontFamily: FONT.display, fontSize: compact ? 11 : 15, color: '#f4dea2', fontStyle: 'bold' });
+  remember(header);
+  auditTextBlock(header, { name: `Day chapters heading (${opts.mode})`, maxWidth: bounds.w - (compact ? 85 : 114), maxHeight: 20, minFontSize: 9 });
+  remember(scene.add.text(bounds.x + bounds.w - 12, bounds.y + 9, model.currentLabel,
+    { ...textRole('micro'), fontFamily: FONT.display, fontSize: compact ? 12 : 16, color: '#f4dea2', fontStyle: 'bold' }).setOrigin(1, 0));
+  const selections = opts.selectedStops ?? [];
+  const currentNodes = selections.filter((stop) => stop.wave >= bandStart && stop.wave < bandStart + 5);
+  const selectedIndices = geometry.stops.flatMap((stop, index) => selections.filter((candidate) => candidate.wave === bandStart + stop.day - 1)[stop.index] ? [index] : []);
+  const currentIndex = selectedIndices.at(-1) ?? (model.currentDay - 1) * 3;
+  const points = geometry.stops.map((stop) => stop.point);
+  const bodyExisting = compact ? new Set(scene.children.list) : undefined;
+  const pendingPath = scene.add.graphics().lineStyle(compact ? 1 : 1.5, 0x9cb0af, 0.48);
+  for (let index = 0; index < points.length - 1; index++) {
+    const from = points[index]!, to = points[index + 1]!;
+    pendingPath.lineBetween(from.x, from.y, to.x, to.y);
   }
-
-  for (const day of model.days) {
-    const x = trackStart + step * (day.day - 1);
-    const y = nodeYs[day.day - 1]!;
-    const fill = day.state === 'completed' ? UI.chipDark : UI.panelMuted;
-    const ringAlpha = day.state === 'upcoming' ? 0.58 : 1;
-    const disc = scene.add.circle(x, y, nodeRadius, fill, 0.97)
-      .setStrokeStyle(day.state === 'current' ? 3 : 2, day.state === 'upcoming' ? UI.border : UI.chip, ringAlpha);
-    trackObject(opts.track, disc);
-    if (day.state === 'completed') {
-      trackObject(opts.track, scene.add.circle(x, y, nodeRadius - 4, UI.chip, 0.28));
-    } else if (day.state === 'current') {
-      trackObject(opts.track, scene.add.circle(x, y, nodeRadius + 4, 0, 0).setStrokeStyle(2, UI.chip, 0.95));
+  remember(pendingPath);
+  const filledPath = scene.add.graphics();
+  const draw = (index: number): void => {
+    filledPath.clear();
+    const first = points[0]!, last = chapterPointAt(points, index);
+    for (const [width, alpha] of [[compact ? 5 : 9, 0.1], [compact ? 2 : 3, 0.95]] as const) {
+      filledPath.lineStyle(width, gold, alpha).lineBetween(first.x, first.y, last.x, last.y);
     }
-
-    if (day.day === EXPEDITION_DAYS && (scene.textures as Phaser.Textures.TextureManager | undefined)?.exists(RUN_ART_KEYS.icon.bossSkull)) {
-      const boss = addRunArt(scene, RUN_ART_KEYS.icon.bossSkull, {
-        x: x - nodeRadius + 4,
-        y: y - nodeRadius + 4,
-        width: (nodeRadius - 4) * 2,
-        height: (nodeRadius - 4) * 2,
-      }, day.state === 'upcoming' ? 0.62 : 0.95);
-      if (boss) trackObject(opts.track, boss);
-    } else {
-      const waypoint = scene.add.rectangle(x, y, compact ? 6 : 7, compact ? 6 : 7,
-        day.state === 'upcoming' ? UI.border : UI.chip, day.state === 'upcoming' ? 0.72 : 0.95)
-        .setRotation(Math.PI / 4);
-      trackObject(opts.track, waypoint);
+  };
+  remember(filledPath);
+  model.days.forEach((day, index) => {
+    const column = geometry.columns[index]!;
+    const current = day.state === 'current';
+    if (index > 0) {
+      remember(scene.add.line(0, 0, column.x, bounds.y + 48, column.x, bounds.y + bounds.h - 20, gold, 0.35).setOrigin(0));
+      remember(scene.add.circle(column.x, points[0]!.y, compact ? 2 : 3, gold, 0.8));
     }
-
-    const label = scene.add.text(x, mapTop + mapHeight - 3, day.label,
-      textRole('micro', { ink: day.state === 'current' ? 'accent' : day.state === 'completed' ? 'secondary' : 'faint' }))
-      .setOrigin(0.5, 1);
-    trackObject(opts.track, label);
-    auditTextBlock(label, { name: `Run route ${day.label} (${opts.mode})`, maxWidth: Math.max(42, step - 4), maxHeight: 16, minFontSize: 8 });
+    remember(scene.add.text(column.centerX, bounds.y + (compact ? 44 : 57), day.label,
+      { ...textRole('micro'), fontFamily: FONT.display, fontSize: compact ? 14 : 18,
+        color: current ? '#ffd57a' : '#f4e8c7', fontStyle: current ? 'bold' : 'normal' }).setOrigin(0.5, 0));
+    if (current) remember(scene.add.text(column.centerX, bounds.y + (compact ? 64 : 83), 'IN PROGRESS',
+      { ...textRole('micro'), fontSize: compact ? 9 : 10, color: '#f1cd79' }).setOrigin(0.5, 0));
+  });
+  const iconKeys = { event: RUN_ART_KEYS.icon.routeEvent, shop: RUN_ART_KEYS.icon.routeShop,
+    fight: RUN_ART_KEYS.icon.routeBattle, boss: RUN_ART_KEYS.icon.routeBoss };
+  geometry.stops.forEach((stop, index) => {
+    const actual = selections.filter((candidate) => candidate.wave === bandStart + stop.day - 1)[stop.index];
+    const knownKind = actual?.kind ?? (stop.index === 2 ? stop.day === 5 ? 'boss' : 'fight' : undefined);
+    const selected = index === currentIndex;
+    const { x, y } = stop.point;
+    const radius = geometry.radius;
+    remember(scene.add.circle(x, y, radius, 0x102b3c, 1).setStrokeStyle(selected ? 2 : compact ? 1 : 1.5,
+      actual || selected ? gold : 0x9ba9a8, actual || selected ? 1 : 0.65)
+      .setName(actual ? `route-stop-${actual.nodeId}` : `chapter-unknown-${stop.day}-${stop.index}`)
+      .setData('kind', actual?.kind).setData('day', stop.day).setData('slot', stop.index + 1));
+    if (knownKind) {
+      remember(scene.add.image(x, y, actual?.iconKey ?? iconKeys[knownKind]).setDisplaySize(compact ? 20 : 28, compact ? 20 : 28)
+        .setAlpha(actual ? 1 : 0.45).setName(`chapter-icon-${stop.day}-${stop.index}`));
+    } else remember(scene.add.text(x, y, '?', { ...textRole('micro'), fontSize: compact ? 16 : 20,
+      color: actual ? '#f4d089' : '#b9c1ba', fontStyle: 'bold' }).setOrigin(0.5));
+  });
+  const selectedPoint = points[currentIndex]!;
+  const halo = scene.add.circle(selectedPoint.x, selectedPoint.y, geometry.radius + (compact ? 2 : 4), gold, 0.08)
+    .setStrokeStyle(compact ? 1.5 : 2, gold, 0.95);
+  remember(halo);
+  const marker = scene.add.container(0, 0).setName('dayChapterMarker');
+  const triangle = scene.add.graphics().fillStyle(gold, 1);
+  const markerY = geometry.radius + (compact ? 8 : 11);
+  triangle.fillTriangle(0, markerY, compact ? -5 : -8, markerY + (compact ? 6 : 9), compact ? 5 : 8, markerY + (compact ? 6 : 9));
+  marker.add(triangle); remember(marker);
+  const last = currentNodes.at(-1);
+  const stamp = `${bandStart}:${last?.nodeId ?? 'start'}:${model.currentDay}`;
+  const transition = chapterMotionTransition(opts.seed ?? 0, stamp, currentIndex, selections.length);
+  marker.setData('index', currentIndex).setData('animated', transition.animate && chapterMotionAllowed()).setData('routeStamp', stamp);
+  animateDayChapter(scene, { points, from: transition.from, to: currentIndex, animate: transition.animate, marker, halo, draw });
+  if (bodyExisting) {
+    const body = scene.add.container(0, 0, scene.children.list.filter((child) => !bodyExisting.has(child)));
+    renderDayChapterViewport(scene, bounds, body, { seed: opts.seed ?? 0, band: bandStart, stamp, index: currentIndex,
+      count: selections.length, contentWidth, markerX: selectedPoint.x, enabled: opts.inputEnabled ?? true });
   }
 }
 

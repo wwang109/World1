@@ -79,6 +79,7 @@ export function validateGhostSubmission(input: GhostSubmissionInput): GhostValid
     board: loadout.board,
     bag: [],
     gems: [],
+    ...(loadout.equipment?.length ? { equipment: loadout.equipment.map(ref => ({ ...ref })) } : {}),
   };
 
   return {

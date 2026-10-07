@@ -159,6 +159,8 @@ export interface PriceRates {
   tauntPerPoint: number;
   splashFlatDeci: number;
   disruptBrackets: readonly { upTo: number; rateDeci: number }[];
+  hasteBrackets: readonly { upTo: number; rateDeci: number }[];
+  regenPerStack: number;
 }
 
 /** Per-keyword entries, each field-checked against its own Action variant. */
@@ -311,6 +313,8 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
       price: [{ form: 'flat', deci: P.splashFlatDeci }],
     },
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
+    haste: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.hasteBrackets }] },
+    regen: { isHit: false, scalable: false, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'stacks', num: P.regenPerStack, den: 1 }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
     /**
      * AN ATTUNED-REACHING SHATTER COSTS 1.5x, the SAME multiplier and the same
@@ -468,6 +472,7 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // damages its own caster), so `selfSynergyPremiumDeci` is 0 for it by
     // construction — there is no full-rate variant to escape to.
     desperation: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    execute: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: 1 }] },
 
     // OVERHEAL SHIELD / CLEANSE CONVERT — the family's two HEAL-SIDE members. Same
     // denominator (`conditionalBonusDen`), same "the required cap is the priced

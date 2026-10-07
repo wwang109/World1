@@ -96,7 +96,7 @@ const NODE_ACTIONS = [
 
 // The draft's final-row START button, mobile spelling — sourced from
 // `mobileDraftLayout.ts`'s `mobileDraftActions` rather than retyped.
-const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true, true).find((a) => a.id === 'start')!.label;
+const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true).find((a) => a.id === 'start')!.label;
 
 type Platform = 'desktop' | 'mobile';
 const VIEWPORTS: Record<Platform, { width: number; height: number }> = {
@@ -309,11 +309,8 @@ interface CalibrationProbe { text: string; rawOverlapPx: number }
 
 async function calibrateCollector(page: Page, platform: Platform): Promise<void> {
   const step = `${platform} collector calibration`;
-  // This runs on the bare run map, before any node is picked — desktop's map
-  // HUD spells its deck-access slot 'BAG' there (`DesktopRunMapScene`; every
-  // OTHER desktop run screen spells it 'DECK / BAG', see the click label a
-  // few steps down). Mobile's map HUD already reads 'DECK/BAG'.
-  const anchorLabel = platform === 'desktop' ? 'BAG' : 'DECK/BAG';
+  // Both bare run-map HUDs label their deck-access slot 'BAG'.
+  const anchorLabel = 'BAG';
   const before = await collectTexts(page);
   const anchor = before.find((t) => t.text === anchorLabel);
   if (!anchor) {
@@ -500,33 +497,27 @@ async function readPendingSeed(page: Page): Promise<number | null> {
  */
 async function clickExactText(page: Page, label: string, platform: Platform, step: string): Promise<boolean> {
   const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
-  const hit = await page.evaluate((label: string) => {
+  const candidates = (await collectTexts(page)).filter((text) => text.text === label && !text.clipped);
+  const hit = await page.evaluate((candidates: TextBound[]) => {
     const game = (window as any).__game;
-    let found: { x: number; y: number } | null = null;
-    const stack: any[] = [];
-    for (const scene of game.scene.scenes) {
-      if (!scene.sys.isActive()) continue;
-      for (const obj of scene.children.list) stack.push(obj);
-    }
-    // Last match wins (a confirm dialog's button is added AFTER the HUD's,
-    // so it's later in this walk order) — iterate front-to-back, not a stack
-    // pop, so "last added" really means "last visited".
-    while (stack.length > 0) {
-      const obj = stack.shift();
-      if (!obj || obj.visible === false) continue;
-      if (obj.type === 'Text' && obj.text === label) {
-        // An embedded destination (RunDestinationHost -> positionRunDestination,
-        // src/game/ui/RunDestinationHost.ts) gives its launched child scene a
-        // clipped/zoomed/scrolled camera; raw world bounds land on the wrong
-        // screen pixels there. Identity for every non-embedded scene.
-        const b = obj.getBounds();
-        const cam = obj.scene.cameras.main;
-        found = { x: cam.x + (b.centerX - cam.scrollX) * cam.zoom, y: cam.y + (b.centerY - cam.scrollY) * cam.zoom };
+    for (const candidate of candidates) {
+      const scene = game.scene.getScene(candidate.scene);
+      const cam = scene.cameras.main;
+      const x = candidate.x + candidate.width / 2, y = candidate.y + candidate.height / 2;
+      const worldX = cam.scrollX + (x - cam.x) / cam.zoom, worldY = cam.scrollY + (y - cam.y) / cam.zoom;
+      const stack = [...scene.children.list];
+      while (stack.length > 0) {
+        const obj = stack.pop();
+        if (!obj || obj.visible === false || obj.alpha === 0) continue;
+        if (obj.input?.enabled && obj.getBounds) {
+          const bounds = obj.getBounds();
+          if (bounds.contains(worldX, worldY)) return { x, y };
+        }
+        if (Array.isArray(obj.list)) stack.push(...obj.list);
       }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push(child);
     }
-    return found;
-  }, label);
+    return null;
+  }, candidates);
   if (!hit) {
     hardFailures.push(`[${platform}] step "${step}": no visible text "${label}" to click — the walkthrough cannot have gone where it says it went`);
     return false;

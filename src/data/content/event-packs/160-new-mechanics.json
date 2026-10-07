@@ -728,8 +728,7 @@
                     "kind": "reshapeCard",
                     "mode": "shatter",
                     "fallback": {
-                      "kind": "grantGold",
-                      "amount": 2
+                      "kind": "nothing"
                     }
                   }
                 },
@@ -754,7 +753,7 @@
           "version": 1,
           "def": {
             "title": "The Gem-Cutter's Wheel",
-            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face.",
+            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes of the same grade. Dislike the cut, and she will put it back on the wheel.",
             "theme": "cache",
             "rarity": "uncommon",
             "story": {
@@ -781,11 +780,11 @@
               "fixed": [
                 {
                   "id": "recut",
-                  "label": "Recut a gem from your pouch",
+                  "label": "Recut a gem (up to 4 rolls)",
                   "cost": 0,
                   "outcome": {
-                    "kind": "reshapeGem",
-                    "mode": "transform",
+                    "kind": "rerollGem",
+                    "rolls": 4,
                     "fallback": {
                       "kind": "nothing"
                     }
@@ -794,6 +793,63 @@
                 {
                   "id": "leave",
                   "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fitting_yard",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fitting Yard",
+            "body": "A yard-master swaps your weapon for another of the same kind until one fits your hand. Each swap is final, but you may keep swapping.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fitting_yard",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "refit",
+                  "label": "Reroll a card, same type (up to 4 rolls)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "rerollCard",
+                    "rolls": 4,
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep what you carry",
                   "cost": 0,
                   "outcome": {
                     "kind": "nothing"

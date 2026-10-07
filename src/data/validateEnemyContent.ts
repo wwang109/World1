@@ -1,6 +1,7 @@
 import type { EnemyDef, EnemyGrowthMilestone } from '../engine/types';
 import type { ContentProblem } from './validateSkillContent';
 import { inRange, isInt, opt, req } from './validateSkillContent';
+import { validateEquipmentLootPool } from './validateEquipmentLoot';
 
 /**
  * RUNTIME SCHEMA VALIDATION for the enemy content document — the twin of
@@ -39,7 +40,7 @@ const STAT_FIELDS = ['maxHp', 'hp', 'attack', 'magicPower', 'armor', 'magicResis
 const DEF_FIELDS = new Set([
   'notes', 'name', 'baseDepth', 'isElite', 'isBoss',
   'elementAffinity', 'weaponAffinity', 'stats', 'boardSize', 'pieces',
-  'growth', 'goldReward', 'xpReward',
+  'growth', 'goldReward', 'xpReward', 'equipmentDrop',
 ]);
 
 /**
@@ -164,6 +165,11 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   req(raw, 'boardSize', inRange(1, 20), 'an integer 1..20', where, problems);
   req(raw, 'goldReward', inRange(0, 999999), 'a non-negative integer', where, problems);
   req(raw, 'xpReward', inRange(0, 999999), 'a non-negative integer', where, problems);
+  if (raw.equipmentDrop !== undefined) {
+    for (const problem of validateEquipmentLootPool(raw.equipmentDrop)) {
+      problems.push({ where: where + '.equipmentDrop.' + problem.where, message: problem.message });
+    }
+  }
 
   if (raw.stats !== undefined) validateStats(raw.stats, where, problems); else problems.push({ where, message: 'missing required field stats' });
 

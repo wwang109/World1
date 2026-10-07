@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import { equipmentItemText } from '../../engine/equipment/text';
+import { equipmentIcon } from './EquipmentScreen';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
@@ -7,6 +10,7 @@ import type { SkillDef, SkillTier } from '../../engine/types';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import type { MarketStat } from '../../data/eventTypes';
 import type { MarketStatPickOption } from '../../run/market';
+import type { EquipmentPicker } from './runEventScenePresenter';
 import { MARKET_STAT_LABEL } from './eventOutcomeText';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from './RunChoicePanel';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
@@ -17,7 +21,6 @@ import { FANTASY_CARD_TEMPLATE_SPEC } from './fantasyCardTemplateSpec';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone, attachHoverTip } from './hoverTip';
 import { cardHoverEntries } from './cardHoverEntries';
-import { renderCardDetailOverlay } from './cardDetailOverlay';
 import { gemChipLines, gemHoverEntries } from './gemPresentation';
 import { addRunArt, choiceArtKey } from './runArt';
 import {
@@ -29,13 +32,17 @@ import {
   type RewardPickerWindow,
 } from './runRewardGeometry';
 import type { MergeConfirmView, MergePickCard, MergeSelectView, MergeUiState } from './runMergeViewModel';
+import type { ReshapeConfirmView, ReshapePickCard } from './reshapePickerView';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
 import { tierUpgradePreview, type AvailableTierUpgradePreview } from './tierUpgradePreview';
-import { buildTierUpgradeDiff, formatTierUpgradeDiffLine } from './tierUpgradeDiff';
+import { buildTierUpgradeDiff, changedTierUpgradeLines } from './tierUpgradeDiff';
 import { renderTierUpgradeDetailOverlay } from './tierUpgradeDetailOverlay';
 import type { SkillFaceMode } from './skillPresentation';
+import { renderRunCardReward } from './RunCardReward';
+import { renderCardDetailsDrawer, type CardDetailsAction } from './cardDetailsDrawer';
+import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 // Local to the persistent event outcome pane: brighter teal-navy, warm gold and
 // ivory. Do not propagate this treatment to choosing, shop or global chrome.
@@ -251,6 +258,16 @@ function renderGemChip(
  * mostly-empty box.
  */
 function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect, colors: RewardColors = UI): void {
+  if(feature.kind==='equipment'){
+    const item=equipmentCatalog.item(feature.item.itemId,feature.item.itemVersion);
+    const width=Math.min(rect.width,300),height=Math.min(rect.height,180),x=rect.x+(rect.width-width)/2,y=rect.y+(rect.height-height)/2;
+    scene.add.rectangle(x,y,width,height,colors.panelAlt,.95).setOrigin(0).setStrokeStyle(1,colors.chip,.9);
+    equipmentIcon(scene,x+width/2,y+45,item.slot).setScale(1.5);
+    const name=scene.add.text(x+12,y+84,item.name,{fontFamily:FONT.body,fontSize:'16px',fontStyle:'bold',color:colors.textBright,align:'center',wordWrap:{width:width-24}});
+    name.setX(x+(width-name.width)/2);
+    scene.add.text(x+12,y+height-32,equipmentItemText(item),{fontFamily:FONT.body,fontSize:'11px',color:colors.textAccent,align:'center',wordWrap:{width:width-24}});
+    return;
+  }
   if (feature.kind === 'card') {
     // THE CARD AS SUBJECT (see the ideal-sizes doc block above): the same
     // `FantasyCardTemplateV2` the ⓘ inspect overlay, the wiki and the shop's
@@ -273,7 +290,7 @@ function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, fe
     // screen with no route to a keyword's rule — the same defect the Wiki and
     // both Shop panes were fixed for, found in a third place by auditing
     // reachability PER SITE instead of per file (the `cardHoverEntries` at
-    // `attachCardHoverTip` below and the `renderCardDetailOverlay` calls in the
+    // `attachCardHoverTip` below and the `showCardDetails` calls in the
     // picker grids belong to different functions, and crediting them here is
     // exactly the inference that hid this).
     //
@@ -285,7 +302,7 @@ function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, fe
     // opens, and after the same file's gated-hover fix that now includes a
     // gated keyword's own rule rather than only its gate.
     //
-    // NOT the detail overlay for mobile, deliberately: `renderCardDetailOverlay`
+    // NOT the detail overlay for mobile, deliberately: `showCardDetails`
     // delegates its whole teardown to a caller-supplied `onClose`, which the
     // pickers satisfy from their own `inspectedIndex`/`onInspect` state.
     // `renderRunRewardPanel` takes neither, so wiring it here would mean
@@ -445,10 +462,28 @@ export function renderRunRewardPanel(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   model: RunRewardViewModel,
-  opts: { font: LayoutProfile['font']; eventTitle: string; onContinue: () => void },
+  opts: {
+    font: LayoutProfile['font']; eventTitle: string; onContinue: () => void;
+    inspected?: boolean; onInspect?: () => void; onCloseInspect?: () => void;
+  },
 ): void {
   const { panel, buttons } = template.contentSlots.reward;
   const { identity, text, feature } = template.contentSlots.reward.outcome;
+
+  if (template.eventOutcomePane && model.feature.kind === 'card') {
+    const continueRect = renderRunCardReward(scene, template, model.feature.skill, {
+      headline: model.headline, detail: model.detail, eventTitle: opts.eventTitle,
+      colors: rewardColors(template), onInspect: opts.onInspect, inspected: opts.inspected,
+    });
+    renderContinueButton(scene, continueRect, opts.font, opts.onContinue, rewardColors(template));
+    if (opts.inspected && opts.onCloseInspect) {
+      renderCardDetailsDrawer(scene, model.feature.skill, {
+        compact: template.platform === 'mobile', onClose: opts.onCloseInspect,
+        view: scene.data?.get('embeddedRunView') ?? { x: 0, y: 0, ...template.canvas },
+      });
+    }
+    return;
+  }
 
   if (!template.eventOutcomePane) {
     renderPanelBackground(scene, panel);
@@ -545,6 +580,39 @@ function renderPickerPager(
   });
 }
 
+function showCardDetails(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  skill: SkillDef,
+  opts: { font: LayoutProfile['font']; eventTitle: string; kicker: string; onClose: () => void; action?: CardDetailsAction },
+): void {
+  const pane = template.eventOutcomePane;
+  if (!pane) {
+    renderCardDetailsDrawer(scene, skill, {
+      compact: template.platform === 'mobile', onClose: opts.onClose,
+      view: scene.data?.get('embeddedRunView') ?? { x: 0, y: 0, ...template.canvas },
+      ...(opts.action ? { primaryAction: opts.action } : {}),
+    });
+    return;
+  }
+  const colors = rewardColors(template);
+  const { panel } = template.contentSlots.reward;
+  const top = pane.header.y + pane.header.height;
+  scene.add.rectangle(panel.x + 2, top, panel.width - 4, panel.y + panel.height - top - 2, colors.panelAlt, 1)
+    .setOrigin(0, 0).setInteractive();
+  const actionRect = renderRunCardReward(scene, template, skill, { headline: opts.kicker, eventTitle: opts.eventTitle, colors });
+  const bar: Box = { x: actionRect.x, y: actionRect.y, w: actionRect.width, h: actionRect.height };
+  if (!opts.action) {
+    renderPaneButton(scene, bar, '‹ BACK', true, false, opts.font, opts.onClose, colors);
+    return;
+  }
+  const gap = GRID_GAP[template.platform];
+  const backW = Math.round(bar.w * 0.38);
+  renderPaneButton(scene, { ...bar, w: backW }, '‹ BACK', true, false, opts.font, opts.onClose, colors);
+  renderPaneButton(scene, { x: bar.x + backW + gap, y: bar.y, w: bar.w - backW - gap, h: bar.h },
+    opts.action.label, opts.action.enabled, true, opts.font, opts.action.onPress, colors);
+}
+
 /**
  * A bonus-draft/upgrade-card/merge picker cell's DESKTOP hover-tip
  * (`cardHoverEntries`, the SAME entries `DesktopDraftScene`'s own start-draft
@@ -606,7 +674,11 @@ function renderPickableCardRow(
 ): Phaser.GameObjects.Rectangle {
   const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
     .setInteractive({ useHandCursor: true });
-  hit.on('pointerdown', () => { playSfx('uiClick'); onPick(); });
+  hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    if (wasPointerConsumedByRebuild(scene, pointer)) return;
+    playSfx('uiClick');
+    onPick();
+  });
   new CardToken(scene, cardBox.x + cardBox.w / 2, cardBox.y + cardBox.h / 2, skill, {
     width: cardBox.w, height: cardBox.h, side: 'left', onInspect,
   });
@@ -667,7 +739,7 @@ export function renderRunBonusDraftPicker(
     if (opts.inspectedIndex === i) inspecting = shown;
   });
   if (inspecting) {
-    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+    showCardDetails(scene, template, inspecting, { font: opts.font, eventTitle: opts.eventTitle, kicker: 'CARD DETAILS', onClose: () => opts.onInspect?.(null) });
   }
 }
 
@@ -694,12 +766,9 @@ export type RunRewardUpgradeOption =
  * past what its bounded page already fits inside `feature`. */
 const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22, mobile: 18 };
 
-/** A second reserved strip directly under `UPGRADE_TIER_LABEL_H`'s tier-jump
- * line, for the one-line diff headline (`tierUpgradeDiff.ts`'s `headline`,
- * e.g. `"DMG 40 > 56"`) — folded into the grid's ideal height the same way,
- * never as an unscaled overlay (see `UPGRADE_TIER_LABEL_H`'s own doc comment
- * for why that matters). */
-const UPGRADE_HEADLINE_H: Record<RunTemplatePlatform, number> = { desktop: 16, mobile: 14 };
+/** Height of ONE changed-line row under the tier-jump label; folded into the
+ * grid's ideal height like `UPGRADE_TIER_LABEL_H`. */
+const UPGRADE_CHANGE_LINE_H: Record<RunTemplatePlatform, number> = { desktop: 16, mobile: 14 };
 
 /** Card-face number treatment for a tier-upgrade preview's headline/diff —
  * no live caster stats exist at this seam, so this only picks between the
@@ -747,11 +816,17 @@ export function renderRunUpgradeCardPicker(
   const { feature } = template.contentSlots.reward;
   const cardIdeal = cardRowIdeal(feature, template.platform);
   const labelH = UPGRADE_TIER_LABEL_H[template.platform];
-  const headlineH = UPGRADE_HEADLINE_H[template.platform];
-  const idealH = cardIdeal.h + labelH + headlineH;
+  const faceMode = upgradePreviewFaceMode(template.platform);
+  const changes = options.map((option) => {
+    if (!('skillId' in option)) return [];
+    const preview = tierUpgradePreview(option.skillId, option.from, option.to);
+    return preview.available ? changedTierUpgradeLines(buildTierUpgradeDiff(preview.fromSkill, preview.toSkill, faceMode)) : [];
+  });
+  const changeLineH = UPGRADE_CHANGE_LINE_H[template.platform];
+  const changesH = changeLineH * Math.max(1, ...changes.map((lines) => lines.length));
+  const idealH = cardIdeal.h + labelH + changesH;
   const pickerWindow = layoutRewardPickerWindow('upgradeCard', template.platform, feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform], opts.page);
   renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
-  const faceMode = upgradePreviewFaceMode(template.platform);
   let inspecting: AvailableTierUpgradePreview | undefined;
   pickerWindow.cells.forEach((cell, localIndex) => {
     const i = pickerWindow.startIndex + localIndex;
@@ -784,8 +859,8 @@ export function renderRunUpgradeCardPicker(
     // strip itself shrank alongside the card sharing its cell.
     const scale = cell.h / idealH;
     const cellLabelH = labelH * scale;
-    const cellHeadlineH = headlineH * scale;
-    const cardH = cell.h - cellLabelH - cellHeadlineH;
+    const cellChangesH = changesH * scale;
+    const cardH = cell.h - cellLabelH - cellChangesH;
     const cx = cell.x + cell.w / 2;
     const tierStep = `${option.from.toUpperCase()} → ${option.to.toUpperCase()}`;
     // Three states, one cue each — `conditionalTrade`/`conditionalGain` never
@@ -801,23 +876,19 @@ export function renderRunUpgradeCardPicker(
     }).setOrigin(0.5);
     auditTextBlock(tierLabel, { name: 'Run reward upgrade tier label', maxWidth: cell.w, maxHeight: Math.max(1, cellLabelH), minFontSize: 7 });
 
-    // The single most significant before/after line (`tierUpgradeDiff.ts`'s
-    // `pickHeadline`) — e.g. "DMG 40 > 56" — in its own reserved strip right
-    // under the tier-jump label, so the picker shows the CHANGE up front
-    // rather than only the resulting card.
-    const diff = buildTierUpgradeDiff(preview.fromSkill, preview.toSkill, faceMode);
-    if (diff.headline) {
-      const headlineText = scene.add.text(cx, cell.y + cellLabelH + cellHeadlineH / 2, formatTierUpgradeDiffLine(diff.headline), {
+    const cellChangeLineH = changeLineH * scale;
+    (changes[i] ?? []).forEach((line, k) => {
+      const changeText = scene.add.text(cx, cell.y + cellLabelH + cellChangeLineH * (k + 0.5), line, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${Math.max(7, Math.round(10 * scale))}px`,
         color: rewardColors(template).textBright, align: 'center',
       }).setOrigin(0.5);
-      auditTextBlock(headlineText, { name: 'Run reward upgrade headline', maxWidth: cell.w, maxHeight: Math.max(1, cellHeadlineH), minFontSize: 7 });
-    }
+      auditTextBlock(changeText, { name: 'Run reward upgrade change line', maxWidth: cell.w, maxHeight: Math.max(1, cellChangeLineH), minFontSize: 7 });
+    });
 
-    // The card is the CARD sub-rect of the cell (the tier-label and headline
+    // The card is the CARD sub-rect of the cell (the tier-label and change
     // strips above it are not part of the row), while the PICK surface stays
     // the whole cell so the label is tappable too.
-    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH + cellHeadlineH, w: cell.w, h: cardH };
+    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH + cellChangesH, w: cell.w, h: cardH };
     const hit = renderPickableCardRow(scene, cell, cardCell, preview.toSkill, () => opts.onPick(option),
       opts.onInspect ? () => opts.onInspect?.(i) : undefined);
     attachCellHoverTip(scene, template, hit, cardCell, preview.toSkill);
@@ -1009,7 +1080,7 @@ export function renderRunTradePicker(
     if (opts.inspectedIndex === i) inspecting = shown;
   });
   if (inspecting) {
-    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+    showCardDetails(scene, template, inspecting, { font: opts.font, eventTitle: opts.eventTitle, kicker: 'CARD DETAILS', onClose: () => opts.onInspect?.(null) });
   }
 }
 
@@ -1022,7 +1093,7 @@ export function renderRunReshapeGemPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   options: readonly RunReshapeGemOption[],
-  opts: { font: LayoutProfile['font']; eventTitle: string; title: string; onPick: (option: RunReshapeGemOption) => void } & RewardPickerPagingOptions,
+  opts: { font: LayoutProfile['font']; eventTitle: string; title: string; chipLabel?: string; onPick: (option: RunReshapeGemOption) => void } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('sellGemPick'), opts.title, opts.eventTitle, opts.font, 'Run reward gem reshape title');
   const { feature } = template.contentSlots.reward;
@@ -1039,7 +1110,7 @@ export function renderRunReshapeGemPicker(
       .setInteractive({ useHandCursor: true });
     if (gems.length === 1) {
       const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-      renderGemChip(scene, box, gems[0]!, template.platform, 'TRANSFORM', colors);
+      renderGemChip(scene, box, gems[0]!, template.platform, opts.chipLabel ?? 'TRANSFORM', colors);
       attachGemCellInspect(scene, template, hit, box, gems[0]!);
     } else {
       const plusW = Math.max(16, Math.round(cell.h * 0.28));
@@ -1055,6 +1126,54 @@ export function renderRunReshapeGemPicker(
     hit.setDepth(1);
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
   });
+}
+
+export type RunRerollView =
+  | { kind: 'card'; skillId: string; tier: SkillTier; rollsLeft: number }
+  | { kind: 'gem'; gemId: string; rollsLeft: number };
+
+export function renderRunRerollPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  view: RunRerollView,
+  opts: { font: LayoutProfile['font']; eventTitle: string; title: string; onKeep: () => void; onReroll: () => void },
+): void {
+  renderPickHeader(scene, template, choiceArtKey(view.kind === 'card' ? 'reshapeCard' : 'sellGemPick'), opts.title, opts.eventTitle, opts.font, 'Run reward reroll title');
+  const { feature } = template.contentSlots.reward;
+  const gap = GRID_GAP[template.platform];
+  const rowH = runChoicePanelMinHeight(opts.font);
+  const rowsTop = feature.y + feature.height - rowH * 2 - gap;
+  const itemArea: Box = { x: feature.x, y: feature.y, w: feature.width, h: Math.max(0, rowsTop - gap - feature.y) };
+  let name = '';
+  if (view.kind === 'card') {
+    const skill = skillBook[view.skillId];
+    if (!skill) return;
+    const shown = view.tier === skill.tier ? skill : applyTier(skill, view.tier);
+    name = shown.name;
+    const ideal = cardRowIdeal(feature, template.platform);
+    const scale = Math.min(1, itemArea.w / ideal.w, itemArea.h / ideal.h);
+    const w = ideal.w * scale;
+    const h = ideal.h * scale;
+    new CardToken(scene, itemArea.x + itemArea.w / 2, itemArea.y + h / 2, shown, { width: w, height: h, side: 'left' });
+    const tipZone = scene.add.rectangle(itemArea.x + itemArea.w / 2, itemArea.y + h / 2, w, h, 0xffffff, 0);
+    attachCellHoverTip(scene, template, tipZone, { x: itemArea.x + (itemArea.w - w) / 2, y: itemArea.y, w, h }, shown);
+  } else {
+    const gem = gemBook[view.gemId];
+    if (!gem) return;
+    name = gem.name;
+    const box: Box = { x: itemArea.x, y: itemArea.y, w: itemArea.w, h: Math.min(itemArea.h, FEATURE_GEM_CHIP_H[template.platform]) };
+    renderGemChip(scene, box, gem, template.platform, undefined, rewardColors(template));
+  }
+  const keep: RunChoiceViewModel = {
+    nodeId: 'event-reroll-keep', kind: 'event', title: `KEEP ${name.toUpperCase()}`,
+    detail: '', footer: '', accent: UI.good, enabled: true,
+  };
+  const reroll: RunChoiceViewModel = {
+    nodeId: 'event-reroll-again', kind: 'event', title: 'ROLL AGAIN',
+    detail: '', footer: `${view.rollsLeft} ROLL${view.rollsLeft === 1 ? '' : 'S'} LEFT`, accent: UI.chip, enabled: view.rollsLeft > 0,
+  };
+  renderRunChoicePanel(scene, { x: feature.x, y: rowsTop, w: feature.width, h: rowH }, keep, { font: opts.font, sfx: 'uiClick', onSelect: opts.onKeep });
+  renderRunChoicePanel(scene, { x: feature.x, y: rowsTop + rowH + gap, w: feature.width, h: rowH }, reroll, { font: opts.font, sfx: 'uiClick', onSelect: opts.onReroll });
 }
 
 /**
@@ -1106,6 +1225,45 @@ export function renderRunStatPickPicker(
   });
 }
 
+export function renderRunEquipmentPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  picker: EquipmentPicker,
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    onPick: (id: string) => void;
+    onCancel: () => void;
+  } & RewardPickerPagingOptions,
+): void {
+  const title = picker.kind === 'forgeEquipment' ? 'PICK AN ITEM TO FORGE' : 'PICK AN ITEM TO UPGRADE';
+  renderPickHeader(scene, template, choiceArtKey(picker.kind), `${title} · ${picker.broken} BROKEN`, opts.eventTitle, opts.font, 'Run reward equipment pick title');
+  const { feature } = template.contentSlots.reward;
+  const rowH = runChoicePanelMinHeight(opts.font);
+  const ideal = rowIdeal(feature, rowH);
+  const pickerWindow = layoutRewardPickerWindow('equipmentPick', template.platform, feature, picker.options.length + 1, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const index = pickerWindow.startIndex + localIndex;
+    const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
+    if (index === picker.options.length) {
+      const model: RunChoiceViewModel = {
+        nodeId: 'equipment-pick-cancel', kind: 'event', title: 'CANCEL',
+        detail: 'Back to the event', footer: '', accent: UI.bad, enabled: true,
+      };
+      renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'uiClick', onSelect: opts.onCancel });
+      return;
+    }
+    const option = picker.options[index];
+    if (!option) return;
+    const model: RunChoiceViewModel = {
+      nodeId: `equipment-pick-${option.id}`, kind: 'event', title: option.title,
+      detail: option.detail, footer: option.footer, accent: UI.chip, enabled: option.enabled,
+    };
+    renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'purchase', onSelect: () => opts.onPick(option.id) });
+  });
+}
+
 const MERGE_BAR_H: Record<RunTemplatePlatform, number> = { desktop: 40, mobile: 44 };
 const MERGE_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 18, mobile: 16 };
 
@@ -1134,7 +1292,7 @@ function renderPaneButton(
     fill,
     hover: primary ? (colors === UI ? UI.chipDark : 0xe4bd72) : colors.panelMuted,
     follow: [label],
-    onPress: () => { playSfx('uiClick'); onPress(); },
+    onPress: () => { if (!wasPointerConsumedByRebuild(scene, scene.input.activePointer)) onPress(); },
   });
 }
 
@@ -1240,10 +1398,9 @@ export function renderRunMergeSelectPicker(
 
   const shown = opts.detailIndex === null ? undefined : view.cards[opts.detailIndex];
   if (shown) {
-    renderCardDetailOverlay(scene, shown.skill, {
-      font: opts.font,
-      onClose: () => opts.onDetail(null),
-      primaryAction: { label: shown.actionLabel, enabled: shown.enabled, onPress: () => opts.onToggle(shown.instanceId) },
+    showCardDetails(scene, template, shown.skill, {
+      font: opts.font, eventTitle: opts.eventTitle, kicker: shown.label, onClose: () => opts.onDetail(null),
+      action: { label: shown.actionLabel, enabled: shown.enabled, onPress: () => opts.onToggle(shown.instanceId) },
     });
   }
 }
@@ -1306,19 +1463,152 @@ export function renderRunMergeConfirmPicker(
 
   if (opts.detail?.list === 'spent') {
     const card = view.spent[opts.detail.index];
-    if (card) renderCardDetailOverlay(scene, card.skill, { font: opts.font, onClose: () => opts.onDetail(null) });
+    if (card) showCardDetails(scene, template, card.skill, { font: opts.font, eventTitle: opts.eventTitle, kicker: `SPENT · ${card.label}`, onClose: () => opts.onDetail(null) });
   } else if (opts.detail?.list === 'reward') {
     const reward = view.rewards[opts.detail.index];
     if (reward) {
-      renderCardDetailOverlay(scene, reward.skill, {
-        font: opts.font,
-        onClose: () => opts.onDetail(null),
-        primaryAction: {
-          label: reward.selected ? 'YOUR PICK' : 'CHOOSE THIS CARD',
-          enabled: !reward.selected,
-          onPress: () => opts.onChoose(reward.skillId),
-        },
+      showCardDetails(scene, template, reward.skill, {
+        font: opts.font, eventTitle: opts.eventTitle, kicker: `REWARD · ${reward.tier.toUpperCase()}`, onClose: () => opts.onDetail(null),
+        action: { label: reward.selected ? 'YOUR PICK' : 'CHOOSE THIS CARD', enabled: !reward.selected, onPress: () => opts.onChoose(reward.skillId) },
       });
     }
   }
+}
+
+export function renderRunReshapeSelectPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  title: string,
+  cards: readonly ReshapePickCard[],
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    detailIndex: number | null;
+    onDetail: (index: number | null) => void;
+    onChoose: (instanceId: string) => void;
+  } & RewardPickerPagingOptions,
+): void {
+  renderPickHeader(scene, template, choiceArtKey('bonusDraft'), title, opts.eventTitle, opts.font, 'Run reshape select title');
+  const colors = rewardColors(template);
+  const { detail, feature } = template.contentSlots.reward;
+  const gap = GRID_GAP[template.platform];
+  const captionH = opts.font.tiny + 6;
+  renderMergeCaption(scene, { x: detail.x, y: detail.y, width: detail.width, height: captionH },
+    [{ text: 'TAP A CARD TO SEE IT · NOTHING CHANGES YET', color: colors.textSoft }], opts.font);
+  const grid: Rect = {
+    x: feature.x,
+    y: detail.y + captionH + gap,
+    width: feature.width,
+    height: Math.max(0, feature.y + feature.height - (detail.y + captionH + gap)),
+  };
+  const cardIdeal = cardRowIdeal(grid, template.platform);
+  const idealH = cardIdeal.h + MERGE_LABEL_H[template.platform];
+  const pickerWindow = layoutRewardPickerWindow('mergeCandidates', template.platform, grid, cards.length, cardIdeal.w, idealH, gap, opts.page);
+  renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, colors);
+  pickerWindow.cells.forEach((cell, localIndex) => {
+    const index = pickerWindow.startIndex + localIndex;
+    const card = cards[index];
+    if (!card) return;
+    renderMergeCardCell(scene, template, cell, idealH, { skill: card.skill, label: card.label, selected: false, enabled: true }, () => opts.onDetail(index));
+  });
+  const shown = opts.detailIndex === null ? undefined : cards[opts.detailIndex];
+  if (shown) {
+    showCardDetails(scene, template, shown.skill, {
+      font: opts.font, eventTitle: opts.eventTitle, kicker: shown.label, onClose: () => opts.onDetail(null),
+      action: { label: 'CHOOSE THIS CARD', enabled: true, onPress: () => opts.onChoose(shown.instanceId) },
+    });
+  }
+}
+
+export function renderRunReshapeConfirm(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  view: ReshapeConfirmView,
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    detail: 'lose' | 'gain' | null;
+    onDetail: (which: 'lose' | 'gain' | null) => void;
+    onBack: () => void;
+    onConfirm: () => void;
+  },
+): void {
+  renderPickHeader(scene, template, choiceArtKey('bonusDraft'), view.title, opts.eventTitle, opts.font, 'Run reshape confirm title');
+  const colors = rewardColors(template);
+  const gap = GRID_GAP[template.platform];
+  const rects = mergeBodyRects(template, 0, opts.font);
+  const captionH = opts.font.tiny + 8;
+  const arrowW = template.platform === 'mobile' ? 28 : 56;
+  const area = rects.grid;
+  const cardH = Math.max(0, Math.min(area.height - captionH - gap, ((area.width - arrowW - gap * 2) / 2) * (690 / 420)));
+  const cardW = cardH * (420 / 690);
+  const cardY = area.y + captionH + (area.height - captionH - cardH) / 2;
+  const centerX = area.x + area.width / 2;
+  const leftX = centerX - arrowW / 2 - gap - cardW / 2;
+  const rightX = centerX + arrowW / 2 + gap + cardW / 2;
+
+  const caption = (x: number, text: string, color: string): void => {
+    const label = scene.add.text(x, cardY - captionH, text, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${opts.font.tiny + 1}px`, color, align: 'center',
+    }).setOrigin(0.5, 0);
+    auditTextBlock(label, { name: 'Run reshape caption', maxWidth: cardW + gap, maxHeight: captionH, minFontSize: 7 });
+  };
+  const fullCard = (x: number, skill: SkillDef, stroke: number, onTap: () => void): void => {
+    scene.add.rectangle(x, cardY + cardH / 2, cardW + 8, cardH + 8, stroke, 0.12).setStrokeStyle(2, stroke, 0.9);
+    const card = new FantasyCardTemplateV2(scene, x, cardY + cardH / 2, skill, { width: cardW, height: cardH, tier: skill.tier, glossary: false });
+    card.setSize(cardW, cardH).setInteractive({ useHandCursor: true }).on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (wasPointerConsumedByRebuild(scene, pointer)) return;
+      playSfx('uiClick');
+      onTap();
+    });
+  };
+  const badge = (x: number, text: string): void => {
+    const label = scene.add.text(x + cardW / 2 - 6, cardY + 6, text, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${opts.font.name + 2}px`, color: UI.textOnChip,
+      backgroundColor: hexColor(UI.chip), padding: { x: 6, y: 2 },
+    }).setOrigin(1, 0);
+    auditTextBlock(label, { name: 'Run reshape badge', maxWidth: cardW, maxHeight: cardH / 3, minFontSize: 9 });
+  };
+  const tile = (x: number, big: string, small: string, stroke: number): void => {
+    scene.add.rectangle(x, cardY + cardH / 2, cardW, cardH, colors.panelMuted, 0.95).setStrokeStyle(3, stroke, 1);
+    scene.add.rectangle(x, cardY + cardH / 2, cardW - 12, cardH - 12).setStrokeStyle(1, stroke, 0.5);
+    const head = scene.add.text(x, cardY + cardH * 0.4, big, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(Math.min(cardW * 0.42, 72))}px`, color: colors.textAccent, align: 'center',
+    }).setOrigin(0.5);
+    auditTextBlock(head, { name: 'Run reshape tile head', maxWidth: cardW - 16, maxHeight: cardH * 0.45, minFontSize: 12 });
+    const line = scene.add.text(x, cardY + cardH * 0.72, small, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${opts.font.label}px`, color: colors.text, align: 'center',
+      wordWrap: { width: Math.max(1, cardW - 20) },
+    }).setOrigin(0.5);
+    auditTextBlock(line, { name: 'Run reshape tile line', maxWidth: cardW - 20, maxHeight: cardH * 0.4, minFontSize: 8 });
+  };
+
+  caption(leftX, view.loseCaption, hexColor(UI.bad));
+  fullCard(leftX, view.lose.skill, UI.bad, () => opts.onDetail('lose'));
+  const arrow = scene.add.graphics();
+  const ay = cardY + cardH / 2;
+  const half = arrowW / 2;
+  arrow.fillStyle(UI.chip, 1);
+  arrow.fillRect(centerX - half, ay - 3, half * 1.2, 6);
+  arrow.fillTriangle(centerX + half * 0.1, ay - half * 0.55, centerX + half, ay, centerX + half * 0.1, ay + half * 0.55);
+
+  caption(rightX, view.gainCaption, colors.textAccent);
+  const gain = view.gain;
+  if (gain.kind === 'card') {
+    fullCard(rightX, gain.skill, UI.chip, () => opts.onDetail('gain'));
+    if (gain.badge) badge(rightX, gain.badge);
+  } else if (gain.kind === 'mystery') {
+    tile(rightX, '?', gain.line, TIER_COLOR[gain.tier] ?? UI.chip);
+  } else {
+    tile(rightX, gain.big, gain.line, UI.chip);
+  }
+
+  const backW = Math.round(rects.bar.width * 0.38);
+  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: backW, h: rects.bar.height },
+    '‹ PICK ANOTHER', true, false, opts.font, opts.onBack, colors);
+  renderPaneButton(scene, { x: rects.bar.x + backW + gap, y: rects.bar.y, w: rects.bar.width - backW - gap, h: rects.bar.height },
+    view.confirmLabel, true, true, opts.font, opts.onConfirm, colors);
+
+  if (opts.detail === 'lose') showCardDetails(scene, template, view.lose.skill, { font: opts.font, eventTitle: opts.eventTitle, kicker: view.loseCaption, onClose: () => opts.onDetail(null) });
+  else if (opts.detail === 'gain' && gain.kind === 'card') showCardDetails(scene, template, gain.skill, { font: opts.font, eventTitle: opts.eventTitle, kicker: view.gainCaption, onClose: () => opts.onDetail(null) });
 }

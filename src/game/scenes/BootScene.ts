@@ -9,7 +9,9 @@ import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMa
 import { DESKTOP_RUN_ART_ASSETS, RUN_ART_ASSETS } from '../ui/runArt';
 import { GEM_ART_ASSETS } from '../ui/gemArt';
 import { CARD_TEMPLATE_BADGE_ASSETS } from '../ui/cardArtPresentation';
+import { EQUIPMENT_ART_ASSETS } from '../ui/equipmentArt';
 import { installDevRunFixture } from '../runStore';
+import { buildDevEquipmentFixture, buildDevEquipmentTrackingFixture } from '../devLaunch';
 
 /** Where the wordmark block sits, as a fraction of viewport height. Boot
  * centres it (there is nothing else on screen); the title screen sits higher
@@ -118,6 +120,7 @@ export class BootScene extends Phaser.Scene {
     this.buildLoadingUi();
     this.load.image('card-template-parts', '/game-art/card-template-parts-transparent.png');
     for (const asset of CARD_TEMPLATE_BADGE_ASSETS) this.load.image(asset.key, asset.path);
+    for (const asset of EQUIPMENT_ART_ASSETS) this.load.image(asset.key, asset.path);
     // CARD ART IS NOT LOADED HERE. It used to be — every catalogue entry, 72
     // files and 165 MB, before the Start screen (which shows no cards at all)
     // could paint. It now streams in per card on first use via
@@ -139,6 +142,8 @@ export class BootScene extends Phaser.Scene {
     // arm the one-shot unlock here so sound works from the first click on.
     installUnlock();
     const launch = applyDevLaunchConfig();
+    if (launch.equipmentFixture) installDevRunFixture(buildDevEquipmentFixture(launch.seed,launch.equipmentRewardFixture,launch.equipmentFullBagFixture));
+    if (launch.equipmentTrackingFixture) installDevRunFixture(buildDevEquipmentTrackingFixture(launch.seed, launch.equipmentTrackingFixture));
     if (launch.eventFixtureId) installDevRunFixture(buildDevEventFixture(launch.eventFixtureId, launch.seed));
     if (launch.devBossFixture) installDevRunFixture(buildDevBossFixture(launch.seed));
     if (launch.devMarketPrepFixture) installDevRunFixture(buildDevMarketPrepFixture(launch.seed));
@@ -172,6 +177,9 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'mrunprep' ? 'MobileRunPrep'
       : launch.scene === 'desktop-runevent' ? 'DesktopRunEvent'
       : launch.scene === 'mrunevent' ? 'MobileRunEvent'
+      : launch.scene === 'desktop-equipment' ? 'DesktopEquipment'
+      : launch.scene === 'mequipment' ? 'MobileEquipment'
+      : launch.scene === 'equipment' ? (ACTIVE_PROFILE.id === 'mobile' ? 'MobileEquipment' : 'DesktopEquipment')
       : launch.scene === 'card-design' ? 'DesktopCardDesign'
       : launch.scene === 'credits' ? 'Credits'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'

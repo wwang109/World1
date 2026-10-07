@@ -19,7 +19,9 @@ applies — no DoT/attrition/fatigue tick after the killing blow, no bleed tick 
 a performer whose cast just won, no lifesteal-back off a killing blow. The
 application order is the one the loop already defines: a cast's effects in
 RESOLVED order → the performer's bleed tick; burn at the start of a turn, poison
-at the end; attrition in ascending initiative score, fatigue in canonical pool
+at the end (then Regen heals, which can never end a fight: one pile per unit,
+heals its current stacks through the anti-heal tax, loses 1, skips the turn it
+was applied); attrition in ascending initiative score, fatigue in canonical pool
 order — and both sweeps STOP at the tick that wipes a side, so the units later in
 the order are never reached that turn. Because one application only ever damages
 one victim, **mutual wipes cannot occur**: this supersedes the 2026-07-30/31

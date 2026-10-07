@@ -1,12 +1,14 @@
 import { enemies } from '../data/enemies';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { skillBook } from '../data/skills';
+import { equipmentDocument } from '../data/equipmentContent';
+import { battlePassiveExamples, buildBattlePassiveExample } from '../data/battlePassiveExamples';
 import { cardOfferableAtTier, clampTierToCard, type SkillTier } from '../engine/types';
 import { defaultTitleFor, ELITE_AFFIX_IDS, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { DRAFT_SET_KEYS } from '../run/draft';
 import { resolveEventChoice, rollEventForNode } from '../run/events';
 import { resolveEventChoiceV3 } from '../run/eventsV3';
-import { applyDraftResult, biomeLedgerOf, createRun, currentStartDraft, LIVES_PER_RUN, type RunBagSlot, type RunBoardPiece, type RunNode, type RunState } from '../run/runState';
+import { applyDraftResult, biomeBandOffers, chooseBiome, biomeLedgerOf, createRun, currentStartDraft, LIVES_PER_RUN, type RunBagSlot, type RunBoardPiece, type RunNode, type RunState } from '../run/runState';
 import { BOSS_EVERY, ensureWavesThrough } from '../run/runMap';
 import { recordEventInstance } from '../run/eventInstances';
 import { encodeLoadout } from '../run/shareCode';
@@ -17,7 +19,7 @@ export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mba
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
   | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
   | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
-  | 'desktop-runevent' | 'mrunevent' | 'card-design' | 'credits';
+  | 'desktop-runevent' | 'mrunevent' | 'card-design' | 'credits' | 'equipment' | 'desktop-equipment' | 'mequipment';
 
 export const DEV_EVENT_FIXTURE_IDS = [
   'bell_beneath_ice',
@@ -57,10 +59,15 @@ export const DEV_EVENT_FIXTURE_IDS = [
   // BATTLE hint, `champions_duel` as the catalog's easiest reliable LOSS.
   'bandit_toll',
   'champions_duel',
+  'warded_hermit',
+  'lanterns_answer',
+  'cracked_idol',
+  'glass_cutter',
 ] as const;
 export type DevEventFixtureId = (typeof DEV_EVENT_FIXTURE_IDS)[number];
 
 export interface DevLaunchConfig {
+  battleExampleId: string | null;
   scene: LaunchScene;
   board: 'default' | 'empty' | string[];
   enemyId: string;
@@ -93,6 +100,10 @@ export interface DevLaunchConfig {
   devGhostExtraFightFixture: boolean;
   devGhostExtraFightLoseFixture: boolean;
   devGhostSaveOkFixture: boolean;
+  equipmentFixture: boolean;
+  equipmentFullBagFixture?: boolean;
+  equipmentTrackingFixture?: 'fight' | 'event';
+  equipmentRewardFixture?: 'battle' | 'event';
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -118,6 +129,7 @@ function readSearchParam(search: string): URLSearchParams {
 }
 
 function parseScene(value: string | null, view: string | null): LaunchScene {
+  if (['equipment','desktop-equipment','mequipment'].includes(view ?? value ?? '')) return (view ?? value) as LaunchScene;
   if (view === 'uikit' || value === 'uikit') return 'uikit';
   if (view === 'mprep' || value === 'mprep') return 'mprep';
   if (view === 'mdeck' || value === 'mdeck') return 'mdeck';
@@ -301,6 +313,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     };
   });
   return {
+    battleExampleId: devBattleExampleId(search),
     scene: parseScene(params.get('scene'), params.get('view')),
     board: parseBoard(params.get('board')),
     enemyId,
@@ -324,6 +337,12 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     devGhostExtraFightFixture: parseDevBossFixture(params.get('devGhostExtra')),
     devGhostExtraFightLoseFixture: parseDevBossFixture(params.get('devGhostExtraLose')),
     devGhostSaveOkFixture: parseDevBossFixture(params.get('devGhostSaveOk')),
+    equipmentFixture: import.meta.env.DEV && ['1','all','battle','event'].includes(params.get('equipmentFixture') ?? ''),
+    equipmentFullBagFixture: import.meta.env.DEV && params.get('equipmentFixture') === 'all',
+    ...(import.meta.env.DEV && ['fight','event'].includes(params.get('equipmentTrackingFixture') ?? '')
+      ? { equipmentTrackingFixture: params.get('equipmentTrackingFixture') as 'fight' | 'event' } : {}),
+    ...(import.meta.env.DEV && ['battle','event'].includes(params.get('equipmentFixture') ?? '')
+      ? { equipmentRewardFixture: params.get('equipmentFixture') as 'battle' | 'event' } : {}),
   };
 }
 
@@ -527,7 +546,9 @@ export function buildDevEventFixture(eventId: DevEventFixtureId, seed = 1103): R
   // own doc comment for why this is deterministic and Rng-free).
   const withBoard = eventId === 'ember_pit' || eventId === 'ruined_anvil'
     ? withMergeableBronzeTrio(active)
-    : active;
+    : eventId === 'glass_cutter'
+      ? { ...active, pieces: active.pieces.map((piece, index) => (index === 0 ? { ...piece, tier: 'silver' as SkillTier } : piece)) }
+      : active;
   const eventNode = firstDevEventNode(withBoard, seed);
 
   // Only the bell chain's own two CALLBACK ids need a synthetic past-deed
@@ -680,6 +701,60 @@ export function buildDevGhostExtraFightLoseFixture(seed = 1103): RunState {
 
 export function applyDevLaunchConfig(search = window.location.search): DevLaunchConfig {
   const config = readDevLaunchConfig(search);
-  resetDemoState(stateOverridesFromConfig(config));
+  if (config.battleExampleId) {
+    const value = new URLSearchParams(search).get('seed');
+    const seed = value !== null && /^\d+$/.test(value) && Number(value) <= 0xffffffff ? Number(value) : undefined;
+    const { request } = buildBattlePassiveExample(config.battleExampleId, seed);
+    config.seed = request.seed;
+    if (!new URLSearchParams(search).has('scene')) config.scene = 'battle';
+    resetDemoState({
+      pieces: request.pieces.map((piece, index) => ({ ...piece, instanceId: `example-card-${index}`, tier: piece.tier ?? 'bronze' })),
+      heroLevel: request.heroLevel, heroAllocation: { ...request.heroAllocation }, seed: request.seed,
+      enemyTeam: request.foes.map(foe => ({ enemyId: foe.enemyId, level: foe.level, title: foe.title, rank: foe.rank, modifiers: [...(foe.modifiers ?? [])] })),
+      bagSlots: [],
+    });
+  } else resetDemoState(stateOverridesFromConfig(config));
   return config;
+}
+
+export function buildDevEquipmentFixture(seed = 1103, reward?: 'battle' | 'event', fullBag = false): RunState {
+  const state = reward === 'battle' ? buildDevBossFixture(seed) : createRun(seed);
+  const ownedEquipment = ['duelist_coat','duelist_crest','duelist_knot','wind_charm','arcanist_robe'].map(itemId => ({
+    instanceId: `dev-equipment:${itemId}`, itemId, itemVersion: 1,
+    ...(itemId === 'wind_charm' ? {} : { setVersion: 1 }),
+  }));
+  const result: RunState = { ...state, status: 'active', draft: undefined,
+    pieces: reward === 'battle' ? state.pieces : [0,1,2].map(slot => ({ instanceId: `dev-equipment-card:${slot}`, skillId: 'sword_slash', tier: 'bronze', slot })),
+    ownedEquipment, equippedEquipment: [
+      { ...ownedEquipment[0]!, slot: 'armor' }, { ...ownedEquipment[1]!, slot: 'accessory' },
+    ], equipmentRewardReceipts: [] };
+  if (fullBag) result.ownedEquipment = equipmentDocument.items.map(item => {
+    const version = item.versions.at(-1)!;
+    return { instanceId: `dev-equipment:${item.id}`, itemId: item.id, itemVersion: version.version,
+      ...(version.def.setId ? { setVersion: equipmentDocument.sets.find(set => set.id === version.def.setId)!.versions.at(-1)!.version } : {}) };
+  });
+  if (reward !== 'event') return result;
+  const node = firstDevEventNode(result, seed);
+  return recordEventInstance(parkDevRunOnEventNode(result,node),node.id,{
+    eventId:'abandoned_cache',contentVersion:2,instanceId:`event:${node.id}`,drawnDepth:node.depth,
+  });
+}
+
+export function devBattleExampleId(search = window.location.search): string | null {
+  if (!import.meta.env.DEV) return null;
+  const id = new URLSearchParams(search).get('battleExample');
+  return battlePassiveExamples.some(example => example.id === id) ? id : null;
+}
+
+export function buildDevEquipmentTrackingFixture(seed: number, kind: 'fight' | 'event'): RunState {
+  const base = buildDevEquipmentFixture(seed);
+  const offers = biomeBandOffers(base, 0);
+  const chosen = chooseBiome(base, 0, offers.find(id => id === 'swornhold') ?? offers.at(-1)!);
+  if (kind === 'fight') {
+    const node = chosen.map.depths.flat().find(node => node.kind === 'fight')!;
+    return { ...chosen, depth: node.depth - 1 };
+  }
+  const node = chosen.map.depths[1]!.find(node => node.kind === 'event')!;
+  return recordEventInstance({ ...chosen, ownedEquipment: chosen.ownedEquipment?.filter(item => item.itemId !== 'duelist_knot') }, node.id, { eventId: 'equip_fencing_hall', contentVersion: 1,
+    instanceId: `event:${node.id}`, drawnDepth: node.depth });
 }

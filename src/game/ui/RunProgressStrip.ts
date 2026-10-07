@@ -2,6 +2,9 @@ import type Phaser from 'phaser';
 import { roundRect } from './roundedRect';
 import { playSfx } from '../audio/sfxSynth';
 import { gemHeroStats, resolveDisplayHeroStats } from '../../engine/cards';
+import { resolveEquipment, applyEquipmentStats } from '../../engine/equipment/resolve';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import { skillBook } from '../../data/skills';
 import { bankedPL } from '../../run/leveling';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { runCalendar } from '../../run/runCalendar';
@@ -72,6 +75,7 @@ export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapsho
   const pieces = run.pieces.map((piece) => ({ ...piece }));
   const heroSetup = buildAutoHeroSetup(run.heroLevel, pieces, run.heroAllocation, run.purchasedStats).setup;
   const heroGemAdds = gemHeroStats(pieces);
+  const equipment=resolveEquipment(run.equippedEquipment??[],pieces.map(piece=>skillBook[piece.skillId]!),equipmentCatalog);
   return {
     day: calendar.stop,
     wave: calendar.absoluteDay,
@@ -82,7 +86,7 @@ export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapsho
     wins: run.wins,
     losses: run.losses,
     bankedPL: bankedPL(run.heroLevel, run.heroAllocation),
-    heroStats: resolveDisplayHeroStats(heroSetup.stats, pieces),
+    heroStats: resolveDisplayHeroStats(applyEquipmentStats(heroSetup.stats,equipment,{fullHpAtBattleSetup:true}), pieces),
     heroGemAdds,
   };
 }

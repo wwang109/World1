@@ -12,6 +12,8 @@
  * Pure module: no Phaser import, unit-tested in tests/game/cardTokenSpec.test.ts.
  */
 
+import type { RegionBox } from './fantasyCardTemplateSpec';
+
 export type TokenSide = 'left' | 'right';
 
 export interface TokenTextLine {
@@ -80,6 +82,7 @@ export interface CardTokenSpec {
    * near this one corner.
    */
   inspectButton: TokenBox | null;
+  rules: { name: TokenTextLine; body: RegionBox; affinity: TokenTextLine } | null;
 }
 
 export const TOKEN_COMPACT_HEIGHT = 42;
@@ -186,6 +189,12 @@ const INSPECT_GAP = 4;
  * that test does, using each chip's real rendered pill).
  */
 const CURSOR_BADGE_INSET = 56;
+const RULES_MIN_HEIGHT = 96;
+const RULES_NAME_TOP = 16;
+const RULES_BODY_TOP = 27;
+const RULES_BODY_BOTTOM = 22;
+const RULES_AFFINITY_BOTTOM = 13;
+const RULES_NAME_BADGE_RESERVE = 64;
 
 export function cardTokenSpec(
   width: number,
@@ -216,6 +225,9 @@ export function cardTokenSpec(
   // How many rail boxes fit in the inward half before crowding the text block.
   const railSpan = width / 2 - EDGE_PAD - WEIGHT_BADGE_CLEARANCE - 40;
   const accessoryMax = Math.max(0, Math.min(4, Math.floor(railSpan / (ACCESSORY_SIZE + ACCESSORY_GAP))));
+  const textWidth = width - TEXT_PAD * 2 - accessoryInset - inspectReserve;
+  const rulesTop = -height / 2 + RULES_BODY_TOP;
+  const rulesBottom = height / 2 - RULES_BODY_BOTTOM;
 
   return {
     compact: height < TOKEN_COMPACT_HEIGHT,
@@ -246,6 +258,13 @@ export function cardTokenSpec(
         y: -height / 2 + CORNER_PAD + INSPECT_BUTTON_SIZE / 2,
         width: INSPECT_BUTTON_SIZE,
         height: INSPECT_BUTTON_SIZE,
+      }
+      : null,
+    rules: height >= RULES_MIN_HEIGHT
+      ? {
+        name: { dy: -height / 2 + RULES_NAME_TOP, fontSize: 12, maxWidth: textWidth - RULES_NAME_BADGE_RESERVE },
+        body: { x: side === 'left' ? textX : textX - textWidth, y: rulesTop, w: textWidth, h: rulesBottom - rulesTop },
+        affinity: { dy: height / 2 - RULES_AFFINITY_BOTTOM, fontSize: 9, maxWidth: textWidth - WEIGHT_BADGE_CLEARANCE },
       }
       : null,
   };

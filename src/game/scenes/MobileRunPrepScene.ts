@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { applyEquipmentStats } from '../../engine/equipment/resolve';
+import { currentEquipmentResolution } from '../runStore';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
@@ -27,6 +29,8 @@ import {
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 import { encounterDestinationLabel } from '../ui/runTravelChoiceViewModel';
+import { encounterLootChances } from '../ui/equipmentLootTrackingModel';
+import { renderPossibleEquipmentLoot } from '../ui/equipmentPossibleLoot';
 
 const F = MOBILE_PROFILE.font;
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -79,6 +83,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
 
     this.renderHud(run, node.kind);
     let boardsTop = this.renderFoeCard(node.kind, pack);
+    boardsTop += renderPossibleEquipmentLoot(this, true, 10, boardsTop, this.W - 20, encounterLootChances(pack.units.map(unit => unit.enemyId)));
     boardsTop = this.renderHeroBand(run, boardsTop);
     boardsTop = this.renderAffinityLine(pack.units[0]!.setup, boardsTop);
     this.renderColumns(run, pack, boardsTop);
@@ -148,6 +153,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
       snapshot: snapshotRunProgress(run),
       onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
       actions: {
+        back: { label: 'EQUIPMENT', onPress: () => this.scene.start('MobileEquipment') },
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
         primary: { label: 'FIGHT', onPress: () => this.pressFight() },
@@ -232,7 +238,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation, run.purchasedStats).setup;
     // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), each
     // bumped stat getting its own "◆+N" delta (see `capabilityStatRun`).
-    const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
+    const s = resolveDisplayHeroStats(applyEquipmentStats(heroSetup.stats,currentEquipmentResolution(),{fullHpAtBattleSetup:true}), heroSetup.pieces);
     const gemAdds = gemHeroStats(heroSetup.pieces);
     this.add.text(20, top + h / 2, `YOU · LV ${run.heroLevel}`, textRole('kicker')).setOrigin(0, 0.5);
     // SAME grammar as the foe card above (`capabilityStatRun`, same order, same
@@ -306,7 +312,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     }
     const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation, run.purchasedStats).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
-    const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
+    const heroStats = resolveDisplayHeroStats(applyEquipmentStats(heroSetup.stats,currentEquipmentResolution(),{fullHpAtBattleSetup:true}), heroSetup.pieces);
     new BoardColumn(this, {
       x: leftX, y: top, width: colW, height: colH, side: 'left',
       pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },

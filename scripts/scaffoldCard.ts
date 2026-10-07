@@ -113,6 +113,9 @@ function seedAction(kind: Action['kind']): Action {
     // the bare action and expected to be paired by hand with a burden/curse.
     case 'splash': return { kind };
     case 'disrupt': return { kind, amount: 0 };
+    case 'haste': return { kind, amount: 0 };
+    case 'regen': return { kind, stacks: 0 };
+    case 'execute': return { kind, amount: 0 };
     case 'lifesteal': return { kind, pct: 0 };
     case 'shieldBreak': return { kind, amount: 0 };
     case 'comboBonus': return { kind, amount: 0 };
@@ -128,7 +131,7 @@ const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   poison: 'stacks', burn: 'stacks', bleed: 'stacks', thorns: 'stacks',
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
   slow: 'weight', burden: 'weight', curse: 'amount', disrupt: 'amount', lifesteal: 'pct',
-  shieldBreak: 'amount', comboBonus: 'amount',
+  shieldBreak: 'amount', comboBonus: 'amount', haste: 'amount', regen: 'stacks', execute: 'amount',
   negate: 'charges', cleanse: 'charges', ward: 'charges',
 };
 /** Intrinsic ceilings (engine clamps); the solver must not author past them. */

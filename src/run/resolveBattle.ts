@@ -1,11 +1,13 @@
 import { simulate } from '../engine/combat/simulate';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
-import type { BoardPiece, CombatantSetup, CombatOutcome, Element, WeaponType } from '../engine/types';
+import type { BoardPiece, CombatConfig, CombatantSetup, CombatOutcome, Element, WeaponType } from '../engine/types';
 import { buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encounter';
 import { buildRequestHeroSetup } from './battleRequestValidation';
 import type { Allocation } from './leveling';
 import { assertKnownGhostEnemyId, buildGhostFoeSetup, type BattleGhostConfig } from './ghostFoeSetup';
+import { resolvePassiveRequest } from '../engine/passives/validate';
+import { applyBattleEquipment } from './battleEquipment';
 
 export { buildGhostFoeSetup } from './ghostFoeSetup';
 
@@ -82,6 +84,8 @@ function buildFoeSetup(f: BattleFoeConfig): CombatantSetup {
 
 /** The prep information a battle is resolved from — the request payload. */
 export interface BattleRequest {
+  heroEquipment?: readonly import('../engine/equipment/types').EquippedItemRef[];
+  preBattle?: import('../engine/passives/types').PassiveRequest;
   pieces: readonly BoardPiece[];
   heroLevel: number;
   heroAllocation: Allocation;
@@ -110,12 +114,38 @@ export interface BattleLog {
   playerAffinityId?: Element | WeaponType;
 }
 
-/** Resolves setups from the request, simulates, and returns the log. */
-export function resolveBattle(request: BattleRequest): BattleLog {
-  const hero = buildRequestHeroSetup(request);
+/** Trusted internal context; never reconstructed from an HTTP battle payload. */
+export interface BattlePreparation {
+  heroPassives?: import('../engine/passives/types').PassiveRecipe;
+  sourceCatalog?: import('../engine/passives/types').PassiveRecipe['sources'];
+  heroPieceRefs?: readonly { slot: number; pieceRef: string }[];
+}
+
+/** Shared request reconstruction for API resolution and evidence tooling. */
+export function prepareBattleConfig(request: BattleRequest, preparation?: BattlePreparation): CombatConfig {
+  const baseHero = buildRequestHeroSetup(request);
+  const hero = request.heroEquipment === undefined ? baseHero : applyBattleEquipment(baseHero, request.heroEquipment);
+  const refs = new Set<string>(), slots = new Set<number>();
+  for (const entry of preparation?.heroPieceRefs ?? []) {
+    if (!entry || Object.keys(entry).some(key => key !== 'slot' && key !== 'pieceRef')
+      || !Number.isSafeInteger(entry.slot) || typeof entry.pieceRef !== 'string' || !entry.pieceRef.trim()
+      || refs.has(entry.pieceRef) || slots.has(entry.slot)) throw new Error('Invalid trusted card reference mapping');
+    const piece = hero.pieces.find(candidate => candidate.slot === entry.slot);
+    if (!piece) throw new Error('Trusted card reference must name an occupied anchor');
+    refs.add(entry.pieceRef); slots.add(entry.slot); piece.pieceRef = entry.pieceRef;
+  }
+  if (request.preBattle !== undefined) {
+    if (preparation?.heroPassives) throw new Error('Ambiguous passive preparation');
+    hero.passives = resolvePassiveRequest(request.preBattle, preparation?.sourceCatalog);
+  } else if (preparation?.heroPassives) hero.passives = preparation.heroPassives;
   const foeSetups = request.foes.map(buildFoeSetup);
+  return { playerTeam: [hero], enemyTeam: foeSetups, skillBook };
+}
+
+/** Resolves setups from the request and optional trusted preparation, then returns the log. */
+export function resolveBattle(request: BattleRequest, preparation?: BattlePreparation): BattleLog {
   const { result, turns, events, finalState } = simulate(
-    { playerTeam: [hero], enemyTeam: foeSetups, skillBook },
+    prepareBattleConfig(request, preparation),
     request.seed,
   );
   const playerAffinityId = finalState.player.elementAffinity ?? finalState.player.weaponAffinity;

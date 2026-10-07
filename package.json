@@ -9,7 +9,7 @@
     "build": "npm run content:validate && npm run typecheck && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && npx --yes wrangler pages deploy dist --project-name=proof-of-concept-ab-deckbuilder --branch=main",
-    "test": "node scripts/check-boundaries.mjs && npm run typecheck && node scripts/check-skill-parity.mjs && npm run audit:pl",
+    "test": "node scripts/check-boundaries.mjs && npm run typecheck && node scripts/check-skill-parity.mjs && npm run audit:pl && npm run audit:equipment && npm run audit:equipment-sources && npm run audit:equipment-battle && npm run audit:equipment-share && npm run audit:equipment-run && npm run audit:battle-passives",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.functions.json --noEmit",
     "api": "tsx server/battleApi.ts",
     "fight": "tsx scripts/fight.ts",
@@ -25,7 +25,14 @@
     "audit:cardface": "tsx scripts/card-face-truncation-audit.ts",
     "audit:pl": "tsx scripts/check-balance.ts",
     "art:encode": "tsx scripts/encode-card-art.ts",
-    "audio:encode": "tsx scripts/encode-audio.ts"
+    "audio:encode": "tsx scripts/encode-audio.ts",
+    "audit:equipment": "tsx scripts/equipment-audit.ts",
+    "content:equipment-template": "tsx scripts/equipment-template.ts",
+    "audit:equipment-sources": "tsx scripts/equipment-loot-sources-audit.ts",
+    "audit:equipment-battle": "tsx scripts/equipment-battle-audit.ts",
+    "audit:equipment-share": "tsx scripts/equipment-share-audit.ts",
+    "audit:equipment-run": "tsx scripts/equipment-run-audit.ts",
+    "audit:battle-passives": "tsx scripts/battle-passives-audit.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"

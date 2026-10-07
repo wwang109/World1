@@ -237,6 +237,8 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // 4.53 / 5.41. Was `#3f9e7a` (2.92) — the deepest lift in the pass (L 43 ->
   // 59), teal held. Lockstep with the ailment palette, same as poison/expose.
   thorns: '#68c3a0',
+  regen: '#8fd47a',
+  haste: '#e6c35c',
   true: '#e8d5a0',
 };
 

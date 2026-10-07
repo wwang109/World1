@@ -8,7 +8,7 @@ import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
-import { marketPurchaseConfirmText, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
+import { marketPurchaseConfirmText, stayOpenOutcome, mergeConfirmBody, sellGemConfirmBody, sellGemConfirmTitle } from '../ui/eventOutcomeText';
 import { isMarketBuyOutcomeKind } from '../../run/market';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import {
@@ -284,7 +284,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       this.scene.start('MobileBattle');
       return;
     }
-    this.marketConfirmText = outcome && isMarketBuyOutcomeKind(outcome.kind) ? marketPurchaseConfirmText(outcome) : null;
+    this.marketConfirmText = outcome && stayOpenOutcome(outcome) ? marketPurchaseConfirmText(outcome) : null;
     if (outcome) {
       const run = getActiveRun();
       if (run) this.enterOutcomeOrReopenMarket(outcome, run);
@@ -351,7 +351,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       this.rerender();
       return;
     }
-    this.marketConfirmText = isMarketBuyOutcomeKind(outcome.kind) ? marketPurchaseConfirmText(outcome) : null;
+    this.marketConfirmText = stayOpenOutcome(outcome) ? marketPurchaseConfirmText(outcome) : null;
     const run = getActiveRun();
     if (!run || !this.enterOutcomeOrReopenMarket(outcome, run, receipt)) return;
     this.rerender();

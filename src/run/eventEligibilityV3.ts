@@ -96,6 +96,8 @@ function cardMatches(card: RunCard, match: EventOwnedCardMatchV3): boolean {
     && (skill?.element === undefined || !match.elements.includes(skill.element))) return false;
   if (match.archetypes !== undefined
     && (skill === undefined || !match.archetypes.some((value) => skill.archetypes.includes(value)))) return false;
+  if (match.properties !== undefined
+    && (skill === undefined || !match.properties.includes(skill.property))) return false;
   return true;
 }
 
@@ -311,6 +313,10 @@ export function eventRequirementMetV3(
       return uniqueCount(state.journeyFactLedger.visitedBiomeIds) >= requirement.args.value;
     case 'journey.completedChains':
       return uniqueCount(state.completedStoryIds ?? []) >= requirement.args.value;
+    case 'equipment.broken.count':
+      return (state.brokenEquipment ?? 0) >= requirement.args.value;
+    case 'equipment.equipped.count':
+      return (state.equippedEquipment ?? []).filter((ref) => requirement.args.slots?.includes(ref.slot) ?? true).length >= requirement.args.value;
     case 'callback.queued':
       return state.eventCallbackQueue.some((callback) => callback.callbackId === requirement.args.callbackId);
   }

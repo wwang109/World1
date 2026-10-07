@@ -1,0 +1,1140 @@
+{
+  "schemaVersion": 1,
+  "status": "runtime_equipment_and_sets",
+  "notes": [
+    "Canonical runtime equipment content. Stats and percentages remain illustrative; equipment PL pricing has not been approved.",
+    "Slots are armor, accessory, and charm: at most one owned item instance is equipped in each slot. Only equipped items grant their flat statMods.",
+    "Set pieces count distinct occupied equipment slots with the same setId, once per slot. Unequipped inventory items do not count.",
+    "A set's boardRequirement counts matching active equipped board card instances using their resolved SkillDef fields. Each card instance counts once regardless of size; occupied size slots, bag cards, held cards, and gems do not count.",
+    "All criteria in match must hold for a card to count. A card with weapon sword matches the Duelist requirement; a card with property magical matches the Arcanist requirement.",
+    "Both set thresholds require the authored minCount of matching active board card instances (currently 3 for every set). If this requirement is met, 2 equipped set pieces grant the 2-piece bonus, and 3 grant BOTH the 2-piece and 3-piece bonuses additively. Losing the board requirement disables both bonuses.",
+    "Equipping or swapping is allowed between fights. Next battle starts at full resolved maxHp. Current hp is not an equipment modifier.",
+    "Catalog entries use stable outer ids and versioned defs; owned items should reference item id and definition version. No artwork, gold price, PL budget, or drop chance is finalized here.",
+    "archetypesIncludes selects one existing archetype literal by membership in SkillDef.archetypes; it combines with any property or weapon criterion using AND. Tank set requirements select defensive cards regardless of property.",
+    "Set bonus effectMods are a separate modifier axis, not CombatantStats. outgoingHealPct is an illustrative positive integer percentage applying only to direct heal actions; it excludes drain, lifesteal, regeneration, and every other healing source.",
+    "Descriptions are generated from typed modifier and requirement registries; never author duplicate bonus text. Direct healing applies the combined percentage once before anti-heal and HP clamping.",
+    "dropEligibility lists the source kinds that may grant an item. Fight drops come from enemy equipmentDrop pools in enemies.v1.json; event grants come from equipment-loot.v1.json."
+  ],
+  "items": [
+    {
+      "id": "duelist_coat",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Duelist Coat",
+            "slot": "armor",
+            "setId": "duelist",
+            "statMods": {
+              "maxHp": 12,
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duelist_crest",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Duelist Crest",
+            "slot": "accessory",
+            "setId": "duelist",
+            "statMods": {
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "duelist_knot",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Duelist Knot",
+            "slot": "charm",
+            "setId": "duelist",
+            "statMods": {
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arcanist_robe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Arcanist Robe",
+            "slot": "armor",
+            "setId": "arcanist",
+            "statMods": {
+              "maxHp": 12,
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arcanist_pendant",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Arcanist Pendant",
+            "slot": "accessory",
+            "setId": "arcanist",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "arcanist_seal",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Arcanist Seal",
+            "slot": "charm",
+            "setId": "arcanist",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "wind_charm",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Wind Charm",
+            "slot": "charm",
+            "statMods": {
+              "speed": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bastion_plate",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bastion Plate",
+            "slot": "armor",
+            "setId": "bastion",
+            "statMods": {
+              "maxHp": 12,
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bastion_emblem",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bastion Emblem",
+            "slot": "accessory",
+            "setId": "bastion",
+            "statMods": {
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "bastion_charm",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bastion Charm",
+            "slot": "charm",
+            "setId": "bastion",
+            "statMods": {
+              "maxHp": 5
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironwall_plate",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ironwall Plate",
+            "slot": "armor",
+            "setId": "ironwall",
+            "statMods": {
+              "maxHp": 10,
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironwall_buckle",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ironwall Buckle",
+            "slot": "accessory",
+            "setId": "ironwall",
+            "statMods": {
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironwall_seal",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ironwall Seal",
+            "slot": "charm",
+            "setId": "ironwall",
+            "statMods": {
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "spellguard_robe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Spellguard Robe",
+            "slot": "armor",
+            "setId": "spellguard",
+            "statMods": {
+              "maxHp": 10,
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "spellguard_pendant",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Spellguard Pendant",
+            "slot": "accessory",
+            "setId": "spellguard",
+            "statMods": {
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "spellguard_seal",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Spellguard Seal",
+            "slot": "charm",
+            "setId": "spellguard",
+            "statMods": {
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ravager_coat",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ravager Coat",
+            "slot": "armor",
+            "setId": "ravager",
+            "statMods": {
+              "maxHp": 5,
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ravager_crest",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ravager Crest",
+            "slot": "accessory",
+            "setId": "ravager",
+            "statMods": {
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ravager_fang",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ravager Fang",
+            "slot": "charm",
+            "setId": "ravager",
+            "statMods": {
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormcaller_robe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Stormcaller Robe",
+            "slot": "armor",
+            "setId": "stormcaller",
+            "statMods": {
+              "maxHp": 5,
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormcaller_pendant",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Stormcaller Pendant",
+            "slot": "accessory",
+            "setId": "stormcaller",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormcaller_focus",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Stormcaller Focus",
+            "slot": "charm",
+            "setId": "stormcaller",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "restorer_vestments",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Restorer Vestments",
+            "slot": "armor",
+            "setId": "restorer",
+            "statMods": {
+              "maxHp": 10,
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "restorer_pendant",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Restorer Pendant",
+            "slot": "accessory",
+            "setId": "restorer",
+            "statMods": {
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "restorer_seal",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Restorer Seal",
+            "slot": "charm",
+            "setId": "restorer",
+            "statMods": {
+              "maxHp": 5
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "huntsman_coat",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Huntsman Coat",
+            "slot": "armor",
+            "setId": "huntsman",
+            "statMods": {
+              "maxHp": 12,
+              "armor": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "huntsman_crest",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Huntsman Crest",
+            "slot": "accessory",
+            "setId": "huntsman",
+            "statMods": {
+              "attack": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "huntsman_feather",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Huntsman Feather",
+            "slot": "charm",
+            "setId": "huntsman",
+            "statMods": {
+              "speed": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tactician_coat",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Tactician Coat",
+            "slot": "armor",
+            "setId": "tactician",
+            "statMods": {
+              "maxHp": 10,
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tactician_brooch",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Tactician Brooch",
+            "slot": "accessory",
+            "setId": "tactician",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tactician_knot",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Tactician Knot",
+            "slot": "charm",
+            "setId": "tactician",
+            "statMods": {
+              "speed": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hexweaver_robe",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Hexweaver Robe",
+            "slot": "armor",
+            "setId": "hexweaver",
+            "statMods": {
+              "maxHp": 10,
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hexweaver_pendant",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Hexweaver Pendant",
+            "slot": "accessory",
+            "setId": "hexweaver",
+            "statMods": {
+              "magicPower": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hexweaver_seal",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Hexweaver Seal",
+            "slot": "charm",
+            "setId": "hexweaver",
+            "statMods": {
+              "magicResist": 1
+            },
+            "dropEligibility": {
+              "sourceKinds": [
+                "fight",
+                "event"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "sets": [
+    {
+      "id": "duelist",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Duelist",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "weapon": "sword"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "attack": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "armor": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "arcanist",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Arcanist",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "property": "magical"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "magicPower": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "magicResist": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bastion",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bastion",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "defensive"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "maxHp": 10
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "armor": 1,
+                  "magicResist": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ironwall",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ironwall",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "defensive"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "armor": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "maxHp": 10,
+                  "armor": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "spellguard",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Spellguard",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "defensive"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "magicResist": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "maxHp": 10,
+                  "magicResist": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ravager",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ravager",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "offense",
+                "property": "physical"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "attack": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "attack": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stormcaller",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Stormcaller",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "offense",
+                "property": "magical"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "magicPower": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "magicPower": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "restorer",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Restorer",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "healing"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "effectMods": {
+                  "outgoingHealPct": 10
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "maxHp": 10
+                },
+                "effectMods": {
+                  "outgoingHealPct": 10
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "huntsman",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Huntsman",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "weapon": "bow"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "attack": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "speed": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tactician",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Tactician",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "support"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "speed": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "effectMods": {
+                  "outgoingHealPct": 10
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hexweaver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Hexweaver",
+            "boardRequirement": {
+              "source": "active_equipped_board_card_instances",
+              "minCount": 3,
+              "match": {
+                "archetypesIncludes": "debuff"
+              }
+            },
+            "bonuses": [
+              {
+                "pieces": 2,
+                "statMods": {
+                  "magicPower": 2
+                }
+              },
+              {
+                "pieces": 3,
+                "statMods": {
+                  "magicResist": 2
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

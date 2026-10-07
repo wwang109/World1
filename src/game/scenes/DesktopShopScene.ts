@@ -61,6 +61,7 @@ import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { tierUpgradePreview } from '../ui/tierUpgradePreview';
 import { renderTierUpgradeDetailOverlay } from '../ui/tierUpgradeDetailOverlay';
+import { buildTierUpgradeDiff, changedTierUpgradeLines } from '../ui/tierUpgradeDiff';
 import { tierProgressMergeLine, tierProgressAccessory } from '../ui/tierProgressDisplay';
 import { renderOwnedCardPicker, type OwnedCardPickerRow } from '../ui/ownedCardPicker';
 import {
@@ -705,8 +706,9 @@ export class DesktopShopScene extends Phaser.Scene {
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
         const cell: CellBox = { x: cx, y: cy, w: cardW, h: cellH };
         const { token: tokenBox, caption } = captionCell(cell, SHELF_PRICE_STRIP_H);
+        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
         const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, {
-          width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier,
+          width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier, shine: shelfMergeTarget != null,
         });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, cardW, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
@@ -716,7 +718,6 @@ export class DesktopShopScene extends Phaser.Scene {
         // baked into CardToken: the badge is shop-specific chrome, and
         // CardToken stays feature-agnostic for its other (battle/prep/deck
         // build/draft) callers.
-        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
         if (shelfMergeTarget) A(this.renderMergeBadge(tokenBox.x, tokenBox.y, shelfMergeTarget, F.tiny, tokenBox.w, tokenBox.h));
         const affordable = this.activeGold() >= offer.price;
         const priceAt = boxCenter(caption);
@@ -1811,7 +1812,9 @@ export class DesktopShopScene extends Phaser.Scene {
       contentY += warning.height + 12;
     }
     if (mergePreview) {
-      const stats = this.add.text(20, contentY, `${mergePreview.toSkill.tier.toUpperCase()} UPGRADE\n${stripCardTextMarkup(renderSkillText(mergePreview.toSkill))}`, {
+      const changes = changedTierUpgradeLines(buildTierUpgradeDiff(mergePreview.fromSkill, mergePreview.toSkill, 'composition'));
+      const body = changes.length > 0 ? changes.join('\n') : stripCardTextMarkup(renderSkillText(mergePreview.toSkill));
+      const stats = this.add.text(20, contentY, `${mergePreview.toSkill.tier.toUpperCase()} UPGRADE\n${body}`, {
         fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, lineSpacing: 4, wordWrap: { width: bw - 40 },
       }).setOrigin(0, 0);
       mergeContent.push(stats);

@@ -45,6 +45,9 @@ import { attachButtonFeel } from '../ui/motion';
 import { desktopRunMapPanelColumns } from '../ui/desktopRunMapPanelLayout';
 import { renderRunBiomePickPanel } from '../ui/RunBiomePickPanel';
 import { renderRunGhostFightOfferPanel } from '../ui/RunGhostFightOfferPanel';
+import { renderRunHistoryPanel } from '../ui/RunHistoryPanel';
+import { renderRunLogToggle } from '../ui/RunLogToggle';
+import { runRouteSelectedStops } from '../ui/runHistoryViewModel';
 
 const F = DESKTOP_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
@@ -65,6 +68,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
   private ledgerOpen = false;
+  private historyScroll = 0;
+  private historyOpen = false;
   private bandReadOpen = false;
   /** Desktop-only width toggle. Shops open with the region art collapsed so
    * the embedded workspace can use the room; the player can expand it. */
@@ -80,6 +85,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
     this.ledgerOpen = false;
+    this.historyScroll = 0;
+    this.historyOpen = false;
     this.bandReadOpen = false;
     this.regionPaneCollapsed = false;
     this.band = null;
@@ -226,9 +233,18 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const records = currentMapIntel();
     const intel = mapIntelLayoutModel(records, { width: SCREEN.width, height: SCREEN.height });
     const regionH = records.length > 0 ? intel.rail.y - slot.y - 16 : bottom - slot.y;
-    this.renderRegionPane(columns.region.x, slot.y, columns.region.width, regionH, band, snapshotRunProgress(run).wave, records.length, regionPending);
+    if (this.historyOpen) {
+      renderRunHistoryPanel(this, { x: columns.region.x, y: slot.y, width: columns.region.width, height: regionH }, run, {
+        compact: false, scroll: this.historyScroll, enabled: !this.statPanelOpen && !this.retireConfirmOpen,
+        onScroll: (scroll) => { this.historyScroll = scroll; },
+      });
+      renderRunLogToggle(this, columns.region.x + columns.region.width - 108, slot.y + 4, 100, 24, 'COLLAPSE',
+        !this.statPanelOpen && !this.retireConfirmOpen, () => { this.historyOpen = false; this.rerender(); });
+    } else {
+      this.renderRegionPane(columns.region.x, slot.y, columns.region.width, regionH, band,
+        snapshotRunProgress(run).wave, records.length, regionPending);
+    }
     // Earned snapshots retain their existing rail geometry below the pane.
-    // Its empty state is now the approved footer's NO DISCOVERIES YET.
     if (records.length > 0) {
       const dx = content.x - intel.rail.x;
       const dw = columns.region.width - intel.rail.width;
@@ -242,9 +258,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
     this.add.rectangle(columns.planner.x, slot.y, columns.planner.width, bottom - slot.y, UI.panel, 0.94).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.75);
     const routeTop = slot.y + 12;
-    const routeH = 82;
+    const routeH = 180;
     renderRunRouteBoard(this, { x: columns.planner.x + 16, y: routeTop, w: columns.planner.width - 32, h: routeH }, snapshotRunRoute(run), {
-      mode: 'desktop', regionName: regionPending ? undefined : band.name,
+      mode: 'desktop', regionName: regionPending ? undefined : band.name, biomeArtKey: band.artKey,
+      seed: run.seed, selectedStops: runRouteSelectedStops(run),
     });
     const choicesTop = routeTop + routeH + 12;
     this.renderChoiceColumn(columns.planner.x + 16, choicesTop, columns.planner.width - 32, bottom - 16 - choicesTop);
@@ -316,23 +333,20 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
     this.add.rectangle(x + 1, footerY, w - 2, footerH - 1, UI.panelMuted, 0.98).setOrigin(0, 0);
     const buttonW = Math.min(220, w * 0.52);
-    if (!pending) {
-      const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
-        .setStrokeStyle(1, UI.chip, 0.75);
-      const label = this.add.text(x + 16 + buttonW / 2, footerY + 32,
-        this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
-      auditControlLabel(button, label, { name: 'Desktop explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
-      if (!this.bandReadOpen) {
-        button.setInteractive({ useHandCursor: true });
-        attachButtonFeel(this, button, {
-          fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
-          onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
-        });
-      }
+    const button = this.add.rectangle(x + 16, footerY + 12, buttonW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.chip, 0.75);
+    const label = this.add.text(x + 16 + buttonW / 2, footerY + 32, 'RUN LOG', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+    auditControlLabel(button, label, { name: 'Desktop run log opener', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+    if (!this.statPanelOpen && !this.retireConfirmOpen) button.setInteractive({ useHandCursor: true });
+    attachButtonFeel(this, button, {
+      fill: UI.panelAlt, hover: UI.chipDark, follow: [label],
+      onPress: () => { this.historyOpen = true; this.rerender(); },
+    });
+    if (intelCount > 0) {
+      const status = this.add.text(x + w - 16, footerY + 32, `MAP INTEL · ${intelCount}`,
+        textRole('micro', { ink: 'secondary' })).setOrigin(1, 0.5);
+      auditTextBlock(status, { name: 'Desktop region discovery status', maxWidth: w - buttonW - 44, maxHeight: 24, minFontSize: 9 });
     }
-    const status = this.add.text(x + w - 16, footerY + 32, intelCount > 0 ? `MAP INTEL · ${intelCount}` : 'NO DISCOVERIES YET',
-      textRole('micro', { ink: 'secondary' })).setOrigin(1, 0.5);
-    auditTextBlock(status, { name: 'Desktop region discovery status', maxWidth: w - buttonW - 44, maxHeight: 24, minFontSize: 9 });
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {

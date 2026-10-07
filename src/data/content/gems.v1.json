@@ -1450,6 +1450,187 @@
           }
         }
       ]
+    },
+    {
+      "id": "last_stand_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Last-Stand Sliver",
+            "notes": [
+              "Desperation 16 at the conditional rate: 16 x 5 / 2 = 40 deci = Rare exactly."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "desperation",
+                "amount": 16
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "charging_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Charging Sliver",
+            "notes": [
+              "Charge 8 for the next card of the host type: 40 deci = Rare exactly."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "empowerNext",
+                "amount": 8
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "overflow_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Overflow Sliver",
+            "notes": [
+              "Shield Burst up to 16 of the caster's own plating: cap 16 x 5 / 2 = 40 deci = Rare exactly."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "shieldBurst",
+                "cap": 16
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "release_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Release Sliver",
+            "notes": [
+              "Ward Release 2 per charge up to 16: cap 16 x 5 / 2 = 40 deci = Rare exactly."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "wardRelease",
+                "per": 2,
+                "cap": 16
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "executioners_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Executioner's Sliver",
+            "notes": [
+              "Execute 12 at the full strike rate (Silver-or-better keyword, Epic-only on gems): 12 x 5 = 60 deci = Epic exactly."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "execute",
+                "amount": 12
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "verdant_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Verdant Sliver",
+            "notes": [
+              "Regen 3 at regenPerStack 20 (Silver-or-better keyword, Epic-only on gems): 60 deci = Epic exactly."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "regen",
+                "stacks": 3
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "timeslip_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Timeslip Sliver",
+            "notes": [
+              "Haste 5 (50 deci on hasteBrackets) plus Disrupt 2 (10 deci): 60 deci = Epic exactly. Haste is Epic-only on gems."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "haste",
+                "amount": 5
+              },
+              {
+                "kind": "disrupt",
+                "amount": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bloodletting_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bloodletting Sliver",
+            "notes": [
+              "Rung 3 of the bleed ladder after Rending Sliver: 6 x 10 = 60 deci = Epic exactly."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "bleed",
+                "stacks": 6
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

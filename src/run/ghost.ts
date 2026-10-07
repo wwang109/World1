@@ -4,6 +4,7 @@ import type { SkillTier } from '../engine/types';
 import { decodeCode, encodeLoadout, allocationToCounts, countsToAllocation, type ShareLoadout } from './shareCode';
 import { bandIndexOf } from './biome';
 import type { FoeDeckCard } from './encounter';
+import type { EquippedItemRef } from '../engine/equipment/types';
 
 export const GHOST_NAME_MAX = 10;
 
@@ -15,6 +16,7 @@ export interface GhostBoardPiece {
 }
 
 export interface GhostLoadout {
+  equipment?: EquippedItemRef[];
   board: GhostBoardPiece[];
   heroLevel: number;
   heroAllocation: Allocation;
@@ -42,6 +44,7 @@ export function captureGhostFromRun(run: RunState): GhostLoadout {
     })),
     heroLevel: run.heroLevel,
     heroAllocation: run.heroAllocation,
+    ...(run.equippedEquipment?.length ? { equipment: run.equippedEquipment.map(ref => ({ ...ref })) } : {}),
   };
 }
 
@@ -52,6 +55,7 @@ export function ghostLoadoutToShareLoadout(loadout: GhostLoadout): ShareLoadout 
     board: loadout.board,
     bag: [],
     gems: [],
+    ...(loadout.equipment?.length ? { equipment: loadout.equipment.map(ref => ({ ...ref })) } : {}),
   };
 }
 
@@ -71,6 +75,7 @@ export function ghostBandOf(fightNumber: number): number {
 /** A stored `GhostRecord.code` decoded back into the shape `resolveBattle.ts`'s
  * `BattleGhostConfig` wants — the inverse of `ghostCodeOf`/`captureGhostFromRun`. */
 export interface GhostBattlePieces {
+  equipment?: EquippedItemRef[];
   pieces: FoeDeckCard[];
   level: number;
   allocation: Allocation;
@@ -84,5 +89,6 @@ export function ghostToBattlePieces(ghost: GhostRecord): GhostBattlePieces {
     level: loadout.heroLevel,
     allocation: countsToAllocation(loadout.allocation),
     displayName: ghost.displayName,
+    ...(loadout.equipment?.length ? { equipment: loadout.equipment.map(ref => ({ ...ref })) } : {}),
   };
 }

@@ -142,6 +142,8 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   // a silently ignored payload.
   splash: [],
   disrupt: ['amount'],
+  haste: ['amount'],
+  regen: ['stacks'],
   expose: ['pct', 'turns'],
   guard: ['property', 'pct', 'turns'],
   negate: ['property', 'charges'],
@@ -169,6 +171,7 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   // `desperation` is `exploit`'s shape without a status: the gate is the caster's
   // own HP bar, so there is nothing to name and a flat `amount` is the whole thing.
   desperation: ['amount'],
+  execute: ['amount'],
   // The two HEAL-SIDE riders, same required-`cap` rule: the payload is
   // `min(this cast's heal overflow, cap)` / `min(per × stacks cleansed, cap)`.
   overhealShield: ['cap'],
@@ -397,6 +400,8 @@ export function validateAction(
     // where a single action cannot see its siblings.
     case 'splash': break;
     case 'disrupt': num('amount'); break;
+    case 'haste': req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems); break;
+    case 'regen': req(raw, 'stacks', inRange(1, 999), 'an integer 1..999', at, problems); break;
     case 'expose': exposePct(); exposeTurns(); break;
     case 'guard': property(); clampedPct(MAX_GUARD_PCT); turns('turns'); break;
     case 'negate': property(); charges(MAX_NEGATE_CHARGES); break;
@@ -475,6 +480,7 @@ export function validateAction(
     case 'desperation':
       num('amount');
       break;
+    case 'execute': req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems); break;
     case 'overhealShield':
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because the overflow of a heal is unbounded in the recipient\'s missing HP', at, problems);
       break;
@@ -1040,6 +1046,7 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
       rejectSelfChain(raw.element ?? raw.weapon, atTier, at, problems);
     }
   }
+  rejectSilverPlusKeywordsAtBronze(raw, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
@@ -1101,6 +1108,18 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
 }
 
 /** Validates a whole skills document. Returns every problem found; never throws. */
+const SILVER_PLUS_KINDS: readonly string[] = ['haste', 'regen', 'execute'];
+
+function rejectSilverPlusKeywordsAtBronze(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
+  if (typeof raw.tier === 'string' && raw.tier !== 'bronze') return;
+  if (!Array.isArray(raw.effects)) return;
+  raw.effects.forEach((action, index) => {
+    if (!isObj(action) || typeof action.kind !== 'string' || !SILVER_PLUS_KINDS.includes(action.kind)) return;
+    if (typeof action.minTier === 'string' && action.minTier !== 'bronze') return;
+    problems.push({ where: `${where}.effects[${index}]`, message: `${action.kind} is a Silver-or-better keyword: lock it with minTier silver or gold, or add it in a tierUpgrades block` });
+  });
+}
+
 export function validateSkillDocument(doc: unknown): ContentProblem[] {
   const problems: ContentProblem[] = [];
   if (!isObj(doc)) return [{ where: 'document', message: 'document must be an object' }];

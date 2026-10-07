@@ -1,3 +1,6 @@
+import { isMarketBuyOutcomeKind } from '../../run/market';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import { FORGE_COST } from '../../run/equipmentWorkshop';
 import type { EventOutcomeSpec, MarketStat } from '../../data/events';
 import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import type { EventOutcomeV3 } from '../../run/eventsV3';
@@ -42,6 +45,8 @@ export const RESHAPE_PICK_TITLE: Record<EventReshapeModeV3, string> = {
   trade: 'CHOOSE A TRADE',
   shatter: 'CHOOSE A CARD TO SHATTER',
 };
+
+export const REROLL_PICK_TITLE = { card: 'CHOOSE A CARD TO REROLL', gem: 'CHOOSE A GEM TO REROLL' } as const;
 
 export const GEM_RESHAPE_HINT: Record<EventReshapeGemModeV3, string> = {
   transform: 'TRANSFORM A GEM',
@@ -104,7 +109,13 @@ function reshapeHeadline(outcome: EventReshapeSettlementV3): { headline: string;
 export function marketPurchaseConfirmText(outcome: EventOutcome | EventOutcomeV3): string | null {
   if (outcome.kind === 'buyLife') return 'LIFE RESTORED';
   if (outcome.kind === 'buyStat') return MARKET_STAT_LABEL[outcome.stat];
+  if (outcome.kind === 'equipmentForged') return `FORGED ${equipmentCatalog.item(outcome.itemId, outcome.itemVersion).name.toUpperCase()}`;
+  if (outcome.kind === 'equipmentUpgraded') return `${equipmentCatalog.item(outcome.itemId, outcome.itemVersion).name.toUpperCase()} +${outcome.level}`;
   return null;
+}
+
+export function stayOpenOutcome(outcome: EventOutcome | EventOutcomeV3): boolean {
+  return isMarketBuyOutcomeKind(outcome.kind) || outcome.kind === 'equipmentForged' || outcome.kind === 'equipmentUpgraded';
 }
 
 export function mergeRowPreviewText(spent: readonly MergeSpentEntry[]): string {
@@ -264,6 +275,10 @@ export function eventOutcomeHintText(hint: RunEventOutcomeHint): string {
     case 'buyStatPick': return 'CHOICE OF STATS';
     case 'reshapeCard': return RESHAPE_HINT[hint.offer.mode];
     case 'reshapeGem': return GEM_RESHAPE_HINT[hint.offer.mode];
+    case 'rerollCard': return `REROLL A CARD · UP TO ${hint.offer.rolls} ROLLS`;
+    case 'rerollGem': return `REROLL A GEM · UP TO ${hint.offer.rolls} ROLLS`;
+    case 'forgeEquipment': return `FORGE AN ITEM · ${FORGE_COST} BROKEN PIECES`;
+    case 'upgradeEquipment': return 'UPGRADE AN ITEM · +1 STAT';
     default: {
       const exhaustive: never = hint;
       throw new Error(`eventOutcomeHintText: unknown outcome ${String((exhaustive as RunEventOutcomeHint).kind)}`);
@@ -426,6 +441,28 @@ export function outcomeHeadline(outcome: EventOutcome | EventOutcomeV3): { headl
       return { headline: GEM_RESHAPE_PICK_TITLE[outcome.offer.mode], detail: '' };
     case 'gemReshaped':
       return gemReshapeHeadline(outcome);
+    case 'rerollCard':
+      return { headline: outcome.offer.rolled === undefined ? REROLL_PICK_TITLE.card : 'KEEP IT OR ROLL AGAIN', detail: '' };
+    case 'rerollGem':
+      return { headline: outcome.offer.rolled === undefined ? REROLL_PICK_TITLE.gem : 'KEEP IT OR ROLL AGAIN', detail: '' };
+    case 'cardRerolled':
+      return {
+        headline: `${skillName(outcome.fromSkillId)} became ${skillName(outcome.skillId)}`,
+        detail: `${outcome.tier.toUpperCase()} · ${outcome.rollsUsed} ROLL${outcome.rollsUsed === 1 ? '' : 'S'}`,
+      };
+    case 'gemRerolled':
+      return {
+        headline: `${gemName(outcome.fromGemId)} became ${gemName(outcome.gemId)}`,
+        detail: `${outcome.rollsUsed} ROLL${outcome.rollsUsed === 1 ? '' : 'S'}`,
+      };
+    case 'forgeEquipment':
+      return { headline: 'Choose an item to forge', detail: '' };
+    case 'upgradeEquipment':
+      return { headline: 'Choose an item to upgrade', detail: '' };
+    case 'equipmentForged':
+      return { headline: `Forged ${equipmentCatalog.item(outcome.itemId, outcome.itemVersion).name}`, detail: `Spent ${outcome.cost} broken pieces` };
+    case 'equipmentUpgraded':
+      return { headline: `${equipmentCatalog.item(outcome.itemId, outcome.itemVersion).name} is now +${outcome.level}`, detail: `Spent ${outcome.cost} broken piece${outcome.cost === 1 ? '' : 's'}` };
     case 'grantShopRerolls':
       return {
         headline: `${outcome.amount} free shop reroll${outcome.amount === 1 ? '' : 's'}`,

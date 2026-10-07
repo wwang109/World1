@@ -14245,8 +14245,7 @@
                     "kind": "reshapeCard",
                     "mode": "shatter",
                     "fallback": {
-                      "kind": "grantGold",
-                      "amount": 2
+                      "kind": "nothing"
                     }
                   }
                 },
@@ -14271,7 +14270,7 @@
           "version": 1,
           "def": {
             "title": "The Gem-Cutter's Wheel",
-            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face.",
+            "body": "A gem-cutter works a wheel by the roadside, recutting stones into new shapes of the same grade. Dislike the cut, and she will put it back on the wheel.",
             "theme": "cache",
             "rarity": "uncommon",
             "story": {
@@ -14298,11 +14297,11 @@
               "fixed": [
                 {
                   "id": "recut",
-                  "label": "Recut a gem from your pouch",
+                  "label": "Recut a gem (up to 4 rolls)",
                   "cost": 0,
                   "outcome": {
-                    "kind": "reshapeGem",
-                    "mode": "transform",
+                    "kind": "rerollGem",
+                    "rolls": 4,
                     "fallback": {
                       "kind": "nothing"
                     }
@@ -14311,6 +14310,63 @@
                 {
                   "id": "leave",
                   "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fitting_yard",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fitting Yard",
+            "body": "A yard-master swaps your weapon for another of the same kind until one fits your hand. Each swap is final, but you may keep swapping.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "fitting_yard",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "node.depth",
+              "args": {
+                "op": "gte",
+                "value": 2
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "run",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "refit",
+                  "label": "Reroll a card, same type (up to 4 rolls)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "rerollCard",
+                    "rolls": 4,
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "leave",
+                  "label": "Keep what you carry",
                   "cost": 0,
                   "outcome": {
                     "kind": "nothing"
@@ -14566,6 +14622,1628 @@
                 {
                   "id": "leave",
                   "label": "No thanks",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_fencing_hall",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fencing Hall",
+            "body": "A fencing master left her rack unlocked. A note on it reads: \"For a sword hand only.\"",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_fencing_hall",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "weapons": [
+                    "sword"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Duelist piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_arcanist_study",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Arcanist's Study",
+            "body": "A scholar has abandoned his study mid-sentence. His robes and trinkets still hum with spellwork.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_arcanist_study",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "properties": [
+                    "magical"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take an Arcanist piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_fallen_bastion",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fallen Bastion",
+            "body": "A collapsed watchtower. Its last defender left her kit folded by the door, as if she meant to come back.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_fallen_bastion",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "defensive"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Bastion piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_ironwall_forge",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ironwall Forge",
+            "body": "A cold forge with one finished order on the anvil, never collected. The plate is your size.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_ironwall_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "defensive"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take an Ironwall piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_warded_chapel",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Warded Chapel",
+            "body": "Wards are carved into every pew. In the vestry hang robes stitched with the same marks.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_warded_chapel",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "defensive"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Spellguard piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_ravager_camp",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Ravager Camp",
+            "body": "Raiders broke camp in a hurry. Their trophies are still hanging from the tent poles.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_ravager_camp",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "offense"
+                  ],
+                  "properties": [
+                    "physical"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Ravager piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_storm_shrine",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Storm Shrine",
+            "body": "Lightning has struck this shrine so often the stone is glass. Offerings to the storm sit on the altar.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_storm_shrine",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "offense"
+                  ],
+                  "properties": [
+                    "magical"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Stormcaller piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_field_infirmary",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Field Infirmary",
+            "body": "An empty field hospital. The healers left their vestments behind for whoever tends the wounded next.",
+            "theme": "recruit",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_field_infirmary",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "healing"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Restorer piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_hunting_lodge",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Hunting Lodge",
+            "body": "An empty lodge with a bow on every wall. The hunter's coat still smells of pine.",
+            "theme": "cache",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_hunting_lodge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "weapons": [
+                    "bow"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Huntsman piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_war_tent",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The War Tent",
+            "body": "A commander's tent, maps still pinned to the table. Whoever planned this campaign left in a hurry.",
+            "theme": "training",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_war_tent",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "support"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Tactician piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_hexweaver_hut",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Hexweaver's Hut",
+            "body": "Knotted cords hang from the rafters of a crooked hut. Each knot is a curse someone paid for.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_hexweaver_hut",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "owned.card.count",
+              "args": {
+                "where": "board",
+                "count": 2,
+                "match": {
+                  "archetypes": [
+                    "debuff"
+                  ]
+                }
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "take_piece",
+                  "label": "Take a Hexweaver piece",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Walk on",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_arms_dealer",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Arms Dealer",
+            "body": "An arms dealer lays out swords, bows and raider gear. \"No coin,\" he says. \"Give me a card and take a piece of warrior gear.\"",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_arms_dealer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 5,
+                    "match": {}
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "weapons": [
+                            "sword"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "weapons": [
+                            "bow"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "offense"
+                          ],
+                          "properties": [
+                            "physical"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_card",
+                  "label": "Trade a card for Warrior gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_hedge_mage",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Hedge Mage",
+            "body": "A hedge mage trades in enchanted robes and seals. She will swap one of her pieces for one of your cards.",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_hedge_mage",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 5,
+                    "match": {}
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "properties": [
+                            "magical"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "offense"
+                          ],
+                          "properties": [
+                            "magical"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "debuff"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_card",
+                  "label": "Trade a card for Arcane gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_quartermaster",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Quartermaster",
+            "body": "An army quartermaster is short on cards and long on armor. \"One of yours for one of mine,\" he says.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_quartermaster",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 5,
+                    "match": {}
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "board",
+                    "count": 2,
+                    "match": {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_card",
+                  "label": "Trade a card for Guardian gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_trinket_trader",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Trinket Trader",
+            "body": "A trader rattles a tray of seals, knots and charms. She takes payment only in cards.",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_trinket_trader",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "any",
+                    "count": 5,
+                    "match": {}
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "healing"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "support"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_card",
+                  "label": "Trade a card for Support gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "reshapeCard",
+                    "mode": "sacrifice",
+                    "fallback": {
+                      "kind": "nothing"
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your cards",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_collector",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Collector",
+            "body": "A collector of fine gear eyes what you are wearing. \"I pay well,\" he says, \"but I keep what I buy.\"",
+            "theme": "market",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_collector",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "equipment.equipped.count",
+              "args": {
+                "op": "gte",
+                "value": 1,
+                "slots": [
+                  "armor",
+                  "accessory"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "sell_armor",
+                  "label": "Trade your armor for a Silver card",
+                  "cost": 0,
+                  "equipmentCost": "armor",
+                  "outcome": {
+                    "kind": "cardChoice",
+                    "filter": [
+                      {
+                        "properties": [
+                          "physical",
+                          "magical",
+                          "true"
+                        ]
+                      }
+                    ],
+                    "maxTier": "gold",
+                    "minTier": "silver"
+                  }
+                },
+                {
+                  "id": "sell_accessory",
+                  "label": "Trade your accessory for a gem",
+                  "cost": 0,
+                  "equipmentCost": "accessory",
+                  "outcome": {
+                    "kind": "gemChoice"
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your gear",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_fortune_teller",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Fortune Teller",
+            "body": "A fortune teller turns your charm over in her palm. \"Leave this with me and I will read one of your cards into something greater.\"",
+            "theme": "omen",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_fortune_teller",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "fact": "equipment.equipped.count",
+              "args": {
+                "op": "gte",
+                "value": 1,
+                "slots": [
+                  "charm"
+                ]
+              }
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "trade_charm",
+                  "label": "Trade your charm to upgrade a card",
+                  "cost": 0,
+                  "equipmentCost": "charm",
+                  "outcome": {
+                    "kind": "upgradeCardTargeted",
+                    "target": {
+                      "filter": {
+                        "where": "board",
+                        "match": {
+                          "archetypes": [
+                            "offense",
+                            "defensive",
+                            "healing",
+                            "support",
+                            "debuff"
+                          ]
+                        }
+                      }
+                    },
+                    "fallback": {
+                      "kind": "grantGold",
+                      "amount": 3
+                    }
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Keep your charm",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_weaponsmith",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Weaponsmith",
+            "body": "A weaponsmith sorts scrap into neat piles. \"Three broken pieces and I will make you something whole,\" she says. \"Or I can sharpen what you already carry.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_weaponsmith",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "equipment.broken.count",
+                  "args": {
+                    "op": "gte",
+                    "value": 1
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "weapons": [
+                            "sword"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "weapons": [
+                            "bow"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "offense"
+                          ],
+                          "properties": [
+                            "physical"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "forge_item",
+                  "label": "Forge an item (3 broken pieces)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "forgeEquipment",
+                    "sets": [
+                      "duelist",
+                      "huntsman",
+                      "ravager"
+                    ]
+                  }
+                },
+                {
+                  "id": "upgrade_item",
+                  "label": "Upgrade an item",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeEquipment",
+                    "sets": [
+                      "duelist",
+                      "huntsman",
+                      "ravager"
+                    ]
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_arcane_forge",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Arcane Forge",
+            "body": "Runes glow along a cold anvil. The enchanter who tends it can bind broken pieces into new gear, or pour more power into what you have.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_arcane_forge",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "equipment.broken.count",
+                  "args": {
+                    "op": "gte",
+                    "value": 1
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "properties": [
+                            "magical"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "offense"
+                          ],
+                          "properties": [
+                            "magical"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "debuff"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "forge_item",
+                  "label": "Forge an item (3 broken pieces)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "forgeEquipment",
+                    "sets": [
+                      "arcanist",
+                      "stormcaller",
+                      "hexweaver"
+                    ]
+                  }
+                },
+                {
+                  "id": "upgrade_item",
+                  "label": "Upgrade an item",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeEquipment",
+                    "sets": [
+                      "arcanist",
+                      "stormcaller",
+                      "hexweaver"
+                    ]
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_armorer",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Armorer",
+            "body": "An armorer hammers dents out of a breastplate. \"Bring me scrap and I will make you plate,\" he says. \"Bring me more and I will make it stronger.\"",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_armorer",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "equipment.broken.count",
+                  "args": {
+                    "op": "gte",
+                    "value": 1
+                  }
+                },
+                {
+                  "fact": "owned.card.count",
+                  "args": {
+                    "where": "board",
+                    "count": 2,
+                    "match": {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "forge_item",
+                  "label": "Forge an item (3 broken pieces)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "forgeEquipment",
+                    "sets": [
+                      "bastion",
+                      "ironwall",
+                      "spellguard"
+                    ]
+                  }
+                },
+                {
+                  "id": "upgrade_item",
+                  "label": "Upgrade an item",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeEquipment",
+                    "sets": [
+                      "bastion",
+                      "ironwall",
+                      "spellguard"
+                    ]
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Leave",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "nothing"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "equip_tinker",
+      "repeatable": true,
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "title": "The Tinker",
+            "body": "A tinker's cart rattles with half-mended trinkets. She can fit broken pieces together, or tune a piece you already own.",
+            "theme": "forge",
+            "rarity": "uncommon",
+            "story": {
+              "storyId": "equip_tinker",
+              "stage": "setup",
+              "role": "setup"
+            },
+            "eligibility": {
+              "all": [
+                {
+                  "fact": "equipment.broken.count",
+                  "args": {
+                    "op": "gte",
+                    "value": 1
+                  }
+                },
+                {
+                  "any": [
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "healing"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "fact": "owned.card.count",
+                      "args": {
+                        "where": "board",
+                        "count": 2,
+                        "match": {
+                          "archetypes": [
+                            "support"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "delivery": {
+              "kind": "ambient"
+            },
+            "visibility": "visible",
+            "priority": 0,
+            "once": "node",
+            "cooldownNodes": 0,
+            "choiceSet": {
+              "fixed": [
+                {
+                  "id": "forge_item",
+                  "label": "Forge an item (3 broken pieces)",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "forgeEquipment",
+                    "sets": [
+                      "restorer",
+                      "tactician"
+                    ],
+                    "items": [
+                      "wind_charm"
+                    ]
+                  }
+                },
+                {
+                  "id": "upgrade_item",
+                  "label": "Upgrade an item",
+                  "cost": 0,
+                  "outcome": {
+                    "kind": "upgradeEquipment",
+                    "sets": [
+                      "restorer",
+                      "tactician"
+                    ],
+                    "items": [
+                      "wind_charm"
+                    ]
+                  }
+                },
+                {
+                  "id": "walk_on",
+                  "label": "Leave",
                   "cost": 0,
                   "outcome": {
                     "kind": "nothing"

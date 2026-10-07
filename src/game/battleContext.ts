@@ -1,5 +1,5 @@
 import { demoState } from './demoState';
-import { activeChallengeFight, activeExtraGhostFight, activeSubstituteGhost, currentNode, getActiveRun } from './runStore';
+import { activeChallengeFight, activeExtraGhostFight, activeSubstituteGhost, currentNode, getActiveRun, currentEquippedEquipment } from './runStore';
 import { nodeById, rollEncounter } from '../run/runState';
 import { ghostToBattlePieces } from '../run/ghost';
 import { hashSeed } from '../engine/rng';
@@ -32,6 +32,7 @@ function demoBattleInput(): BattleTimelineInput {
     pieces: demoState.pieces,
     heroLevel: demoState.heroLevel,
     heroAllocation: demoState.heroAllocation,
+    ...(demoState.heroEquipment?.length ? { heroEquipment: demoState.heroEquipment.map(ref => ({ ...ref })) } : {}),
     enemyId: demoState.enemyId,
     enemyLevel: demoState.enemyLevel,
     enemyTitle: demoState.enemyTitle,
@@ -148,7 +149,7 @@ function runBattleInput(): BattleTimelineInput | null {
 export function getBattleTimelineInput(): BattleTimelineInput {
   if (source === 'run') {
     const input = runBattleInput();
-    if (input) return input;
+    if (input) return { ...input, heroEquipment: currentEquippedEquipment().map(ref => ({ ...ref })) };
   }
   return demoBattleInput();
 }

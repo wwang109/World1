@@ -61,6 +61,7 @@ export function captureLoadout(): ShareLoadout {
     board,
     bag,
     gems: [...demoState.gemInventory],
+    ...(demoState.heroEquipment?.length ? { equipment: demoState.heroEquipment.map(ref => ({ ...ref })) } : {}),
   };
 }
 
@@ -72,6 +73,8 @@ export function captureLoadout(): ShareLoadout {
  * the import dialog shows (empty = clean apply).
  */
 export function applyAsHero(loadout: ShareLoadout): string[] {
+  if (loadout.equipment?.length) demoState.heroEquipment = loadout.equipment.map(ref => ({ ...ref }));
+  else delete demoState.heroEquipment;
   const report: string[] = [];
 
   const pieces: OwnedBoardPiece[] = loadout.board.map((card) => {
@@ -150,6 +153,11 @@ export function applyAsFoe(loadout: ShareLoadout): string[] {
   foe.level = Math.max(1, Math.floor(loadout.heroLevel));
   foe.title = 'normal';
   foe.affix = null;
+  if (loadout.equipment?.length) {
+    foe.ghost = { pieces: deck, level: foe.level, allocation: countsToAllocation(loadout.allocation), displayName: 'Shared Hero', equipment: loadout.equipment.map(ref => ({ ...ref })) };
+    foe.deck = null;
+    foe.modifiers = [];
+  } else foe.ghost = null;
   syncPrimaryFoe();
 
   const drops: string[] = [];
@@ -159,7 +167,7 @@ export function applyAsFoe(loadout: ShareLoadout): string[] {
   if (loadout.gems.length > 0) {
     drops.push(`${loadout.gems.length} loose gem${loadout.gems.length === 1 ? '' : 's'} dropped — a foe has no inventory`);
   }
-  if (loadout.allocation.some((buys) => buys > 0)) {
+  if (!loadout.equipment?.length && loadout.allocation.some((buys) => buys > 0)) {
     drops.push('stat spend dropped — the foe auto-spends its LV');
   }
   return drops;

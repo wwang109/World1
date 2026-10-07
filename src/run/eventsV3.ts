@@ -45,7 +45,14 @@ import {
   reshapeFallbackV3,
   reshapeGemOfferV3,
   reshapeOfferV3,
+  rerollCardOfferV3,
+  rerollGemOfferV3,
   scavengeOptionsV3,
+  stepRerollCardV3,
+  stepRerollGemV3,
+  type EventCardRerollSettlementV3,
+  type EventGemRerollSettlementV3,
+  type EventRerollStepV3,
   settleReshapeGemV3,
   settleReshapeV3,
   type EventGemReshapeSettlementV3,
@@ -63,6 +70,8 @@ import {
   withStatPurchased,
 } from './market';
 import type { MarketStat } from '../data/eventTypes';
+import { equippedInSlot, spendEquippedEquipment } from './equipmentInventory';
+import { canForge, canUpgrade, FORGE_COST, forgeEquipment, upgradeEquipment, upgradeOptions } from './equipmentWorkshop';
 
 type PendingEventOfferV3<K extends EventDeferredOfferV3['kind']> =
   Extract<Extract<EventDeferredOfferV3, { kind: K }>, { status: 'pending' }>;
@@ -92,6 +101,14 @@ export type EventOutcomeV3 =
   | { kind: 'reshapeGem'; offer: PendingEventOfferV3<'reshapeGem'> }
   | EventGemReshapeSettlementV3
   | { kind: 'grantShopRerolls'; amount: number; total: number }
+  | { kind: 'rerollCard'; offer: PendingEventOfferV3<'rerollCard'> }
+  | { kind: 'rerollGem'; offer: PendingEventOfferV3<'rerollGem'> }
+  | { kind: 'forgeEquipment'; offer: PendingEventOfferV3<'forgeEquipment'> }
+  | { kind: 'upgradeEquipment'; offer: PendingEventOfferV3<'upgradeEquipment'> }
+  | { kind: 'equipmentForged'; itemId: string; itemVersion: number; cost: number }
+  | { kind: 'equipmentUpgraded'; itemId: string; itemVersion: number; level: number; cost: number }
+  | EventCardRerollSettlementV3
+  | EventGemRerollSettlementV3
   | EventRewardSettlementV3;
 
 export type MaterializeReachedEventV3Result =
@@ -131,6 +148,10 @@ export function eventOutcomeForPendingOfferV3(
     case 'buyStatPick': return { kind: 'buyStatPick', offer };
     case 'reshapeCard': return { kind: 'reshapeCard', offer };
     case 'reshapeGem': return { kind: 'reshapeGem', offer };
+    case 'rerollCard': return { kind: 'rerollCard', offer };
+    case 'rerollGem': return { kind: 'rerollGem', offer };
+    case 'forgeEquipment': return { kind: 'forgeEquipment', offer };
+    case 'upgradeEquipment': return { kind: 'upgradeEquipment', offer };
     case 'grantCard':
     case 'grantGem':
       throw new Error(`eventOutcomeForPendingOfferV3: ${offer.kind} is immediate, not a picker`);
@@ -221,8 +242,8 @@ export function correlatedMaterializedChoiceV3(
     ? offer === undefined
     : outcome.kind === 'scavengeCard'
       ? offer?.kind === 'bonusDraft'
-    : outcome.kind === 'buyStatPick'
-      ? offer === undefined || offer.kind === 'buyStatPick'
+    : outcome.kind === 'buyStatPick' || outcome.kind === 'forgeEquipment' || outcome.kind === 'upgradeEquipment'
+      ? offer === undefined || offer.kind === outcome.kind
       : outcome.kind === 'challengeFight'
         ? offer === undefined || offer.kind === outcome.reward.kind
         : offer?.kind === outcome.kind;
@@ -250,7 +271,9 @@ function legacyCommitment(
     || outcome.kind === 'nothing' || outcome.kind === 'challengeFight'
     || outcome.kind === 'buyLife' || outcome.kind === 'buyStat' || outcome.kind === 'buyStatPick'
     || outcome.kind === 'grantStat' || outcome.kind === 'reshapeCard' || outcome.kind === 'reshapeGem'
-    || outcome.kind === 'scavengeCard' || outcome.kind === 'grantShopRerolls') return undefined;
+    || outcome.kind === 'scavengeCard' || outcome.kind === 'grantShopRerolls'
+    || outcome.kind === 'rerollCard' || outcome.kind === 'rerollGem'
+    || outcome.kind === 'forgeEquipment' || outcome.kind === 'upgradeEquipment') return undefined;
   if (outcome.kind === 'sellGem' && state.gemInventory.length === 0) {
     return { kind: 'sellGem', status: 'unavailable' };
   }
@@ -372,6 +395,10 @@ export function materializeReachedEventV3(
         offers[choice.id] = reshapeOfferV3(bound.state, instance.instanceId, choice.id, outcome);
       } else if (outcome?.kind === 'reshapeGem') {
         offers[choice.id] = reshapeGemOfferV3(bound.state, instance.instanceId, choice.id, outcome);
+      } else if (outcome?.kind === 'rerollCard') {
+        offers[choice.id] = rerollCardOfferV3(bound.state, outcome);
+      } else if (outcome?.kind === 'rerollGem') {
+        offers[choice.id] = rerollGemOfferV3(bound.state, outcome);
       } else if (outcome?.kind === 'scavengeCard') {
         offers[choice.id] = { kind: 'bonusDraft', status: 'pending', options: scavengeOptionsV3(bound.state) };
       } else if (outcome !== undefined) {
@@ -553,6 +580,8 @@ function applyLegacyCommitment(
     case 'upgradeCardTargeted':
     case 'reshapeCard':
     case 'reshapeGem':
+    case 'rerollCard':
+    case 'rerollGem':
       return undefined;
   }
 }
@@ -639,6 +668,18 @@ function applyDirectOutcome(
         pending: true,
       };
     }
+    case 'forgeEquipment':
+    case 'upgradeEquipment': {
+      const workshop = { sets: outcome.sets, ...(outcome.items === undefined ? {} : { items: outcome.items }) };
+      const outcomeOffer = outcome.kind === 'forgeEquipment'
+        ? { kind: 'forgeEquipment' as const, offer: { kind: 'forgeEquipment' as const, ...workshop, status: 'pending' as const } }
+        : { kind: 'upgradeEquipment' as const, offer: { kind: 'upgradeEquipment' as const, ...workshop, status: 'pending' as const } };
+      return {
+        state: updateOffer(state, instanceId, choiceId, outcomeOffer.offer),
+        outcome: outcomeOffer,
+        pending: true,
+      };
+    }
     case 'nothing':
       return { state, outcome: { kind: 'nothing' }, pending: false };
     case 'challengeFight': {
@@ -678,6 +719,18 @@ function applyDirectOutcome(
         return { state: updateOffer(fellBack.state, instanceId, choiceId, settledOffer(offer)), outcome: fellBack.outcome, pending: false };
       }
       return { state, outcome: { kind: 'reshapeGem', offer }, pending: true };
+    }
+    case 'rerollCard':
+    case 'rerollGem': {
+      const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
+      if (offer?.kind !== outcome.kind || offer.status !== 'pending') return undefined;
+      if (offer.options.length === 0) {
+        const fellBack = applyEventFallbackV3(state, offer.fallback);
+        return { state: updateOffer(fellBack.state, instanceId, choiceId, settledOffer(offer)), outcome: fellBack.outcome, pending: false };
+      }
+      return offer.kind === 'rerollCard'
+        ? { state, outcome: { kind: 'rerollCard', offer }, pending: true }
+        : { state, outcome: { kind: 'rerollGem', offer }, pending: true };
     }
     case 'scavengeCard': {
       const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[choiceId];
@@ -788,8 +841,9 @@ export function resolveEventChoiceV3(
     // exit, or hitting the cap, closes the node for good, same as before).
     const previousChoice = allChoices(event).find((candidate) => candidate.id === existingResolution.choiceId);
     const previousWasMarketBuy = previousChoice !== undefined && isMarketBuyOutcomeKind(previousChoice.outcome.kind);
+    const previousWasWorkshop = previousChoice !== undefined && isWorkshopOutcomeKind(previousChoice.outcome.kind) && existingResolution.pending !== true;
     const visits = existingResolution.marketVisits ?? 1;
-    if (!previousWasMarketBuy || visits >= MARKET_VISITS_PER_NODE) {
+    if (!previousWasWorkshop && (!previousWasMarketBuy || visits >= MARKET_VISITS_PER_NODE)) {
       return { ok: false, state, reason: 'choice' };
     }
   }
@@ -798,6 +852,11 @@ export function resolveEventChoiceV3(
   if (cost > state.gold) return { ok: false, state, reason: 'cost' };
   const lifeCost = choice.lifeCost ?? 0;
   if (lifeCost > 0 && state.lives <= lifeCost) return { ok: false, state, reason: 'cost' };
+  if (choice.equipmentCost !== undefined && equippedInSlot(state, choice.equipmentCost) === undefined) {
+    return { ok: false, state, reason: 'cost' };
+  }
+  if (direct.kind === 'forgeEquipment' && !canForge(state, direct)) return { ok: false, state, reason: 'cost' };
+  if (direct.kind === 'upgradeEquipment' && !canUpgrade(state, direct)) return { ok: false, state, reason: 'cost' };
 
   const persistedOffer = correlated.offer;
   if ((direct.kind === 'sellGem' || direct.kind === 'mergeCards')
@@ -823,6 +882,9 @@ export function resolveEventChoiceV3(
     stats: { ...state.stats, goldSpent: state.stats.goldSpent + cost },
   };
   if (lifeCost > 0) working = { ...working, lives: working.lives - lifeCost };
+  const previousWorkshopChoice = existingResolution === undefined ? undefined : allChoices(event).find((candidate) => candidate.id === existingResolution.choiceId);
+  if (previousWorkshopChoice !== undefined && isWorkshopOutcomeKind(previousWorkshopChoice.outcome.kind)) working = clearWorkshopOffers(working, instanceId);
+  if (choice.equipmentCost !== undefined) working = spendEquippedEquipment(working, choice.equipmentCost) ?? working;
   const applied = applyDirectOutcome(working, located.node, instanceId, choiceId, direct);
   if (applied === undefined) return { ok: false, state, reason: 'outcome' };
   working = applyMutations(applyMutations(applied.state, choice.mutations), branchMutations);
@@ -905,8 +967,73 @@ export function cancelBuyStatPickV3(state: RunState, instanceId: string): RunSta
   const resolution = state.eventResolutions?.[located.nodeId];
   if (resolution?.instanceId !== instanceId || resolution.pending !== true) return state;
   const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[resolution.choiceId];
-  if (offer?.kind !== 'buyStatPick' || offer.status !== 'pending') return state;
+  if ((offer?.kind !== 'buyStatPick' && offer?.kind !== 'forgeEquipment' && offer?.kind !== 'upgradeEquipment') || offer.status !== 'pending') return state;
   return clearPending(state, instanceId);
+}
+
+function clearWorkshopOffers(state: RunState, instanceId: string): RunState {
+  const materialization = state.eventMaterializations[instanceId];
+  if (materialization === undefined) return state;
+  const deferredOffersByChoiceId = Object.fromEntries(Object.entries(materialization.deferredOffersByChoiceId)
+    .filter(([, offer]) => offer.kind !== 'forgeEquipment' && offer.kind !== 'upgradeEquipment'));
+  return { ...state, eventMaterializations: { ...state.eventMaterializations, [instanceId]: { ...materialization, deferredOffersByChoiceId } } };
+}
+
+export function isWorkshopOutcomeKind(kind: string): boolean {
+  return kind === 'forgeEquipment' || kind === 'upgradeEquipment';
+}
+
+function workshopSpecOf(state: RunState, instanceId: string, choiceId: string, lookup: EventDefinitionLookup<LoadedEventDef>) {
+  const located = nodeAndInstance(state, instanceId);
+  const instance = located === undefined ? undefined : state.eventInstances[located.nodeId];
+  const event = instance === undefined ? undefined : lookup(instance.eventId, instance.contentVersion);
+  if (located === undefined || event === undefined || !isEventDefV3(event)) return undefined;
+  const choice = allChoices(event).find((candidate) => candidate.id === choiceId);
+  const outcome = choice?.outcome;
+  if (outcome === undefined || (outcome.kind !== 'forgeEquipment' && outcome.kind !== 'upgradeEquipment')) return undefined;
+  return { located, outcome };
+}
+
+function settleWorkshop(state: RunState, nodeId: string): RunState {
+  const resolution = state.eventResolutions?.[nodeId];
+  if (resolution === undefined) return state;
+  const { pending: _pending, ...settled } = resolution;
+  return { ...state, eventResolutions: { ...(state.eventResolutions ?? {}), [nodeId]: settled } };
+}
+
+export function finalizeForgeEquipmentV3(
+  state: RunState, instanceId: string, choiceId: string, itemId: string,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' | 'cost' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'forgeEquipment', lookup);
+  if (transaction.status !== 'pending') return { ok: false, state, reason: transaction.status === 'invalid' ? 'choice' : 'offer' };
+  const spec = workshopSpecOf(state, instanceId, choiceId, lookup);
+  if (spec === undefined || spec.outcome.kind !== 'forgeEquipment') return { ok: false, state, reason: 'choice' };
+  const forged = forgeEquipment(state, spec.outcome, itemId, instanceId);
+  if (forged === undefined) return { ok: false, state, reason: 'cost' };
+  return {
+    ok: true,
+    state: updateOffer(settleWorkshop(forged.state, spec.located.nodeId), instanceId, choiceId, { ...transaction.offer, status: 'settled', selectedId: itemId }),
+    outcome: { kind: 'equipmentForged', itemId: forged.item.itemId, itemVersion: forged.item.itemVersion, cost: FORGE_COST },
+  };
+}
+
+export function finalizeUpgradeEquipmentV3(
+  state: RunState, instanceId: string, choiceId: string, ownedInstanceId: string,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' | 'cost' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, 'upgradeEquipment', lookup);
+  if (transaction.status !== 'pending') return { ok: false, state, reason: transaction.status === 'invalid' ? 'choice' : 'offer' };
+  const spec = workshopSpecOf(state, instanceId, choiceId, lookup);
+  if (spec === undefined || spec.outcome.kind !== 'upgradeEquipment') return { ok: false, state, reason: 'choice' };
+  const cost = upgradeOptions(state, spec.outcome).find((option) => option.instanceId === ownedInstanceId)?.cost ?? 0;
+  const upgraded = upgradeEquipment(state, spec.outcome, ownedInstanceId);
+  if (upgraded === undefined) return { ok: false, state, reason: 'cost' };
+  return {
+    ok: true,
+    state: updateOffer(settleWorkshop(upgraded.state, spec.located.nodeId), instanceId, choiceId, { ...transaction.offer, status: 'settled', selectedId: ownedInstanceId }),
+    outcome: { kind: 'equipmentUpgraded', itemId: upgraded.itemId, itemVersion: upgraded.itemVersion, level: upgraded.level, cost },
+  };
 }
 
 type FinalizerTransactionV3<K extends EventDeferredOfferV3['kind']> =
@@ -1052,6 +1179,29 @@ export function finalizeReshapeCardV3(
   const applied = settled ?? reshapeFallbackV3(state, transaction.offer);
   const next = updateOffer(applied.state, instanceId, choiceId, settledOffer(transaction.offer, selectedInstanceId));
   return { ok: true, state: clearPending(next, instanceId), outcome: applied.outcome };
+}
+
+export function finalizeRerollV3(
+  state: RunState,
+  instanceId: string,
+  choiceId: string,
+  kind: 'rerollCard' | 'rerollGem',
+  step: EventRerollStepV3,
+  lookup: EventDefinitionLookup<LoadedEventDef> = eventDefAtVersion,
+): { ok: true; state: RunState; outcome: EventOutcomeV3 } | { ok: false; state: RunState; reason: 'choice' | 'offer' } {
+  const transaction = finalizerTransactionV3(state, instanceId, choiceId, kind, lookup);
+  if (transaction.status === 'invalid') return { ok: false, state, reason: 'choice' };
+  if (transaction.status === 'settled') return { ok: true, state, outcome: { kind: 'alreadySettled' } };
+  const offer = transaction.offer;
+  const result = offer.kind === 'rerollCard'
+    ? stepRerollCardV3(state, offer, instanceId, choiceId, step)
+    : stepRerollGemV3(state, offer as PendingEventOfferV3<'rerollGem'>, instanceId, choiceId, step);
+  if (result === undefined) return { ok: false, state, reason: 'offer' };
+  const next = updateOffer(result.state, instanceId, choiceId, result.offer);
+  if (result.outcome !== undefined) return { ok: true, state: clearPending(next, instanceId), outcome: result.outcome };
+  return result.offer.kind === 'rerollCard'
+    ? { ok: true, state: next, outcome: { kind: 'rerollCard', offer: result.offer as PendingEventOfferV3<'rerollCard'> } }
+    : { ok: true, state: next, outcome: { kind: 'rerollGem', offer: result.offer as PendingEventOfferV3<'rerollGem'> } };
 }
 
 export function finalizeReshapeGemV3(

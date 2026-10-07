@@ -229,6 +229,66 @@ export function popStatusChip(scene: Phaser.Scene, chip: Phaser.GameObjects.Text
   scene.tweens.add({ targets: chip, scale: 1, duration: 140 / speedMult, ease: 'Back.easeOut' });
 }
 
+const SUDDEN_DEATH_RED = 0xc8302c;
+const SUDDEN_DEATH_PULSE_MS = 1400;
+
+export function phaseStartStep(fxByStep: readonly TurnFx[][], phase: NonNullable<TurnFx['phase']>): number {
+  return fxByStep.findIndex((fx) => fx.some((f) => f.kind === 'phase' && f.phase === phase));
+}
+
+function pulseEachFrame(scene: Phaser.Scene, owner: Phaser.GameObjects.GameObject, draw: (pulse: number) => void): void {
+  const tick = (time: number): void => draw(0.5 + 0.5 * Math.sin((time / SUDDEN_DEATH_PULSE_MS) * Math.PI * 2));
+  tick(scene.time.now);
+  scene.events.on(Phaser.Scenes.Events.UPDATE, tick);
+  owner.once(Phaser.GameObjects.Events.DESTROY, () => scene.events.off(Phaser.Scenes.Events.UPDATE, tick));
+}
+
+export function pinSuddenDeathBanner(
+  scene: Phaser.Scene, x: number, y: number, w: number, h: number, text: string, fontPx: number,
+  arriving: boolean, speedMult: number,
+): void {
+  const band = scene.add.rectangle(x, y, w, h, 0x4a1012, 0.96).setOrigin(0, 0);
+  const label = scene.add.text(x + w / 2, y + h / 2, text, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: '#ffd9cf',
+  }).setOrigin(0.5);
+  pulseEachFrame(scene, band, (p) => band.setStrokeStyle(2, SUDDEN_DEATH_RED, 0.4 + 0.6 * p));
+  if (!arriving) return;
+  band.x -= w;
+  label.x -= w;
+  scene.tweens.add({ targets: [band, label], x: `+=${w}`, duration: 260 / speedMult, ease: 'Quad.easeOut' });
+}
+
+export function renderSuddenDeathVignette(
+  scene: Phaser.Scene, w: number, h: number, thickness: number, arriving: boolean, speedMult: number,
+): void {
+  const g = scene.add.graphics().setDepth(25);
+  const band = 4;
+  const bands = Math.max(1, Math.round(thickness / band));
+  for (let i = 0; i < bands; i += 1) {
+    const inset = i * band + band / 2;
+    g.lineStyle(band, SUDDEN_DEATH_RED, 0.55 * (1 - i / bands) ** 2);
+    g.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+  }
+  pulseEachFrame(scene, g, (p) => g.setAlpha(0.45 + 0.55 * p));
+  if (!arriving) return;
+  scene.cameras.main.flash(280 / speedMult, 160, 24, 20);
+  scene.cameras.main.shake(220 / speedMult, 0.004);
+}
+
+export function minimizeButton(
+  scene: Phaser.Scene, x: number, y: number, w: number, h: number, fontPx: number, depth: number, onPress: () => void,
+): void {
+  const fill = 0x1a2436;
+  const box = scene.add.rectangle(x, y, w, h, fill, 0.95).setOrigin(0, 0).setDepth(depth)
+    .setStrokeStyle(1, 0xb78a46, 0.8).setInteractive({ useHandCursor: true });
+  box.on('pointerover', () => box.setFillStyle(0x2a3a52, 0.95));
+  box.on('pointerout', () => box.setFillStyle(fill, 0.95));
+  box.on('pointerdown', onPress);
+  scene.add.text(x + w / 2, y + h / 2, '—', {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: '#e8b446',
+  }).setOrigin(0.5).setDepth(depth);
+}
+
 export function slidePhaseBanner(
   scene: Phaser.Scene, x: number, y: number, w: number, h: number, text: string, speedMult: number,
 ): void {

@@ -807,6 +807,22 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleSentence: 'Deal X physical damage when hit by an attack, then lose 1 Thorns.',
     faceToken: (a) => ({ text: `${STATUS_TOKEN.thorns} ${a.stacks}`, keyword: 'thorns' }),
   },
+  regen: {
+    composeGroup: 'selfGrant',
+    displayToken: 'regen',
+    faceClause: (a) => `{{Regen}} ${a.stacks}`,
+    ruleTitle: 'Regen',
+    ruleSentence: 'Heal X HP at the end of each turn, then lose 1 Regen.',
+    faceToken: (a) => ({ text: `REGEN ${a.stacks}`, keyword: 'regen' }),
+  },
+  haste: {
+    composeGroup: 'selfGrant',
+    displayToken: 'haste',
+    faceClause: (a) => `{{Haste}} ${a.amount}`,
+    ruleTitle: 'Haste',
+    ruleSentence: 'Gain X Readiness, so your next card comes sooner.',
+    faceToken: (a) => ({ text: `HASTE ${a.amount}`, keyword: 'haste' }),
+  },
   guard: {
     composeGroup: 'selfGrant',
     displayToken: 'guard',
@@ -955,6 +971,14 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleSentence: 'Deal X more damage while at or below half HP.',
     faceToken: (a) => ({ text: `DESPERATION ${a.amount}`, keyword: 'bleed' }),
   },
+  execute: {
+    composeGroup: 'conditional',
+    displayToken: undefined,
+    faceClause: (a) => `Execute ${a.amount}`,
+    ruleTitle: 'Execute',
+    ruleSentence: 'Deal X more damage to a target at or below half HP.',
+    faceToken: (a) => ({ text: `EXECUTE ${a.amount}`, keyword: 'bleed' }),
+  },
   overhealShield: {
     composeGroup: 'conditional',
     displayToken: 'shield',
@@ -966,10 +990,10 @@ export const KEYWORD_TEXT: KeywordTextTable = {
   cleanseConvert: {
     composeGroup: 'conditional',
     displayToken: 'cleanse',
-    faceClause: (a) => `+${a.per}/{{Cleanse}}d (cap ${a.cap})`,
+    faceClause: (a) => `Heal ${a.per} per stack {{Cleansed|cleanse}}`,
     ruleTitle: 'Cleanse convert',
-    ruleSentence: 'Heal X per affliction removed by this card’s Cleanse, up to X.',
-    faceToken: (a) => ({ text: `+${a.per} HP/CLEANSED (cap ${a.cap})`, keyword: 'cleanse' }),
+    ruleSentence: 'Heal X per affliction stack removed by this card’s Cleanse, up to X.',
+    faceToken: (a) => ({ text: `+${a.per} HP/CLEANSED`, keyword: 'cleanse' }),
   },
 };
 

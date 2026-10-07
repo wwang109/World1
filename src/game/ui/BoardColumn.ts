@@ -8,6 +8,7 @@ import type { ScalingStats, SkillFaceMode } from './skillPresentation';
 export interface ColumnPiece {
   skill: SkillDef;
   slot: number;
+  preparedWeight?: number;
   state?: 'none' | 'cursor' | 'drag';
   /** This instance's tier — see `CardTokenOptions.tier`. Optional: callers
    * with no per-instance tier handy (battle/prep/deck-build's plain
@@ -94,6 +95,7 @@ export class BoardColumn {
           tier: piece.tier,
           comboLive: piece.comboLive,
           slotMods: piece.slotMods,
+          preparedWeight: piece.preparedWeight,
           affinityOpen: piece.affinityOpen,
           accessories: piece.accessories,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,

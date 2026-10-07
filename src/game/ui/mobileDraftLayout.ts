@@ -73,7 +73,7 @@ export function mobileDraftLayout(screenW: number, screenH: number, _runContext 
   };
 }
 
-export function mobileDraftActions(setIndex: number, currentPicked: boolean, ready: boolean): MobileDraftAction[] {
+export function mobileDraftActions(setIndex: number, ready: boolean): MobileDraftAction[] {
   if (setIndex >= 3) {
     return [
       { id: 'back', label: 'BACK', enabled: true },
@@ -83,7 +83,7 @@ export function mobileDraftActions(setIndex: number, currentPicked: boolean, rea
   }
   return [
     ...(setIndex > 0 ? [{ id: 'back' as const, label: 'BACK', enabled: true }] : []),
-    { id: 'next', label: 'NEXT', enabled: currentPicked, primary: true, flex: 1.7 },
+    { id: 'next', label: 'NEXT', enabled: true, primary: true, flex: 1.7 },
   ];
 }
 

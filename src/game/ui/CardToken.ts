@@ -10,6 +10,9 @@ import { effectSegmentJoiner, summarizeEffectSegments, type EffectSegment, type 
 import { keywordTextColor } from './cardTextMarkup';
 import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
 import { syncCardArtMask } from './cardTokenArtMask';
+import { driftCardArt } from './cardArtDrift';
+import { makeTokenCardBody } from './fantasyCardPrintedBody';
+import { fantasyCardRulesRows } from './fantasyCardRulesRows';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -58,6 +61,8 @@ export interface CardTokenOptions {
    * board/bag pieces) should pass it.
    */
   tier?: SkillTier;
+  /** Looping highlight sweep; the shop sets it on shelf offers that can merge. */
+  shine?: boolean;
   /**
    * Opt-in "ⓘ" inspect button, OUTWARD top corner — the shop's owned board/
    * bag columns pass this so the whole card body stays a pure drag surface
@@ -106,6 +111,7 @@ export interface CardTokenOptions {
    *   screen.
    */
   slotMods?: { burden?: number; curse?: number };
+  preparedWeight?: number;
   /**
    * Battle-playback-only affinity-gate state for THIS card, computed once per
    * combatant against the REAL fight (`battleTimeline.ts`'s
@@ -126,6 +132,8 @@ export interface CardTokenOptions {
    * normally: "unknown" is not "closed".
    */
   affinityOpen?: boolean;
+  /** Card-template rules rows (one clause per line) in place of the one-line effects summary. */
+  rulesBody?: boolean;
 }
 
 /** The active platform's default card-face number treatment — mobile keeps
@@ -193,11 +201,7 @@ function effectFaceSegments(
 
 const GRADIENT_KEY = 'cardtoken-gradient';
 
-const TIER_SHINE: Partial<Record<SkillTier, { alpha: number; duration: number; every: number }>> = {
-  silver: { alpha: 0.1, duration: 1100, every: 7000 },
-  gold: { alpha: 0.18, duration: 1000, every: 5000 },
-  diamond: { alpha: 0.24, duration: 900, every: 3500 },
-};
+const ART_DRIFT_SPAN = 0.2;
 
 /**
  * THE shared card token strip. One component for battle boards, deck build,
@@ -272,6 +276,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       img.setScale(scale);
       img.setMask(artMask);
       artHost.add(img);
+      driftCardArt(img, 0, Math.min((img.displayHeight - h) / 2, h * ART_DRIFT_SPAN), skill.id);
     });
 
     // legibility gradient (dark on the text side, fading toward the art) —
@@ -291,7 +296,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     const accent = scene.add.rectangle(spec.accent.x, 0, spec.accent.width, h, accentColor).setOrigin(0.5);
     if (this.cornerRadius) accent.setMask(artMask);
     this.add(accent);
-    if (opts.tier) this.addTierShine(scene, w, h, opts.tier, artMask);
+    if (opts.shine) this.addShine(scene, w, h, artMask);
 
     // text block: NAME · effects summary · affinity(n/3) — all from data,
     // positioned/clamped by the spec's line entries.
@@ -314,7 +319,16 @@ export class CardToken extends Phaser.GameObjects.Container {
     // the keyword palette's value.
     const curse = opts.slotMods?.curse ?? 0;
     const curseSegments = curse > 0 ? [{ text: `−${curse} DMG`, color: keywordTextColor('curse')! }] : [];
-    if (!spec.compact) {
+    const rules = opts.rulesBody && spec.textOriginX === 0 ? spec.rules : null;
+    if (rules) {
+      line(rules.name, skill.name, UI.textBright, true);
+      this.add(makeTokenCardBody(scene, fantasyCardRulesRows(skill), rules.body, 'card-token-rules'));
+      line(
+        rules.affinity,
+        this.affinityLine(skill, type, opts.deck, opts.affinityOpen),
+        opts.affinityOpen === false ? UI.textDisabled : UI.textFootnote,
+      );
+    } else if (!spec.compact) {
       // Name/affinity inks are the THEME TOKENS, not pasted copies of their
       // values — a copy strands the face on the old palette at the next ground
       // lift (the fate of the scenes' `#8a94a6` on 2026-09-02).
@@ -385,7 +399,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     // always renders — unlike the accessory rail, which computes zero slots at
     // mobile card widths and so cannot carry a battle overlay at all.
     const burden = opts.slotMods?.burden ?? 0;
-    scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${weightOf(skill) + burden}`, {
+    scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${Math.max(1, (opts.preparedWeight ?? weightOf(skill)) + burden)}`, {
       fontSize: '9px', color: burden > 0 ? keywordTextColor('burden')! : '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(spec.cornerOriginX, 1));
 
@@ -418,15 +432,12 @@ export class CardToken extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  private addTierShine(scene: Phaser.Scene, w: number, h: number, tier: SkillTier, mask: Phaser.Display.Masks.GeometryMask): void {
-    const shine = TIER_SHINE[tier];
-    if (!shine) return;
-    const band = scene.add.rectangle(-w, 0, Math.max(6, w * 0.16), h * 1.8, 0xffffff, shine.alpha)
+  private addShine(scene: Phaser.Scene, w: number, h: number, mask: Phaser.Display.Masks.GeometryMask): void {
+    const band = scene.add.rectangle(-w, 0, Math.max(6, w * 0.16), h * 1.8, 0xffffff, 0.22)
       .setOrigin(0.5).setAngle(18).setBlendMode('ADD').setMask(mask);
     this.add(band);
     scene.tweens.add({
-      targets: band, x: w, duration: shine.duration, ease: 'Sine.easeInOut',
-      delay: Math.floor(Math.random() * shine.every), repeat: -1, repeatDelay: shine.every,
+      targets: band, x: w, duration: 1000, ease: 'Sine.easeInOut', repeat: -1, repeatDelay: 1800,
     });
   }
 

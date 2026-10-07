@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { applyEquipmentStats } from '../../engine/equipment/resolve';
+import { currentEquipmentResolution } from '../runStore';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
@@ -28,6 +30,8 @@ import {
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 import { encounterDestinationLabel } from '../ui/runTravelChoiceViewModel';
+import { encounterLootChances } from '../ui/equipmentLootTrackingModel';
+import { renderPossibleEquipmentLoot } from '../ui/equipmentPossibleLoot';
 
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
@@ -93,7 +97,8 @@ export class DesktopRunPrepScene extends Phaser.Scene {
 
     this.renderHud(run, node.kind);
     const foeBottom = this.renderFoePanel(node.kind, pack);
-    this.renderHeroPanel(run, foeBottom + DESKTOP_PROFILE.gap);
+    const lootH = renderPossibleEquipmentLoot(this, false, GX, foeBottom + 8, PANEL_W, encounterLootChances(pack.units.map(unit => unit.enemyId)));
+    this.renderHeroPanel(run, foeBottom + DESKTOP_PROFILE.gap + lootH);
     this.renderColumns(run, pack);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -160,6 +165,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       snapshot: snapshotRunProgress(run),
       onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
       actions: {
+        back: { label: 'EQUIPMENT', onPress: () => this.scene.start('DesktopEquipment') },
         secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
         primary: { label: 'FIGHT', onPress: () => this.pressFight() },
@@ -338,7 +344,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), and
     // each bumped stat gets its own "(+N)" attribution (`gemStatSuffix`) so a
     // gem-boosted number reads differently from a naturally level-bought one.
-    const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
+    const s = resolveDisplayHeroStats(applyEquipmentStats(heroSetup.stats,currentEquipmentResolution(),{fullHpAtBattleSetup:true}), heroSetup.pieces);
     const gemAdds = gemHeroStats(heroSetup.pieces);
     const heroPrimary = renderStatRun(this, capabilityStatRun(s, { keys: ['maxHp', 'speed', 'attack', 'magicPower'], gemAdds }), {
       x: innerX, y: cursor, maxWidth: innerW,
@@ -389,7 +395,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     }
     const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation, run.purchasedStats).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
-    const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
+    const heroStats = resolveDisplayHeroStats(applyEquipmentStats(heroSetup.stats,currentEquipmentResolution(),{fullHpAtBattleSetup:true}), heroSetup.pieces);
     new BoardColumn(this, {
       x: leftColX, y: colTop, width: colW, height: colH, side: 'left',
       pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },

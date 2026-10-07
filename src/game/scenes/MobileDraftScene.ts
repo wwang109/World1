@@ -202,13 +202,14 @@ export class MobileDraftScene extends Phaser.Scene {
       this.add.text(x, top + 35, `SET ${index + 1}`, {
         ...textRole('micro', { ink: current ? 'accent' : 'faint' }),
       }).setOrigin(0.5, 0);
+      this.jumpZone(x - 20, top + 4, 40, 46, index);
     }
 
     const final = this.setIndex === DRAFT_SET_KEYS.length - 1;
     this.add.text(16, layout.header.instructionY, final ? 'FINAL PICK' : 'CHOOSE ONE', {
       ...textRole('section'),
     });
-    this.add.text(16, layout.header.descriptionY, final ? 'Choose your final card to complete your deck.' : 'Pick one card to continue.', {
+    this.add.text(16, layout.header.descriptionY, final ? 'Choose your final card to complete your deck.' : 'Pick one card from this set.', {
       ...textRole('body', { ink: 'faint' }),
     });
   }
@@ -311,7 +312,23 @@ export class MobileDraftScene extends Phaser.Scene {
           ...textRole('section', { ink: 'disabled' }),
         }).setOrigin(0.5);
       }
+      if (index === this.setIndex) {
+        roundRect(this.add.rectangle(box.art.x - 2, box.art.y - 2, box.art.w + 4, box.art.h + 4, 0, 0), 9)
+          .setOrigin(0, 0).setStrokeStyle(2, 0xffd66b, 0.95);
+      }
+      this.jumpZone(box.art.x, box.art.y, box.art.w, box.art.h, index);
     });
+  }
+
+  private jumpZone(x: number, y: number, w: number, h: number, index: number): void {
+    this.add.zone(x, y, w, h).setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true })
+      .on(Phaser.Input.Events.POINTER_UP, () => {
+        if (this.setIndex === index) return;
+        playSfx('uiClick');
+        this.setIndex = index;
+        this.rerender();
+      });
   }
 
   /** Read-only card detail (opened by the ⓘ corner badge, not the card
@@ -329,9 +346,8 @@ export class MobileDraftScene extends Phaser.Scene {
 
   private renderFooter(): void {
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
-    const key = DRAFT_SET_KEYS[this.setIndex]!;
     const layout = mobileDraftLayout(this.W, this.H, this.runContext);
-    const actions = mobileDraftActions(this.setIndex, Boolean(this.picks[key]), ready);
+    const actions = mobileDraftActions(this.setIndex, ready);
     const rects = mobileDraftActionRects(layout.footer, actions);
     const press = (id: MobileDraftActionId): void => {
       if (id === 'back') {

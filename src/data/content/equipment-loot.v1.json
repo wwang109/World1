@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "status": "Live acquisition configuration; chance and equipment magnitudes remain illustrative balance values.",
+  "fightChanceBps": 10000,
+  "events": [
+    { "eventId": "abandoned_cache", "eventVersion": 2, "choiceIds": ["open", "search_thoroughly"], "chanceBps": 10000, "pool": [
+      { "itemId": "duelist_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "wind_charm", "itemVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "drill_sergeant_chest", "eventVersion": 2, "choiceIds": ["open_the_chest"], "chanceBps": 10000, "pool": [
+      { "itemId": "arcanist_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "restorer_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_fencing_hall", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "duelist_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "duelist_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "duelist_knot", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_arcanist_study", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "arcanist_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "arcanist_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "arcanist_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_fallen_bastion", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "bastion_plate", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "bastion_emblem", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "bastion_charm", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_ironwall_forge", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "ironwall_plate", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ironwall_buckle", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ironwall_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_warded_chapel", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "spellguard_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "spellguard_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "spellguard_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_ravager_camp", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "ravager_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ravager_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ravager_fang", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_storm_shrine", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "stormcaller_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "stormcaller_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "stormcaller_focus", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_field_infirmary", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "restorer_vestments", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "restorer_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "restorer_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_hunting_lodge", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "huntsman_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "huntsman_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "huntsman_feather", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_war_tent", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "tactician_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "tactician_brooch", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "tactician_knot", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_hexweaver_hut", "eventVersion": 1, "choiceIds": ["take_piece"], "chanceBps": 10000, "pool": [
+      { "itemId": "hexweaver_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "hexweaver_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "hexweaver_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_arms_dealer", "eventVersion": 1, "choiceIds": ["trade_card"], "chanceBps": 10000, "pool": [
+      { "itemId": "duelist_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "duelist_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "duelist_knot", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ravager_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ravager_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ravager_fang", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "huntsman_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "huntsman_crest", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "huntsman_feather", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_hedge_mage", "eventVersion": 1, "choiceIds": ["trade_card"], "chanceBps": 10000, "pool": [
+      { "itemId": "arcanist_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "arcanist_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "arcanist_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "stormcaller_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "stormcaller_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "stormcaller_focus", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "hexweaver_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "hexweaver_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "hexweaver_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_quartermaster", "eventVersion": 1, "choiceIds": ["trade_card"], "chanceBps": 10000, "pool": [
+      { "itemId": "bastion_plate", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "bastion_emblem", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "bastion_charm", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ironwall_plate", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ironwall_buckle", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "ironwall_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "spellguard_robe", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "spellguard_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "spellguard_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] },
+    { "eventId": "equip_trinket_trader", "eventVersion": 1, "choiceIds": ["trade_card"], "chanceBps": 10000, "pool": [
+      { "itemId": "wind_charm", "itemVersion": 1, "weight": 1 },
+      { "itemId": "restorer_vestments", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "restorer_pendant", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "restorer_seal", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "tactician_coat", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "tactician_brooch", "itemVersion": 1, "setVersion": 1, "weight": 1 },
+      { "itemId": "tactician_knot", "itemVersion": 1, "setVersion": 1, "weight": 1 }
+    ] }
+  ]
+}

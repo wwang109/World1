@@ -1,5 +1,7 @@
-import type { SkillDef } from '../../engine/types';
-import { HEADLINE_LABEL } from '../../engine/keywords/text';
+import { weightOf, type SkillDef } from '../../engine/types';
+import { renderCtxOf } from '../../engine/keywords/compose';
+import { faceClauseOf, faceTokenOf, HEADLINE_LABEL } from '../../engine/keywords/text';
+import { stripCardTextMarkup } from './cardTextMarkup';
 import { summarizeEffectSegments, type EffectSegment, type SkillFaceMode } from './skillPresentation';
 
 /**
@@ -26,7 +28,6 @@ function toClauses(segments: readonly EffectSegment[]): Clause[] {
   return clauses;
 }
 
-const NUMBER_RUN = /[+-]?\d+(?:\.\d+)?/g;
 /** Same run, but keeping a unit GLUED directly onto the digits with no space
  * (`25%`, `2t`) so a percent-and-duration badge like `EXPOSE 25% 2t` reads as
  * two paired values, not four bare digits stripped of what they meant. A
@@ -39,7 +40,7 @@ const NUMBER_WITH_UNIT_RUN = /[+-]?\d+(?:\.\d+)?%?[a-zA-Z]*/g;
 function splitLabelValue(text: string): { label: string; value: string } | null {
   const numbers = text.match(NUMBER_WITH_UNIT_RUN);
   if (!numbers || numbers.length === 0) return null;
-  const label = text.replace(NUMBER_WITH_UNIT_RUN, '').replace(/:/g, '').replace(/\s+/g, ' ').trim();
+  const label = text.replace(NUMBER_WITH_UNIT_RUN, '').replace(/[:,]/g, '').replace(/\s+/g, ' ').trim();
   return { label: label.length > 0 ? label : text, value: numbers.join(', ') };
 }
 
@@ -49,14 +50,15 @@ function clauseKey(c: Clause): string {
 }
 
 const HEADLINE_KEYS = new Set([`text:${HEADLINE_LABEL.damage}`, `text:${HEADLINE_LABEL.heal}`, 'kw:shield']);
+const WEIGHT_BADGE_KEYS = new Set([`text:${HEADLINE_LABEL.heavy}`, `text:${HEADLINE_LABEL.lightweight}`]);
 
 /**
  * One row of a tier-upgrade diff — a label plus its before/after (or
  * `"unchanged"`) value, already formatted for display. `headline` marks the
- * three accumulated numbers (DMG/HEAL/SHLD) — see `tierUpgradePreview.ts`'s
- * three-state doc comment for why those never collapse to `"unchanged"` even
- * when the number didn't move, unlike every other clause. `gated` marks a
- * line built from an `affinity: true` payload (the `AFFIN: …` clause).
+ * three accumulated numbers (DMG/HEAL/SHLD), which never collapse to
+ * `"unchanged"` even when the number didn't move, unlike every other clause.
+ * `gated` marks a line built from an `affinity: true` payload (the `AFFIN: …`
+ * clause).
  */
 export interface TierUpgradeDiffLine {
   label: string;
@@ -95,65 +97,68 @@ function buildLine(fromC: Clause | undefined, toC: Clause | undefined, headline:
   return { label: split?.label ?? removedText, value: split ? `${split.value} > 0` : `${removedText} > REMOVED`, kind: 'delta', headline, gated };
 }
 
-function parseFirstNumber(text: string): number {
-  const match = text.match(NUMBER_RUN);
-  return match ? Number(match[0]) : 0;
-}
+const CLAUSE_NUMBER = /([+-]?\d+(?:\.\d+)?%?)/;
 
-function lineMagnitude(line: TierUpgradeDiffLine): number {
-  if (line.kind === 'unchanged') return 0;
-  const [before, after] = line.value.split('>');
-  return Math.abs(parseFirstNumber(after ?? '') - parseFirstNumber(before ?? ''));
-}
-
-function maxByMagnitude(lines: readonly TierUpgradeDiffLine[]): TierUpgradeDiffLine | undefined {
-  let best: TierUpgradeDiffLine | undefined;
-  let bestMag = -1;
-  for (const line of lines) {
-    const mag = lineMagnitude(line);
-    if (mag > bestMag) { best = line; bestMag = mag; }
+function numberChange(fromClause: string, toClause: string): string | null {
+  const fromParts = fromClause.split(CLAUSE_NUMBER);
+  const toParts = toClause.split(CLAUSE_NUMBER);
+  if (fromParts.length !== toParts.length) return null;
+  const changes: string[] = [];
+  for (let i = 0; i < fromParts.length; i += 1) {
+    const a = fromParts[i]!;
+    const b = toParts[i]!;
+    if (i % 2 === 0) {
+      if (a !== b) return null;
+      continue;
+    }
+    if (a === b) continue;
+    const word = fromParts[i - 1]?.match(/([A-Za-z]+)\W*$/)?.[1];
+    changes.push(word ? `${word.toUpperCase()} ${a} > ${b}` : `${a} > ${b}`);
   }
-  return best;
+  return changes.length > 0 ? changes.join(', ') : null;
 }
 
-/**
- * THE HEADLINE PICK — guaranteed lines first, gated fallback. Mirrors the
- * guaranteed/gated split `guaranteedPowerLevelDeci` itself makes: the biggest
- * swing among this card's UNGATED lines wins whenever one changed at all;
- * only a `conditionalGain` step — where every ungated line is flat by
- * definition — falls through to the biggest gated swing instead. This is why
- * a trade (e.g. [card] Arcane Bolt) headlines its shrinking DMG line rather
- * than the gated line it grew, and a flat gain (e.g. [card] Ironmarch Tithe)
- * headlines its gated line since nothing ungated moved at all.
- */
-function pickHeadline(lines: readonly TierUpgradeDiffLine[]): TierUpgradeDiffLine | undefined {
-  const ungated = lines.filter((l) => !l.gated);
-  const primary = maxByMagnitude(ungated);
-  if (primary && lineMagnitude(primary) > 0) return primary;
-  const gated = lines.filter((l) => l.gated);
-  const secondary = maxByMagnitude(gated);
-  if (secondary && lineMagnitude(secondary) > 0) return secondary;
-  return primary ?? lines[0];
+/** Face-token text -> the change its full face clause shows but the token
+ * does not (e.g. a Status Bonus `max`). */
+function offTokenChanges(fromSkill: SkillDef, toSkill: SkillDef): Map<string, string> {
+  const changes = new Map<string, string>();
+  const fromCtx = renderCtxOf(fromSkill);
+  const toCtx = renderCtxOf(toSkill);
+  const count = Math.min(fromSkill.effects.length, toSkill.effects.length);
+  for (let i = 0; i < count; i += 1) {
+    const a = fromSkill.effects[i]!;
+    const b = toSkill.effects[i]!;
+    if (a.kind !== b.kind) continue;
+    const token = faceTokenOf(a, fromCtx).text;
+    if (token !== faceTokenOf(b, toCtx).text) continue;
+    const change = numberChange(stripCardTextMarkup(faceClauseOf(a, fromCtx)), stripCardTextMarkup(faceClauseOf(b, toCtx)));
+    if (change) changes.set(token, change);
+  }
+  return changes;
 }
 
 export interface TierUpgradeDiff {
   lines: TierUpgradeDiffLine[];
-  headline?: TierUpgradeDiffLine;
 }
 
 /**
- * The before/after diff of one tier rank-up, built ENTIRELY from
+ * The before/after diff of one tier rank-up, built from
  * `summarizeEffectSegments` (`skillPresentation.ts`) — the same face-line
  * renderer every card face and hover-tip already reads — never a second,
  * hand-derived number. Pairs `fromSkill`'s clauses against `toSkill`'s by a
  * label/keyword key so an unchanged clause reads `"unchanged"` instead of
- * being silently dropped, and picks the single most significant line as a
- * one-line headline (see `pickHeadline`).
+ * being silently dropped.
  */
 export function buildTierUpgradeDiff(fromSkill: SkillDef, toSkill: SkillDef, mode: SkillFaceMode = 'summed'): TierUpgradeDiff {
+  const weightFrom = weightOf(fromSkill);
+  const weightTo = weightOf(toSkill);
+  const weightChanged = weightFrom !== weightTo;
+  const offToken = offTokenChanges(fromSkill, toSkill);
+
   const fromByKey = new Map<string, Clause[]>();
   for (const clause of toClauses(summarizeEffectSegments(fromSkill, undefined, mode))) {
     const key = clauseKey(clause);
+    if (weightChanged && WEIGHT_BADGE_KEYS.has(key)) continue;
     const bucket = fromByKey.get(key);
     if (bucket) bucket.push(clause); else fromByKey.set(key, [clause]);
   }
@@ -161,19 +166,30 @@ export function buildTierUpgradeDiff(fromSkill: SkillDef, toSkill: SkillDef, mod
   const lines: TierUpgradeDiffLine[] = [];
   for (const toC of toClauses(summarizeEffectSegments(toSkill, undefined, mode))) {
     const key = clauseKey(toC);
+    if (weightChanged && WEIGHT_BADGE_KEYS.has(key)) continue;
     const bucket = fromByKey.get(key);
     const fromC = bucket?.shift();
-    lines.push(buildLine(fromC, toC, HEADLINE_KEYS.has(key)));
+    const line = buildLine(fromC, toC, HEADLINE_KEYS.has(key));
+    const offTokenChange = line.kind === 'unchanged' ? offToken.get(toC.text) : undefined;
+    lines.push(offTokenChange ? { ...line, value: offTokenChange, kind: 'delta' } : line);
   }
   for (const bucket of fromByKey.values()) {
     for (const fromC of bucket) lines.push(buildLine(fromC, undefined, HEADLINE_KEYS.has(clauseKey(fromC))));
   }
+  if (weightChanged) {
+    lines.push({ label: 'WEIGHT', value: `${weightFrom} > ${weightTo}`, kind: 'delta', headline: false, gated: false });
+  }
 
-  return { lines, headline: pickHeadline(lines) };
+  return { lines };
 }
 
-/** `"LABEL   value"` — the one-line form the picker headline and the diff
- * overlay's rows both use. */
+/** `"LABEL   value"` — the one-line form the pickers' change list and the
+ * diff overlay's rows both use. */
 export function formatTierUpgradeDiffLine(line: TierUpgradeDiffLine): string {
   return line.label ? `${line.label} ${line.value}` : line.value;
+}
+
+/** Every line that moved, in face order. */
+export function changedTierUpgradeLines(diff: TierUpgradeDiff): string[] {
+  return diff.lines.filter((line) => line.kind === 'delta').map(formatTierUpgradeDiffLine);
 }

@@ -9,16 +9,15 @@
  * change to a monster's deck or stats gets in unreviewed. Proven by
  * tests/data/enemiesJsonParity.test.ts (deepEqual against the TS book).
  *
- * src/data/enemies.ts stays the SOURCE OF TRUTH after this runs. This
- * document is an OUTPUT, not yet a second thing to keep in sync by hand —
- * nothing loads from it. Regenerating after enemies.ts changes is this one
- * command, not a merge.
+ * src/data/enemies.ts remains the live combat roster. JSON now carries
+ * authored equipment pools and historical versions, so this legacy export
+ * refuses to overwrite a document containing either.
  *
  * Rescues the balance-derivation COMMENTS out of src/data/enemies.ts into the
  * document's `notes` (file-level; enemies.ts carries no per-monster inline
  * comments today, see the module doc on rescueNotes below).
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { enemies } from '../src/data/enemies';
 import type { EnemyDef } from '../src/engine/types';
@@ -165,6 +164,18 @@ export const enemiesDocumentText = `${asciiSafeStringify(enemiesDocument, 1)}\n`
 const perEnemy = [...notesById.values()].reduce((n, v) => n + v.length, 0);
 
 function main(): void {
+  if (existsSync(OUT)) {
+    const existing = JSON.parse(readFileSync(OUT, 'utf8')) as {
+      enemies?: Array<{ versions?: Array<{ version?: number; def?: { equipmentDrop?: unknown } }> }>;
+    };
+    const hasAuthoredContent = existing.enemies?.some((enemy) =>
+      (enemy.versions?.length ?? 0) > 1
+      || enemy.versions?.some((entry) => (entry.version ?? 0) > 1 || entry.def?.equipmentDrop !== undefined),
+    );
+    if (hasAuthoredContent) {
+      throw new Error('Enemy export refused: enemies.v1.json contains authored versions or equipment drops. Edit JSON directly; exporting the live TS roster would erase them.');
+    }
+  }
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(OUT, enemiesDocumentText);
   // `fileURLToPath(OUT)`, not `OUT.pathname` — the getter hands back a URL

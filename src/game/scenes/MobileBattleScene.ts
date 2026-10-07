@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import { currentEquipmentDropReceipt } from '../runStore';
 import type { Archetype, SkillDef } from '../../engine/types';
 import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
@@ -37,9 +39,11 @@ import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
 import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import { passiveFxAt, renderBattlePassiveNotice, highlightBattlePassiveTargets, type PassiveBoardBounds } from '../ui/battlePassiveFx';
 import {
   applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
-  flashLogRowHighlight, popStatusChip, pulseTokenAt, punchLogRowIn, shakeBar, slidePhaseBanner, spawnFxFloat,
+  flashLogRowHighlight, minimizeButton, phaseStartStep, pinSuddenDeathBanner, popStatusChip, pulseTokenAt, punchLogRowIn,
+  renderSuddenDeathVignette, shakeBar, slidePhaseBanner, spawnFxFloat,
   type HpBarHandles,
 } from '../ui/battlePlaybackFx';
 
@@ -130,6 +134,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private shieldByStep: ShieldSnap[] = [];
   /** Structured per-step FX (damage/heal/shield deltas) for floating numbers + shakes. */
   private fxByStep: TurnFx[][] = [];
+  private suddenDeathStep = -1;
   private focusFoeByStep: Array<number | undefined> = [];
   private idx = 0;
   /** Which foe the tabbed enemy view (3+ foes) is showing. */
@@ -171,6 +176,7 @@ export class MobileBattleScene extends Phaser.Scene {
    * it; a fresh scene entry re-fetches a new log object and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
+  private equipmentDropName: string | null = null;
   /** SUMMARY panel manual override — same tri-state idiom as Desktop's:
    * `null` = auto (visible only once playback reaches `outcomeStep`), `true`/
    * `false` = pinned open/closed by the player. This scene has no separate
@@ -198,6 +204,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.outcomeSoundStep = -1;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
+    this.equipmentDropName = null;
     this.summaryOverride = null;
     this.isExtraGhostFight = false;
     this.isChallengeFight = false;
@@ -236,7 +243,11 @@ export class MobileBattleScene extends Phaser.Scene {
           resolveChallengeFightResult(log);
           this.goldPayout = 0;
         } else {
+          const priorReceipt=runContext?currentEquipmentDropReceipt()?.id:null;
           this.goldPayout = runContext ? resolveRunBattleResult(input, log) : creditBattleGold(input, log);
+          const receipt=runContext?currentEquipmentDropReceipt():null;
+          const drop=receipt?.sourceKind==='fight'&&receipt.id!==priorReceipt?receipt.item:null;
+          this.equipmentDropName=drop?equipmentCatalog.item(drop.itemId,drop.itemVersion).name:null;
           playSfx('goldGain');
         }
         const offer = runContext ? offerGhostSave() : null;
@@ -397,6 +408,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.hpByStep = model.hpByStep;
     this.shieldByStep = model.shieldByStep;
     this.fxByStep = model.fxByStep;
+    this.suddenDeathStep = phaseStartStep(model.fxByStep, 'suddenDeath');
     this.focusFoeByStep = model.focusFoeByStep;
     this.outcome = model.outcome;
     this.mutualWipe = model.mutualWipe;
@@ -511,7 +523,10 @@ export class MobileBattleScene extends Phaser.Scene {
     // separates rows.
     const rowH = 21;
     const headerBottomRel = 30; // relative to dockTop — the turnline's own height budget inside the dock box
-    const headerBottom = dockTop + headerBottomRel;
+    const suddenDeath = this.suddenDeathStep >= 0 && this.idx >= this.suddenDeathStep;
+    const suddenDeathArriving = forwardStep && this.idx === this.suddenDeathStep;
+    const suddenDeathH = suddenDeath ? 18 : 0;
+    const headerBottom = dockTop + headerBottomRel + (suddenDeathH ? suddenDeathH - 1 : 0);
     const turnX = 12;   // dim "T3" marker where the turn changes
     const tagX = 36;    // tag column start
     const textX = 98;   // text column start — clear of the widest tag (RESULT)
@@ -708,12 +723,22 @@ export class MobileBattleScene extends Phaser.Scene {
         if (key) playSfx(key);
       }
     }
-    if (stepPhaseFx) {
+    if (suddenDeath) {
+      const at = this.steps[this.suddenDeathStep];
+      const text = at ? this.linesByTurn.get(at.turn)?.[at.lineIndex]?.text ?? '' : '';
+      pinSuddenDeathBanner(this, 2, dockTop + headerBottomRel - 5, this.W - 4, suddenDeathH, text, F.body, suddenDeathArriving, this.speedMult);
+      if (!isOutcomeStep) renderSuddenDeathVignette(this, this.W, this.H, 32, suddenDeathArriving, this.speedMult);
+    }
+    if (stepPhaseFx && stepPhaseFx.phase !== 'suddenDeath') {
       const line = this.linesByTurn.get(turn)?.[step.lineIndex];
       if (line?.tag === 'PHASE') slidePhaseBanner(this, 0, dockTop, this.W, 28, line.text, this.speedMult);
     }
 
     // ---- boards + gutter scrubber ----
+    const passive = passiveFxAt(stepFx);
+    const animatePassive = forwardStep && this.playing;
+    if (passive) boardsTop += renderBattlePassiveNotice(this, passive, { x: 10, y: boardsTop, width: this.W - 20, compact: true, animate: animatePassive, speedMult: this.speedMult }) + 8;
+    const passiveBoards: PassiveBoardBounds[] = [];
     const top = boardsTop;
     const colH = footerY(this.H) - top - 8;
     const gutterW = 24;
@@ -731,6 +756,7 @@ export class MobileBattleScene extends Phaser.Scene {
       slotMods: slotMods[slotModKey(side, unit, p.slot)],
     }));
     const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, 'player', 0, slots.player), deck: this.heroSkills, stats: this.heroStats });
+    passiveBoards.push({ side: 'player', unit: 0, x: deckX, y: top, width: colW, height: colH });
     if (forwardStep && slots.player !== undefined) {
       const cast = this.castFxFor('player', 0);
       const recipe = pulseTokenAt(this, heroCol, this.heroPieces, slots.player, cast, F.label, this.speedMult);
@@ -746,6 +772,7 @@ export class MobileBattleScene extends Phaser.Scene {
         x: bagX, y: boardTop, width: colW, height: boardH, side: 'right',
         pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
+      passiveBoards.push({ side: 'enemy', unit: u, x: bagX, y: boardTop, width: colW, height: boardH });
       if (forwardStep && foeSlot !== undefined) {
         const cast = this.castFxFor('enemy', u);
         const recipe = pulseTokenAt(this, foeCol, foeModel.pieces, foeSlot, cast, F.label, this.speedMult);
@@ -760,6 +787,7 @@ export class MobileBattleScene extends Phaser.Scene {
       foeBoard(this.focusedFoe, top, colH);
     }
     this.renderScrubber(gutterX + gutterW / 2, top, colH);
+    if (passive) highlightBattlePassiveTargets(this, passive, passiveBoards, animatePassive, this.speedMult);
     renderActionBar(this, this.W, this.H, this.footerButtons(summaryVisible));
 
     if (summaryVisible) {
@@ -784,8 +812,9 @@ export class MobileBattleScene extends Phaser.Scene {
       const bossReward = getBattleContext() === 'run' && !this.isExtraGhostFight && !this.isChallengeFight
         ? currentBossReward() : null;
       const ghostBlockH = isOutcomeStep && this.ghostOffer ? 54 : 0;
+      const dropH=isOutcomeStep&&this.equipmentDropName?28:0;
       const bannerH = isOutcomeStep
-        ? (getBattleContext() === 'run' ? 66 : 52) + (this.mutualWipe ? 16 : 0) + (bossReward ? 26 : 0) + ghostBlockH
+        ? (getBattleContext() === 'run' ? 66 : 52) + (this.mutualWipe ? 16 : 0) + (bossReward ? 26 : 0) + ghostBlockH + dropH
         : 0;
       const bannerGap = isOutcomeStep ? 8 : 0;
       const blockH = summaryH + bannerGap + bannerH;
@@ -797,7 +826,9 @@ export class MobileBattleScene extends Phaser.Scene {
       // "AS OF" marker makes it unmistakable this is a running tally, not the
       // final one, whenever this panel is showing mid-fight.
       const cardsLabel = isOutcomeStep ? `${summaryRows.length} EFFECTIVE CARDS` : `${summaryRows.length} CARDS · AS OF T${turn}`;
-      this.add.text(this.W - 30, summaryBy + 8, cardsLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
+      const minW = 40;
+      minimizeButton(this, this.W - 14 - minW, summaryBy + 3, minW, 22, F.name, D, () => { this.summaryOverride = false; this.render(); });
+      this.add.text(this.W - 22 - minW, summaryBy + 8, cardsLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
       this.add.rectangle(deckX + 10, summaryBy + 27, this.W - 40, 1, 0x2a3a52).setOrigin(0, 0).setDepth(D);
       const totalMetrics = [
         summary.playerDamage > 0 ? `YOU DMG ${summary.playerDamage}` : '',
@@ -855,6 +886,7 @@ export class MobileBattleScene extends Phaser.Scene {
         if (this.ghostOffer) {
           this.renderGhostSavePrompt(deckX, by + bannerH - ghostBlockH + 6, this.W - 20, D);
         }
+        if(dropH)this.boundedText(deckX+12,by+bannerH-ghostBlockH-dropH+5,`EQUIPMENT FOUND · ${this.equipmentDropName}`,{fontFamily:FONT.body,fontSize:`${F.small}px`,color:UI.textAccent},this.W-44).setDepth(D);
       }
     }
   }

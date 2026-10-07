@@ -8,7 +8,7 @@ import { CardToken } from './CardToken';
 import { attachButtonFeel } from './motion';
 import { tierProgressMergeLine } from './tierProgressDisplay';
 import { tierUpgradePreview, type AvailableTierUpgradePreview } from './tierUpgradePreview';
-import { buildTierUpgradeDiff, formatTierUpgradeDiffLine } from './tierUpgradeDiff';
+import { buildTierUpgradeDiff, changedTierUpgradeLines } from './tierUpgradeDiff';
 import { renderTierUpgradeDetailOverlay } from './tierUpgradeDetailOverlay';
 import type { SkillFaceMode } from './skillPresentation';
 
@@ -21,7 +21,7 @@ export interface OwnedCardPickerRow {
 }
 
 const LABEL_H = 18;
-const HEADLINE_H = 16;
+const CHANGE_LINE_H = 16;
 const ROW_GAP = 10;
 const HEADER_H = 52;
 const FOOTER_H = 60;
@@ -47,8 +47,14 @@ export function renderOwnedCardPicker(
   },
 ): void {
   const faceMode: SkillFaceMode = opts.compact ? 'summed' : 'composition';
+  const changes = opts.rows.map((row) => {
+    if (row.to.tier === row.tier) return [];
+    const preview = tierUpgradePreview(row.skill.id, row.tier, row.to.tier);
+    return preview.available ? changedTierUpgradeLines(buildTierUpgradeDiff(preview.fromSkill, preview.toSkill, faceMode)) : [];
+  });
+  const changesH = CHANGE_LINE_H * Math.max(1, ...changes.map((lines) => lines.length));
   const cardH = opts.compact ? 58 : 66;
-  const cellH = LABEL_H + HEADLINE_H + cardH;
+  const cellH = LABEL_H + changesH + cardH;
   const bw = Math.min(opts.compact ? opts.viewWidth - 24 : 520, opts.viewWidth - 24);
   const maxH = opts.viewHeight - 40;
   const perPage = Math.max(1, Math.floor((maxH - HEADER_H - FOOTER_H + ROW_GAP) / (cellH + ROW_GAP)));
@@ -85,15 +91,14 @@ export function renderOwnedCardPicker(
     }).setOrigin(0.5);
     auditTextBlock(label, { name: 'Owned card picker step', maxWidth: cellW, maxHeight: LABEL_H, minFontSize: 7 });
 
-    const diff = row.to.tier !== row.tier ? buildTierUpgradeDiff(preview.fromSkill, preview.toSkill, faceMode) : null;
-    if (diff?.headline) {
-      const headline = scene.add.text(cx, y + LABEL_H + HEADLINE_H / 2, formatTierUpgradeDiffLine(diff.headline), {
+    (changes[page * perPage + i] ?? []).forEach((line, k) => {
+      const change = scene.add.text(cx, y + LABEL_H + CHANGE_LINE_H * (k + 0.5), line, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: '10px', color: UI.textBright, align: 'center',
       }).setOrigin(0.5);
-      auditTextBlock(headline, { name: 'Owned card picker headline', maxWidth: cellW, maxHeight: HEADLINE_H, minFontSize: 7 });
-    }
+      auditTextBlock(change, { name: 'Owned card picker change line', maxWidth: cellW, maxHeight: CHANGE_LINE_H, minFontSize: 7 });
+    });
 
-    const cardY = y + LABEL_H + HEADLINE_H;
+    const cardY = y + LABEL_H + changesH;
     const hit = scene.add.rectangle(cx, y + cellH / 2, cellW, cellH, 0xffffff, 0).setInteractive({ useHandCursor: true });
     hit.on('pointerdown', (_p: unknown, _lx: number, _ly: number, event: { stopPropagation: () => void }) => {
       event.stopPropagation();

@@ -12,6 +12,8 @@ import { counterTypeColor } from './bandBannerViewModel';
 import { eventThemeBlurb } from './eventThemeBlurb';
 import { biomeArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
 import { shopMapFooter } from './shopMapFooter';
+import { isEquipmentEvent } from './equipmentEventCategory';
+import { trackedEncounterLoot, trackedEventLoot, type EquipmentLootChance } from './equipmentLootTrackingModel';
 
 export interface RunTravelChoiceFooterSegment {
   text: string;
@@ -35,8 +37,10 @@ export interface RunTravelChoiceViewModel {
    * segment instead of tinting `footer` as a single run. */
   footerSegments?: readonly RunTravelChoiceFooterSegment[];
   artKey?: string;
+  categoryIconKey?: string;
   accent: number;
   enabled: boolean;
+  trackedLoot?: readonly EquipmentLootChance[];
   event?: {
     eventId: string;
     chainUnlocked: boolean;
@@ -119,6 +123,7 @@ export function buildRunTravelChoiceViewModel(
       ...(reward ? { footer: reward, footerInk: 'gain' as const } : {}),
       ...(showsEncounter ? { artKey: biomeArtKey(biome.id) } : {}),
       ...(node.kind === 'boss' ? { artKey: RUN_ART_KEYS.icon.bossSkull } : {}),
+      ...(encounter ? { trackedLoot: trackedEncounterLoot(encounter.units.map(unit => unit.enemyId)) } : {}),
     };
   }
   const detail = eventThemeBlurb(node.eventTheme);
@@ -143,7 +148,10 @@ export function buildRunTravelChoiceViewModel(
       footer: footerSegments.length > 0 ? footerSegments.map((segment) => segment.text).join(' · ') : undefined,
       footerSegments: footerSegments.length > 0 ? footerSegments : undefined,
       artKey: eventArtKey(previewEvent.theme, previewEvent.artId),
+      ...(isEquipmentEvent(previewEvent.id, state.eventInstances[node.id]?.contentVersion)
+        ? { categoryIconKey: RUN_ART_KEYS.icon.routeEquipment } : {}),
       event: { eventId: previewEvent.id, chainUnlocked: requirementLines.length > 0, requirementLines },
+      trackedLoot: trackedEventLoot(state, previewEvent.id, state.eventInstances[node.id]?.contentVersion),
     };
   }
   return {

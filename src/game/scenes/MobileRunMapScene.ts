@@ -41,6 +41,10 @@ import {
 import { attachButtonFeel } from '../ui/motion';
 import { renderRunBiomePickPanel } from '../ui/RunBiomePickPanel';
 import { renderRunGhostFightOfferPanel } from '../ui/RunGhostFightOfferPanel';
+import { renderRunHistoryPanel } from '../ui/RunHistoryPanel';
+import { renderRunLogToggle } from '../ui/RunLogToggle';
+import { runRouteSelectedStops } from '../ui/runHistoryViewModel';
+import { renderRunMapChoiceViewport } from '../ui/runMapChoiceViewport';
 
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
@@ -60,6 +64,9 @@ export class MobileRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
   private ledgerOpen = false;
+  private historyScroll = 0;
+  private historyOpen = false;
+  private choiceScroll = 0;
   private bandReadOpen = false;
   /** A separate, masked read sheet: never squeeze desktop's rail into the
    * phone's route lane. */
@@ -76,6 +83,9 @@ export class MobileRunMapScene extends Phaser.Scene {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
     this.ledgerOpen = false;
+    this.historyScroll = 0;
+    this.historyOpen = false;
+    this.choiceScroll = 0;
     this.bandReadOpen = false;
     this.mapIntelOpen = false;
     this.shopMenuOpen = false;
@@ -198,7 +208,7 @@ export class MobileRunMapScene extends Phaser.Scene {
       onOpenStatPanel: run && actionsEnabled ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
       onOpenStatsOverlay: run && actionsEnabled ? () => this.openLedger() : undefined,
       actions: run && actionsEnabled ? {
-        back: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        back: { label: 'BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         secondary: { label: 'RUN LEDGER', onPress: () => this.openLedger() },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       } : undefined,
@@ -226,46 +236,53 @@ export class MobileRunMapScene extends Phaser.Scene {
     const artKey = regionPending ? RUN_ART_KEYS.runMap : band.artKey;
     const name = regionPending ? 'CHOOSE YOUR REGION' : band.name;
     // Compact region identity opens the same complete forecast as desktop.
-    const regionH = 88;
-    this.add.rectangle(content.x, content.y, content.width, regionH, UI.panel, 0.96).setOrigin(0, 0)
-      .setStrokeStyle(1, UI.border, 0.7);
-    addRunArt(this, artKey, { x: content.x + 4, y: content.y + 4, width: 80, height: 80 });
-    const textX = content.x + 104;
-    const textW = content.width - 112;
-    const nameText = this.add.text(textX, content.y + 6, name, textRole('section'));
-    auditTextBlock(nameText, { name: 'Mobile current region name', maxWidth: textW, maxHeight: 20, minFontSize: 9 });
-    const factsLine = regionPending ? band.waveRange : `${band.leanChip} · ${band.waveRange}`;
-    const facts = this.add.text(textX, content.y + 27, factsLine, textRole('micro', { ink: 'secondary' }));
-    auditTextBlock(facts, { name: 'Mobile current region day range', maxWidth: textW, maxHeight: 14, minFontSize: 9 });
-    if (!regionPending) {
+    const regionH = this.historyOpen ? 132 : 88;
+    if (!this.historyOpen) {
+      this.add.rectangle(content.x, content.y, content.width, regionH, UI.panel, 0.96).setOrigin(0, 0)
+        .setStrokeStyle(1, UI.border, 0.7);
+      addRunArt(this, artKey, { x: content.x + 4, y: content.y + 4, width: 80, height: 80 });
+      const textX = content.x + 104;
+      const textW = content.width - 112;
+      const identityWidth = textW - (currentMapIntel().length > 0 ? 116 : 0);
+      const nameText = this.add.text(textX, content.y + 6, name, textRole('section'));
+      auditTextBlock(nameText, { name: 'Mobile current region name', maxWidth: identityWidth, maxHeight: 20, minFontSize: 9 });
+      const factsLine = regionPending ? band.waveRange : `${band.leanChip} · ${band.waveRange}`;
+      const facts = this.add.text(textX, content.y + 27, factsLine, textRole('micro', { ink: 'secondary' }));
+      auditTextBlock(facts, { name: 'Mobile current region day range', maxWidth: identityWidth, maxHeight: 14, minFontSize: 9 });
       const opener = this.add.rectangle(textX, content.y + 44, textW, 40, UI.panelAlt, 0.98).setOrigin(0, 0)
         .setStrokeStyle(1, UI.border, 0.8);
-      const openerLabel = this.add.text(textX + textW / 2, content.y + 64,
-        this.bandReadOpen ? 'VIEWING REGION' : 'REGION GUIDE ›', textRole('label', { ink: 'accent' })).setOrigin(0.5);
-      auditControlLabel(opener, openerLabel, { name: 'Mobile explore region', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
-      if (!this.bandReadOpen) {
-        opener.setInteractive({ useHandCursor: true });
-        attachButtonFeel(this, opener, {
-          fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
-          onPress: () => { this.ledgerOpen = false; this.bandReadOpen = true; this.rerender(); },
-        });
-      }
+      const openerLabel = this.add.text(textX + textW / 2, content.y + 64, 'RUN LOG', textRole('label', { ink: 'accent' })).setOrigin(0.5);
+      auditControlLabel(opener, openerLabel, { name: 'Mobile run log opener', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
+      if (!this.statPanelOpen && !this.retireConfirmOpen) opener.setInteractive({ useHandCursor: true });
+      attachButtonFeel(this, opener, {
+        fill: UI.panelAlt, hover: UI.chipDark, follow: [openerLabel],
+        onPress: () => { this.historyOpen = true; this.rerender(); },
+      });
+    } else {
+      renderRunHistoryPanel(this, { x: content.x, y: content.y, width: content.width, height: regionH }, run, {
+        compact: true, scroll: this.historyScroll, onScroll: (scroll) => { this.historyScroll = scroll; },
+        enabled: !this.statPanelOpen && !this.retireConfirmOpen && !this.mapIntelOpen && !this.shopMenuOpen,
+      });
+      renderRunLogToggle(this, content.x + content.width - 108, content.y + 4, 100, 24, 'COLLAPSE',
+        !this.statPanelOpen && !this.retireConfirmOpen, () => { this.historyOpen = false; this.rerender(); });
     }
 
     const plannerTop = content.y + regionH + 8;
     this.add.rectangle(content.x, plannerTop, content.width, content.y + content.height - plannerTop, UI.panel, 0.94).setOrigin(0, 0);
     const routeTop = plannerTop + 8;
-    const routeH = 72;
+    const routeH = 140;
     const intel = currentMapIntel();
-    const routeWidth = content.width - (intel.length > 0 ? 124 : 0);
+    const routeWidth = content.width;
     renderRunRouteBoard(this, { x: content.x, y: routeTop, w: routeWidth, h: routeH }, snapshotRunRoute(run), {
-      mode: 'mobile', regionName: regionPending ? undefined : band.name,
+      mode: 'mobile', regionName: regionPending ? undefined : band.name, biomeArtKey: band.artKey,
+      seed: run.seed, selectedStops: runRouteSelectedStops(run),
+      inputEnabled: !this.statPanelOpen && !this.retireConfirmOpen && !this.mapIntelOpen && !this.shopMenuOpen,
     });
     if (intel.length > 0) {
-      const buttonW = 112;
-      const buttonH = 40;
-      const buttonX = content.x + content.width - buttonW;
-      const buttonY = routeTop + 8;
+      const buttonW = 110;
+      const buttonH = 24;
+      const buttonX = content.x + content.width - buttonW - (this.historyOpen ? 114 : 0);
+      const buttonY = content.y + 4;
       const button = this.add.rectangle(buttonX, buttonY, buttonW, buttonH, UI.panelAlt, 0.96).setOrigin(0, 0)
         .setStrokeStyle(1, UI.border, 0.75).setInteractive({ useHandCursor: true });
       const label = this.add.text(buttonX + buttonW / 2, buttonY + buttonH / 2, `MAP INTEL · ${intel.length}`, textRole('micro', { ink: 'accent' })).setOrigin(0.5);
@@ -275,7 +292,7 @@ export class MobileRunMapScene extends Phaser.Scene {
         onPress: () => { this.mapIntelOpen = true; this.rerender(); },
       });
     }
-    const choicesTop = routeTop + routeH + 8;
+    const choicesTop = routeTop + routeH + 6;
     this.renderChoiceBlock(content.x, choicesTop, content.width, content.y + content.height - choicesTop);
   }
 
@@ -322,9 +339,14 @@ export class MobileRunMapScene extends Phaser.Scene {
       return;
     }
     if (biomePick) {
-      renderRunBiomePickPanel(this, { x, y: top + 20, width: w, height: availableH - 20 }, biomePick, {
-        compact: true,
-        onChoose: (biomeId) => { chooseRunBiome(biomeId); this.rerender(); },
+      const contentHeight = Math.max(availableH - 20, biomePick.options.length * 184 + (biomePick.options.length - 1) * 8);
+      renderRunMapChoiceViewport(this, { x, y: top + 20, width: w, height: availableH - 20 }, contentHeight, (deferSelection) => {
+        renderRunBiomePickPanel(this, { x, y: top + 20, width: w, height: contentHeight }, biomePick, {
+          compact: true,
+          onChoose: (biomeId) => deferSelection(() => { chooseRunBiome(biomeId); this.choiceScroll = 0; this.rerender(); })(),
+        });
+      }, { scroll: this.choiceScroll, enabled: !this.statPanelOpen && !this.retireConfirmOpen && !this.mapIntelOpen,
+        onScroll: (scroll) => { this.choiceScroll = scroll; },
       });
       return;
     }
@@ -353,25 +375,29 @@ export class MobileRunMapScene extends Phaser.Scene {
       { x, y: top + 20, width: w, height: availableH - 20 }, models,
       { compact: true, pending: pending !== undefined },
     );
-    options.forEach((node, index) => {
-      renderRunTravelChoiceCard(this, layout.cards[index]!, models[index]!, {
-        compact: true,
-        pending: pending?.id === node.id,
-        appearIndex: index,
-        onSelect: () => {
-          if (!pending) pickNode(node.id);
-          if (node.kind === 'boss') { this.rerender(); return; }
-          if (node.kind === 'event') {
-            this.scene.start('MobileRunEvent');
-            return;
-          }
-          if (node.kind === 'shop') {
-            this.destination.open('MobileShop', node.id, options);
-            return;
-          }
-          this.scene.start('MobileRunPrep');
-        },
+    renderRunMapChoiceViewport(this, { x, y: top + 20, width: w, height: availableH - 20 }, layout.height, (deferSelection) => {
+      options.forEach((node, index) => {
+        renderRunTravelChoiceCard(this, layout.cards[index]!, models[index]!, {
+          compact: true,
+          pending: pending?.id === node.id,
+          appearIndex: index,
+          onSelect: deferSelection(() => {
+            if (!pending) pickNode(node.id);
+            if (node.kind === 'boss') { this.rerender(); return; }
+            if (node.kind === 'event') {
+              this.scene.start('MobileRunEvent');
+              return;
+            }
+            if (node.kind === 'shop') {
+              this.destination.open('MobileShop', node.id, options);
+              return;
+            }
+            this.scene.start('MobileRunPrep');
+          }),
+        });
       });
+    }, { scroll: this.choiceScroll, enabled: !this.statPanelOpen && !this.retireConfirmOpen && !this.mapIntelOpen,
+      onScroll: (scroll) => { this.choiceScroll = scroll; },
     });
   }
 

@@ -37,6 +37,11 @@ export interface EventReshapeOptionV3 {
   resultTier?: SkillTier;
 }
 
+export interface EventRerollGemOptionV3 {
+  pouchIndex: number;
+  gemId: string;
+}
+
 export interface EventReshapeGemOptionV3 {
   id: string;
   pouchIndexes: readonly number[];
@@ -85,6 +90,8 @@ export type EventDeferredOfferV3 =
   // the `buyStatPick` choice is taken, so a settled offer never blocks a
   // second buy at the same node.
   | ({ kind: 'buyStatPick' } & PendingOrSettledV3)
+  | ({ kind: 'forgeEquipment'; sets: readonly string[]; items?: readonly string[] } & PendingOrSettledV3)
+  | ({ kind: 'upgradeEquipment'; sets: readonly string[]; items?: readonly string[] } & PendingOrSettledV3)
   | ({ kind: 'upgradeCard'; optionInstanceIds: readonly string[]; fallback: { kind: 'grantGold'; amount: number } } & PendingOrSettledV3)
   | ({
     kind: 'reshapeCard';
@@ -97,6 +104,20 @@ export type EventDeferredOfferV3 =
     kind: 'reshapeGem';
     mode: EventReshapeGemModeV3;
     options: readonly EventReshapeGemOptionV3[];
+    fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+  } & PendingOrSettledV3)
+  | ({
+    kind: 'rerollCard';
+    options: readonly EventReshapeOptionV3[];
+    rolls: number;
+    rolled?: { instanceId: string; fromSkillId: string; skillId: string; rollsUsed: number; seen: readonly string[] };
+    fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
+  } & PendingOrSettledV3)
+  | ({
+    kind: 'rerollGem';
+    options: readonly EventRerollGemOptionV3[];
+    rolls: number;
+    rolled?: { pouchIndex: number; fromGemId: string; gemId: string; rollsUsed: number; seen: readonly string[] };
     fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' };
   } & PendingOrSettledV3)
   | { kind: 'sellGem'; status: 'unavailable' }

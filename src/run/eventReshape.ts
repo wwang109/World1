@@ -291,3 +291,127 @@ export function scavengeOptionsV3(state: RunState): EventCardOfferV3[] {
   }
   return ids.slice(0, SCAVENGE_MAX_OPTIONS).map((skillId) => ({ skillId, tier: 'bronze' as const }));
 }
+
+type RerollCardOffer = Extract<EventDeferredOfferV3, { kind: 'rerollCard' }>;
+type RerollGemOffer = Extract<EventDeferredOfferV3, { kind: 'rerollGem' }>;
+export type EventRerollStepV3 = { kind: 'pick'; id: string } | { kind: 'reroll' } | { kind: 'keep' };
+
+export type EventCardRerollSettlementV3 = { kind: 'cardRerolled'; fromSkillId: string; skillId: string; tier: SkillTier; rollsUsed: number };
+export type EventGemRerollSettlementV3 = { kind: 'gemRerolled'; fromGemId: string; gemId: string; rollsUsed: number };
+
+function sameTypeAs(from: SkillDef, skill: SkillDef): boolean {
+  if (from.element !== undefined) return skill.element === from.element;
+  if (from.weapon !== undefined) return skill.weapon === from.weapon;
+  return skill.property === from.property;
+}
+
+function unseenFirst<T>(pool: readonly T[], idOf: (entry: T) => string, seen: readonly string[]): T[] {
+  const fresh = pool.filter((entry) => !seen.includes(idOf(entry)));
+  return fresh.length > 0 ? fresh : [...pool];
+}
+
+function rerollCardPool(fromSkillId: string, currentSkillId: string, tier: SkillTier, seen: readonly string[] = []): SkillDef[] {
+  const from = skillBook[fromSkillId];
+  if (from === undefined) return [];
+  const pool = uniqueBook().filter((skill) => (
+    skill.id !== currentSkillId && skill.size === from.size && sameTypeAs(from, skill) && cardOfferableAtTier(skill, tier)
+  ));
+  return unseenFirst(pool, (skill) => skill.id, seen);
+}
+
+function rerollGemPool(fromGemId: string, currentGemId: string, seen: readonly string[] = []): string[] {
+  const from = gemBook[fromGemId];
+  if (from === undefined) return [];
+  return unseenFirst(gemsOfRarity(from.rarity).filter((id) => id !== currentGemId), (id) => id, seen);
+}
+
+export function rerollCardOfferV3(state: RunState, spec: { rolls: number; fallback: Fallback }): Extract<RerollCardOffer, { status: 'pending' }> {
+  const options = ownedCards(state)
+    .filter((card) => rerollCardPool(card.skillId, card.skillId, card.tier).length > 0)
+    .map((card) => ({ instanceId: card.instanceId, skillId: card.skillId, tier: card.tier }));
+  return { kind: 'rerollCard', status: 'pending', options, rolls: spec.rolls, fallback: { ...spec.fallback } };
+}
+
+export function rerollGemOfferV3(state: RunState, spec: { rolls: number; fallback: Fallback }): Extract<RerollGemOffer, { status: 'pending' }> {
+  const options: { pouchIndex: number; gemId: string }[] = [];
+  state.gemInventory.forEach((gemId, pouchIndex) => {
+    if (options.some((option) => option.gemId === gemId) || rerollGemPool(gemId, gemId).length === 0) return;
+    options.push({ pouchIndex, gemId });
+  });
+  return { kind: 'rerollGem', status: 'pending', options, rolls: spec.rolls, fallback: { ...spec.fallback } };
+}
+
+type RerollResult<O, S> =
+  | { state: RunState; offer: O; outcome?: undefined }
+  | { state: RunState; offer: O; outcome: S };
+
+export function stepRerollCardV3(
+  state: RunState,
+  offer: Extract<RerollCardOffer, { status: 'pending' }>,
+  eventInstanceId: string,
+  choiceId: string,
+  step: EventRerollStepV3,
+): RerollResult<RerollCardOffer, EventCardRerollSettlementV3> | undefined {
+  const rolled = offer.rolled;
+  const settle = (next: RunState, current: NonNullable<RerollCardOffer['rolled']>) => {
+    const card = ownedCards(next).find((entry) => entry.instanceId === current.instanceId)!;
+    return {
+      state: next,
+      offer: { ...offer, rolled: current, status: 'settled' as const, selectedId: current.instanceId },
+      outcome: { kind: 'cardRerolled' as const, fromSkillId: current.fromSkillId, skillId: current.skillId, tier: card.tier, rollsUsed: current.rollsUsed },
+    };
+  };
+  if (step.kind === 'keep') return rolled === undefined ? undefined : settle(state, rolled);
+  const target = step.kind === 'pick'
+    ? (rolled === undefined ? offer.options.find((option) => option.instanceId === step.id) : undefined)
+    : rolled;
+  if (target === undefined) return undefined;
+  const owned = ownedCards(state).find((card) => card.instanceId === target.instanceId);
+  const currentSkillId = rolled?.skillId ?? target.skillId;
+  if (owned === undefined || owned.skillId !== currentSkillId) return undefined;
+  const fromSkillId = rolled?.fromSkillId ?? owned.skillId;
+  const rollsUsed = (rolled?.rollsUsed ?? 0) + 1;
+  if (rollsUsed > offer.rolls) return undefined;
+  const seen = rolled?.seen ?? [fromSkillId];
+  const pool = rerollCardPool(fromSkillId, currentSkillId, owned.tier, seen);
+  if (pool.length === 0) return undefined;
+  const skillId = pool[hashSeed(state.map.seed, 'event-reroll-card', eventInstanceId, choiceId, owned.instanceId, rollsUsed) % pool.length]!.id;
+  const next = updateCard(state, owned.instanceId, (card) => ({ ...card, skillId, points: 0 }));
+  const current = { instanceId: owned.instanceId, fromSkillId, skillId, rollsUsed, seen: [...seen, skillId] };
+  return rollsUsed >= offer.rolls ? settle(next, current) : { state: next, offer: { ...offer, rolled: current } };
+}
+
+export function stepRerollGemV3(
+  state: RunState,
+  offer: Extract<RerollGemOffer, { status: 'pending' }>,
+  eventInstanceId: string,
+  choiceId: string,
+  step: EventRerollStepV3,
+): RerollResult<RerollGemOffer, EventGemRerollSettlementV3> | undefined {
+  const rolled = offer.rolled;
+  const settle = (next: RunState, current: NonNullable<RerollGemOffer['rolled']>) => ({
+    state: next,
+    offer: { ...offer, rolled: current, status: 'settled' as const, selectedId: String(current.pouchIndex) },
+    outcome: { kind: 'gemRerolled' as const, fromGemId: current.fromGemId, gemId: current.gemId, rollsUsed: current.rollsUsed },
+  });
+  if (step.kind === 'keep') return rolled === undefined ? undefined : settle(state, rolled);
+  const target = step.kind === 'pick'
+    ? (rolled === undefined ? offer.options.find((option) => String(option.pouchIndex) === step.id) : undefined)
+    : rolled;
+  if (target === undefined) return undefined;
+  const currentGemId = rolled?.gemId ?? target.gemId;
+  const pouchIndex = state.gemInventory[target.pouchIndex] === currentGemId
+    ? target.pouchIndex
+    : state.gemInventory.indexOf(currentGemId);
+  if (pouchIndex < 0) return undefined;
+  const fromGemId = rolled?.fromGemId ?? currentGemId;
+  const rollsUsed = (rolled?.rollsUsed ?? 0) + 1;
+  if (rollsUsed > offer.rolls) return undefined;
+  const seen = rolled?.seen ?? [fromGemId];
+  const gemId = pickGem(rerollGemPool(fromGemId, currentGemId, seen), state.map.seed, 'event-reroll-gem', eventInstanceId, choiceId, fromGemId, rollsUsed);
+  if (gemId === undefined) return undefined;
+  const gemInventory = state.gemInventory.map((entry, index) => (index === pouchIndex ? gemId : entry));
+  const next = { ...state, gemInventory };
+  const current = { pouchIndex, fromGemId, gemId, rollsUsed, seen: [...seen, gemId] };
+  return rollsUsed >= offer.rolls ? settle(next, current) : { state: next, offer: { ...offer, rolled: current } };
+}

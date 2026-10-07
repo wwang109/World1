@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import { currentEquipmentDropReceipt } from '../runStore';
 import type { Archetype, SkillDef } from '../../engine/types';
 import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
@@ -37,9 +39,11 @@ import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
 import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import { passiveFxAt, renderBattlePassiveNotice, highlightBattlePassiveTargets, type PassiveBoardBounds } from '../ui/battlePassiveFx';
 import {
   applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
-  flashLogRowHighlight, popStatusChip, pulseTokenAt, punchLogRowIn, shakeBar, slidePhaseBanner, spawnFxFloat,
+  flashLogRowHighlight, minimizeButton, phaseStartStep, pinSuddenDeathBanner, popStatusChip, pulseTokenAt, punchLogRowIn,
+  renderSuddenDeathVignette, shakeBar, slidePhaseBanner, spawnFxFloat,
   type HpBarHandles,
 } from '../ui/battlePlaybackFx';
 
@@ -129,6 +133,7 @@ export class DesktopBattleScene extends Phaser.Scene {
   private hpByStep: HpSnap[] = [];
   private shieldByStep: ShieldSnap[] = [];
   private fxByStep: TurnFx[][] = [];
+  private suddenDeathStep = -1;
   private focusFoeByStep: Array<number | undefined> = [];
   private idx = 0;
   private lastIdx = -1;
@@ -180,6 +185,7 @@ export class DesktopBattleScene extends Phaser.Scene {
    * it; a fresh scene entry (init() runs) re-fetches a new log and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
+  private equipmentDropName: string | null = null;
   private isExtraGhostFight = false;
   private isChallengeFight = false;
   private ghostOffer: GhostSaveOfferViewModel | null = null;
@@ -231,6 +237,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.playTimer = undefined;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
+    this.equipmentDropName = null;
     this.summaryOverride = null;
     this.isExtraGhostFight = false;
     this.isChallengeFight = false;
@@ -268,7 +275,11 @@ export class DesktopBattleScene extends Phaser.Scene {
           resolveChallengeFightResult(log);
           this.goldPayout = 0;
         } else {
+          const priorReceipt=runContext?currentEquipmentDropReceipt()?.id:null;
           this.goldPayout = runContext ? resolveRunBattleResult(input, log) : creditBattleGold(input, log);
+          const receipt=runContext?currentEquipmentDropReceipt():null;
+          const drop=receipt?.sourceKind==='fight'&&receipt.id!==priorReceipt?receipt.item:null;
+          this.equipmentDropName=drop?equipmentCatalog.item(drop.itemId,drop.itemVersion).name:null;
           playSfx('goldGain');
         }
         const offer = runContext ? offerGhostSave() : null;
@@ -382,6 +393,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.hpByStep = model.hpByStep;
     this.shieldByStep = model.shieldByStep;
     this.fxByStep = model.fxByStep;
+    this.suddenDeathStep = phaseStartStep(model.fxByStep, 'suddenDeath');
     this.focusFoeByStep = model.focusFoeByStep;
     this.outcome = model.outcome;
     this.mutualWipe = model.mutualWipe;
@@ -457,6 +469,10 @@ export class DesktopBattleScene extends Phaser.Scene {
     const logW = rightX - logX - GAP;
     const boardTop = contentTop + HP_BLOCK_H + GAP;
     const boardH = contentBottom - boardTop;
+    const passive = passiveFxAt(this.fxByStep[this.idx] ?? []);
+    const animatePassive = forwardStep && this.playing;
+    const cueH = passive ? renderBattlePassiveNotice(this, passive, { x: logX, y: contentBottom, width: logW, compact: false, bottom: true, animate: animatePassive, speedMult: this.speedMult }) : 0;
+    const passiveBoards: PassiveBoardBounds[] = [{ side: 'player', unit: 0, x: leftX, y: boardTop, width: PANEL_W, height: boardH }];
 
     // ---- HP blocks + boards. LEFT: the hero. RIGHT: one section per foe,
     // stacked vertically (a 1v1 fight is just the single full-height case).
@@ -538,6 +554,7 @@ export class DesktopBattleScene extends Phaser.Scene {
         x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H, side: 'right',
         pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
+      passiveBoards.push({ side: 'enemy', unit: u, x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H });
       if (animate && foeSlot !== undefined) {
         const cast = this.castFxFor('enemy', u);
         const recipe = pulseTokenAt(this, foeCol, foeModel.pieces, foeSlot, cast, F.small, this.speedMult);
@@ -631,8 +648,19 @@ export class DesktopBattleScene extends Phaser.Scene {
     }
 
     // ---- combat log (center column) ----
-    this.renderLog(logX, contentTop, logW, contentBottom - contentTop, turn, step, isOutcomeStep, forwardStep, stepHasTopTierHit);
-    if (stepPhaseFx) {
+    const suddenDeath = this.suddenDeathStep >= 0 && this.idx >= this.suddenDeathStep;
+    const suddenDeathArriving = forwardStep && this.idx === this.suddenDeathStep;
+    const suddenDeathH = suddenDeath ? 32 : 0;
+    const logTop = contentTop + (suddenDeathH ? suddenDeathH + 6 : 0);
+    this.renderLog(logX, logTop, logW, contentBottom - logTop - (cueH ? cueH + 8 : 0), turn, step, isOutcomeStep, forwardStep, stepHasTopTierHit);
+    if (passive) highlightBattlePassiveTargets(this, passive, passiveBoards, animatePassive, this.speedMult);
+    if (suddenDeath) {
+      const at = this.steps[this.suddenDeathStep];
+      const text = at ? this.linesByTurn.get(at.turn)?.[at.lineIndex]?.text ?? '' : '';
+      pinSuddenDeathBanner(this, logX, contentTop, logW, suddenDeathH, text, F.name, suddenDeathArriving, this.speedMult);
+      if (!isOutcomeStep) renderSuddenDeathVignette(this, this.W, this.H, 56, suddenDeathArriving, this.speedMult);
+    }
+    if (stepPhaseFx && stepPhaseFx.phase !== 'suddenDeath') {
       const line = this.linesByTurn.get(turn)?.[step.lineIndex];
       if (line?.tag === 'PHASE') slidePhaseBanner(this, logX, contentTop, logW, 40, line.text, this.speedMult);
     }
@@ -864,11 +892,14 @@ export class DesktopBattleScene extends Phaser.Scene {
     const bannerGap = isOutcomeStep ? 10 : 0;
     const pad = 16;
     const ghostBlockH = isOutcomeStep && this.ghostOffer ? 54 : 0;
-    const ph = bannerH + bannerGap + 20 + 18 + gridRows * rowH + pad + ghostBlockH;
+    const dropH=isOutcomeStep&&this.equipmentDropName?30:0;
+    const ph = bannerH + bannerGap + 20 + 18 + gridRows * rowH + pad + ghostBlockH + dropH;
     const px = x + (w - pw) / 2;
     const py = y + (h - ph) / 2;
 
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.97).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
+    const minW = 30;
+    minimizeButton(this, px + pw - minW - 8, py + 8, minW, 24, F.label, 1, () => { this.summaryOverride = false; this.render(); });
     if (isOutcomeStep) {
       this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
       this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
@@ -901,18 +932,24 @@ export class DesktopBattleScene extends Phaser.Scene {
     }
 
     let cy = py + bannerH + bannerGap;
+    if(dropH){
+      this.add.rectangle(px+pad,cy,pw-pad*2,24,UI.panelAlt,1).setOrigin(0).setStrokeStyle(1,UI.chip,.6);
+      this.add.text(px+pad+8,cy+5,`EQUIPMENT FOUND · ${this.equipmentDropName}`,{fontFamily:FONT.body,fontSize:`${F.small}px`,color:UI.textAccent});
+      cy+=dropH;
+    }
     const totalMetrics = [
       summary.playerDamage > 0 ? `YOU DMG ${summary.playerDamage}` : '',
       summary.enemyDamage > 0 ? `FOE DMG ${summary.enemyDamage}` : '',
       summary.playerHealing > 0 ? `HEAL ${summary.playerHealing}` : '',
     ].filter(Boolean).join('  ·  ');
-    this.boundedText(px + pad, cy, totalMetrics || 'No measurable output', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }, pw - pad * 2 - 130);
+    const headerRight = isOutcomeStep ? 0 : minW + 8;
+    this.boundedText(px + pad, cy, totalMetrics || 'No measurable output', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }, pw - pad * 2 - 130 - headerRight);
     // "AS OF" marker makes it unmistakable this is a running tally, not the
     // final one, whenever this panel is showing mid-fight.
     const cardsLabel = isOutcomeStep
       ? `${summaryRows.length} EFFECTIVE CARDS`
       : `${summaryRows.length} EFFECTIVE CARDS · AS OF T${turn}`;
-    this.add.text(px + pw - pad, cy, cardsLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }).setOrigin(1, 0);
+    this.add.text(px + pw - pad - headerRight, cy, cardsLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }).setOrigin(1, 0);
     cy += 20;
     this.add.text(px + pad, cy, isOutcomeStep ? 'CARD OUTPUT' : `CARD OUTPUT · AS OF T${turn}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
     cy += 18;

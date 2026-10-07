@@ -3,9 +3,11 @@ import type {
   Archetype,
   BuffableStat,
   Element,
+  Property,
   SkillTier,
   WeaponType,
 } from '../engine/types';
+import type { EquipmentSlot } from '../engine/equipment/types';
 import type { CardFilter, GemFilter } from './shopTypes';
 import type {
   EventCallbackSpec as EventCallbackSpecV2,
@@ -75,6 +77,7 @@ export interface EventOwnedCardMatchV3 {
   weapons?: readonly WeaponType[];
   elements?: readonly Element[];
   archetypes?: readonly Archetype[];
+  properties?: readonly Property[];
 }
 
 export interface EventOwnedCardCountArgsV3 {
@@ -149,6 +152,8 @@ export type EventRequirementV3 =
   | { fact: 'combat.signatureReady'; args: { winsAtLeast: number; bossFinisher: true } }
   | { fact: 'journey.visitedBiomes'; args: { op: 'gte'; value: number } }
   | { fact: 'journey.completedChains'; args: { op: 'gte'; value: number } }
+  | { fact: 'equipment.equipped.count'; args: { op: 'gte'; value: number; slots?: readonly EquipmentSlot[] } }
+  | { fact: 'equipment.broken.count'; args: { op: 'gte'; value: number } }
   | { fact: 'callback.queued'; args: { callbackId: string } };
 
 export type EventBindingSpecV3 =
@@ -229,7 +234,16 @@ export type EventDirectOutcomeSpecV3 =
   | EventReshapeCardSpecV3
   | EventReshapeGemSpecV3
   | { kind: 'scavengeCard'; fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' } }
-  | { kind: 'grantShopRerolls'; amount: number };
+  | { kind: 'grantShopRerolls'; amount: number }
+  | { kind: 'rerollCard'; rolls: number; fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' } }
+  | { kind: 'rerollGem'; rolls: number; fallback: { kind: 'grantGold'; amount: number } | { kind: 'nothing' } }
+  | ({ kind: 'forgeEquipment' } & EventEquipmentWorkshopV3)
+  | ({ kind: 'upgradeEquipment' } & EventEquipmentWorkshopV3);
+
+export interface EventEquipmentWorkshopV3 {
+  sets: readonly string[];
+  items?: readonly string[];
+}
 
 export type EventReshapeModeV3 = 'transform' | 'retype' | 'duplicate' | 'sacrifice' | 'trade' | 'shatter';
 
@@ -284,6 +298,7 @@ export type EventOutcomeSpecV3 =
 export interface EventChoiceV3 extends Omit<EventChoiceDef, 'outcome'> {
   outcome: EventOutcomeSpecV3;
   lifeCost?: number;
+  equipmentCost?: EquipmentSlot;
   mutations?: readonly EventMutationV3[];
   callback?: EventCallbackSpecV3;
 }

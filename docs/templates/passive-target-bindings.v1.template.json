@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "status": "DRAFT saved-target schema. Not accepted directly by current engine/API; future acquisition/persistence adapter required.",
+  "notes": [
+    "Choose once at talent unlock or relic acquisition; save only after confirmation. Cancel leaves the existing state unchanged.",
+    "A card binding follows the owned instance when it moves; an unavailable card stays inactive, without automatic replacement.",
+    "A slot binding retains its zero-based coordinate and affects eligible future occupants; these examples explicitly use occupied-cell matching.",
+    "Retargeting is an explicit later player action when allowed; do not ask again before each battle or reset consumed uses.",
+    "The future adapter validates ownership/source versions, remaps owned card references to battle pieceRefs, and builds existing preBattle sources/bindings plus trusted heroPieceRefs.",
+    "Automatic sources need no saved target selection. Presentation IDs and chosenAt are not engine recipe fields.",
+    "Draft picker policy: choose any valid board slot, including an empty slot or one whose current card is ineligible; effect eligibility is checked when the battle is prepared."
+  ],
+  "savedSelections": [
+    {
+      "source": {
+        "kind": "talent",
+        "id": "quick_preparation",
+        "version": 1
+      },
+      "effectId": "quicker_card",
+      "targetBinding": "playerCard",
+      "binding": {
+        "pieceRef": "owned-card-ref-42"
+      },
+      "chosenAt": "talentUnlock",
+      "selectionActionId": "selection-action-101"
+    },
+    {
+      "source": {
+        "kind": "relic",
+        "id": "windbound_charm",
+        "version": 1
+      },
+      "effectId": "windbound_slot",
+      "targetBinding": "playerSlot",
+      "binding": {
+        "slot": 2,
+        "match": "occupies"
+      },
+      "chosenAt": "relicAcquisition",
+      "selectionActionId": "selection-action-102"
+    },
+    {
+      "source": {
+        "kind": "talent",
+        "id": "fortified_position",
+        "version": 1
+      },
+      "effectId": "stronger_shield",
+      "targetBinding": "playerSlot",
+      "binding": {
+        "slot": 4,
+        "match": "occupies"
+      },
+      "chosenAt": "talentUnlock",
+      "selectionActionId": "selection-action-103"
+    }
+  ],
+  "automaticSources": [
+    {
+      "kind": "relic",
+      "id": "guardians_seal",
+      "version": 1
+    }
+  ],
+  "futureAdapterOutputExample": {
+    "preBattle": {
+      "schemaVersion": 1,
+      "sources": [
+        {
+          "kind": "talent",
+          "id": "quick_preparation",
+          "version": 1
+        },
+        {
+          "kind": "relic",
+          "id": "windbound_charm",
+          "version": 1
+        }
+      ],
+      "bindings": [
+        {
+          "source": {
+            "kind": "talent",
+            "id": "quick_preparation",
+            "version": 1
+          },
+          "effectId": "quicker_card",
+          "binding": {
+            "pieceRef": "battle-card-ref-42"
+          }
+        },
+        {
+          "source": {
+            "kind": "relic",
+            "id": "windbound_charm",
+            "version": 1
+          },
+          "effectId": "windbound_slot",
+          "binding": {
+            "slot": 2,
+            "match": "occupies"
+          }
+        }
+      ]
+    },
+    "trustedHeroPieceRefs": [
+      {
+        "slot": 2,
+        "pieceRef": "battle-card-ref-42"
+      }
+    ]
+  },
+  "slotSelectionPolicy": {
+    "allowEmpty": true,
+    "allowCurrentlyIneligible": true,
+    "validCoordinates": "currentBoard",
+    "eligibilityCheckedAt": "battlePreparation"
+  }
+}

@@ -1,4 +1,8 @@
+import { renderInventorySlot } from '../ui/inventorySlot';
 import Phaser from 'phaser';
+import { applyEquipmentStats } from '../../engine/equipment/resolve';
+import { currentEquipmentResolution } from '../runStore';
+import { passiveTargetingAcquiring, renderPassiveTargetingPreview } from '../ui/passiveTargetingPreview';
 import { renderGemDetailsDrawer, type GemDetailsSlot } from '../ui/gemDetailsDrawer';
 import { CardDetailActivation } from '../ui/cardDetailActivation';
 import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
@@ -31,6 +35,7 @@ import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRunBagTabs } from '../ui/runBagTabs';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
@@ -158,7 +163,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // Hero-scope stat gems (e.g. +4 SPD) fold in here too, the SAME math the
     // engine applies at cast time — see `resolveDisplayHeroStats`. Without
     // this, every card face's live-stat term understated the gem's bonus.
-    const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
+    const heroStats = resolveDisplayHeroStats(this.runContext?applyEquipmentStats(hero.stats,currentEquipmentResolution(),{fullHpAtBattleSetup:true}):hero.stats, hero.pieces);
     this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
     const extraCooldown = extraCooldownPieces(this.pieces, skillBook);
     this.cooldownWarning = extraCooldown.length > 0 ? extraCooldownWarningEntries(extraCooldown.map((p) => p.skill)) : null;
@@ -173,6 +178,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.renderColumns();
     this.renderTrash();
     this.wireDrag();
+    if (!this.runContext) renderPassiveTargetingPreview(this, { pieces: this.pieces, layout: this.layout, holdingTop: this.holdingTop, holdingH: this.holdingH, compact: false, rerender: () => this.rerender() });
     if (this.pendingTrash) this.renderConfirm();
     if (this.pendingMerge) this.renderMergeConfirm();
     if (this.pendingMergeChoice) this.renderMergeChoice();
@@ -207,7 +213,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const run = getActiveRun();
     if (!run) return;
     renderRunHud(this, {
-      screen: 'DECK',
+      screen: 'BAG',
       compact: false,
       snapshot: snapshotRunProgress(run),
       onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
@@ -216,6 +222,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
       },
     });
+    renderRunBagTabs(this, false, 'cards');
   }
 
   /** Manual pointer-drag: hit-test tokens ourselves. Drop resolves against
@@ -240,6 +247,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       // this — the flag is cleared in the same synchronous handler, before
       // the rebuild. This structural guard is what actually protects it.
       if (wasPointerConsumedByRebuild(this, p)) return;
+      if (passiveTargetingAcquiring()) return;
       if (this.pendingTrash || this.pendingMerge || this.pendingMergeChoice || this.socketFor || this.inspectCard || this.statPanelOpen || this.retireConfirmOpen) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) { this.detailActivation.reset(); return; }
@@ -575,7 +583,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
     const rowTop = (row: number): number => top + row * (rowH + gap);
     const empty = (colX: number, row: number, side: 'left' | 'right'): void => {
-      this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, UI.slot, 0.45).setOrigin(0.5).setStrokeStyle(1, UI.border, 0.35);
+      renderInventorySlot(this, colX, rowTop(row), colW, rowH, false);
       const nx = side === 'left' ? colX + colW - 10 : colX + 10;
       this.add.text(nx, rowTop(row) + 6, `${row + 1}`, { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
     };

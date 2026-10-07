@@ -88,7 +88,7 @@ export const FANTASY_CARD_TEMPLATE_SPEC: FantasyCardTemplateSpec = {
     slotLabel: { x: 230, y: 644, w: 156, h: 20 },
     titleBox: { x: 100, y: 40, w: 222, h: 48 },
     divider: { x: 110, y: 94, w: 202, h: 2 },
-    bodyBox: { x: 26, y: 472, w: 368, h: 166 },
+    bodyBox: { x: 18, y: 472, w: 384, h: 166 },
     typeBadge: { x: 38, y: 38, w: 48, h: 48 },
     // Bottom-left footer row, mirroring slotLabel on the right.
     wtPlate: { x: 34, y: 644, w: 110, h: 20 },

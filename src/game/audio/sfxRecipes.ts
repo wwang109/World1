@@ -77,6 +77,7 @@ export const SFX_RECIPES: Record<SfxKey, SfxRecipe> = {
   'status:negate': { wave: 'square', freqStart: 200, freqEnd: 200, durationMs: 90, attackMs: 2, decayMs: 85, gainDb: -10, pitchJitterPct: 3 },
   'status:expose': { wave: 'sawtooth', freqStart: 520, freqEnd: 300, durationMs: 150, attackMs: 5, decayMs: 140, gainDb: -12, noiseMs: 20, pitchJitterPct: 7 },
   'status:thorns': { wave: 'triangle', freqStart: 850, freqEnd: 650, durationMs: 100, attackMs: 1, decayMs: 95, gainDb: -10, pitchJitterPct: 5 },
+  'status:regen': { wave: 'sine', freqStart: 520, freqEnd: 820, durationMs: 180, attackMs: 22, decayMs: 150, gainDb: -12, pitchJitterPct: 4 },
   'status:ward': { wave: 'sine', freqStart: 620, freqEnd: 940, durationMs: 190, attackMs: 25, decayMs: 160, gainDb: -11, pitchJitterPct: 4 },
 
   died: { wave: 'sawtooth', freqStart: 300, freqEnd: 60, durationMs: 340, attackMs: 5, decayMs: 320, gainDb: -8, noiseMs: 40, pitchJitterPct: 3 },

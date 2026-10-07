@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { chromium } from 'playwright';
+import { resolveChromiumPath } from './chromiumPath';
+
+const out = 'tmp/talent-relic-targeting-ui'; mkdirSync(out,{recursive:true});
+const url = process.env.WORLD1_TARGETING_URL ?? 'http://127.0.0.1:5174/docs/mockups/talent-relic-targeting.html';
+const browser=await chromium.launch({executablePath:resolveChromiumPath('talent-relic-targeting'),headless:true});
+try {
+  for(const [platform,width,height] of [['desktop',1440,900],['mobile',412,892]] as const){
+    const page=await browser.newPage({viewport:{width,height}});
+    const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(url); await page.waitForLoadState('networkidle');
+    assert(await page.locator('#card-confirm').isDisabled());
+    await page.locator('[data-card="sword-b"]').click();
+    assert.match(await page.locator('#card-preview').innerText(),/Slot 3.*WT 10 → 7/);
+    await page.locator('#card-confirm').click();
+    assert.equal(await page.locator('[data-card="sword-b"]').evaluate(el=>getComputedStyle(el).animationName),'wing');
+    await page.waitForTimeout(1100);
+    await page.screenshot({path:join(out,`${platform}-unlock-talent.png`),fullPage:true});
+    await page.locator('[data-tab="relic"]').click();
+    assert(await page.locator('#slot-confirm').isDisabled());
+    await page.locator('[data-slot="9"]').click();
+    assert(!(await page.locator('#slot-confirm').isDisabled()));
+    assert.match(await page.locator('#slot-preview').innerText(), /Inactive/);
+    await page.locator('#slot-confirm').click();
+    await page.locator('[data-tab="effects"]').click();
+    assert.match(await page.locator('.effect-row').nth(1).innerText(), /Slot 10.*Inactive/);
+    await page.locator('[data-tab="relic"]').click();
+    await page.locator('[data-slot="2"]').click();await page.locator('#slot-confirm').click();
+    assert.equal(await page.locator('[data-slot="2"]').evaluate(el=>getComputedStyle(el).animationName),'spiral');
+    await page.waitForTimeout(1100);
+    await page.screenshot({path:join(out,`${platform}-found-relic.png`),fullPage:true});
+    await page.locator('[data-tab="effects"]').click();
+    assert.equal(await page.locator('.effect-row:not(.off)').count(),3);
+    await page.screenshot({path:join(out,`${platform}-effects.png`),fullPage:true});
+    await page.locator('[data-trigger="talent"]').click();
+    assert.equal(await page.locator('#fx-talent').evaluate(el=>getComputedStyle(el).animationName),'wing');
+    assert.equal(await page.locator('[data-board-slot="2"]').evaluate(el=>getComputedStyle(el).animationName),'wing');
+    await page.waitForTimeout(100);await page.screenshot({path:join(out,`${platform}-talent-motion.png`),fullPage:true});
+    await page.locator('[data-trigger="relic"]').click();
+    assert.equal(await page.locator('#fx-relic').evaluate(el=>getComputedStyle(el).animationName),'spiral');
+    assert.equal(await page.locator('[data-board-slot="2"] .marker.relic').evaluate(el=>getComputedStyle(el).animationName),'spiral');
+    await page.waitForTimeout(100);await page.screenshot({path:join(out,`${platform}-relic-motion.png`),fullPage:true});
+    await page.locator('#move').click();
+    const rows=await page.locator('.effect-row').allTextContents();
+    assert.match(rows[0]!,/Slot 7/);assert.match(rows[1]!,/Slot 3.*Inactive/);
+    assert.equal(await page.locator('.board-row').nth(6).locator('.marker.talent').count(),1);
+    assert.equal(await page.locator('.board-row').nth(2).locator('.marker.relic').count(),1);
+    assert.equal(await page.locator('.board-row').nth(2).locator('.marker.relic.inactive').count(),1);
+    await page.locator('#defense').click(); assert.match(await page.locator('.effect-row').nth(2).innerText(),/no defensive card/);
+    await page.screenshot({path:join(out,`${platform}-moved-inactive.png`),fullPage:true});
+    await page.reload();await page.locator('[data-tab="effects"]').click();assert.equal(await page.locator('.effect-row:not(.off)').count(),3);
+    await page.emulateMedia({reducedMotion:'reduce'});await page.locator('[data-trigger="talent"]').click();
+    assert.equal(await page.locator('#fx-talent').evaluate(el=>getComputedStyle(el).animationName),'none');
+    assert.equal(await page.locator('[data-board-slot="2"]').evaluate(el=>getComputedStyle(el).animationName),'none');
+    const layout=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,images:Array.from(document.images).map(i=>({src:i.src,ok:i.complete&&i.naturalWidth>0}))}));
+    assert(layout.scrollWidth<=width);assert(layout.images.every(i=>i.ok));assert.deepEqual(errors,[]);
+    writeFileSync(join(out,`${platform}-evidence.json`),JSON.stringify({rows,layout,errors},null,2));await page.close();
+  }
+}finally{await browser.close()}
+console.log('Targeting UI: six paired acquisition/effects screens; target persistence, card move/slot stability, distinct motion, inactive state and reduced motion passed.');

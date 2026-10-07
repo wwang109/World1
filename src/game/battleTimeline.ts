@@ -14,6 +14,9 @@ import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
 import { ruleEntryByKind, withTermEntries } from '../engine/keywords/text';
 import { cooldownRemainingClause, emptySlotClause } from '../engine/keywords/compose';
+import { passiveLogSummaryText } from '../engine/passives/text';
+import { equipmentCatalog } from '../data/equipmentContent';
+import { equipmentModifierClauses } from '../engine/equipment/text';
 import type { BattleLogTextRole, BattleLogTextSegment } from './ui/battleLogLine';
 
 /**
@@ -76,7 +79,9 @@ export interface GuardSnap { player: GuardBadgeEntry[]; enemy: GuardBadgeEntry[]
 export interface TurnFx {
   side: 'player' | 'enemy';
   kind: 'damage' | 'heal' | 'shield' | 'cast'
-    | 'shieldBroken' | 'negated' | 'warded' | 'statusApplied' | 'died' | 'phase';
+    | 'shieldBroken' | 'negated' | 'warded' | 'statusApplied' | 'died' | 'phase' | 'passive';
+  passive?: Extract<CombatEvent, { kind: 'preBattleEffect' }>;
+  phase?: 'suddenDeath' | 'fatigue' | 'attrition';
   amount: number;
   source?: string;
   unit?: number;
@@ -133,6 +138,7 @@ export interface CombatSummary {
 export interface BattlePiece {
   skill: SkillDef;
   slot: number;
+  preparedWeight?: number;
   /**
    * This INSTANCE's tier, carried through so the battle board's card frames read
    * `TIER_COLOR[tier]` exactly like every other board that renders the same
@@ -165,6 +171,7 @@ export interface BattleTimelineInput {
   heroAllocation: Allocation;
   /** Permanent gold-market/free-boon stat buys (`RunState.purchasedStats`). */
   heroPurchasedStats?: Allocation;
+  heroEquipment?: readonly import('../engine/equipment/types').EquippedItemRef[];
   enemyId: string;
   enemyLevel: number;
   enemyTitle: EnemyTitle;
@@ -533,7 +540,7 @@ export function formatGuardBadge(entries: GuardBadgeEntry[]): string | undefined
  */
 const CHIP_GLYPH: Record<string, string> = {
   poison: 'POISON', burn: 'BURN', bleed: 'BLEED', stun: 'STN', expose: 'EXP',
-  guard: 'GRD', negate: 'NGT', ward: 'WRD', thorns: 'THR',
+  guard: 'GRD', negate: 'NGT', ward: 'WRD', thorns: 'THR', regen: 'RGN',
 };
 
 /**
@@ -576,6 +583,7 @@ function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): stri
     case 'buff': kind = 'buffStat'; break;
     case 'debuff': kind = 'debuffStat'; break;
     case 'thorns': kind = 'thorns'; break;
+    case 'regen': kind = 'regen'; break;
   }
   return withTermSentences(ruleEntryByKind(kind));
 }
@@ -681,7 +689,7 @@ export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | 
   // (`cleanseConvert` today), so it belongs in the build-up beside the stat and
   // aura terms — otherwise a heal that is nothing BUT base + rider bonus would
   // print no strip at all and the number would go unexplained.
-  const buildUp = c ? c.statBonus + c.healFlat + (c.bonus ?? 0) : 0;
+  const buildUp = c ? c.statBonus + c.healFlat + (c.bonus ?? 0) + (c.equipmentBonus ?? 0) : 0;
   if (buildUp <= 0 && reduced <= 0 && e.overheal <= 0) return undefined;
   // `amount + overheal + antiHeal.reduced` is the pre-tax request (the identity
   // documented on the event); with a `calculation` we can open with its parts.
@@ -692,6 +700,7 @@ export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | 
   // A TRUE heal opens with the whole `flat N` request, which already INCLUDES the
   // bonus, so adding the term again would double-count it in the printed sum.
   if (c && !e.flat && (c.bonus ?? 0) > 0) terms.push(`+ (${c.bonus} RIDER)`);
+  if(c&&(c.equipmentBonus??0)>0)terms.push(e.flat?`(includes ${c.equipmentBonus} EQUIPMENT)`:`+ (${c.equipmentBonus} EQUIPMENT)`);
   if (reduced > 0) terms.push(`− (${reduced} ANTI-HEAL)`);
   if (e.overheal > 0) terms.push(`− (${e.overheal} OVERHEAL)`);
   return `H: ${terms.join(' ')} = ${e.amount}`;
@@ -724,6 +733,13 @@ export function formatShield(e: Extract<CombatEvent, { kind: 'shieldGain' }>): s
  * names, stats, and boards.
  */
 export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog): BattleTimeline {
+  const preparedWeights = new Map<string, number>();
+  for (const event of log.events) {
+    if (event.kind !== 'preBattleEffect' || !event.active) continue;
+    for (const change of event.changes ?? []) {
+      if (change.field === 'weight') preparedWeights.set(`${event.side}:${event.unit}:${change.slot}`, change.rawAfter ?? change.after);
+    }
+  }
   const heroEncounter = buildAutoHeroSetup(
     input.heroLevel, input.pieces.map((p) => ({ ...p })), input.heroAllocation, input.heroPurchasedStats,
   );
@@ -735,6 +751,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const foeSetups = teamConfigs.map((cfg) => cfg.ghost
     ? buildGhostFoeSetup(cfg.ghost)
     : buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, cfg.fightNumber, cfg.deck ?? null, cfg.growthLevel, cfg.bumped ?? false).setup);
+  const equipmentSetup = log.events.find(event => event.kind === 'equipmentSetup' && event.side === 'player' && event.unit === 0);
+  if (equipmentSetup?.kind === 'equipmentSetup') hero.stats = { ...equipmentSetup.statsAfter };
   const heroName = hero.name;
   const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
 
@@ -751,7 +769,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     // without this, an owned Gold AoE card would still show its Bronze,
     // single-target face mid-fight.
     const s = resolveDisplaySkill(base, p);
-    heroPieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); heroSkills.push(s);
+    const preparedWeight = preparedWeights.get(`player:0:${p.slot}`);
+    heroPieces.push({ skill: s, slot: p.slot, ...(preparedWeight === undefined ? {} : { preparedWeight }), ...(p.tier ? { tier: p.tier } : {}) }); heroSkills.push(s);
   }
   // The hero's RESOLVED affinity is purely the board's own derived identity,
   // computed once the whole board is known (see `resolveCombatantAffinity`'s
@@ -761,7 +780,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   for (const piece of heroPieces) piece.affinityOpen = cardAffinityOpen(piece.skill, heroAffinity);
   const statLineOf = (s: { attack: number; magicPower: number; armor: number; magicResist: number; speed: number }): string =>
     `${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`;
-  const foes: FoeModel[] = foeSetups.map((setup) => {
+  const foes: FoeModel[] = foeSetups.map((setup, unit) => {
     const pieces: BattlePiece[] = [];
     const skills: SkillDef[] = [];
     for (const p of setup.pieces) {
@@ -783,7 +802,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // `resolveDisplaySkill` takes, so this is the same call the hero board and
       // the shop's owned board already make.
       const s = resolveDisplaySkill(base, p);
-      pieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); skills.push(s);
+      const preparedWeight = preparedWeights.get(`enemy:${unit}:${p.slot}`);
+      pieces.push({ skill: s, slot: p.slot, ...(preparedWeight === undefined ? {} : { preparedWeight }), ...(p.tier ? { tier: p.tier } : {}) }); skills.push(s);
     }
     // `EnemyDef.elementAffinity`/`.weaponAffinity` are `@deprecated` and
     // IGNORED by the engine (`docs/board-type-identity.md`) — this mirror
@@ -1390,9 +1410,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     kind: 'shieldBroken' | 'negated' | 'warded' | 'statusApplied' | 'died' | 'phase',
     unit: number,
     status?: StatusName,
+    phase?: TurnFx['phase'],
   ): void => {
     const last = stepRecords[stepRecords.length - 1];
-    if (last) last.fx.push({ side, kind, amount: 0, unit, status });
+    if (last) last.fx.push({ side, kind, amount: 0, unit, status, ...(phase ? { phase } : {}) });
   };
 
   // Step 0 — the pre-battle baseline. Without it, playback would open on the
@@ -1425,6 +1446,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     else if (sided.side === 'player') curFocus = curActor?.side === 'enemy' ? curActor.unit : undefined;
     const stepCountBeforeEvent = stepRecords.length;
     switch (e.kind) {
+      case 'preBattleEffect':
+        pushActor(e.turn, 'EFFECT', e, ` · ${passiveLogSummaryText(e)}`, e.displayText);
+        stepRecords[stepRecords.length - 1]!.fx.push({ kind: 'passive', side: e.side, unit: e.unit, amount: 0, passive: e });
+        break;
+      case 'equipmentSetup': {
+        const names=e.items.map(item=>equipmentCatalog.item(item.itemId,item.itemVersion).name);
+        const bonuses=equipmentModifierClauses(e.statMods,e.effectMods).join(' · ');
+        const sets=e.sets.map(set=>`${equipmentCatalog.set(set.setId,set.setVersion).name}: ${set.equippedPieces}/3 pieces · ${set.matchingCards}/${set.requiredCards} cards · ${set.requirementMet?'ready':'inactive'}`).join('\n');
+        pushActor(e.turn,'EQUIP',e,` · ${bonuses||'Equipment active'}`,`${names.join(' · ')}\n${sets}`);
+        break;
+      }
       // Readiness gain — mockup turnline: "Hero 18 · SPD +16 · Bandit 25 · SPD +15".
       // Buffered into ONE 'READY' transcript row per turn (see `flushGainRow`
       // above) rather than pushed per-combatant — the turn-start banked
@@ -1736,8 +1768,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const shieldTail = calc && calc.statBonus > 0
           ? ` (${calc.power} + ${calc.statBonus} ${defStatToken(e.property)})`
           : `${e.overheal ? ' (from overheal)' : ''}`;
+        const passiveTail = [ ...(e.sourcePassive ? [e.sourcePassive] : []), ...(e.passiveSources ?? []) ]
+          .map(source => ` · [${source.kind}] ${source.id.replace(/[_-]+/g, ' ')}`).join('');
         pushSegments(e.turn, 'BUFF', [
-          actorSegment(e), neutral(' '), colored(`+${e.amount} ${token}`, 'shield'), neutral(shieldTail),
+          actorSegment(e), neutral(' '), colored(`+${e.amount} ${token}`, 'shield'), neutral(shieldTail + passiveTail),
         ], formatShield(e));
         pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
@@ -1980,6 +2014,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // now instead of taxing the next card's weight, so (unlike slow) there is
       // nothing pending to attach to a later PLAY row — the effect is already
       // fully described the moment it fires.
+      case 'hastened': {
+        const rule = ruleEntryByKind('haste');
+        pushActor(e.turn, 'BUFF', e, ` · Haste +${e.amount} Readiness → ${e.readinessAfter}`,
+          withTermSentences(rule && { ...rule, body: rule.body.replace(/X/, String(e.amount)) }));
+        break;
+      }
       case 'disrupted': {
         const rule = ruleEntryByKind('disrupt');
         pushActor(e.turn, 'DEBUFF', e, ` · Disrupt −${e.amount} Readiness → ${e.readinessAfter}`,
@@ -2259,9 +2299,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // `fatigueStart` carry no number at all (the ramp %, and the fatigue
       // base amount, are combat constants — not per-event data) so those two
       // name only the phase, nothing more.
-      case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); pushSoundFx('player', 'phase', 0); break;
-      case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); pushSoundFx('player', 'phase', 0); break;
-      case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); pushSoundFx('player', 'phase', 0); break;
+      case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); pushSoundFx('player', 'phase', 0, undefined, 'suddenDeath'); break;
+      case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); pushSoundFx('player', 'phase', 0, undefined, 'fatigue'); break;
+      case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); pushSoundFx('player', 'phase', 0, undefined, 'attrition'); break;
       // died fx precedes DOWN: lethalStep truncates at the fatal hit
       case 'died': pushSoundFx(e.side, 'died', unitOf(e)); pushActor(e.turn, 'DOWN', e, ' falls'); break;
       // Mirrors the engine's own end-of-turn clear (simulate.ts:

@@ -8,6 +8,7 @@ import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardC
 import { getSpecial } from './specials';
 import { cardTargetPieces } from './splash';
 import { cardType } from './typeIdentity';
+import { applyEquipmentDirectHeal } from '../equipment/resolve';
 
 export interface Ctx {
   state: CombatState;
@@ -64,6 +65,7 @@ function isOffensiveAction(action: Action): boolean {
     // rather than as the scalar `bonusFlat` is what makes that price honest, and
     // is why desperation needs no AoE refusal while `shieldBurst`/`wardRelease` do.
     case 'desperation':
+    case 'execute':
       return true;
     default:
       // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
@@ -183,7 +185,8 @@ function pickSupportTarget(state: CombatState, caster: CombatantState, action: A
   const allies = teamOf(state, caster.side).filter((a) => a.alive);
   if (allies.length === 0) return caster; // caster is living when it casts; defensive guard.
   switch (action.kind) {
-    case 'heal': {
+    case 'heal':
+    case 'regen': {
       // Lowest HP FRACTION (hp/maxHp) = most hurt. Compared by cross-multiplication
       // to keep it exact integer math (maxHp is always >= 1).
       let best = allies[0]!;
@@ -688,6 +691,28 @@ function restoreHp(target: CombatantState, request: number): { applied: number; 
   const before = target.stats.hp;
   target.stats.hp = Math.min(target.stats.maxHp, before + applied);
   return { applied, healed: target.stats.hp - before };
+}
+
+export function tickRegen(ctx: Ctx, c: CombatantState): void {
+  const remaining: typeof c.statuses = [];
+  for (const status of c.statuses) {
+    if (status.kind !== 'regen' || status.fresh) {
+      remaining.push(status);
+      continue;
+    }
+    if (c.alive) {
+      const taxed = applyAntiHeal(c, status.stacks ?? 0);
+      const { applied, healed } = restoreHp(c, taxed.amount);
+      if (applied > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: c.side, unit: c.index, amount: healed, overheal: applied - healed, flat: false, hpAfter: c.stats.hp, ...(taxed.antiHeal ? { antiHeal: taxed.antiHeal } : {}), ...(status.source ? { sourceCard: status.source } : {}) });
+      }
+    }
+    status.stacks = (status.stacks ?? 0) - 1;
+    status.turnsLeft = status.stacks;
+    if (status.stacks > 0) remaining.push(status);
+    else ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: 'regen' });
+  }
+  c.statuses = remaining;
 }
 
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
@@ -1461,6 +1486,13 @@ function applyAction(
       // silently disagree with this line). Mirrors shieldGain.calculation.
       let statBonus = 0;
       let healFlat = 0;
+      let equipmentBonus = 0;
+      const boostDirectHeal = (request: number): number => {
+        if (!caster.equipment?.effectMods.outgoingHealPct) return request;
+        const boosted = applyEquipmentDirectHeal(action, Math.max(0, request), caster.equipment.effectMods);
+        equipmentBonus = boosted - Math.max(0, request);
+        return boosted;
+      };
       // FLAT BONUS HEALING armed by a rider earlier in this cast (`cleanseConvert`
       // — see `CastCtx.healBonusFlat`). It joins the REQUEST, on both branches, so
       // it is taxed by anti-heal and wasted by the maxHp clamp exactly like the
@@ -1472,7 +1504,7 @@ function applyAction(
         // Flat by identity: no stat term, no aura term — both stay 0, exactly as
         // a TRUE shield reports statBonus 0. The rider bonus is not a stat or aura
         // term, so it DOES apply here; a TRUE heal is irreducible, not unbuffable.
-        amount = action.power + bonus;
+        amount = boostDirectHeal(action.power + bonus);
         flat = true;
       } else {
         statBonus = fromGem ? 0 : scaleDefStat(caster, property);
@@ -1480,7 +1512,7 @@ function applyAction(
         // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
         // category active on the RECEIVER (cap −60%). TRUE heals skip this
         // branch entirely — irreducible by identity.
-        const taxed = applyAntiHeal(target, action.power + statBonus + healFlat + bonus);
+        const taxed = applyAntiHeal(target, boostDirectHeal(action.power + statBonus + healFlat + bonus));
         amount = taxed.amount;
         antiHeal = taxed.antiHeal;
       }
@@ -1493,7 +1525,7 @@ function applyAction(
       // A clamped-away (<= 0) request attempted nothing and stays silent, exactly
       // as a 0 heal always has.
       if (applied > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property, ...(bonus > 0 ? { bonus } : {}) } });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property, ...(bonus > 0 ? { bonus } : {}), ...(equipmentBonus > 0 ? { equipmentBonus } : {}) } });
       }
       // OVERHEAL -> PLATING (`overhealShield`, armed earlier in this cast). The
       // overflow is `applied − healed`, i.e. what the heal had left AFTER the
@@ -1614,6 +1646,7 @@ function applyAction(
         poolsAfter: { ...caster.shields },
         ...(ctx.source ? { sourceCard: ctx.source } : {}),
         calculation: { power: action.power, statBonus },
+        ...(action.passiveSources ? { passiveSources: action.passiveSources } : {}),
       });
       break;
     }
@@ -1917,6 +1950,12 @@ function applyAction(
       });
       break;
     }
+    case 'haste': {
+      if (!caster.alive) break;
+      caster.readiness += action.amount;
+      ctx.events.push({ turn: ctx.state.turn, kind: 'hastened', side: caster.side, unit: caster.index, amount: action.amount, readinessAfter: caster.readiness });
+      break;
+    }
     case 'lifesteal': {
       if (!caster.alive || cast.damageDealt <= 0) break;
       const stolen = Math.floor((cast.damageDealt * action.pct) / 100);
@@ -2103,6 +2142,12 @@ function applyAction(
       armTargetBonus(cast, enemy, action.amount);
       break;
     }
+    case 'execute': {
+      if (!enemy.alive) break;
+      if (enemy.stats.hp * 2 > enemy.stats.maxHp) break;
+      armTargetBonus(cast, enemy, action.amount);
+      break;
+    }
     case 'overhealShield': {
       // ARM ONLY — the conversion itself lives in the `heal` arm, which is the one
       // place that knows how much a heal actually wasted. All this does is grant
@@ -2153,6 +2198,20 @@ function applyAction(
         ctx.events.push({ turn: ctx.state.turn, kind: 'statusApplied', side: caster.side, unit: caster.index, status: 'thorns', stacks: pile.stacks, turns: pile.turnsLeft });
       } else {
         addStatus(ctx, caster, { kind: 'thorns', stacks: action.stacks, turnsLeft: action.stacks, fresh: true, source: ctx.source });
+      }
+      break;
+    }
+    case 'regen': {
+      const target = enemy;
+      if (!target.alive) break;
+      const pile = target.statuses.find((st) => st.kind === 'regen');
+      if (pile) {
+        pile.stacks = (pile.stacks ?? 0) + action.stacks;
+        pile.turnsLeft = pile.stacks;
+        pile.source = ctx.source;
+        ctx.events.push({ turn: ctx.state.turn, kind: 'statusApplied', side: target.side, unit: target.index, status: 'regen', stacks: pile.stacks, turns: pile.turnsLeft });
+      } else {
+        addStatus(ctx, target, { kind: 'regen', stacks: action.stacks, turnsLeft: action.stacks, fresh: true, source: ctx.source });
       }
       break;
     }

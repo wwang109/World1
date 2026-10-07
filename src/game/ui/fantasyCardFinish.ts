@@ -5,16 +5,15 @@ import type { FantasyCardTemplateModel } from './fantasyCardTemplateModel';
 import type { RegionBox } from './fantasyCardTemplateSpec';
 
 interface TierFinish {
-  shine?: { speed: number; lineWidth: number; gradient: number };
   glow?: { color: number; outer: number };
   shadowAlpha: number;
 }
 
 const TIER_FINISH: Record<SkillTier, TierFinish> = {
   bronze: { shadowAlpha: 0.32 },
-  silver: { shine: { speed: 0.25, lineWidth: 0.12, gradient: 6 }, shadowAlpha: 0.36 },
-  gold: { shine: { speed: 0.35, lineWidth: 0.16, gradient: 5 }, shadowAlpha: 0.4 },
-  diamond: { shine: { speed: 0.45, lineWidth: 0.2, gradient: 5 }, glow: { color: 0x9ff3ff, outer: 3 }, shadowAlpha: 0.44 },
+  silver: { shadowAlpha: 0.36 },
+  gold: { shadowAlpha: 0.4 },
+  diamond: { glow: { color: 0x9ff3ff, outer: 3 }, shadowAlpha: 0.44 },
 };
 
 const VIGNETTE_KEY = 'card-finish-vignette';
@@ -22,10 +21,8 @@ const SHADOW_NAME = 'fantasy-card-finish-shadow';
 const VIGNETTE_NAME = 'fantasy-card-finish-vignette';
 const SHADOW_LAYERS = 6;
 const HOVER_SCALE = 1.04;
-const HOVER_SHINE_BOOST = 2.5;
 
 export interface CardFinishHandle {
-  shine?: Phaser.FX.Shine;
   shadow: Phaser.GameObjects.Graphics;
 }
 
@@ -82,9 +79,8 @@ export function applyCardFinish(card: FantasyCardTemplateV2, options: { effects?
   }
 
   const handle: CardFinishHandle = { shadow };
-  if (options.effects !== false && isWebGL(scene) && card.postFX) {
-    if (finish.shine) handle.shine = card.postFX.addShine(finish.shine.speed, finish.shine.lineWidth, finish.shine.gradient, false);
-    if (finish.glow) card.postFX.addGlow(finish.glow.color, finish.glow.outer, 0, false, 0.1, 10);
+  if (finish.glow && options.effects !== false && isWebGL(scene) && card.postFX) {
+    card.postFX.addGlow(finish.glow.color, finish.glow.outer, 0, false, 0.1, 10);
   }
   return handle;
 }
@@ -95,12 +91,10 @@ export function attachCardFinishHover(card: FantasyCardTemplateV2, handle: CardF
   const finish = TIER_FINISH[model.tier];
   const scale = card.width / model.spec.baseSize.width;
   const radius = model.spec.cornerRadius * scale;
-  const baseSpeed = handle.shine?.speed ?? 0;
   card.setInteractive(new Phaser.Geom.Rectangle(-card.width / 2, -card.height / 2, card.width, card.height), Phaser.Geom.Rectangle.Contains);
   const lift = (lifted: boolean) => {
     scene.tweens.add({ targets: card, scale: lifted ? HOVER_SCALE : 1, duration: 140, ease: 'Sine.easeOut' });
     drawShadow(handle.shadow, card.width, card.height, radius, scale, finish.shadowAlpha * (lifted ? 1.35 : 1), lifted ? 6 : 0);
-    if (handle.shine) handle.shine.speed = lifted ? baseSpeed * HOVER_SHINE_BOOST : baseSpeed;
   };
   card.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => lift(true));
   card.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => lift(false));

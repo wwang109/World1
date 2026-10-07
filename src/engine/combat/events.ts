@@ -5,7 +5,7 @@ import type { ShieldPools } from './state';
 export type { AuraSource } from './auras';
 
 
-export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward';
+export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen';
 
 /** Exact integer stages used to produce one direct skill hit. */
 export interface DamageCalculation {
@@ -91,6 +91,8 @@ interface TargetFields {
 }
 
 export type CombatEvent =
+  | ({ turn: 0; kind: 'equipmentSetup'; side: Side; unit: number } & import('../equipment/types').PreparedEquipment)
+  | ({ turn: 0; kind: 'preBattleEffect'; side: Side; unit: number } & import('../passives/types').PassiveReceipt)
   | {
       turn: number;
       kind: 'gain';
@@ -365,6 +367,7 @@ export type CombatEvent =
        */
       calculation?: {
         power: number; statBonus: number; healFlat: number; property: Property;
+        equipmentBonus?: number;
         /**
          * FLAT bonus healing armed by a rider on this same cast — today only
          * `cleanseConvert` (heal per affliction stack its own cleanse stripped).
@@ -385,6 +388,8 @@ export type CombatEvent =
   | {
       turn: number;
       kind: 'shieldGain';
+      sourcePassive?: import('../passives/types').PassiveSourceRef;
+      passiveSources?: readonly import('../passives/types').PassiveSourceRef[];
       side: Side;
       unit: number;
       property: Property;
@@ -488,6 +493,7 @@ export type CombatEvent =
    * knows what ended (exactly the contract `statusExpired` states).
    */
   | { turn: number; kind: 'curseExpired'; side: Side; unit: number; slots: number[] }
+  | { turn: number; kind: 'hastened'; side: Side; unit: number; amount: number; readinessAfter: number }
   | {
       turn: number;
       kind: 'disrupted';

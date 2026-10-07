@@ -179,6 +179,8 @@ const SPEC: { readonly [K in Action['kind']]: KeywordSpec } = {
   },
   splash: { fields: [] },
   disrupt: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  haste: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  regen: { fields: [{ key: 'stacks', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
   lifesteal: { fields: [{ key: 'pct', floor: 0, hardMax: 1000, seed: 0 }] },
   shieldBreak: {
     fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }],
@@ -212,6 +214,7 @@ const SPEC: { readonly [K in Action['kind']]: KeywordSpec } = {
     ],
   },
   desperation: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  execute: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
   overhealShield: { fields: [{ key: 'cap', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
   cleanseConvert: {
     fields: [

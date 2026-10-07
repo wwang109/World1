@@ -59,6 +59,7 @@ export interface RulesBodyStyle {
   keywordColor: (keyword: string) => string;
   stroke?: { color: string; thickness: number };
   maxFontSize: number;
+  readingFontSize?: number;
   minFontSize: number;
   lineHeightRatio: number;
   rowGap: number;
@@ -93,6 +94,7 @@ export function makeRulesBody(
   const textWidth = box.w - labelWidth;
   const minFont = style.minFontSize;
   const strokeStyle = style.stroke ? { stroke: style.stroke.color, strokeThickness: style.stroke.thickness } : {};
+  const glueOverlap = style.stroke?.thickness ?? 0;
   const wordsByRow = rulesRows.map(row => printedWords(style.useLabelDisplay ? row.display : plainClause(row.text)).map(word => ({
     ...word,
     object: scene.add.text(0, 0, word.text, {
@@ -124,7 +126,7 @@ export function makeRulesBody(
     rowsWords.forEach(words => words.forEach(word => word.object.setFontSize(word.role === 'aside' ? asideSize : fontSize)));
     const runWidth = (words: typeof wordsByRow[number], from: number, to: number) => {
       let width = 0;
-      for (let index = from; index < to; index++) width += (index > from && !words[index]!.glued ? space : 0) + words[index]!.object.width;
+      for (let index = from; index < to; index++) width += (index > from ? (words[index]!.glued ? -glueOverlap : space) : 0) + words[index]!.object.width;
       return width;
     };
     if (style.alignColons && !flow) {
@@ -163,14 +165,14 @@ export function makeRulesBody(
       const placed = words.map((word, index) => {
         const drop = dropOf(word);
         if (aligned && index < prefixCount) {
-          const x = prefixX + (index > 0 && !word.glued ? space : 0);
+          const x = prefixX + (index > 0 ? (word.glued ? -glueOverlap : space) : 0);
           prefixX = x + word.object.width;
           return { word, x, line: 0, y: cursorY + drop, lineHeight: lineHeight - drop };
         }
         const gap = cursorX > lineStart && !word.glued ? space : 0;
         const needed = word.joinsPrevious ? word.object.width : Math.min(unitWidth(index), textWidth - continuation);
         if (wrap && cursorX > lineStart && cursorX + gap + needed > textWidth) { line++; lineStart = continuation; cursorX = lineStart; }
-        const x = cursorX + (cursorX > lineStart && !word.glued ? space : 0);
+        const x = cursorX + (cursorX > lineStart ? (word.glued ? -glueOverlap : space) : 0);
         cursorX = x + word.object.width;
         if (!aligned && line === 0 && prefixCount > 0 && index === prefixCount) continuation = Math.min(x, textWidth * MAX_PREFIX_SHARE);
         return { word, x, line, y: cursorY + line * lineHeight + drop, lineHeight: lineHeight - drop };
@@ -183,7 +185,7 @@ export function makeRulesBody(
   }
 
   const maxFont = Math.max(minFont, Math.round(style.maxFontSize));
-  const singleFloor = Math.max(minFont, Math.round(maxFont * SINGLE_LINE_FLOOR));
+  const singleFloor = Math.min(maxFont, Math.max(minFont, Math.round((style.readingFontSize ?? maxFont) * SINGLE_LINE_FLOOR)));
   let font = maxFont;
   let rows: ReturnType<typeof layout> | undefined;
   for (let size = maxFont; size >= singleFloor && !rows; size--) {
@@ -289,8 +291,33 @@ export function makePrintedCardBody(
 const CLASSIC_INK = '#f1efe8';
 const CLASSIC_ASIDE_INK = '#b9b3a4';
 const CLASSIC_STROKE = '#111722';
-const CLASSIC_MAX_BODY_FONT = 13;
+const CLASSIC_MAX_BODY_FONT = 22;
+const CLASSIC_READING_BODY_FONT = 13;
 const CLASSIC_MIN_BODY_FONT = 8;
+const TOKEN_MAX_BODY_FONT = 12;
+
+export function makeTokenCardBody(
+  scene: Phaser.Scene,
+  rulesRows: readonly FantasyCardRulesRow[],
+  box: RegionBox,
+  name: string,
+): Phaser.GameObjects.Container {
+  return makeRulesBody(scene, rulesRows, box, name, {
+    ink: CLASSIC_INK,
+    asideInk: CLASSIC_ASIDE_INK,
+    keywordColor: keyword => keywordTextColor(keyword) ?? '#ffd98a',
+    stroke: { color: CLASSIC_STROKE, thickness: 2 },
+    maxFontSize: TOKEN_MAX_BODY_FONT,
+    minFontSize: CLASSIC_MIN_BODY_FONT,
+    lineHeightRatio: 1.15,
+    rowGap: 2,
+    labelWidth: 0,
+    markerWidth: 0,
+    center: false,
+    alignColons: true,
+    useLabelDisplay: false,
+  });
+}
 
 export function makeClassicCardBody(
   scene: Phaser.Scene,
@@ -305,6 +332,7 @@ export function makeClassicCardBody(
     keywordColor: keyword => keywordTextColor(keyword) ?? '#ffd98a',
     stroke: { color: CLASSIC_STROKE, thickness: Math.max(1, Math.round(1.5 * scale)) },
     maxFontSize: CLASSIC_MAX_BODY_FONT * scale,
+    readingFontSize: CLASSIC_READING_BODY_FONT * scale,
     minFontSize: CLASSIC_MIN_BODY_FONT,
     lineHeightRatio: 1.2,
     rowGap: Math.max(1, 3 * scale),

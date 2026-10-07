@@ -6,6 +6,7 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { choiceArtKey } from './runArtKeys';
 import { mergeReceiptText, outcomeHeadline } from './eventOutcomeText';
+import type { EquipmentItemPin } from '../../data/equipmentLootSources';
 
 /**
  * The reward's own feature visual — the ONE part `RunRewardPanel.ts` branches
@@ -18,6 +19,7 @@ import { mergeReceiptText, outcomeHeadline } from './eventOutcomeText';
 export type RunRewardFeature =
   | { kind: 'card'; skill: SkillDef }
   | { kind: 'gem'; gem: GemDef }
+  | { kind: 'equipment'; item: EquipmentItemPin }
   | { kind: 'icon' };
 
 /**
@@ -78,8 +80,11 @@ export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, 
     const skill = skillBook[outcome.resultSkillId ?? outcome.skillId];
     const tier = outcome.resultTier ?? outcome.tier;
     if (skill) feature = { kind: 'card', skill: tier === skill.tier ? skill : applyTier(skill, tier) };
-  } else if (outcome.kind === 'grantGem' || outcome.kind === 'gemReshaped') {
-    const gem = gemBook[outcome.kind === 'grantGem' ? outcome.gemId : outcome.resultGemId];
+  } else if (outcome.kind === 'cardRerolled') {
+    const skill = skillBook[outcome.skillId];
+    if (skill) feature = { kind: 'card', skill: outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier) };
+  } else if (outcome.kind === 'grantGem' || outcome.kind === 'gemReshaped' || outcome.kind === 'gemRerolled') {
+    const gem = gemBook[outcome.kind === 'grantGem' ? outcome.gemId : outcome.kind === 'gemReshaped' ? outcome.resultGemId : outcome.gemId];
     if (gem) feature = { kind: 'gem', gem };
   }
 

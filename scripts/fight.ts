@@ -3,6 +3,8 @@
 //   npm run fight -- ember_imp 42        (hero vs one Ember Imp, seed 42)
 //   npm run fight -- giant_rat*3 42      (hero vs a pack of three Giant Rats)
 //   npm run fight -- giant_rat*2,knight 42
+//   FIGHT_PASSIVES_FIXTURE=slot_shield FIGHT_NARROW=1 npm run fight -- bandit_duelist 5
+//   FIGHT_PASSIVE_EXAMPLE=quick_preparation FIGHT_NARROW=1 npm run fight -- bandit_duelist 5
 //
 // TEAM-AWARE (2026-08-19): every line names the exact combatant it is about
 // ("Giant Rat #2"), not just its side, and a cast line names the foe its
@@ -13,7 +15,13 @@
 // index, so in a pack fight the reader could not tell which foe was hit.
 import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
-import { fmtAffinity, fmtDamage } from './logFormat';
+import { fmtAffinity, fmtDamage, fmtPassiveSources } from './logFormat';
+import { battlePassiveFixture } from './battle-passives-fixtures';
+import { buildBattlePassiveExample } from '../src/data/battlePassiveExamples';
+import { prepareBattleConfig } from '../src/run/resolveBattle';
+import { applyBattleEquipment } from '../src/run/battleEquipment';
+import { equipmentCatalog } from '../src/data/equipmentContent';
+import { equipmentModifierClauses } from '../src/engine/equipment/text';
 import { cooldownRemainingClause, emptySlotClause } from '../src/engine/keywords/compose';
 import { parsePieceList, parseStatOverrideSpec, withStatOverrides } from './boardSpec';
 import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
@@ -224,7 +232,8 @@ function parseLineup(spec: string): string[] {
   return ids;
 }
 
-const seed = parseSeed(process.argv[3], hashSeed('fight', enemySpec));
+const passiveExampleId = process.env['FIGHT_PASSIVE_EXAMPLE'];
+const seed = parseSeed(process.argv[3], passiveExampleId === undefined ? hashSeed('fight', enemySpec) : 5);
 const enemyIds = parseLineup(enemySpec);
 
 const enemyDefs = enemyIds.map((id) => {
@@ -471,7 +480,25 @@ const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => {
   };
 });
 
-const { result, turns, events, finalState } = simulate({ playerTeam, enemyTeam, skillBook }, seed);
+const passiveFixture = process.env['FIGHT_PASSIVES_FIXTURE'];
+if (passiveFixture !== undefined) playerTeam[0] = battlePassiveFixture(passiveFixture, playerTeam[0]!);
+let battleConfig = { playerTeam, enemyTeam, skillBook };
+if (passiveExampleId !== undefined) {
+  if (passiveFixture !== undefined) throw new Error('Choose one passive example or legacy fixture');
+  const { request, preparation } = buildBattlePassiveExample(passiveExampleId, seed);
+  const effectMode = process.env['FIGHT_PASSIVE_EXAMPLE_EFFECTS'];
+  if (effectMode !== undefined && effectMode !== 'on' && effectMode !== 'off') throw new Error('FIGHT_PASSIVE_EXAMPLE_EFFECTS must be on or off');
+  if (effectMode === 'off') delete request.preBattle;
+  const canonical = prepareBattleConfig(request, preparation);
+  playerTeam.splice(0, playerTeam.length, ...canonical.playerTeam!);
+  enemyTeam.splice(0, enemyTeam.length, ...canonical.enemyTeam!);
+  battleConfig = { playerTeam, enemyTeam, skillBook: canonical.skillBook };
+}
+const equipmentJson = process.env['FIGHT_EQUIPMENT'];
+if (equipmentJson !== undefined) {
+  playerTeam[0] = applyBattleEquipment(playerTeam[0]!, JSON.parse(equipmentJson));
+}
+const { result, turns, events, finalState } = simulate(battleConfig, seed);
 
 // ---------------------------------------------------------------------------
 // Naming. `#n` is the 1-BASED lineup position, i.e. engine unit index n−1 — the
@@ -582,7 +609,7 @@ if (NARROW) {
 }
 
 // Lineup legend, so `#n` is never a guess.
-console.log(`seed ${seed} · ${enemySpec}`);
+console.log(`seed ${seed} · ${passiveExampleId === undefined ? enemySpec : `example ${passiveExampleId}`}`);
 for (const side of ['player', 'enemy'] as const) {
   const team = side === 'player' ? playerTeam : enemyTeam;
   for (let i = 0; i < team.length; i += 1) {
@@ -601,6 +628,13 @@ console.log('');
 for (const e of events) {
   const t = String(e.turn).padStart(3);
   switch (e.kind) {
+    case 'equipmentSetup':
+      console.log(`${t}  gear    ${tag(e.side, e.unit)} ${equipmentModifierClauses(e.statMods, e.effectMods).join(' · ')}`);
+      for (const set of e.sets) console.log(`${t}  set     ${equipmentCatalog.set(set.setId, set.setVersion).name}: ${set.equippedPieces} pieces · ${set.matchingCards}/${set.requiredCards} cards · ${set.activeThresholds.length ? `${set.activeThresholds.join('+')} piece bonus active` : 'inactive'}`);
+      break;
+    case 'preBattleEffect':
+      console.log(`${t}  effect  ${tag(e.side, e.unit)} ${e.displayText}`);
+      break;
     case 'gain':
       console.log(
         `${t}  gain    ${tag(e.side, e.unit)} readiness ${e.readinessBefore} -> ${e.readinessAfter} (+${e.speed}${e.speedModifier === 0 ? '' : `; effect ${e.speedModifier > 0 ? '+' : ''}${e.speedModifier}`})`,
@@ -708,6 +742,7 @@ for (const e of events) {
         // heal `hc.power` is the base alone and this term is what makes the sum
         // add up.
         add('RIDER', hc.bonus ?? 0);
+        add('EQUIPMENT', hc.equipmentBonus ?? 0);
         add('ANTIHEAL', -(e.antiHeal?.reduced ?? 0));
         add('OVERHEAL', -e.overheal);
         console.log(`${t} │  calc             ${terms.join(' ')} = ${e.amount} HP`);
@@ -718,7 +753,7 @@ for (const e of events) {
       // `overheal: true` = plating CONVERTED from a heal's wasted remainder
       // (`overhealShield`), not granted by a `shield` line — worth naming, because
       // the two are otherwise the same row.
-      console.log(`${t} │  ${tag(e.side, e.unit)} +${e.amount} ${e.property} shield${e.overheal ? ' from overheal' : ''}${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
+      console.log(`${t} │  ${tag(e.side, e.unit)} +${e.amount} ${e.property} shield${e.overheal ? ' from overheal' : ''}${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total${fmtPassiveSources([...(e.sourcePassive ? [e.sourcePassive] : []), ...(e.passiveSources ?? [])])}`);
       wall.set(wallKey(e.side, e.unit), e.totalAfter);
       break;
     case 'statusApplied': {
@@ -778,6 +813,9 @@ for (const e of events) {
         `${t} │  ${tag(e.side, e.unit)} curse wears off on slot${e.slots.length === 1 ? '' : 's'} `
         + `${e.slots.map((slot) => String(slot + 1)).join(' ')}`,
       );
+      break;
+    case 'hastened':
+      console.log(`${t} │  ${tag(e.side, e.unit)} hastened +${e.amount} readiness -> ${e.readinessAfter}`);
       break;
     case 'disrupted':
       console.log(`${t} │  ${tag(e.side, e.unit)} disrupted −${e.amount} bank -> ${e.bankAfter}`);

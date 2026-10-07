@@ -29,7 +29,12 @@ import type {
   EventChoiceUnavailableReasonV3,
   EventDeferredOfferV3,
 } from '../../run/eventV3Materialization';
-import { correlatedMaterializedChoiceV3 } from '../../run/eventsV3';
+import { correlatedMaterializedChoiceV3, isWorkshopOutcomeKind } from '../../run/eventsV3';
+import { canForge, canUpgrade, FORGE_COST, upgradeOptions } from '../../run/equipmentWorkshop';
+import { equippedInSlot } from '../../run/equipmentInventory';
+import { eventEquipmentPool } from '../../run/equipmentLoot';
+import { equipmentCatalog } from '../../data/equipmentContent';
+import type { EquipmentSlot } from '../../engine/equipment/types';
 import { challengeFightRewardChip } from '../../run/eventRewardSummary';
 import { canBuyMarketLife, isMarketBuyOutcomeKind, MARKET_VISITS_PER_NODE, marketChoicePriceGold } from '../../run/market';
 import type { EventResolution, RunNode, RunState } from '../../run/runState';
@@ -96,6 +101,8 @@ export interface RunEventChoiceViewModel {
    * scenes can keep their historical family suffix without reading defs. */
   derivedFamily?: string;
   outcomeHint: RunEventOutcomeHint;
+  equipmentReward?: string;
+  equipmentCost?: { slot: EquipmentSlot; itemName: string | null };
   /** Spoiler-safe possibility derived from authored graph edges, never state. */
   opportunityHint?: EventOpportunityHint;
 }
@@ -183,6 +190,10 @@ function persistedHint(
       return offer?.kind === 'bonusDraft' ? { kind: 'bonusDraft', offer, ...weighted } : undefined;
     case 'reshapeGem':
       return offer?.kind === 'reshapeGem' ? { kind: 'reshapeGem', offer, ...weighted } : undefined;
+    case 'rerollCard':
+      return offer?.kind === 'rerollCard' ? { kind: 'rerollCard', offer, ...weighted } : undefined;
+    case 'rerollGem':
+      return offer?.kind === 'rerollGem' ? { kind: 'rerollGem', offer, ...weighted } : undefined;
     case 'challengeFight':
       return {
         kind: 'challengeFight', difficulty: outcome.difficulty,
@@ -204,6 +215,13 @@ function persistedHint(
     // exemption, `src/run/eventsV3.ts`) — a never-yet-taken row still needs a
     // hint, so this falls back to a fresh unopened picker rather than
     // `undefined`, which would otherwise blank the WHOLE choice list.
+    case 'forgeEquipment':
+    case 'upgradeEquipment': {
+      const workshop = { sets: outcome.sets, ...(outcome.items === undefined ? {} : { items: outcome.items }) };
+      return outcome.kind === 'forgeEquipment'
+        ? { kind: 'forgeEquipment', offer: offer?.kind === 'forgeEquipment' ? offer : { kind: 'forgeEquipment', ...workshop, status: 'pending' }, ...weighted }
+        : { kind: 'upgradeEquipment', offer: offer?.kind === 'upgradeEquipment' ? offer : { kind: 'upgradeEquipment', ...workshop, status: 'pending' }, ...weighted };
+    }
     case 'buyStatPick':
       return {
         kind: 'buyStatPick',
@@ -262,6 +280,14 @@ function v3ChoiceLockReason(
   const cost = dynamicChoiceCost(state, choice);
   if (cost > state.gold) return `needs ${cost} gold`;
   if ((choice.lifeCost ?? 0) > 0 && state.lives <= choice.lifeCost!) return 'would cost your last life';
+  if (choice.equipmentCost !== undefined && equippedInSlot(state, choice.equipmentCost) === undefined) {
+    return `needs equipped ${choice.equipmentCost}`;
+  }
+  if (choice.outcome.kind === 'forgeEquipment' && !canForge(state, choice.outcome)) return `needs ${FORGE_COST} broken pieces`;
+  if (choice.outcome.kind === 'upgradeEquipment' && !canUpgrade(state, choice.outcome)) {
+    const cheapest = Math.min(...upgradeOptions(state, choice.outcome).map((option) => option.cost));
+    return Number.isFinite(cheapest) ? `needs ${cheapest} broken piece${cheapest === 1 ? '' : 's'}` : 'no matching item to upgrade';
+  }
   if (choice.outcome.kind === 'buyLife' && !canBuyMarketLife(state)) return 'already at full lives';
   if (choice.requires !== undefined && !eventGateMet(state, choice.requires)) {
     if (choice.requires.choiceIds?.length === 1) {
@@ -298,9 +324,24 @@ function v3ChoiceLockReason(
   return offer.kind === 'sellGem' ? 'nothing in your pouch' : 'need 3 cards of one grade';
 }
 
+function equipmentRewardText(eventId: string, contentVersion: number, choiceId: string): string | undefined {
+  const pool = eventEquipmentPool(eventId, contentVersion, choiceId);
+  if (!pool || pool.entries.length === 0) return undefined;
+  const items = pool.entries.map(entry => ({ entry, def: equipmentCatalog.item(entry.itemId, entry.itemVersion) }));
+  const setIds = new Set(items.map(({ def }) => def.setId));
+  const first = items[0]!;
+  if (setIds.size === 1 && first.def.setId !== undefined) {
+    return `${equipmentCatalog.set(first.def.setId, first.entry.setVersion!).name} piece`;
+  }
+  if (items.length <= 2) return items.map(({ def }) => def.name).join(' or ');
+  const slots = new Set(items.map(({ def }) => def.slot));
+  return slots.size === 1 ? `${first.def.slot} piece` : 'equipment piece';
+}
+
 function v3Choices(
   state: RunState,
   event: LoadedEventDefV3,
+  contentVersion: number,
   instanceId: string,
   lookup: (eventId: string, contentVersion: number) => LoadedEventDef | undefined,
 ): readonly RunEventChoiceViewModel[] | undefined {
@@ -325,6 +366,8 @@ function v3Choices(
     );
     const cost = dynamicChoiceCost(state, choice);
     const opportunityHint = eventChoiceOpportunityHint(event, choice.id, eventRuntimeCatalog);
+    const equipmentReward = equipmentRewardText(event.id, contentVersion, choice.id);
+    const spent = choice.equipmentCost === undefined ? undefined : equippedInSlot(state, choice.equipmentCost);
     choices.push({
       id: choice.id,
       label: choice.label,
@@ -333,6 +376,11 @@ function v3Choices(
       locked: lockReason !== null,
       lockReason,
       outcomeHint,
+      ...(equipmentReward === undefined ? {} : { equipmentReward }),
+      ...(choice.equipmentCost === undefined ? {} : { equipmentCost: {
+        slot: choice.equipmentCost,
+        itemName: spent === undefined ? null : equipmentCatalog.item(spent.itemId, spent.itemVersion).name,
+      } }),
       ...(opportunityHint === undefined ? {} : { opportunityHint }),
     });
   }
@@ -362,8 +410,8 @@ export function marketVisitStillOpen(event: LoadedEventDef, resolution: EventRes
     : event.choices;
   const choice = choices.find((candidate) => candidate.id === resolution.choiceId);
   return choice !== undefined
-    && isMarketBuyOutcomeKind(choice.outcome.kind)
-    && (resolution.marketVisits ?? 0) < MARKET_VISITS_PER_NODE;
+    && (isWorkshopOutcomeKind(choice.outcome.kind)
+      || (isMarketBuyOutcomeKind(choice.outcome.kind) && (resolution.marketVisits ?? 0) < MARKET_VISITS_PER_NODE));
 }
 
 function phaseFor(
@@ -419,7 +467,7 @@ export function buildRunEventViewModel(
   if (phase === undefined) return undefined;
 
   const choices = isEventDefV3(event)
-    ? v3Choices(state, event, instance.instanceId, lookup)
+    ? v3Choices(state, event, instance.contentVersion, instance.instanceId, lookup)
     : event.choices.map((choice) => {
       const lockReason = choiceLockReason(state, choice);
       const cost = dynamicChoiceCost(state, choice);

@@ -53,6 +53,8 @@ computed. A badge with no `(keyword: …)` note carries no tint.
 | Kind | `displayToken` | `faceToken` badge |
 |---|---|---|
 | `thorns` | `'thorns'` | `THORNS {stacks}` (keyword: `thorns`) |
+| `regen` | `'regen'` | `REGEN {stacks}` (keyword: `regen`) |
+| `haste` | `'haste'` | `HASTE {amount}` (keyword: `haste`) |
 | `guard` | `'guard'` | `{P\|M\|T}.GUARD {pct}% {turns}t` (keyword: `guard`) — letter picked from the action's `property` |
 | `negate` | `'negate'` | `{P\|M\|T}.NEGATE {charges}` (keyword: `negate`) |
 | `ward` | `'ward'` | `WARD {charges}` (keyword: `ward`) |
@@ -71,9 +73,10 @@ computed. A badge with no `(keyword: …)` note carries no tint.
 | `stackBonus` | **function**: `a.status` | `BONUS +{per} PER {STATUS_TOKEN[a.status]}` (keyword: `a.status`) — noun in the face clause differs for `burden` ("per Burdened card") vs a stacked pile ("per {Status} debuff") |
 | `shieldBurst` | `'shield'` | `BURST: SHIELD {cap}` (keyword: `shield`) |
 | `wardRelease` | `'ward'` | `BURST: WARD {per}` (keyword: `ward`) |
+| `execute` | `undefined` (exempt — the gate is the target's HP bar, not a keyword) | `EXECUTE {amount}` (keyword: `bleed`) |
 | `desperation` | `undefined` (exempt — the gate is the caster's own HP bar, not a keyword) | `+{amount} BELOW HALF HP` (keyword: `bleed` — badge still tints even though the clause is exempt) |
 | `overhealShield` | `'shield'` | `OVERHEAL -> SHLD {cap}` (keyword: `shield`) |
-| `cleanseConvert` | `'cleanse'` | `+{per} HP/CLEANSED (cap {cap})` (keyword: `cleanse`) |
+| `cleanseConvert` | `'cleanse'` | `+{per} HP/CLEANSED` (keyword: `cleanse`) |
 
 ## Notes verified live, not carried from prose
 

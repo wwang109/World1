@@ -287,7 +287,9 @@ export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns' | 'burden';
  * Every member also carries the optional `fromGem` provenance mark (see
  * `GemAppended`), which the resolver — never content — sets.
  */
-export type Action = ActionKinds & GemAppended & AffinityGated & TierLocked;
+export type Action = ActionKinds & GemAppended & AffinityGated & TierLocked & {
+  passiveSources?: readonly import('./passives/types').PassiveSourceRef[];
+};
 
 type ActionKinds =
   | { kind: 'damage'; power: number }
@@ -628,6 +630,8 @@ type ActionKinds =
   | { kind: 'splash' }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
   | { kind: 'disrupt'; amount: number }
+  | { kind: 'haste'; amount: number }
+  | { kind: 'regen'; stacks: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
   | { kind: 'lifesteal'; pct: number }
   /**
@@ -913,6 +917,7 @@ type ActionKinds =
    * `selfSynergyPremiumDeci` is 0 for it by construction rather than by exception.
    */
   | { kind: 'desperation'; amount: number }
+  | { kind: 'execute'; amount: number }
   /**
    * OVERHEAL SHIELD — healing past a full HP bar becomes PLATING instead of
    * vanishing: when this cast's own `heal` overflows the recipient's `maxHp`, up to
@@ -1406,17 +1411,7 @@ export function isMultiTargetSkill(skill: Pick<SkillDef, 'scope'>): boolean {
   return skill.scope === 'all';
 }
 
-export type EquipmentSlot = 'weapon' | 'armor' | 'trinket';
-
-export interface EquipmentDef {
-  id: string;
-  name: string;
-  slot: EquipmentSlot;
-  rarity: Rarity;
-  statMods: Partial<Omit<CombatantStats, 'hp'>>;
-  tags: string[];
-  text: string;
-}
+export type { EquipmentSlot, EquipmentDef } from './equipment/types';
 
 /**
  * A gem socketed into a board card.
@@ -1507,6 +1502,7 @@ export interface StatGemMods {
 /** A card placed on a board; `slot` is its leftmost occupied slot. */
 export interface BoardPiece {
   skillId: string;
+  pieceRef?: string;
   slot: number;
   /** Optional per-piece skill tier override. */
   tier?: SkillTier;
@@ -1517,6 +1513,9 @@ export interface BoardPiece {
 /** A fully resolved combatant fed into simulate(). */
 export interface CombatantSetup {
   name: string;
+  equipment?: import('./equipment/types').PreparedEquipment;
+  /** Engine-owned recipes only; HTTP battle requests do not accept this field. */
+  passives?: import('./passives/types').PassiveRecipe;
   stats: CombatantStats;
   /** Board width in slots (10 for the hero). */
   boardSize: number;
@@ -1642,4 +1641,5 @@ export interface EnemyDef {
   growth?: readonly EnemyGrowthMilestone[];
   goldReward: number;
   xpReward: number;
+  equipmentDrop?: import('./equipment/types').EquipmentLootPool;
 }

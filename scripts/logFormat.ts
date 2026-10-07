@@ -20,6 +20,11 @@
 // rendering of it was short a term.
 import type { DamageCalculation } from '../src/engine/combat/events';
 import type { Element, WeaponType } from '../src/engine/types';
+import type { PassiveSourceRef } from '../src/engine/passives/types';
+
+export function fmtPassiveSources(sources: readonly PassiveSourceRef[]): string {
+  return sources.map((source) => ` [${source.kind} ${source.id} v${source.version}] [effect ${source.effectId}]`).join('');
+}
 
 /**
  * THE AFFINITY TAG on a hit's line — the suffix that says a hit fired BECAUSE of

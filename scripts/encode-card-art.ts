@@ -43,6 +43,7 @@
  *   npm run art:encode              # only masters whose .webp is missing/stale
  *   npm run art:encode -- --force   # re-encode everything
  *   npm run art:encode -- --group cards
+ *   npm run art:encode -- --group placeholders --name icon-route-lantern
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
@@ -61,10 +62,16 @@ interface Group {
   trimTransparent?: boolean;
   outputSize?: { width: number; height: number };
   contain?: boolean;
+  inset?: number;
   atlas?: { file: string; columns: number; names: readonly string[] };
 }
 
 const GROUPS: Group[] = [
+  { name: 'equipment', srcDir: 'art-src/equipment', outDir: 'public/game-art/equipment', maxHeight: 0, quality: 0.9, trimTransparent: true, outputSize: { width: 512, height: 512 }, contain: true, inset: 0.08 },
+  { name: 'route-icons', srcDir: 'art-src/ui/route-icons', outDir: 'public/game-art/ui/route-icons', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
+    atlas: { file: 'day-chapters-symbols.png', columns: 2, names: ['event','shop','battle','boss'] } },
+  { name: 'route-equipment', srcDir: 'art-src/ui/route-icons', outDir: 'public/game-art/ui/route-icons', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
+    atlas: { file: 'equipment.png', columns: 1, names: ['equipment'] } },
   { name: 'event-icons', srcDir: 'art-src/ui/event-icons', outDir: 'public/game-art/ui/event-icons', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
     atlas: { file: 'illustrated-event-icons.png', columns: 3, names: ['gold','card','gamble','gem','level','nothing'] } },
   { name: 'card-badges', srcDir: 'art-src/ui/card-badges', outDir: 'public/game-art/ui/card-badges', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
@@ -78,6 +85,7 @@ const GROUPS: Group[] = [
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 const groupArg = args.includes('--group') ? args[args.indexOf('--group') + 1] : undefined;
+const nameArg = args.includes('--name') ? args[args.indexOf('--name') + 1] : undefined;
 const groups = groupArg && groupArg !== 'all' ? GROUPS.filter((g) => g.name === groupArg) : GROUPS;
 if (groups.length === 0) throw new Error(`encode-card-art: unknown --group ${String(groupArg)}`);
 
@@ -98,7 +106,7 @@ async function main(): Promise<void> {
     const files = group.atlas ? group.atlas.names.map((name,index) => ({ file: group.atlas!.file,name,index }))
       : readdirSync(group.srcDir).filter(f => f.toLowerCase().endsWith('.png')).sort().map(file => ({ file,name: basename(file,'.png'),index: undefined }));
     console.log(`\n== ${group.name} (${files.length} masters, ${group.srcDir} -> ${group.outDir}) ==`);
-    for (const { file,name,index } of files) {
+    for (const { file,name,index } of files.filter((entry) => !nameArg || entry.name === nameArg)) {
       const src = join(group.srcDir, file);
       const out = join(group.outDir, `${name}.webp`);
       const srcStat = statSync(src);
@@ -109,7 +117,7 @@ async function main(): Promise<void> {
         continue;
       }
       const dataUrl = `data:image/png;base64,${readFileSync(src).toString('base64')}`;
-      const encoded = await page.evaluate(async ({ url, maxHeight, quality, trimTransparent, outputSize, contain, atlas }) => {
+      const encoded = await page.evaluate(async ({ url, maxHeight, quality, trimTransparent, outputSize, contain, inset, atlas }) => {
         const img = new Image();
         img.src = url;
         await img.decode();
@@ -150,14 +158,15 @@ async function main(): Promise<void> {
         if (!ctx) throw new Error('no 2d context');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        const fit = Math.min(w / sourceWidth,h / sourceHeight);
+        const padding = inset ?? 0;
+        const fit = Math.min(w * (1 - padding * 2) / sourceWidth,h * (1 - padding * 2) / sourceHeight);
         const drawWidth = contain ? Math.round(sourceWidth * fit) : w;
         const drawHeight = contain ? Math.round(sourceHeight * fit) : h;
         ctx.drawImage(img, left, top, sourceWidth, sourceHeight, Math.floor((w - drawWidth) / 2),Math.floor((h - drawHeight) / 2),drawWidth,drawHeight);
         const out = canvas.toDataURL('image/webp', quality);
         if (!out.startsWith('data:image/webp')) throw new Error('chromium did not encode webp');
         return { b64: out.slice(out.indexOf(',') + 1), w, h };
-      }, { url: dataUrl, maxHeight: group.maxHeight, quality: group.quality, trimTransparent: group.trimTransparent, outputSize: group.outputSize, contain: group.contain,
+      }, { url: dataUrl, maxHeight: group.maxHeight, quality: group.quality, trimTransparent: group.trimTransparent, outputSize: group.outputSize, contain: group.contain, inset: group.inset,
         atlas: group.atlas && index !== undefined ? { index,columns: group.atlas.columns,rows: Math.ceil(group.atlas.names.length / group.atlas.columns) } : undefined });
       const buf = Buffer.from(encoded.b64, 'base64');
       writeFileSync(out, buf);

@@ -1,3 +1,7 @@
+import { equipmentCatalog, equipmentDocument } from '../../data/equipmentContent';
+import { equipmentModifierClauses } from '../../engine/equipment/text';
+import { leveledStatMods } from '../../engine/equipment/upgrade';
+import { brokenPieces, FORGE_COST, forgeOptions, upgradeOptions } from '../../run/equipmentWorkshop';
 import { biomeFor } from '../../run/biome';
 import type { EventOutcome, MergeTrioRewards, SellGemOption, UpgradeCardOption } from '../../run/events';
 import { mergeableOwnedCards, mergeCardsPreview, mergeTrioRewards } from '../../run/events';
@@ -14,6 +18,7 @@ import { eventChoiceBlockHeight } from './runEventStoryLayout';
 import type { RunEventOutcomeHint, RunEventViewModel } from './runEventViewModel';
 import type { EventOpportunityHint } from '../../run/eventOpportunityHint';
 import { buildMergeSpentEntries, type MergeSpentEntry } from './runMergeViewModel';
+import type { ReshapeReward } from './reshapePickerView';
 import { runScreenTemplate, type RunTemplatePlatform } from './runScreenTemplate';
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
@@ -170,7 +175,12 @@ function choicePresentation(
 ): RunEventSceneChoicePresentation {
   const terminal = phase.kind === 'terminal';
   const taken = terminal && phase.choiceId === choice.id;
-  const hint = eventOutcomeHintText(choice.outcomeHint);
+  const outcomeText = eventOutcomeHintText(choice.outcomeHint);
+  const equipmentText = choice.equipmentReward === undefined ? null : `EQUIPMENT · ${choice.equipmentReward.toUpperCase()}`;
+  const hint = equipmentText === null ? outcomeText : outcomeText === '—' ? equipmentText : `${outcomeText} · ${equipmentText}`;
+  const equipmentCostLabel = choice.equipmentCost === undefined
+    ? null
+    : (choice.equipmentCost.itemName ?? `YOUR ${choice.equipmentCost.slot}`).toUpperCase();
   const selected = taken ? selectedHintText(choice.outcomeHint, phase.selectedId, state) : null;
   const mergeDetail = terminal ? null : mergeRowDetail(choice, state);
   // Destructive, non-gold costs (mergeCards eats three cards, sellGem eats a
@@ -186,9 +196,11 @@ function choicePresentation(
     : choice.outcomeHint.kind === 'sellGem'
       ? '1 GEM'
       : null;
-  const costConfirm = !terminal && choice.cost > 0 && choice.outcomeHint.kind !== 'mergeCards'
-    ? { title: eventCostConfirmTitle(choice.cost), body: eventCostConfirmBody(hint, choice.cost) }
-    : null;
+  const costConfirm = !terminal && equipmentCostLabel !== null && choice.equipmentCost?.itemName != null
+    ? { title: `GIVE UP ${equipmentCostLabel}?`, body: `${hint}\nCosts your ${choice.equipmentCost.itemName}.` }
+    : !terminal && choice.cost > 0 && choice.outcomeHint.kind !== 'mergeCards'
+      ? { title: eventCostConfirmTitle(choice.cost), body: eventCostConfirmBody(hint, choice.cost) }
+      : null;
   const detail = !terminal && choice.lockReason !== null
     ? `LOCKED · ${choice.lockReason}`
     : terminal
@@ -205,7 +217,9 @@ function choicePresentation(
       : detail,
     footer: terminal
       ? (taken ? 'ALREADY TAKEN' : 'NOT TAKEN')
-      : choice.cost > 0 && destructiveCostLabel !== null
+      : equipmentCostLabel !== null
+        ? `COST ${equipmentCostLabel}`
+        : choice.cost > 0 && destructiveCostLabel !== null
         ? `COST ${String(choice.cost)} GOLD + ${destructiveCostLabel}`
         : choice.cost > 0
           ? `COST ${String(choice.cost)} GOLD`
@@ -291,9 +305,16 @@ export type StatPicker = { kind: 'buyStatPick'; options: readonly MarketStatPick
 export type ReshapePicker = {
   kind: 'reshapeCard';
   mode: EventReshapeModeV3;
-  options: readonly { instanceId: string; skillId: string; tier: SkillTier; resultSkillId?: string; resultTier?: SkillTier }[];
+  options: readonly { instanceId: string; skillId: string; tier: SkillTier; resultSkillId?: string; resultTier?: SkillTier; where?: string }[];
+  reward?: ReshapeReward;
   optionCount: number;
 };
+
+function ownedWhere(state: RunState, instanceId: string): string | undefined {
+  const piece = state.pieces.find((card) => card.instanceId === instanceId);
+  if (piece) return `BOARD ${piece.slot + 1}`;
+  return state.bagSlots.some((card) => card?.instanceId === instanceId) ? 'BAG' : undefined;
+}
 
 export type ReshapeGemPicker = {
   kind: 'reshapeGem';
@@ -302,7 +323,57 @@ export type ReshapeGemPicker = {
   optionCount: number;
 };
 
-export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker | ReshapePicker | ReshapeGemPicker;
+export type RerollCardPicker = {
+  kind: 'rerollCard';
+  options: readonly { instanceId: string; skillId: string; tier: SkillTier }[];
+  rolled?: { skillId: string; tier: SkillTier; rollsLeft: number };
+  optionCount: number;
+};
+
+export type RerollGemPicker = {
+  kind: 'rerollGem';
+  options: readonly { pouchIndex: number; gemId: string }[];
+  rolled?: { gemId: string; rollsLeft: number };
+  optionCount: number;
+};
+
+export interface EquipmentPickerOption {
+  id: string;
+  itemId: string;
+  title: string;
+  detail: string;
+  footer: string;
+  enabled: boolean;
+}
+
+export type EquipmentPicker = {
+  kind: 'forgeEquipment' | 'upgradeEquipment';
+  options: readonly EquipmentPickerOption[];
+  broken: number;
+  optionCount: number;
+};
+
+function equipmentPicker(state: RunState, offer: { kind: 'forgeEquipment' | 'upgradeEquipment'; sets: readonly string[]; items?: readonly string[] }): EquipmentPicker {
+  const broken = brokenPieces(state);
+  const describe = (itemId: string, itemVersion: number, level: number) => {
+    const def = equipmentCatalog.item(itemId, itemVersion);
+    const set = def.setId === undefined ? 'NO SET' : `${equipmentCatalog.set(def.setId, equipmentDocument.sets.find((entry) => entry.id === def.setId)!.versions.at(-1)!.version).name.toUpperCase()} SET`;
+    return { def, stats: equipmentModifierClauses(leveledStatMods(def, level)).join(' · '), set };
+  };
+  const options: EquipmentPickerOption[] = offer.kind === 'forgeEquipment'
+    ? forgeOptions(offer).map((option) => {
+      const { def, stats, set } = describe(option.itemId, option.itemVersion, 0);
+      return { id: option.itemId, itemId: option.itemId, title: def.name, detail: `${def.slot.toUpperCase()} · ${stats} · ${set}`, footer: `COST ${FORGE_COST} BROKEN`, enabled: broken >= FORGE_COST };
+    })
+    : upgradeOptions(state, offer).map((option) => {
+      const { def } = describe(option.itemId, option.itemVersion, option.level);
+      const next = equipmentModifierClauses(leveledStatMods(def, option.level + 1)).join(' · ');
+      return { id: option.instanceId, itemId: option.itemId, title: option.level > 0 ? `${def.name} +${option.level}` : def.name, detail: `→ +${option.level + 1} · ${next}`, footer: `COST ${option.cost} BROKEN`, enabled: option.affordable };
+    });
+  return { kind: offer.kind, options, broken, optionCount: options.length };
+}
+
+export type RunEventPickerPresentation = CardPicker | UpgradePicker | GemPicker | SellPicker | MergePicker | StatPicker | ReshapePicker | ReshapeGemPicker | RerollCardPicker | RerollGemPicker | EquipmentPicker;
 export type RunEventPresentableOutcome = EventOutcome | EventOutcomeV3;
 export type RunEventOutcomePresentation =
   | { kind: 'picker'; picker: RunEventPickerPresentation }
@@ -409,11 +480,16 @@ export function presentRunEventOutcome(
         kind: 'picker',
         picker: {
           kind: 'reshapeCard', mode: outcome.offer.mode,
-          options: outcome.offer.options.map((option) => ({
-            instanceId: option.instanceId, skillId: option.skillId, tier: option.tier,
-            ...(outcome.offer.mode === 'trade' && option.resultSkillId !== undefined ? { resultSkillId: option.resultSkillId } : {}),
-            ...(outcome.offer.mode === 'trade' && option.resultTier !== undefined ? { resultTier: option.resultTier } : {}),
-          })),
+          options: outcome.offer.options.map((option) => {
+            const where = ownedWhere(state, option.instanceId);
+            return {
+              instanceId: option.instanceId, skillId: option.skillId, tier: option.tier,
+              ...((outcome.offer.mode === 'trade' || outcome.offer.mode === 'retype') && option.resultSkillId !== undefined ? { resultSkillId: option.resultSkillId } : {}),
+              ...((outcome.offer.mode === 'trade' || outcome.offer.mode === 'shatter') && option.resultTier !== undefined ? { resultTier: option.resultTier } : {}),
+              ...(where === undefined ? {} : { where }),
+            };
+          }),
+          ...(outcome.offer.reward === undefined ? {} : { reward: outcome.offer.reward }),
           optionCount: outcome.offer.options.length,
         },
       };
@@ -426,6 +502,39 @@ export function presentRunEventOutcome(
       };
     case 'gemReshaped':
     case 'grantShopRerolls':
+    case 'cardRerolled':
+    case 'gemRerolled':
+      return { kind: 'result', outcome };
+    case 'rerollCard': {
+      const rolled = outcome.offer.rolled;
+      const card = rolled === undefined ? undefined : ownedCards(state).find((entry) => entry.instanceId === rolled.instanceId);
+      return {
+        kind: 'picker',
+        picker: {
+          kind: 'rerollCard',
+          options: outcome.offer.options,
+          ...(rolled === undefined ? {} : { rolled: { skillId: rolled.skillId, tier: card?.tier ?? 'bronze', rollsLeft: outcome.offer.rolls - rolled.rollsUsed } }),
+          optionCount: rolled === undefined ? outcome.offer.options.length : 1,
+        },
+      };
+    }
+    case 'rerollGem': {
+      const rolled = outcome.offer.rolled;
+      return {
+        kind: 'picker',
+        picker: {
+          kind: 'rerollGem',
+          options: outcome.offer.options,
+          ...(rolled === undefined ? {} : { rolled: { gemId: rolled.gemId, rollsLeft: outcome.offer.rolls - rolled.rollsUsed } }),
+          optionCount: rolled === undefined ? outcome.offer.options.length : 1,
+        },
+      };
+    }
+    case 'forgeEquipment':
+    case 'upgradeEquipment':
+      return { kind: 'picker', picker: equipmentPicker(state, outcome.offer) };
+    case 'equipmentForged':
+    case 'equipmentUpgraded':
       return { kind: 'result', outcome };
     default: {
       const exhaustive: never = outcome;

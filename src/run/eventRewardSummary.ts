@@ -68,7 +68,7 @@ const RESHAPE_CHIP = { transform: 'TRANSFORM', retype: 'CHANGE TYPE', duplicate:
 const GEM_RESHAPE_CHIP = { transform: 'GEM · TRANSFORM', fuse: 'GEM · FUSE' } as const;
 
 const REWARD_PRIORITY = [
-  'challengeFight', 'reshapeCard', 'reshapeGem',
+  'challengeFight', 'forgeEquipment', 'upgradeEquipment', 'reshapeCard', 'reshapeGem', 'rerollCard', 'rerollGem',
   'mergeCards', 'upgradeCard', 'upgradeCardTargeted', 'awardCardPoint',
   'grantCard', 'cardChoice', 'scavengeCard',
   'gemChoice',
@@ -129,6 +129,14 @@ function candidateOf(outcome: EventOutcomeSpec | EventDirectOutcomeSpecV3): Rewa
       return { kind: 'reshapeGem', chip: GEM_RESHAPE_CHIP[outcome.mode], rewardKind: 'gem' };
     case 'scavengeCard':
       return { kind: 'scavengeCard', chip: 'CARD · SCAVENGE', rewardKind: 'card' };
+    case 'rerollCard':
+      return { kind: 'rerollCard', chip: 'REROLL CARD', rewardKind: 'upgrade' };
+    case 'rerollGem':
+      return { kind: 'rerollGem', chip: 'REROLL GEM', rewardKind: 'gem' };
+    case 'forgeEquipment':
+      return { kind: 'forgeEquipment', chip: 'FORGE EQUIPMENT', rewardKind: 'upgrade' };
+    case 'upgradeEquipment':
+      return { kind: 'upgradeEquipment', chip: 'UPGRADE EQUIPMENT', rewardKind: 'upgrade' };
     case 'grantShopRerolls':
       return { kind: 'grantShopRerolls', chip: 'FREE REROLL', rewardKind: 'gold' };
     case 'challengeFight': {

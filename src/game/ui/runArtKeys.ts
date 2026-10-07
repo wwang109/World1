@@ -23,6 +23,12 @@ export const RUN_ART_KEYS = {
     lifeHeart: 'run-art-icon-life-heart',
     bossSkull: 'run-art-icon-boss-skull',
     storefront: 'run-art-icon-storefront',
+    routeLantern: 'run-art-icon-route-lantern',
+    routeEvent: 'run-art-icon-route-event',
+    routeShop: 'run-art-icon-route-shop',
+    routeBattle: 'run-art-icon-route-battle',
+    routeBoss: 'run-art-icon-route-boss',
+    routeEquipment: 'run-art-icon-route-equipment',
   } as const,
   shop: {
     armory: 'run-art-shop-armory',
@@ -118,6 +124,8 @@ export function choiceArtKey(kind: string): string {
     case 'reshapeCard':
     case 'cardReshaped':
     case 'scavengeCard':
+    case 'rerollCard':
+    case 'cardRerolled':
     case 'bonusDraft':
     case 'upgradeCard':
     case 'upgradeCardTargeted':
@@ -154,6 +162,8 @@ export function choiceArtKey(kind: string): string {
     case 'sellGemPick':
     case 'reshapeGem':
     case 'gemReshaped':
+    case 'rerollGem':
+    case 'gemRerolled':
       return RUN_ART_KEYS.icon.choiceGem;
     case 'grantGold':
     case 'loseGold':

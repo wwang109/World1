@@ -160,7 +160,7 @@ export class DesktopDraftScene extends Phaser.Scene {
         if (isPicked) {
           this.add.rectangle(cx - 3, cy - 3, cardW + 6, cardH + 6, 0, 0).setOrigin(0, 0).setStrokeStyle(3, UI.chip, 1);
         }
-        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
+        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left', rulesBody: true });
         const hit = this.add.rectangle(cx + cardW / 2, cy + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
         // Hover-tip explains what the card does (name/tier/PL/text + every
         // abbreviation/keyword it prints) before the player commits a pick.

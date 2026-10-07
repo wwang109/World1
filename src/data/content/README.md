@@ -149,10 +149,20 @@ that type; a card already of that type trades one tier up), and `shatter`
 merge; needs bag room). `reshapeGem` with `mode` `transform` (a pouch gem
 becomes another gem of the same rarity) or `fuse` (two pouch gems of one
 rarity become one gem of the next). `scavengeCard` offers the cards of the
-foes from the last won fight. `grantShopRerolls` banks free shop rerolls
+foes from the last won fight. `rerollCard`/`rerollGem` (`rolls` 1..6): pick a card or pouch gem, it rolls into another of the same type (card: element, else weapon, else property; same size and tier) or the same rarity (gem); each roll is final and the player keeps it or rolls again until `rolls` are spent, never seeing a repeat while unseen results remain. `grantShopRerolls` banks free shop rerolls
 (`amount` 1..9); free rerolls do not raise the paid reroll price. A choice
 may carry `lifeCost` (1..2): it is locked while it would cost the last life
-and never counts as the free safe exit.
+and never counts as the free safe exit. A choice may carry `equipmentCost`
+(`armor`|`accessory`|`charm`): it spends the piece equipped in that slot, is
+locked while that slot is empty, and never counts as the free safe exit.
+Schema-v3 owned-card matches also accept `properties`, and the v3 fact
+`equipment.equipped.count` (`{ op: "gte", value, slots? }`) counts equipped
+pieces, and `equipment.broken.count` (`{ op: "gte", value }`) counts broken
+pieces. The v3 outcomes `forgeEquipment` and `upgradeEquipment` take
+`{ sets: [setIds...], items?: [itemIds...] }`; they open an equipment picker and
+keep the node open for repeats while broken pieces cover the cost.
+A choice listed in `equipment-loot.v1.json` grants equipment when it
+completes, and that grant counts as the choice's reward at draw time.
 
 Schema-v2 definitions include `title`, `body`, `theme`, `rarity`, optional
 `biomeIds`/`artId`, `story`, `eligibility`, `delivery`, `visibility`, `priority`,

@@ -73,6 +73,8 @@ const FACT_REGISTRY = [
   { fact: 'combat.signatureReady', args: '{ winsAtLeast; bossFinisher: true }', dependency: 'RunState.signatureFactLedger' },
   { fact: 'journey.visitedBiomes', args: '{ op: gte; value }', dependency: 'RunState.journeyFactLedger.visitedBiomeIds' },
   { fact: 'journey.completedChains', args: '{ op: gte; value }', dependency: 'RunState.completedStoryIds' },
+  { fact: 'equipment.equipped.count', args: '{ op: gte; value; slots? }', dependency: 'RunState.equippedEquipment' },
+  { fact: 'equipment.broken.count', args: '{ op: gte; value }', dependency: 'RunState.brokenEquipment' },
   { fact: 'callback.queued', args: '{ callbackId }', dependency: 'RunState.eventCallbackQueue' },
 ] as const satisfies readonly {
   fact: EventFactV3['fact'];
@@ -254,7 +256,10 @@ function readableRequirement(requirement: EventRequirementV3): string {
     return `${fact} ${args.op} ${String(args.value)}`;
   }
   if (fact === 'run.tally') return `run.tally.${args.stat} ${args.op} ${String(args.value)}`;
-  if (fact === 'journey.visitedBiomes' || fact === 'journey.completedChains') {
+  if (fact === 'equipment.equipped.count') {
+    return `${fact} ${args.op} ${String(args.value)}${args.slots ? ` in ${args.slots.join('/')}` : ''}`;
+  }
+  if (fact === 'journey.visitedBiomes' || fact === 'journey.completedChains' || fact === 'equipment.broken.count') {
     return `${fact} ${args.op} ${String(args.value)}`;
   }
   if (fact === 'event.choice') {

@@ -25,6 +25,7 @@ import {
 import { fantasyTitleLayout, type RegionBox, type FantasyCardTemplateSpec, type FantasyCardTemplateVariant } from './fantasyCardTemplateSpec';
 import { makeClassicCardBody, makePrintedCardBody } from './fantasyCardPrintedBody';
 import { applyCardFinish } from './fantasyCardFinish';
+import { driftCardArt } from './cardArtDrift';
 import { whenFantasyCardChromeReady } from './fantasyCardChromeLoader';
 import { isAoeSkill } from './skillPresentation';
 import type { TierProgress } from '../../run/shop';
@@ -66,6 +67,7 @@ export interface FantasyCardTemplateV2Options {
 export const FANTASY_CARD_BODY_NAME = 'fantasy-card-body';
 export const FANTASY_CARD_TITLE_NAME = 'fantasy-card-title';
 const FINISH_EFFECTS_MIN_WIDTH = 200;
+const ART_DRIFT_ZOOM = 1.06;
 const TITLE_MIN_FONT_PX = 8;
 
 
@@ -339,7 +341,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       if (!this.scene || !group.scene) return;
       const image = scene.add.image(0, 0, artKey);
       const source = image.texture.getSourceImage() as { width: number; height: number };
-      const fit = Math.max(artRegion.w / source.width, artRegion.h / source.height);
+      const fit = Math.max(artRegion.w / source.width, artRegion.h / source.height) * ART_DRIFT_ZOOM;
       image.setDisplaySize(source.width * fit, source.height * fit);
 
       const anchorY = model.artAnchor === 'upper-center'
@@ -352,6 +354,8 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       // Appended, so it covers the placeholder and nothing else: `group` is
       // one child of the card, already at the right depth under the plate.
       group.add(image);
+      const travel = Math.min(anchorY - (y + artRegion.h - image.displayHeight / 2), y + image.displayHeight / 2 - anchorY);
+      driftCardArt(image, anchorY, travel, model.skill.id);
     });
 
     return group;

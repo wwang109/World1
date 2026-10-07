@@ -177,7 +177,7 @@ export function auraAffectedTargetSlots(
  * the applied mods. Recomputed at cast time so board state changes are
  * reflected.
  */
-export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: SkillBook): ResolvedAuras {
+export function resolveAuras(c: Pick<CombatantState, 'pieces'>, piece: PieceState, skillBook: SkillBook): ResolvedAuras {
   const targetDef = skillBook[piece.skillId];
   if (!targetDef) return { mods: { ...NO_MODS }, sources: [] };
 
@@ -212,6 +212,7 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
   mods.damageFlat += g.damageFlat ?? 0;
   mods.healFlat += g.healFlat ?? 0;
   mods.weightDelta += g.weightDelta ?? 0;
+  mods.weightDelta += piece.passiveWeightDelta ?? 0;
   // A `curse` standing on THIS piece (PieceState.curse, combat/state.ts) is the
   // NEGATIVE half of the same flat-damage channel, folded in at the same seam
   // and for the same reason the gem mod above is: the core loop consumes only

@@ -374,6 +374,15 @@ export const PRICE = {
     { upTo: Infinity, rateDeci: 60 },
   ],
 
+  hasteBrackets: [
+    { upTo: 5, rateDeci: 10 },
+    { upTo: 10, rateDeci: 30 },
+    { upTo: 15, rateDeci: 60 },
+    { upTo: Infinity, rateDeci: 120 },
+  ],
+
+  regenPerStack: 20,
+
   /** lifesteal: pct * (lifestealPerPctNum/Den) — 1 PL per 15%. */
   lifestealPerPctNum: 2,
   lifestealPerPctDen: 3,
@@ -1046,6 +1055,7 @@ export function riderReadsResource(
     // forfeits the discount exactly as a shield+burst kit does.
     case 'wardRelease': return { resource: 'ward', on: 'caster', magnitude: action.cap };
     case 'desperation': return { resource: 'lowHp', on: 'caster', magnitude: action.amount };
+    case 'execute': return { resource: 'lowHp', on: 'target', magnitude: action.amount };
     // THE CASTER'S OWN CAST HISTORY — a fourth resource no keyword can supply
     // (alongside 'lowHp'/'overheal'/'cleansed'): nothing an action DOES puts a
     // type in the caster's previous-cast slot, only the act of having cast. So
@@ -1105,6 +1115,7 @@ export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
     case 'shieldBurst':
     case 'wardRelease':
     case 'desperation':
+    case 'execute':
       return 'damage';
     default: return null;
   }

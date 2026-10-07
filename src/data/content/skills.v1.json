@@ -12681,6 +12681,132 @@
      }
     }
    ]
+  },
+  {
+   "id": "finishing_blow",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Finishing Blow",
+      "notes": [
+       "Execute is a Silver-or-better keyword: the Bronze copy is a plain sword cut, and from Silver the Execute rider arms ahead of the hit."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "execute",
+        "amount": 10,
+        "minTier": "silver"
+       },
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "lingering_light",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Lingering Light",
+      "notes": [
+       "Regen is a Silver-or-better keyword priced above an equal direct heal; the Bronze copy is a plain heal and Regen grows at Gold."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 20
+       },
+       {
+        "kind": "regen",
+        "stacks": 3,
+        "minTier": "silver"
+       }
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 20
+         },
+         {
+          "kind": "regen",
+          "stacks": 5
+         }
+        ]
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 30
+         },
+         {
+          "kind": "regen",
+          "stacks": 5
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "quickstep",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Quickstep",
+      "notes": [
+       "Haste is a Silver-or-better keyword priced at twice the Disrupt brackets; the Bronze copy is a plain bow shot."
+      ],
+      "archetypes": [
+       "offense",
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       },
+       {
+        "kind": "haste",
+        "amount": 5,
+        "minTier": "silver"
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }

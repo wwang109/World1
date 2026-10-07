@@ -40,8 +40,26 @@ export interface RunRouteSnapshot {
   nextDepth: number;
 }
 
+export interface DayChapterPoint { x: number; y: number }
+export function dayChaptersGeometry(bounds: { x: number; y: number; w: number; h: number }, compact: boolean): {
+  columns: readonly { x: number; width: number; centerX: number }[];
+  stops: readonly { point: DayChapterPoint; day: number; index: number }[];
+  radius: number;
+} {
+  const padding = compact ? 8 : 16;
+  const width = ((compact ? Math.max(bounds.w, 656) : bounds.w) - padding * 2) / 5;
+  const radius = compact ? 13 : 18;
+  const spacing = Math.min(compact ? 35 : 48, (width - radius * 2 - 8) / 2);
+  const columns = Array.from({ length: 5 }, (_, index) => ({ x: bounds.x + padding + index * width,
+    width, centerX: bounds.x + padding + (index + 0.5) * width }));
+  const stops = columns.flatMap((column, day) => Array.from({ length: 3 }, (_, index) => ({
+    point: { x: column.centerX + (index - 1) * spacing, y: bounds.y + (compact ? 91 : 118) }, day: day + 1, index,
+  })));
+  return { columns, stops, radius };
+}
+
 export function snapshotRunRoute(run: Readonly<RunState>): RunRouteSnapshot {
-  const actionableDepth = run.depth + 1;
+  const actionableDepth = run.currentNodeId === null ? run.depth + 1 : run.depth;
   const columns = run.map.depths.slice(1).map((nodes, index) => {
     const depth = index + 1;
     return {

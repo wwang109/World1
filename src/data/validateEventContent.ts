@@ -14,6 +14,8 @@ import type {
   MarketStat,
 } from './eventTypes';
 import { gemBook } from './gems';
+import { EQUIPMENT_SLOTS, type EquipmentSlot } from '../engine/equipment/types';
+import { equipmentDocument } from './equipmentContent';
 import { skillBook } from './skills';
 import type { ContentProblem } from './validateSkillContent';
 import { inRange, isInt, opt, req } from './validateSkillContent';
@@ -69,6 +71,9 @@ const OUTCOME_KINDS: Readonly<Record<EventOutcomeSpec['kind'], true>> = {
 };
 
 const ACTION_KINDS: Readonly<Record<Action['kind'], true>> = {
+  haste: true,
+  regen: true,
+  execute: true,
   damage: true,
   statStrike: true,
   heal: true,
@@ -754,7 +759,7 @@ function validateV3CardMatch(
     problems.push({ where, message: 'card match must be an object' });
     return;
   }
-  const axes = ['cardIds', 'weapons', 'elements', 'archetypes'] as const;
+  const axes = ['cardIds', 'weapons', 'elements', 'archetypes', 'properties'] as const;
   rejectUnknownFields(value, axes, where, problems);
   if (requireAxis && !axes.some((axis) => value[axis] !== undefined)) {
     problems.push({ where, message: 'card match must select at least one axis' });
@@ -763,6 +768,7 @@ function validateV3CardMatch(
   if (value.weapons !== undefined) validateEnumList(value.weapons, WEAPONS, `${where}.weapons`, problems);
   if (value.elements !== undefined) validateEnumList(value.elements, ELEMENTS, `${where}.elements`, problems);
   if (value.archetypes !== undefined) validateEnumList(value.archetypes, ARCHETYPES, `${where}.archetypes`, problems);
+  if (value.properties !== undefined) validateEnumList(value.properties, PROPERTIES, `${where}.properties`, problems);
 }
 
 function validateV3GemMatch(value: unknown, where: string, problems: ContentProblem[]): void {
@@ -949,6 +955,17 @@ function validateV3Requirement(value: unknown, where: string, problems: ContentP
       rejectUnknownFields(args, ['winsAtLeast', 'bossFinisher'], argsWhere, problems);
       required(args, 'winsAtLeast', (entry) => isInt(entry) && entry > 0, 'a positive integer', argsWhere, problems);
       required(args, 'bossFinisher', (entry) => entry === true, 'exactly true', argsWhere, problems);
+      return;
+    case 'equipment.broken.count':
+      rejectUnknownFields(args, ['op', 'value'], argsWhere, problems);
+      required(args, 'op', (entry) => entry === 'gte', 'exactly gte', argsWhere, problems);
+      required(args, 'value', (entry) => isInt(entry) && entry > 0, 'a positive integer', argsWhere, problems);
+      return;
+    case 'equipment.equipped.count':
+      rejectUnknownFields(args, ['op', 'value', 'slots'], argsWhere, problems);
+      required(args, 'op', (entry) => entry === 'gte', 'exactly gte', argsWhere, problems);
+      required(args, 'value', (entry) => isInt(entry) && entry > 0, 'a positive integer', argsWhere, problems);
+      if (args.slots !== undefined) validateEnumList(args.slots, [...EQUIPMENT_SLOTS], `${argsWhere}.slots`, problems);
       return;
     case 'journey.visitedBiomes':
     case 'journey.completedChains':
@@ -1349,9 +1366,27 @@ function validateV3DirectOutcome(
     if (!fallbackOk) problems.push({ where: `${where}.fallback`, message: 'fallback must be nothing or grantGold{amount>0}' });
     return;
   }
+  if (value.kind === 'rerollCard' || value.kind === 'rerollGem') {
+    rejectUnknownFields(value, ['kind', 'rolls', 'fallback'], where, problems);
+    required(value, 'rolls', inRange(1, 6), 'an integer 1..6', where, problems);
+    const fallback = value.fallback;
+    const fallbackOk = isObj(fallback) && (fallback.kind === 'nothing'
+      || (fallback.kind === 'grantGold' && Number.isInteger(fallback.amount) && (fallback.amount as number) > 0));
+    if (!fallbackOk) problems.push({ where: `${where}.fallback`, message: 'fallback must be nothing or grantGold{amount>0}' });
+    return;
+  }
   if (value.kind === 'grantShopRerolls') {
     rejectUnknownFields(value, ['kind', 'amount'], where, problems);
     required(value, 'amount', inRange(1, 9), 'an integer 1..9', where, problems);
+    return;
+  }
+  if (value.kind === 'forgeEquipment' || value.kind === 'upgradeEquipment') {
+    rejectUnknownFields(value, ['kind', 'sets', 'items'], where, problems);
+    const setIds = equipmentDocument.sets.map((set) => set.id);
+    const itemIds = equipmentDocument.items.map((item) => item.id);
+    if (!Array.isArray(value.sets) || value.sets.length === 0) problems.push({ where: `${where}.sets`, message: 'sets must be a non-empty array' });
+    else validateEnumList(value.sets, setIds, `${where}.sets`, problems);
+    if (value.items !== undefined) validateEnumList(value.items, itemIds, `${where}.items`, problems);
     return;
   }
   if (value.kind === 'weighted') {
@@ -1478,13 +1513,14 @@ function validateV3Choice(
   required(value, 'label', (entry) => typeof entry === 'string' && entry.trim() !== '', 'a non-empty string', where, problems);
   optional(value, 'cost', inRange(0, 999), 'an integer 0..999', where, problems);
   optional(value, 'lifeCost', inRange(1, 2), 'an integer 1..2', where, problems);
+  optional(value, 'equipmentCost', (entry) => EQUIPMENT_SLOTS.includes(entry as EquipmentSlot), EQUIPMENT_SLOTS.join('|'), where, problems);
   if (value.requires !== undefined) validateGate(value.requires, `${where}.requires`, problems);
   if (value.requiresTally !== undefined) validateTallyGate(value.requiresTally, `${where}.requiresTally`, problems);
   if (!Object.hasOwn(value, 'outcome')) problems.push({ where: `${where}.outcome`, message: 'missing required field outcome' });
   else validateV3Outcome(value.outcome, `${where}.outcome`, problems, context);
   if (value.mutations !== undefined) validateV3Mutations(value.mutations, `${where}.mutations`, problems);
   if (value.callback !== undefined) validateV3Callback(value.callback, `${where}.callback`, problems);
-  rejectUnknownFields(value, ['id', 'label', 'cost', 'lifeCost', 'requires', 'requiresTally', 'outcome', 'mutations', 'callback'], where, problems);
+  rejectUnknownFields(value, ['id', 'label', 'cost', 'lifeCost', 'equipmentCost', 'requires', 'requiresTally', 'outcome', 'mutations', 'callback'], where, problems);
 }
 
 function validateV3ChoiceSet(
@@ -1506,7 +1542,7 @@ function validateV3ChoiceSet(
       choice, `${where}.fixed[${index}]`, seenIds, problems, context,
     ));
     const fixedChoices = value.fixed.filter(isObj);
-    if (!fixedChoices.some((choice) => (choice.cost === undefined || choice.cost === 0) && choice.lifeCost === undefined && choice.requires === undefined && choice.requiresTally === undefined)) {
+    if (!fixedChoices.some((choice) => (choice.cost === undefined || choice.cost === 0) && choice.lifeCost === undefined && choice.equipmentCost === undefined && choice.requires === undefined && choice.requiresTally === undefined)) {
       problems.push({ where: `${where}.fixed`, message: 'fixed choices need a guaranteed cost-zero ungated safe exit' });
     }
   }

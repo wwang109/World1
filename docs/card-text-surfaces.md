@@ -9,6 +9,8 @@
 > Cites are `file:line` verified **2026-09-14**. Line numbers drift; the
 > symbol name beside each is the durable anchor — grep that, not the number.
 
+Before authoring player-facing descriptions, read [Game copy guide](game-copy-guide.md) for plain-language style, icon-first explanations, and talent/relic target-selection wording. This document continues to own the string sources and generated-card constraints.
+
 ## 0. The one-paragraph answer
 
 **`src/engine/keywords/text.ts` is the single source of truth for card, gem

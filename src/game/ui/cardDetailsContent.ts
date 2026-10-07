@@ -1,9 +1,9 @@
-import { TIER_ORDER, tierResolved, weightOf, type Action, type SkillDef, type SkillTier } from '../../engine/types';
+import { TIER_ORDER, tierResolved, weightOf, type Action, type Property, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { applyTier, gemCardMods, resolveDisplaySkill } from '../../engine/cards';
 import { AFFINITY_SEPARATOR, cooldownClause, renderCtxOf, renderSkillClauses } from '../../engine/keywords/compose';
-import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN, withTermEntries } from '../../engine/keywords/text';
+import { faceClauseOf, ruleSentenceOf, ruleTitleOf, STAT_TOKEN, withTermEntries, type RenderCtx } from '../../engine/keywords/text';
 import { renderGemText } from '../../engine/keywords/gemText';
 import { typeBadgeEntries } from './cardGlossary';
 import { stripCardTextMarkup } from './cardTextMarkup';
@@ -30,38 +30,54 @@ export function resolveCardDetailsPreview(skill: SkillDef, tier: SkillTier, gem?
 
 /** Bind each registry parameter to its typed meaning. Positional bindings are
  * deliberately per action kind: percentages, duration and caps are not one X. */
-function specificRule(action: Action): string {
+const GUARD_WORD: Record<Property, string> = { physical: 'physical', magical: 'magic', true: 'TRUE' };
+const SHIELD_WORD: Record<Property, string> = { physical: 'P. Shield', magical: 'M. Shield', true: 'True Shield' };
+const turnsOf = (turns: number) => `${turns} ${turns === 1 ? 'turn' : 'turns'}`;
+
+function specificRule(action: Action, ctx: RenderCtx): { rule: string; standalone: boolean } {
   const rule = ruleSentenceOf(action);
+  const generic = (text: string) => ({ rule: text, standalone: false });
+  const own = (text: string) => ({ rule: text, standalone: true });
   let parameters: Array<string | number>;
   switch (action.kind) {
+    case 'guard': return own(`Reduce ${GUARD_WORD[action.property]} damage by ${action.pct}% for ${turnsOf(action.turns)}.`);
+    case 'negate': return own(`Prevent the next ${action.charges} ${action.property === 'true' ? 'TRUE' : action.property} ${action.charges === 1 ? 'attack' : 'attacks'}.`);
+    case 'overhealShield': return own(`Convert up to ${action.cap} excess healing into ${SHIELD_WORD[ctx.property]}.`);
+    case 'stackBonus': return own(action.status === 'burden'
+      ? `Each Burdened card adds ${action.per} damage, up to ${action.cap}.`
+      : `Each ${titleCase(action.status)} stack ${action.of === 'caster' ? 'you have' : 'on the target'} adds ${action.per} damage, up to ${action.cap}.`);
+    case 'empowerNext': {
+      const type = ctx.element ?? ctx.weapon;
+      return own(`Add ${action.amount} damage to the next ${type ? `${titleCase(type)} ` : ''}card.`);
+    }
     case 'shieldBreak': parameters = [action.amount]; break;
     // The generated shield clause already includes the DEF/MDEF contribution;
     // binding only base power here would falsely cap the resolved shield.
-    case 'shield': return 'Prevents Bleed while active.';
+    case 'shield': return generic('Prevents Bleed while active.');
     case 'statStrike': parameters = [`1/${action.shareOf}`, `1/${action.shareOf}`]; break;
     case 'lifesteal': parameters = [`${action.pct}%`]; break;
     // These rules read a changing status pile, not this card's applied amount.
     // The generated clause above carries the actual stacks this card adds.
-    case 'poison': return 'At the end of each turn, deal damage equal to current Poison stacks, then lose 1 Poison.';
-    case 'burn': return 'At the start of each turn, deal damage equal to twice current Burn stacks, then halve Burn.';
-    case 'bleed': return 'After the first card played each turn, deal damage equal to current Bleed stacks and lose 1 Bleed.';
-    case 'thorns': return 'When hit by an attack, deal physical damage equal to current Thorns stacks, then lose 1 Thorns.';
-    case 'buffStat': case 'debuffStat': case 'expose': case 'guard': parameters = [action.pct, action.turns]; break;
+    case 'poison': return generic('At the end of each turn, deal damage equal to current Poison stacks, then lose 1 Poison.');
+    case 'burn': return generic('At the start of each turn, deal damage equal to twice current Burn stacks, then halve Burn.');
+    case 'bleed': return generic('After the first card played each turn, deal damage equal to current Bleed stacks and lose 1 Bleed.');
+    case 'thorns': return generic('When hit by an attack, deal physical damage equal to current Thorns stacks, then lose 1 Thorns.');
+    case 'regen': return generic('At the end of each turn, heal HP equal to current Regen stacks, then lose 1 Regen.');
+    case 'buffStat': case 'debuffStat': case 'expose': parameters = [action.pct, action.turns]; break;
     case 'slow': case 'burden': parameters = [action.weight]; break;
     case 'curse': parameters = [action.amount, action.turns]; break;
-    case 'disrupt': case 'taunt': case 'comboBonus': case 'empowerNext': case 'desperation': parameters = [action.amount]; break;
-    case 'negate': case 'ward': case 'cleanse': parameters = [action.charges]; break;
+    case 'disrupt': case 'taunt': case 'comboBonus': case 'desperation': case 'haste': case 'execute': parameters = [action.amount]; break;
+    case 'ward': case 'cleanse': parameters = [action.charges]; break;
     case 'chainBonus': parameters = [action.amount, titleCase(action.after)]; break;
-    case 'stackBonus': case 'cleanseConvert': parameters = [action.per, action.cap]; break;
-    case 'overhealShield': parameters = [action.cap]; break;
-    default: return /\bX\b|2X/.test(rule) ? '' : rule;
+    case 'cleanseConvert': parameters = [action.per, action.cap]; break;
+    default: return generic(/\bX\b|2X/.test(rule) ? '' : rule);
   }
   const slots = rule.match(/2X|1\/X|\bX\b/g) ?? [];
   // A future registry grammar change falls back to the exact generated clause
   // instead of silently binding a quantity to the wrong meaning.
-  if (slots.length !== parameters.length) return '';
+  if (slots.length !== parameters.length) return generic('');
   let index = 0;
-  return rule.replace(/2X|1\/X|\bX\b/g, () => String(parameters[index++]));
+  return { rule: rule.replace(/2X|1\/X|\bX\b/g, () => String(parameters[index++])), standalone: true };
 }
 
 /** Concrete clauses come from the face composer, never generic X-based rules.
@@ -81,6 +97,7 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
   });
   const entries = renderSkillClauses(skill).map(clause => {
     const gated = clause.startsWith('{{Affinity}}');
+    const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(AFFINITY_SEPARATOR)))}${AFFINITY_SEPARATOR}` : '';
     const action = candidates.find(candidate => Boolean(candidate.affinity) === gated && (clause === faceClauseOf(candidate, ctx)
       || clause.endsWith(`${AFFINITY_SEPARATOR}${faceClauseOf(candidate, { ...ctx, gated: true })}`)));
     if (action?.kind === 'exploit') {
@@ -89,12 +106,10 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
       return { title: `Exploit — ${status}`, body: `${action.affinity ? `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board. ` : ''}Deal ${action.amount} additional damage against ${target}.` };
     }
     if (action?.kind === 'debuffStat' || action?.kind === 'buffStat') {
-      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(AFFINITY_SEPARATOR)))}${AFFINITY_SEPARATOR}` : '';
       const verb = action.kind === 'debuffStat' ? 'Reduce enemy' : 'Increase';
       return { title: ruleTitleOf(action), body: `${prefix}${verb} ${STAT_TOKEN[action.stat]} by ${action.pct}% for ${action.turns} ${action.turns === 1 ? 'turn' : 'turns'}.` };
     }
     if (action?.kind === 'shieldBurst' || action?.kind === 'wardRelease') {
-      const prefix = gated ? `${stripCardTextMarkup(clause.slice(0, clause.indexOf(AFFINITY_SEPARATOR)))}${AFFINITY_SEPARATOR}` : '';
       const maxCharges = action.kind === 'wardRelease' ? Math.ceil(action.cap / action.per) : 0;
       const rule = action.kind === 'shieldBurst'
         ? `Consume Shield to deal up to ${action.cap} damage.`
@@ -103,10 +118,10 @@ function entriesFor(raw: SkillDef, gem?: GemDef | null): CardDetailsEntry[] {
     }
     const markup = clause.match(/\{\{([^}:|]+)/)?.[1];
     const title = action ? ruleTitleOf(action) : undefined;
-    const rule = action ? specificRule(action) : '';
+    const { rule, standalone } = action ? specificRule(action, ctx) : { rule: '', standalone: false };
     const body = stripCardTextMarkup(clause);
     return { title: title || (clause.startsWith('Deal ') ? 'Damage' : clause.startsWith('Restore ') ? 'Healing' : markup ?? (clause.startsWith('Passive:') ? 'Passive' : 'Ability')),
-      body: action?.kind === 'slow' && rule ? rule : rule && !/\bX\b|2X/.test(rule) ? `${body}. ${rule}` : body };
+      body: !rule || /\bX\b|2X/.test(rule) ? body : standalone ? `${prefix}${rule}` : `${body}. ${rule}` };
   });
   if (skill.effects.some(action => action.affinity)) entries.push({ title: 'Affinity', body: `Requires 3 ${titleCase(skill.element ?? skill.weapon ?? 'matching type')} cards on your board to activate the Affinity effects.` });
   const cooldown = cooldownClause(skill);

@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { resolveBattle, type BattleRequest } from '../src/run/resolveBattle';
+import { buildBattlePassiveExample } from '../src/data/battlePassiveExamples';
 import { damagePerTurn, type DamageProfileOpts } from '../src/run/analysis';
 import { skillBook } from '../src/data/skills';
 import type { CombatantSetup } from '../src/engine/types';
@@ -112,7 +113,7 @@ createServer((req, res) => {
     return;
   }
 
-  if (req.method !== 'POST' || (route !== '/battle' && route !== '/damage-band' && route !== '/ghosts')) {
+  if (req.method !== 'POST' || (route !== '/battle' && (route !== '/battle-example' || process.env.NODE_ENV === 'production') && route !== '/damage-band' && route !== '/ghosts')) {
     json(404, { error: 'POST /battle, POST /damage-band, POST /ghosts, GET /ghosts, or POST /ghosts/:id/result' });
     return;
   }
@@ -120,6 +121,15 @@ createServer((req, res) => {
   req.on('data', (chunk) => { body += chunk; });
   req.on('end', () => {
     try {
+      if (route === '/battle-example') {
+        const input = JSON.parse(body) as Record<string, unknown>;
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).some(key => key !== 'exampleId' && key !== 'seed')
+          || typeof input.exampleId !== 'string') throw new Error('Expected a registered exampleId and optional seed');
+        const { request, preparation } = buildBattlePassiveExample(input.exampleId, input.seed as number | undefined);
+        json(200, resolveBattle(request, preparation));
+        return;
+      }
       if (route === '/damage-band') {
         const { setup, opts } = JSON.parse(body) as DamageBandRequest;
         json(200, damagePerTurn(setup, skillBook, opts ?? {}));

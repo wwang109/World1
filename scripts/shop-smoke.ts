@@ -58,7 +58,7 @@ const RESUME_LABEL = startScenePrimaryPresentation(true, 'desktop').label;
 
 // The draft's final-row START button, mobile spelling — sourced from
 // `mobileDraftLayout.ts`'s `mobileDraftActions` rather than retyped.
-const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true, true).find((a) => a.id === 'start')!.label;
+const MOBILE_START_LABEL = mobileDraftActions(DRAFT_SET_KEYS.length - 1, true).find((a) => a.id === 'start')!.label;
 
 /** Minimal stand-in for the fields `runTravelChoiceCardCopy` actually reads —
  * same idiom as `run-hud-audit.ts`'s `travelModelStub`. */

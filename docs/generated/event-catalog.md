@@ -56,6 +56,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 | `combat.signatureReady` | `{ winsAtLeast; bossFinisher: true }` | `RunState.signatureFactLedger` |
 | `journey.visitedBiomes` | `{ op: gte; value }` | `RunState.journeyFactLedger.visitedBiomeIds` |
 | `journey.completedChains` | `{ op: gte; value }` | `RunState.completedStoryIds` |
+| `equipment.equipped.count` | `{ op: gte; value; slots? }` | `RunState.equippedEquipment` |
+| `equipment.broken.count` | `{ op: gte; value }` | `RunState.brokenEquipment` |
 | `callback.queued` | `{ callbackId }` | `RunState.eventCallbackQueue` |
 
 ## Graph edges
@@ -4032,6 +4034,2173 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - None.
 
+## `equip_arcane_forge` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_arcane_forge@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Arcane Forge"
+- Presentation body: "Runes glow along a cold anvil. The enchanter who tends it can bind broken pieces into new gear, or pour more power into what you have."
+- Discovery: none
+
+- Story: `equip_arcane_forge` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(equipment.broken.count gte 1, ANY(owned.card.count({"where":"board","count":2,"match":{"properties":["magical"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["magical"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["debuff"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "equipment.broken.count",
+      "args": {
+        "op": "gte",
+        "value": 1
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "properties": [
+                "magical"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "offense"
+              ],
+              "properties": [
+                "magical"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "debuff"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.broken.count` → `RunState.brokenEquipment`
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `forge_item`
+
+- Presentation label: "Forge an item (3 broken pieces)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "forgeEquipment",
+  "sets": [
+    "arcanist",
+    "stormcaller",
+    "hexweaver"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_item`
+
+- Presentation label: "Upgrade an item"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeEquipment",
+  "sets": [
+    "arcanist",
+    "stormcaller",
+    "hexweaver"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Leave"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_arcanist_study` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_arcanist_study@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Arcanist's Study"
+- Presentation body: "A scholar has abandoned his study mid-sentence. His robes and trinkets still hum with spellwork."
+- Discovery: none
+
+- Story: `equip_arcanist_study` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"properties":["magical"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "properties": [
+        "magical"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take an Arcanist piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_armorer` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_armorer@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Armorer"
+- Presentation body: "An armorer hammers dents out of a breastplate. \"Bring me scrap and I will make you plate,\" he says. \"Bring me more and I will make it stronger.\""
+- Discovery: none
+
+- Story: `equip_armorer` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(equipment.broken.count gte 1, owned.card.count({"where":"board","count":2,"match":{"archetypes":["defensive"]}}))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "equipment.broken.count",
+      "args": {
+        "op": "gte",
+        "value": 1
+      }
+    },
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "board",
+        "count": 2,
+        "match": {
+          "archetypes": [
+            "defensive"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.broken.count` → `RunState.brokenEquipment`
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `forge_item`
+
+- Presentation label: "Forge an item (3 broken pieces)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "forgeEquipment",
+  "sets": [
+    "bastion",
+    "ironwall",
+    "spellguard"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_item`
+
+- Presentation label: "Upgrade an item"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeEquipment",
+  "sets": [
+    "bastion",
+    "ironwall",
+    "spellguard"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Leave"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_arms_dealer` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_arms_dealer@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Arms Dealer"
+- Presentation body: "An arms dealer lays out swords, bows and raider gear. \"No coin,\" he says. \"Give me a card and take a piece of warrior gear.\""
+- Discovery: none
+
+- Story: `equip_arms_dealer` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(owned.card.count({"where":"any","count":5,"match":{}}), ANY(owned.card.count({"where":"board","count":2,"match":{"weapons":["sword"]}}), owned.card.count({"where":"board","count":2,"match":{"weapons":["bow"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["physical"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "any",
+        "count": 5,
+        "match": {}
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "weapons": [
+                "sword"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "weapons": [
+                "bow"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "offense"
+              ],
+              "properties": [
+                "physical"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade_card`
+
+- Presentation label: "Trade a card for Warrior gear"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_collector` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_collector@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Collector"
+- Presentation body: "A collector of fine gear eyes what you are wearing. \"I pay well,\" he says, \"but I keep what I buy.\""
+- Discovery: none
+
+- Story: `equip_collector` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `equipment.equipped.count gte 1 in armor/accessory`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "equipment.equipped.count",
+  "args": {
+    "op": "gte",
+    "value": 1,
+    "slots": [
+      "armor",
+      "accessory"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.equipped.count` → `RunState.equippedEquipment`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `sell_armor`
+
+- Presentation label: "Trade your armor for a Silver card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "cardChoice",
+  "filter": [
+    {
+      "properties": [
+        "physical",
+        "magical",
+        "true"
+      ]
+    }
+  ],
+  "maxTier": "gold",
+  "minTier": "silver"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `sell_accessory`
+
+- Presentation label: "Trade your accessory for a gem"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "gemChoice"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Keep your gear"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_fallen_bastion` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_fallen_bastion@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Fallen Bastion"
+- Presentation body: "A collapsed watchtower. Its last defender left her kit folded by the door, as if she meant to come back."
+- Discovery: none
+
+- Story: `equip_fallen_bastion` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["defensive"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "defensive"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Bastion piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_fencing_hall` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_fencing_hall@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Fencing Hall"
+- Presentation body: "A fencing master left her rack unlocked. A note on it reads: \"For a sword hand only.\""
+- Discovery: none
+
+- Story: `equip_fencing_hall` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"weapons":["sword"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "weapons": [
+        "sword"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Duelist piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_field_infirmary` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_field_infirmary@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Field Infirmary"
+- Presentation body: "An empty field hospital. The healers left their vestments behind for whoever tends the wounded next."
+- Discovery: none
+
+- Story: `equip_field_infirmary` · stage `setup` · role `setup`
+- Theme `recruit` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["healing"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "healing"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Restorer piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_fortune_teller` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_fortune_teller@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Fortune Teller"
+- Presentation body: "A fortune teller turns your charm over in her palm. \"Leave this with me and I will read one of your cards into something greater.\""
+- Discovery: none
+
+- Story: `equip_fortune_teller` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `equipment.equipped.count gte 1 in charm`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "equipment.equipped.count",
+  "args": {
+    "op": "gte",
+    "value": 1,
+    "slots": [
+      "charm"
+    ]
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.equipped.count` → `RunState.equippedEquipment`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade_charm`
+
+- Presentation label: "Trade your charm to upgrade a card"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeCardTargeted",
+  "target": {
+    "filter": {
+      "where": "board",
+      "match": {
+        "archetypes": [
+          "offense",
+          "defensive",
+          "healing",
+          "support",
+          "debuff"
+        ]
+      }
+    }
+  },
+  "fallback": {
+    "kind": "grantGold",
+    "amount": 3
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Keep your charm"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_hedge_mage` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_hedge_mage@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Hedge Mage"
+- Presentation body: "A hedge mage trades in enchanted robes and seals. She will swap one of her pieces for one of your cards."
+- Discovery: none
+
+- Story: `equip_hedge_mage` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(owned.card.count({"where":"any","count":5,"match":{}}), ANY(owned.card.count({"where":"board","count":2,"match":{"properties":["magical"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["magical"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["debuff"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "any",
+        "count": 5,
+        "match": {}
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "properties": [
+                "magical"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "offense"
+              ],
+              "properties": [
+                "magical"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "debuff"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade_card`
+
+- Presentation label: "Trade a card for Arcane gear"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_hexweaver_hut` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_hexweaver_hut@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Hexweaver's Hut"
+- Presentation body: "Knotted cords hang from the rafters of a crooked hut. Each knot is a curse someone paid for."
+- Discovery: none
+
+- Story: `equip_hexweaver_hut` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["debuff"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "debuff"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Hexweaver piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_hunting_lodge` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_hunting_lodge@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Hunting Lodge"
+- Presentation body: "An empty lodge with a bow on every wall. The hunter's coat still smells of pine."
+- Discovery: none
+
+- Story: `equip_hunting_lodge` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"weapons":["bow"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "weapons": [
+        "bow"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Huntsman piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_ironwall_forge` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_ironwall_forge@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Ironwall Forge"
+- Presentation body: "A cold forge with one finished order on the anvil, never collected. The plate is your size."
+- Discovery: none
+
+- Story: `equip_ironwall_forge` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["defensive"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "defensive"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take an Ironwall piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_quartermaster` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_quartermaster@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Quartermaster"
+- Presentation body: "An army quartermaster is short on cards and long on armor. \"One of yours for one of mine,\" he says."
+- Discovery: none
+
+- Story: `equip_quartermaster` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(owned.card.count({"where":"any","count":5,"match":{}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["defensive"]}}))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "any",
+        "count": 5,
+        "match": {}
+      }
+    },
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "board",
+        "count": 2,
+        "match": {
+          "archetypes": [
+            "defensive"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade_card`
+
+- Presentation label: "Trade a card for Guardian gear"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_ravager_camp` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_ravager_camp@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Ravager Camp"
+- Presentation body: "Raiders broke camp in a hurry. Their trophies are still hanging from the tent poles."
+- Discovery: none
+
+- Story: `equip_ravager_camp` · stage `setup` · role `setup`
+- Theme `cache` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["physical"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "offense"
+      ],
+      "properties": [
+        "physical"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Ravager piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_storm_shrine` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_storm_shrine@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Storm Shrine"
+- Presentation body: "Lightning has struck this shrine so often the stone is glass. Offerings to the storm sit on the altar."
+- Discovery: none
+
+- Story: `equip_storm_shrine` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["magical"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "offense"
+      ],
+      "properties": [
+        "magical"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Stormcaller piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_tinker` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_tinker@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Tinker"
+- Presentation body: "A tinker's cart rattles with half-mended trinkets. She can fit broken pieces together, or tune a piece you already own."
+- Discovery: none
+
+- Story: `equip_tinker` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(equipment.broken.count gte 1, ANY(owned.card.count({"where":"board","count":2,"match":{"archetypes":["healing"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["support"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "equipment.broken.count",
+      "args": {
+        "op": "gte",
+        "value": 1
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "healing"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "support"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.broken.count` → `RunState.brokenEquipment`
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `forge_item`
+
+- Presentation label: "Forge an item (3 broken pieces)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "forgeEquipment",
+  "sets": [
+    "restorer",
+    "tactician"
+  ],
+  "items": [
+    "wind_charm"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_item`
+
+- Presentation label: "Upgrade an item"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeEquipment",
+  "sets": [
+    "restorer",
+    "tactician"
+  ],
+  "items": [
+    "wind_charm"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Leave"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_trinket_trader` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_trinket_trader@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Trinket Trader"
+- Presentation body: "A trader rattles a tray of seals, knots and charms. She takes payment only in cards."
+- Discovery: none
+
+- Story: `equip_trinket_trader` · stage `setup` · role `setup`
+- Theme `market` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(owned.card.count({"where":"any","count":5,"match":{}}), ANY(owned.card.count({"where":"board","count":2,"match":{"archetypes":["healing"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["support"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "owned.card.count",
+      "args": {
+        "where": "any",
+        "count": 5,
+        "match": {}
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "healing"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "support"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `trade_card`
+
+- Presentation label: "Trade a card for Support gear"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "reshapeCard",
+  "mode": "sacrifice",
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Keep your cards"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_war_tent` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_war_tent@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The War Tent"
+- Presentation body: "A commander's tent, maps still pinned to the table. Whoever planned this campaign left in a hurry."
+- Discovery: none
+
+- Story: `equip_war_tent` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["support"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "support"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Tactician piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_warded_chapel` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_warded_chapel@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Warded Chapel"
+- Presentation body: "Wards are carved into every pew. In the vestry hang robes stitched with the same marks."
+- Discovery: none
+
+- Story: `equip_warded_chapel` · stage `setup` · role `setup`
+- Theme `omen` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `owned.card.count({"where":"board","count":2,"match":{"archetypes":["defensive"]}})`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "owned.card.count",
+  "args": {
+    "where": "board",
+    "count": 2,
+    "match": {
+      "archetypes": [
+        "defensive"
+      ]
+    }
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `take_piece`
+
+- Presentation label: "Take a Spellguard piece"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `walk_on`
+
+- Presentation label: "Walk on"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
+## `equip_weaponsmith` · current version `1`
+
+- Source pack: `src/data/content/event-packs/170-equipment.json`
+- Identity: `equip_weaponsmith@v1`
+- Retained versions: v1 (schema 3)
+- Draw: repeatable
+- Presentation title: "The Weaponsmith"
+- Presentation body: "A weaponsmith sorts scrap into neat piles. \"Three broken pieces and I will make you something whole,\" she says. \"Or I can sharpen what you already carry.\""
+- Discovery: none
+
+- Story: `equip_weaponsmith` · stage `setup` · role `setup`
+- Theme `forge` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `ALL(equipment.broken.count gte 1, ANY(owned.card.count({"where":"board","count":2,"match":{"weapons":["sword"]}}), owned.card.count({"where":"board","count":2,"match":{"weapons":["bow"]}}), owned.card.count({"where":"board","count":2,"match":{"archetypes":["offense"],"properties":["physical"]}})))`
+- Typed requirement AST:
+
+```json
+{
+  "all": [
+    {
+      "fact": "equipment.broken.count",
+      "args": {
+        "op": "gte",
+        "value": 1
+      }
+    },
+    {
+      "any": [
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "weapons": [
+                "sword"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "weapons": [
+                "bow"
+              ]
+            }
+          }
+        },
+        {
+          "fact": "owned.card.count",
+          "args": {
+            "where": "board",
+            "count": 2,
+            "match": {
+              "archetypes": [
+                "offense"
+              ],
+              "properties": [
+                "physical"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Persisted fact dependencies
+
+- `equipment.broken.count` → `RunState.brokenEquipment`
+- `owned.card.count` → `RunState.pieces/bagSlots/held`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `node` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `forge_item`
+
+- Presentation label: "Forge an item (3 broken pieces)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "forgeEquipment",
+  "sets": [
+    "duelist",
+    "huntsman",
+    "ravager"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `upgrade_item`
+
+- Presentation label: "Upgrade an item"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "upgradeEquipment",
+  "sets": [
+    "duelist",
+    "huntsman",
+    "ravager"
+  ]
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 3: `walk_on`
+
+- Presentation label: "Leave"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
+
 ## `factors_ledger` · current version `3`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
@@ -4511,6 +6680,88 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 - Callback: none
 
+
+## `fitting_yard` · current version `1`
+
+- Source pack: `src/data/content/event-packs/160-new-mechanics.json`
+- Identity: `fitting_yard@v1`
+- Retained versions: v1 (schema 3)
+- Draw: once per biome stay
+- Presentation title: "The Fitting Yard"
+- Presentation body: "A yard-master swaps your weapon for another of the same kind until one fits your hand. Each swap is final, but you may keep swapping."
+- Discovery: none
+
+- Story: `fitting_yard` · stage `setup` · role `setup`
+- Theme `training` · art `theme fallback` · rarity `uncommon` · biome `any`
+
+### Eligibility
+
+- Readable requirement: `node.depth gte 2`
+- Typed requirement AST:
+
+```json
+{
+  "fact": "node.depth",
+  "args": {
+    "op": "gte",
+    "value": 2
+  }
+}
+```
+
+### Persisted fact dependencies
+
+- `node.depth` → `RunState.map + current event node`
+
+### Delivery and selection
+
+- Delivery `ambient` · visibility `visible` · priority `0` · once `run` · cooldown `0` nodes
+
+### Ambient bindings
+
+- None.
+
+### Fixed choices (always materialized)
+
+#### Fixed choice 1: `refit`
+
+- Presentation label: "Reroll a card, same type (up to 4 rolls)"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "rerollCard",
+  "rolls": 4,
+  "fallback": {
+    "kind": "nothing"
+  }
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+#### Fixed choice 2: `leave`
+
+- Presentation label: "Keep what you carry"
+- Cost: `0` gold
+- Typed outcome:
+
+```json
+{
+  "kind": "nothing"
+}
+```
+
+- Typed mutations: none
+
+- Callback: none
+
+### Seeded choice pool
+
+- None.
 
 ## `flaw_finder` · current version `1`
 
@@ -5471,7 +7722,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Retained versions: v1 (schema 3)
 - Draw: once per biome stay
 - Presentation title: "The Gem-Cutter's Wheel"
-- Presentation body: "A gem-cutter works a wheel by the roadside, recutting stones into new shapes. What comes off the wheel keeps its grade, but not its face."
+- Presentation body: "A gem-cutter works a wheel by the roadside, recutting stones into new shapes of the same grade. Dislike the cut, and she will put it back on the wheel."
 - Discovery: none
 
 - Story: `gem_cutters_wheel` · stage `setup` · role `setup`
@@ -5509,14 +7760,14 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 1: `recut`
 
-- Presentation label: "Recut a gem from your pouch"
+- Presentation label: "Recut a gem (up to 4 rolls)"
 - Cost: `0` gold
 - Typed outcome:
 
 ```json
 {
-  "kind": "reshapeGem",
-  "mode": "transform",
+  "kind": "rerollGem",
+  "rolls": 4,
   "fallback": {
     "kind": "nothing"
   }
@@ -5762,8 +8013,7 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
   "kind": "reshapeCard",
   "mode": "shatter",
   "fallback": {
-    "kind": "grantGold",
-    "amount": 2
+    "kind": "nothing"
   }
 }
 ```

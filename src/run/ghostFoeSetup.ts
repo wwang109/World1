@@ -1,16 +1,19 @@
 import type { CombatantSetup } from '../engine/types';
+import type { EquippedItemRef } from '../engine/equipment/types';
 import { enemies } from '../data/enemies';
 import { buildAutoHeroSetup, resolveFoeDeck, type FoeDeckCard } from './encounter';
 import type { Allocation } from './leveling';
 import { MAX_LEVEL } from './runState';
 import { GHOST_NAME_MAX } from './ghost';
 import { requestAllocation, requestLevel, requestPieces } from './battleRequestValidation';
+import { applyBattleEquipment } from './battleEquipment';
 
 export interface BattleGhostConfig {
   pieces: readonly FoeDeckCard[];
   level: number;
   allocation: Allocation;
   displayName: string;
+  equipment?: readonly EquippedItemRef[];
 }
 
 function ghostName(displayName: string): string {
@@ -28,7 +31,8 @@ export function buildGhostFoeSetup(ghost: BattleGhostConfig): CombatantSetup {
   const level = requestLevel('ghost foe', ghost.level, MAX_LEVEL);
   const allocation = requestAllocation('ghost foe', ghost.allocation, level);
   const name = ghostName(ghost.displayName);
-  return { ...buildAutoHeroSetup(level, pieces, allocation).setup, name };
+  const setup = { ...buildAutoHeroSetup(level, pieces, allocation).setup, name };
+  return ghost.equipment === undefined ? setup : applyBattleEquipment(setup, ghost.equipment);
 }
 
 export function assertKnownGhostEnemyId(enemyId: string): void {

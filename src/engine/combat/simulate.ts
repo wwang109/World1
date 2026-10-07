@@ -3,13 +3,14 @@ import type { CombatConfig, CombatantSetup, CombatOutcome, Side } from '../types
 import type { CombatEvent } from './events';
 import { effStat, initCombatState, isTurnDurationed, teamOf, type CombatState, type CombatantState } from './state';
 import { scanCast, type CastChoice } from './castSelect';
-import { applyCast, dealDamage, targetInfoForCast, type Ctx } from './interpreter';
+import { applyCast, dealDamage, targetInfoForCast, tickRegen, type Ctx } from './interpreter';
 // `cursorPiece` lives beside the `splash` band it also defines the anchor for
 // (combat/splash.ts), so "the card whose turn it is" has ONE definition shared
 // by the turn loop and the splash keyword. Behaviour is identical to the local
 // copy it replaces.
 import { cursorPiece } from './splash';
 import { cardType } from './typeIdentity';
+import { passiveSummaryText } from '../passives/text';
 
 export interface CombatResult {
   result: CombatOutcome;
@@ -386,6 +387,33 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const rng = new Rng(seed);
   const events: CombatEvent[] = [];
   const ctx: Ctx = { state, rng, events };
+  const setupEvents: CombatEvent[] = [];
+  for (const team of [state.playerTeam, state.enemyTeam]) for (const unit of team) {
+    if (unit.equipment) events.push({ turn: 0, kind: 'equipmentSetup', side: unit.side, unit: unit.index, ...unit.equipment });
+  }
+  for (const team of [state.playerTeam, state.enemyTeam]) for (const unit of team) {
+    if (!unit.alive) continue;
+    for (const effect of unit.preparedPassives?.setupEffects ?? []) {
+      const before = unit.shields.physical + unit.shields.magical + unit.shields.true;
+      const poolBefore = unit.shields[effect.property];
+      const amount = Math.min(effect.amount, Math.max(0, unit.stats.maxHp - before));
+      unit.shields[effect.property] += amount;
+      const receipt = unit.preparedPassives!.receipts.find(entry => entry.source === effect.source)!;
+      receipt.changes.push({ field: 'setupShield', property: effect.property, before: poolBefore,
+        after: unit.shields[effect.property], amount: effect.amount, stage: 'setup', basis: 'startingShieldPool' });
+      receipt.displayText = passiveSummaryText(receipt);
+      setupEvents.push({ turn: 0, kind: 'shieldGain', side: unit.side, unit: unit.index,
+        property: effect.property, amount, wasted: effect.amount - amount,
+        totalAfter: before + amount, poolsAfter: { ...unit.shields },
+        calculation: { power: effect.amount, statBonus: 0 }, sourcePassive: effect.source });
+    }
+  }
+  for (const team of [state.playerTeam, state.enemyTeam]) for (const unit of team) {
+    for (const receipt of unit.preparedPassives?.receipts ?? []) {
+      events.push({ turn: 0, kind: 'preBattleEffect', side: unit.side, unit: unit.index, ...receipt });
+    }
+  }
+  events.push(...setupEvents);
   const suddenDeathRound = cfg.suddenDeathRound ?? DEFAULT_SUDDEN_DEATH_ROUND;
   const fatigueTurn = cfg.fatigueTurn ?? DEFAULT_FATIGUE_TURN;
   const maxTurns = cfg.maxTurns ?? DEFAULT_MAX_TURNS;
@@ -716,6 +744,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     beginStep();
     outcome = sweep(units, (c) => tickTurnDot(ctx, c, 'poison'));
     if (outcome !== null) return finish(outcome);
+    for (const c of units) tickRegen(ctx, c);
 
     // ATTRITION — global stalemate breaker, one clearly-bounded turn step (the
     // only place in the loop that knows about it). From `attritionTurn` on,

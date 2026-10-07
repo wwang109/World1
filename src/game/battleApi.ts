@@ -2,6 +2,7 @@ import type { BattleLog, BattleRequest, BattleFoeConfig } from '../run/resolveBa
 import type { DamageBand } from '../run/analysis';
 import type { CombatantSetup } from '../engine/types';
 import type { BattleTimelineInput } from './battleTimeline';
+import { devBattleExampleId } from './devLaunch';
 
 /**
  * The client's only route to a battle result.
@@ -64,6 +65,7 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
     heroLevel: input.heroLevel,
     heroAllocation: input.heroAllocation,
     ...(input.heroPurchasedStats === undefined ? {} : { heroPurchasedStats: { ...input.heroPurchasedStats } }),
+    ...(input.heroEquipment === undefined ? {} : { heroEquipment: input.heroEquipment.map(ref => ({ ...ref })) }),
     foes,
     seed: input.seed,
   };
@@ -83,6 +85,8 @@ async function post<T>(route: string, payload: unknown): Promise<T> {
 
 /** POSTs the prep info to the battle service. Throws on a non-2xx or transport error. */
 export async function fetchBattleLog(input: BattleTimelineInput): Promise<BattleLog> {
+  const exampleId = devBattleExampleId();
+  if (exampleId) return await post<BattleLog>('/battle-example', { exampleId, seed: input.seed });
   return await post<BattleLog>('/battle', battleRequestOf(input));
 }
 

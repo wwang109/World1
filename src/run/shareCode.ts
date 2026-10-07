@@ -18,7 +18,7 @@
 //
 //   | # | field          | bits  | notes                                     |
 //   |---|----------------|-------|-------------------------------------------|
-//   | 0 | codecVersion   | 8     | 1. Decoder: >1 -> "newer version" reject. |
+//   | 0 | codecVersion   | 8     | 1 without equipment; 2 with equipment.    |
 //   | 1 | flags          | 8     | reserved, 0 in v1 (nonzero -> newer).     |
 //   | 2 | heroLevel      | 8     | 1..255 (encode clamps).                   |
 //   | 3 | allocation     | 6×8   | buy counts in SHARE_STAT_ORDER.           |
@@ -29,7 +29,9 @@
 //   | 7 | per bag card   | 22    | cid20 · tier(2).                          |
 //   | 8 | gemInvCount    | 6     | 0..63 (encode clamps).                    |
 //   | 9 | per loose gem  | 20    | gid20.                                    |
-//   |10 | zero-pad       | 0..7  | to the byte boundary.                     |
+//   |10 | v2 equipment   | 2+N×  | count2; slot2/id20/version16/setFlag1       |
+//   |   |                |39/55  | optional pinned setVersion16.             |
+//   |11 | zero-pad       | 0..7  | to the byte boundary.                     |
 //   |11 | checksum       | 16    | fold16(FNV-1a-32 over payload bytes).     |
 //
 // ID REFERENCES (`cid20`/`gid20`): 20-bit folds of FNV-1a-32 over the id
@@ -65,6 +67,10 @@ import { gemBook } from '../data/gems';
 import { clampTierToCard } from '../engine/types';
 import type { SkillTier } from '../engine/types';
 import { bankedPL, type Allocation, type LevelStat } from './leveling';
+import { equipmentDocument, equipmentCatalog } from '../data/equipmentContent';
+import { EQUIPMENT_SLOTS, type EquippedItemRef } from '../engine/equipment/types';
+import { requestEquipment } from './battleEquipment';
+import { resolveEquipment } from '../engine/equipment/resolve';
 
 // ---------------------------------------------------------------------------
 // Public shapes
@@ -72,6 +78,7 @@ import { bankedPL, type Allocation, type LevelStat } from './leveling';
 
 /** One side's complete sandbox build — everything a code carries. */
 export interface ShareLoadout {
+  equipment?: EquippedItemRef[];
   heroLevel: number;
   /** Buy counts per stat, in `SHARE_STAT_ORDER` (6 entries). */
   allocation: number[];
@@ -95,7 +102,7 @@ export interface DecodeReport {
 }
 
 /** Hard-reject classes: `invalid` = framing/checksum/range garbage; `newerVersion`
- * = a well-formed code minted by a future codec (v2+, or v1 reserved flags). */
+ * = a well-formed code minted by a future codec, or reserved flags. */
 export type ShareCodeFailure = 'invalid' | 'newerVersion';
 
 export class ShareCodeError extends Error {
@@ -115,7 +122,7 @@ const invalid = (detail: string): ShareCodeError =>
 // ---------------------------------------------------------------------------
 
 export const SHARE_CODE_PREFIX = 'W1-';
-export const SHARE_CODEC_VERSION = 1;
+export const SHARE_CODEC_VERSION = 3;
 
 /** The v1 wire order for allocation buy counts — pinned copy of the leveling
  * economy's STAT_ORDER (run/leveling.ts). A codec field order may never
@@ -190,6 +197,21 @@ function buildRefTable(ids: readonly string[], what: string): Map<number, string
 
 let cardRefTable: Map<number, string> | null = null;
 let gemRefTable: Map<number, string> | null = null;
+let equipmentRefTable: Map<number, string> | null = null;
+
+function equipmentRefs(): Map<number, string> {
+  equipmentRefTable ??= buildRefTable(equipmentDocument.items.map(item => item.id), 'equipment');
+  return equipmentRefTable;
+}
+
+function portableEquipment(value: unknown): EquippedItemRef[] {
+  const refs = requestEquipment(value);
+  resolveEquipment(refs, [], equipmentCatalog);
+  for (const ref of refs) {
+    if (ref.itemVersion > 65535 || (ref.setVersion ?? 0) > 65535) throw invalid('equipment version exceeds wire range');
+  }
+  return EQUIPMENT_SLOTS.flatMap(slot => refs.filter(ref => ref.slot === slot));
+}
 
 function cardRefs(): Map<number, string> {
   cardRefTable ??= buildRefTable(Object.keys(skillBook), 'cards');
@@ -358,10 +380,12 @@ function tierWireIndex(tier: SkillTier): number {
  * REAL captured loadout cannot produce are clamped into the wire range
  * (heroLevel 1..255, alloc counts 0..255, loose gems capped at 63); a board
  * or bag that cannot exist at all (more than 10 entries, slots outside the
- * 10-slot rail) throws. Ids are NOT validated against the books — encode is
- * a pure serializer; an id the current book lacks simply degrades on decode.
+ * 10-slot rail) throws. Card/gem drift degrades on decode; equipment refs
+ * require known pinned versions. Gear-free builds keep the v1 wire bytes.
  */
 export function encodeLoadout(loadout: ShareLoadout): string {
+  const equipment = loadout.equipment === undefined ? [] : portableEquipment(loadout.equipment);
+  equipmentRefs();
   if (loadout.board.length > WIRE_BOARD_SLOTS) {
     throw new Error(`encodeLoadout: ${loadout.board.length} board cards cannot fit ${WIRE_BOARD_SLOTS} slots`);
   }
@@ -369,7 +393,8 @@ export function encodeLoadout(loadout: ShareLoadout): string {
     throw new Error(`encodeLoadout: ${loadout.bag.length} bag cards cannot fit ${WIRE_BAG_SLOTS} slots`);
   }
   const w = new BitWriter();
-  w.write(SHARE_CODEC_VERSION, 8);
+  const leveled = equipment.some(ref => (ref.level ?? 0) > 0);
+  w.write(leveled ? 3 : equipment.length > 0 ? 2 : 1, 8);
   w.write(0, 8); // flags — reserved, 0 in v1
   const level = Math.max(1, Math.min(WIRE_MAX_LEVEL, Math.floor(loadout.heroLevel)));
   w.write(level, 8);
@@ -402,6 +427,17 @@ export function encodeLoadout(loadout: ShareLoadout): string {
   const gems = loadout.gems.slice(0, WIRE_MAX_LOOSE_GEMS);
   w.write(gems.length, 6);
   for (const gemId of gems) w.write(foldId20(gemId), 20);
+  if (equipment.length > 0) {
+    w.write(equipment.length, 2);
+    for (const ref of equipment) {
+      w.write(EQUIPMENT_SLOTS.indexOf(ref.slot), 2);
+      w.write(foldId20(ref.itemId), 20);
+      w.write(ref.itemVersion, 16);
+      w.write(ref.setVersion === undefined ? 0 : 1, 1);
+      if (ref.setVersion !== undefined) w.write(ref.setVersion, 16);
+      if (leveled) w.write(ref.level ?? 0, 8);
+    }
+  }
 
   const payload = w.finish();
   const crc = fold16(fnv1a32Bytes(payload));
@@ -450,7 +486,7 @@ export function decodeCode(text: string): DecodeResult {
   if (version > SHARE_CODEC_VERSION) {
     throw new ShareCodeError('newerVersion', 'Code from a newer game version');
   }
-  if (version !== SHARE_CODEC_VERSION) throw invalid(`version ${version}`);
+  if (version !== 1 && version !== 2 && version !== 3) throw invalid(`version ${version}`);
   const flags = r.read(8);
   if (flags !== 0) {
     // Reserved bits set = a v1.x minor this build does not know how to read.
@@ -538,6 +574,24 @@ export function decodeCode(text: string): DecodeResult {
     }
     gems.push(gemId);
   }
+  let equipment: EquippedItemRef[] = [];
+  if (version === 2 || version === 3) {
+    const count = r.read(2);
+    const refs: EquippedItemRef[] = [];
+    for (let i = 0; i < count; i++) {
+      const slot = EQUIPMENT_SLOTS[r.read(2)];
+      const itemId = equipmentRefs().get(r.read(20));
+      const itemVersion = r.read(16);
+      const setVersion = r.read(1) === 1 ? r.read(16) : undefined;
+      const level = version === 3 ? r.read(8) : 0;
+      if (slot === undefined || itemId === undefined) throw invalid('unknown equipment reference');
+      refs.push({ instanceId: `share-${slot}`, slot, itemId, itemVersion, ...(setVersion === undefined ? {} : { setVersion }), ...(level > 0 ? { level } : {}) });
+    }
+    try { equipment = portableEquipment(refs); }
+    catch (error) { throw invalid(error instanceof Error ? error.message : 'equipment'); }
+    if (equipment.length === 0) throw invalid('empty version two equipment');
+    if (version === 3 && !equipment.some(ref => (ref.level ?? 0) > 0)) throw invalid('version three without levels');
+  }
 
   // Nothing may trail the declared fields but the byte-boundary zero pad.
   const left = r.bitsLeft();
@@ -557,6 +611,7 @@ export function decodeCode(text: string): DecodeResult {
       board,
       bag,
       gems,
+      ...(equipment.length === 0 ? {} : { equipment }),
     },
     report,
   };

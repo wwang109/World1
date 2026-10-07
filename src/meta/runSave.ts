@@ -1,64 +1,8 @@
-// Durable persistence for the one active run. This module is pure TypeScript:
-// the game layer supplies the string-only storage driver.
-//
-// Schema history: v1 (original), v2 (added the event-callback/story/map-intel
-// containers), v3 (added the combat/revenge/signature fact ledgers, journey
-// ledger, event-binding reservations, and per-instance
-// `eventMaterializations`), v4 (current — no field transform needed from v3;
-// the same `world1:runSave:v3` storage key now also accepts a stored
-// `schemaVersion` of 4). `loadRun` tries that key, then v2, then v1 — see
-// "PRECEDENCE" below — migrating an older hit forward with
-// `migrateV1RunToV2`/`migrateV2Run` before returning it.
-//
-// CORRUPTION SEMANTICS (mirrors `lifetimeStats.ts`'s precedent):
-//   - No blob at ANY of the three keys -> `loadRun` returns `null` (nothing
-//     to resume).
-//   - The v3 key holds the explicit "cleared" marker (JSON `null`, written
-//     by `clearRun`) -> `loadRun` returns `null`. NOT corruption — this is
-//     what a deliberately-cleared save looks like on disk, and it is
-//     authoritative: it blocks v2/v1 resurrection too (see PRECEDENCE).
-//   - Unparseable JSON, or JSON that parses to something structurally wrong
-//     (not an object; a missing/non-numeric `schemaVersion`; a `run` field
-//     that isn't itself a plain object; or, for v1/v2, a `run` that fails
-//     that schema's own frozen shape predicate) -> `loadRun` returns `null`
-//     AND first copies the RAW bytes, untouched, to that key's own backup
-//     key (`RUN_SAVE_BACKUP_KEY` / `RUN_SAVE_V2_BACKUP_KEY` /
-//     `RUN_SAVE_V1_BACKUP_KEY`) — never silently destroyed, always available
-//     for a future repair tool.
-//   - The v3 key holds a `schemaVersion` NEWER than this build's
-//     `SCHEMA_VERSION` -> `loadRun` returns `null` WITHOUT backing up: the
-//     bytes are valid JSON from a format this build doesn't understand yet,
-//     so nothing is touched. `saveRun`/`clearRun` enforce the write-side
-//     half: both refuse to overwrite a strictly-newer stored blob, so an
-//     older build can never downgrade it.
-//   - MIGRATION REFUSAL: a v1/v2 envelope can pass its OWN schema's shape
-//     predicate yet still produce a v3 shape that fails the current
-//     `isRunStateV3` invariant — e.g. an old resolution's
-//     `(eventId, contentVersion)` now names a definition a LATER content
-//     change re-authored to schema 3; legacy schemas had no concept of a
-//     materialization to record for it, so the migrated topology is
-//     provably incomplete. When this happens, migration REFUSES exactly
-//     like the paragraph above: the original v1/v2 bytes are backed up
-//     UNTOUCHED under that key's own backup key, `null` is returned, and
-//     NOTHING is ever written to the v3 key. This is the only sound choice
-//     — writing the unvalidated blob anyway would let the save resume ONCE
-//     (this load) and then become permanently unloadable, since every later
-//     load hits the strict v3 key first and rejects it there instead.
-//
-// PRECEDENCE: presence of a value (including the `null` tombstone) at the v3
-// key blocks v2/v1 entirely; presence at the v2 key blocks v1. A key is only
-// consulted if every higher-precedence key is completely absent.
-//
-// MIGRATIONS: schema bumps so far (v1->v2, v2->v3) are each one small pure
-// function (`migrateV1RunToV2`, `migrateV2Run`) called inline from
-// `migrateHistoricalEnvelope` — NOT the `MIGRATIONS` table idiom
-// `lifetimeStats.ts` already uses. That is now the exact ad hoc pile the
-// original v1-only version of this comment warned against growing. Left
-// as-is for this fix (out of scope — save/load semantics only); the day a
-// fourth schema is added, refactor `loadRun` onto a real per-version
-// migration table rather than adding a third inline branch.
+// Major feature updates bump SCHEMA_VERSION and discard older run saves (USER-LOCKED 2026-10-05).
+// Invalid or unfinished fight saves are discarded without backups. Only run-save keys are affected.
 
 import type { EventInstanceRecord, EventInstanceRecordV2 } from '../run/eventInstances';
+import { validateRunEquipment } from '../run/equipmentInventory';
 import {
   isEventDefV3,
   isQueuedCallbackEventDefV3,
@@ -84,6 +28,7 @@ import {
 import { biomeCatalog, biomeIds } from '../data/biomes';
 import { GHOST_NAME_MAX } from '../run/ghost';
 import type { StorageDriver } from './lifetimeStats';
+import { isRunHistory } from '../run/runHistory';
 
 export type { StorageDriver, RunStateV2 };
 
@@ -95,7 +40,7 @@ export const RUN_SAVE_V1_BACKUP_KEY = `${RUN_SAVE_V1_STORAGE_KEY}:corrupt-backup
 export const RUN_SAVE_V2_BACKUP_KEY = `${RUN_SAVE_V2_STORAGE_KEY}:corrupt-backup`;
 export const RUN_SAVE_BACKUP_KEY = `${RUN_SAVE_STORAGE_KEY}:corrupt-backup`;
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 6;
 
 export interface RunSaveEnvelope {
   schemaVersion: number;
@@ -663,6 +608,53 @@ function isDeferredOffer(value: unknown): boolean {
       && hasExactKeys(value, [...required, ...optional], ['selectedId'])
       && (value.selectedId === undefined || (typeof value.selectedId === 'string' && ids.includes(value.selectedId)));
   }
+  if (value.kind === 'forgeEquipment' || value.kind === 'upgradeEquipment') {
+    if (!isStringArray(value.sets) || value.sets.length === 0 || (value.items !== undefined && !isStringArray(value.items))) return false;
+    const keys = ['kind', 'sets', ...(value.items === undefined ? [] : ['items']), 'status'];
+    if (value.status === 'pending') return hasExactKeys(value, keys);
+    return value.status === 'settled' && hasExactKeys(value, keys, ['selectedId'])
+      && (value.selectedId === undefined || typeof value.selectedId === 'string');
+  }
+  if (value.kind === 'rerollCard' || value.kind === 'rerollGem') {
+    if (!isPositiveInteger(value.rolls) || !Array.isArray(value.options) || !isRecord(value.fallback)) return false;
+    const ids: string[] = [];
+    for (const option of value.options) {
+      if (!isRecord(option)) return false;
+      if (value.kind === 'rerollCard') {
+        if (!hasExactKeys(option, ['instanceId', 'skillId', 'tier']) || typeof option.instanceId !== 'string'
+          || typeof option.skillId !== 'string' || skillBook[option.skillId] === undefined
+          || !['bronze', 'silver', 'gold', 'diamond'].includes(String(option.tier))) return false;
+        ids.push(option.instanceId);
+      } else {
+        if (!hasExactKeys(option, ['pouchIndex', 'gemId']) || !isNonNegativeInteger(option.pouchIndex)
+          || typeof option.gemId !== 'string' || gemBook[option.gemId] === undefined) return false;
+        ids.push(String(option.pouchIndex));
+      }
+    }
+    const rolled = value.rolled;
+    if (rolled !== undefined) {
+      if (!isRecord(rolled) || !isPositiveInteger(rolled.rollsUsed) || (rolled.rollsUsed as number) > (value.rolls as number)) return false;
+      const rolledOk = value.kind === 'rerollCard'
+        ? hasExactKeys(rolled, ['instanceId', 'fromSkillId', 'skillId', 'rollsUsed', 'seen']) && typeof rolled.instanceId === 'string'
+          && typeof rolled.fromSkillId === 'string' && skillBook[rolled.fromSkillId] !== undefined
+          && typeof rolled.skillId === 'string' && skillBook[rolled.skillId] !== undefined
+        : hasExactKeys(rolled, ['pouchIndex', 'fromGemId', 'gemId', 'rollsUsed', 'seen']) && isNonNegativeInteger(rolled.pouchIndex)
+          && typeof rolled.fromGemId === 'string' && gemBook[rolled.fromGemId] !== undefined
+          && typeof rolled.gemId === 'string' && gemBook[rolled.gemId] !== undefined;
+      if (!rolledOk || !isStringArray(rolled.seen)) return false;
+    }
+    const fallbackOk = value.fallback.kind === 'nothing'
+      ? hasExactKeys(value.fallback, ['kind'])
+      : value.fallback.kind === 'grantGold' && hasExactKeys(value.fallback, ['kind', 'amount'])
+        && isPositiveInteger(value.fallback.amount);
+    if (!fallbackOk) return false;
+    const keys = ['kind', 'options', 'rolls', 'fallback', 'status'];
+    const optional = rolled === undefined ? [] : ['rolled'];
+    if (value.status === 'pending') return hasExactKeys(value, [...keys, ...optional]);
+    return value.status === 'settled'
+      && hasExactKeys(value, [...keys, ...optional], ['selectedId'])
+      && (value.selectedId === undefined || typeof value.selectedId === 'string');
+  }
   if (value.kind === 'reshapeGem') {
     if (!['transform', 'fuse'].includes(String(value.mode)) || !Array.isArray(value.options) || !isRecord(value.fallback)) return false;
     const ids: string[] = [];
@@ -978,6 +970,7 @@ function isRunStateV3(value: unknown): value is RunState {
   if (!isRunStateV2Shape(value, isEventInstance, isCurrentEventCallback)) return false;
   const candidate = value as unknown as Record<string, unknown>;
   const shapeValid = Array.isArray(candidate.combatFactLedger)
+    && (candidate.history === undefined || isRunHistory(candidate.history))
     && candidate.combatFactLedger.every(isCombatFact)
     && Array.isArray(candidate.revengeFactLedger)
     && candidate.revengeFactLedger.every(isRevengeFact)
@@ -1013,7 +1006,7 @@ function isRunStateV3(value: unknown): value is RunState {
       || isActiveChallengeFight(candidate.activeChallengeFight))
     && (candidate.challengeFights === undefined || isChallengeFights(candidate.challengeFights))
     && (candidate.freeShopRerolls === undefined || isNonNegativeInteger(candidate.freeShopRerolls));
-  return shapeValid && isV3EventTopology(candidate);
+  return shapeValid && isV3EventTopology(candidate) && validateRunEquipment(value as RunState);
 }
 
 type ParsedEnvelope =
@@ -1021,9 +1014,7 @@ type ParsedEnvelope =
   | { kind: 'run'; schemaVersion: number; run: unknown };
 
 function parseEnvelopeAtKey(
-  storage: StorageDriver,
   raw: string,
-  backupKey: string,
   acceptedVersions: readonly number[],
   newestVersionAtKey: number,
 ): ParsedEnvelope {
@@ -1031,25 +1022,18 @@ function parseEnvelopeAtKey(
   try {
     parsed = JSON.parse(raw);
   } catch {
-    storage.set(backupKey, raw);
     return { kind: 'invalid' };
   }
   if (parsed === null) return { kind: 'cleared' };
   if (!isRecord(parsed) || !isFiniteNumber(parsed.schemaVersion)) {
-    storage.set(backupKey, raw);
     return { kind: 'invalid' };
   }
   if (parsed.schemaVersion > newestVersionAtKey) return { kind: 'future' };
   if (!acceptedVersions.includes(parsed.schemaVersion)
     || !isRecord(parsed.run)) {
-    storage.set(backupKey, raw);
     return { kind: 'invalid' };
   }
   return { kind: 'run', schemaVersion: parsed.schemaVersion, run: parsed.run };
-}
-
-function writeMigratedRun(storage: StorageDriver, run: RunState): void {
-  storage.set(RUN_SAVE_STORAGE_KEY, JSON.stringify({ schemaVersion: SCHEMA_VERSION, run }));
 }
 
 /** Task-6 development saves predate persisted per-choice unavailability.
@@ -1074,65 +1058,50 @@ function normalizeUnavailableChoiceReasons(value: unknown): unknown {
   return changed ? { ...value, eventMaterializations } : value;
 }
 
-function migrateHistoricalEnvelope(
-  storage: StorageDriver,
-  raw: string,
-  backupKey: string,
-): RunState | null {
-  const loaded = parseEnvelopeAtKey(storage, raw, backupKey, [1, 2], 2);
-  if (loaded.kind !== 'run') return null;
-  let v2: RunStateV2;
-  if (loaded.schemaVersion === 1) {
-    if (!isMigrateableV1Run(loaded.run)) {
-      storage.set(backupKey, raw);
-      return null;
-    }
-    v2 = migrateV1RunToV2(loaded.run);
-  } else {
-    if (!isRunStateV2(loaded.run)) {
-      storage.set(backupKey, raw);
-      return null;
-    }
-    v2 = loaded.run;
-  }
-  const v3 = migrateV2Run(v2);
-  // Fail closed: a v1/v2 resolution can name an (eventId, contentVersion)
-  // that a LATER content change re-authored as a schema-3 event. Legacy
-  // schemas never recorded a materialization for it (that concept didn't
-  // exist yet), so `isRunStateV3`'s topology check — correctly — rejects
-  // the migrated shape. Refusing HERE, on this first load, matches the
-  // ordinary v3 load path's own rule below and is the only sound choice:
-  // writing the unvalidated blob anyway would let this load resume once and
-  // then make the save permanently unloadable, since every future load goes
-  // through the strict v3 key first. See the module doc comment.
-  if (!isRunStateV3(v3)) {
-    storage.set(backupKey, raw);
-    return null;
-  }
-  writeMigratedRun(storage, v3);
-  return v3;
-}
-
-/** Strict precedence: presence of v3 blocks v2/v1; presence of v2 blocks v1. */
 export function loadRun(storage: StorageDriver): RunState | null {
+  clearHistoricalRunKeys(storage);
   const v3Raw = storage.get(RUN_SAVE_STORAGE_KEY);
   if (v3Raw !== null) {
-    const loaded = parseEnvelopeAtKey(storage, v3Raw, RUN_SAVE_BACKUP_KEY, [3, 4], 4);
-    if (loaded.kind !== 'run') return null;
+    const storedVersion = peekStoredSchemaVersion(storage);
+    if (storedVersion !== null && storedVersion < SCHEMA_VERSION) {
+      discardOldRunSaves(storage);
+      return null;
+    }
+    const loaded = parseEnvelopeAtKey(v3Raw, [SCHEMA_VERSION], SCHEMA_VERSION);
+    if (loaded.kind !== 'run') {
+      if (loaded.kind === 'invalid') discardOldRunSaves(storage);
+      return null;
+    }
     const normalized = normalizeUnavailableChoiceReasons(loaded.run);
-    if (!isRunStateV3(normalized)) {
-      storage.set(RUN_SAVE_BACKUP_KEY, v3Raw);
+    if (!isRunStateV3(normalized) || isUnfinishedFight(normalized)) {
+      discardOldRunSaves(storage);
       return null;
     }
     return normalized;
   }
 
-  const v2Raw = storage.get(RUN_SAVE_V2_STORAGE_KEY);
-  if (v2Raw !== null) return migrateHistoricalEnvelope(storage, v2Raw, RUN_SAVE_V2_BACKUP_KEY);
+  if (storage.get(RUN_SAVE_V2_STORAGE_KEY) !== null || storage.get(RUN_SAVE_V1_STORAGE_KEY) !== null) discardOldRunSaves(storage);
+  return null;
+}
 
-  const v1Raw = storage.get(RUN_SAVE_V1_STORAGE_KEY);
-  if (v1Raw === null) return null;
-  return migrateHistoricalEnvelope(storage, v1Raw, RUN_SAVE_V1_BACKUP_KEY);
+function clearHistoricalRunKeys(storage: StorageDriver): boolean {
+  let cleared = true;
+  for (const key of [RUN_SAVE_V2_STORAGE_KEY, RUN_SAVE_V1_STORAGE_KEY, RUN_SAVE_BACKUP_KEY, RUN_SAVE_V2_BACKUP_KEY, RUN_SAVE_V1_BACKUP_KEY]) {
+    if (storage.get(key) !== null) cleared = storage.set(key, 'null') && cleared;
+  }
+  return cleared;
+}
+
+function discardOldRunSaves(storage: StorageDriver): boolean {
+  const cleared = clearHistoricalRunKeys(storage);
+  return storage.set(RUN_SAVE_STORAGE_KEY, 'null') && cleared;
+}
+
+function isUnfinishedFight(run: RunState): boolean {
+  if (run.activeChallengeFight || run.activeGhostFight?.role === 'extra'
+    || (run.activeGhostFight && run.currentNodeId === run.activeGhostFight.nodeId)) return true;
+  const node = run.currentNodeId ? run.map.depths.flat().find((candidate) => candidate.id === run.currentNodeId) : undefined;
+  return node?.kind === 'fight' || node?.kind === 'boss';
 }
 
 function peekStoredSchemaVersion(storage: StorageDriver): number | null {
@@ -1151,6 +1120,8 @@ export function saveRun(storage: StorageDriver, run: RunState): RunSaveOutcome {
   if (storedVersion !== null && storedVersion > SCHEMA_VERSION) {
     return { ok: false, reason: 'newer-version-on-disk' };
   }
+  if (isUnfinishedFight(run)) return discardOldRunSaves(storage) ? { ok: true } : { ok: false, reason: 'write-failed' };
+  if (!clearHistoricalRunKeys(storage)) return { ok: false, reason: 'write-failed' };
   const envelope: RunSaveEnvelope = {
     schemaVersion: SCHEMA_VERSION,
     run: normalizeUnavailableChoiceReasons(run) as RunState,
@@ -1165,7 +1136,7 @@ export function clearRun(storage: StorageDriver): RunSaveOutcome {
   if (storedVersion !== null && storedVersion > SCHEMA_VERSION) {
     return { ok: false, reason: 'newer-version-on-disk' };
   }
-  return storage.set(RUN_SAVE_STORAGE_KEY, JSON.stringify(null))
+  return discardOldRunSaves(storage)
     ? { ok: true }
     : { ok: false, reason: 'write-failed' };
 }

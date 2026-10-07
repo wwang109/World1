@@ -80,6 +80,7 @@ export interface EnemyFightConfig {
 }
 
 export interface DemoState {
+  heroEquipment?: import('../engine/equipment/types').EquippedItemRef[];
   pieces: OwnedBoardPiece[];
   enemyId: string;
   enemyIds: string[];
@@ -311,6 +312,8 @@ function cloneEnemyTeam(team: EnemyFightConfig[]): EnemyFightConfig[] {
     // A custom deck is a nested array of structs — deep-copy it so a reset
     // snapshot/override can never share card entries with live state.
     ...(enemy.deck != null ? { deck: enemy.deck.map((card) => ({ ...card })) } : {}),
+    ...(enemy.ghost ? { ghost: { ...enemy.ghost, pieces: enemy.ghost.pieces.map(piece => ({ ...piece })), allocation: { ...enemy.ghost.allocation },
+      ...(enemy.ghost.equipment ? { equipment: enemy.ghost.equipment.map(ref => ({ ...ref })) } : {}) } } : {}),
   }));
 }
 
@@ -352,6 +355,8 @@ export const demoState: DemoState = {
 };
 
 export function resetDemoState(overrides: Partial<DemoState> = {}): void {
+  if (overrides.heroEquipment?.length) demoState.heroEquipment = overrides.heroEquipment.map(ref => ({ ...ref }));
+  else delete demoState.heroEquipment;
   const enemyTeam = overrides.enemyTeam ?? (
     overrides.enemyId !== undefined
     || overrides.enemyIds !== undefined

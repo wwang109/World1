@@ -42,6 +42,11 @@ import { readFileSync } from 'node:fs';
 import type { ContentProblem } from '../src/data/validateSkillContent';
 import { validateSkillDocument } from '../src/data/validateSkillContent';
 import { validateGemDocument } from '../src/data/validateGemContent';
+import { validateEquipmentDocument } from '../src/data/validateEquipmentContent';
+import { validateEquipmentLoot } from '../src/data/validateEquipmentLoot';
+import { equipmentCatalog } from '../src/data/equipmentContent';
+import { equipmentLootConfig } from '../src/data/equipmentLootConfig';
+import equipment from '../src/data/content/equipment.v1.json';
 import { validateEnemyDocument } from '../src/data/validateEnemyContent';
 import { validateModifierDocument } from '../src/data/validateModifierContent';
 import { validateEventDocument } from '../src/data/validateEventContent';
@@ -64,6 +69,7 @@ import eventDiscoveries from '../src/data/content/event-discoveries.v1.json';
 
 type Validator = (doc: unknown) => ContentProblem[];
 const documents: Array<[string, URL, unknown, Validator]> = [
+  ['src/data/content/equipment.v1.json', new URL('../src/data/content/equipment.v1.json', import.meta.url), equipment, validateEquipmentDocument],
   ['src/data/content/skills.v1.json', new URL('../src/data/content/skills.v1.json', import.meta.url), skills, validateSkillDocument],
   ['src/data/content/gems.v1.json', new URL('../src/data/content/gems.v1.json', import.meta.url), gems, validateGemDocument],
   ['src/data/content/enemies.v1.json', new URL('../src/data/content/enemies.v1.json', import.meta.url), enemies, validateEnemyDocument],
@@ -73,6 +79,7 @@ const documents: Array<[string, URL, unknown, Validator]> = [
 ];
 
 type VersionedContentDocument = {
+  items?: readonly unknown[];
   cards?: readonly unknown[];
   gems?: readonly unknown[];
   enemies?: readonly unknown[];
@@ -113,10 +120,31 @@ for (const [name, file, doc, validate] of documents) {
 
   if (dupes.length === 0 && problems.length === 0) {
     const d = doc as VersionedContentDocument;
-    const count = (d.cards ?? d.gems ?? d.enemies ?? d.modifiers ?? d.events)?.length ?? 0;
+    const count = (d.items ?? d.cards ?? d.gems ?? d.enemies ?? d.modifiers ?? d.events)?.length ?? 0;
     console.log(`ok  ${name} — ${String(count)} documents, no problems`);
   }
 }
+
+let equipmentPoolCount = 0;
+for (const enemy of enemies.enemies) {
+  for (const version of enemy.versions) {
+    const def = version.def as typeof version.def & { equipmentDrop?: unknown };
+    if (def.equipmentDrop === undefined) continue;
+    equipmentPoolCount += 1;
+    for (const problem of validateEquipmentLoot(def.equipmentDrop, equipmentCatalog, 'fight')) {
+      failures += 1;
+      console.error(`  ERROR  src/data/content/enemies.v1.json ${enemy.id}@v${String(version.version)}.equipmentDrop.${problem.where}: ${problem.message}`);
+    }
+  }
+}
+console.log(`checked equipment references — ${String(equipmentPoolCount)} enemy pools`);
+const equipmentLootFile = new URL('../src/data/content/equipment-loot.v1.json', import.meta.url);
+const equipmentLootDupes = findDuplicateKeys(readFileSync(equipmentLootFile, 'utf8'));
+for (const duplicate of equipmentLootDupes) {
+  failures += 1;
+  console.error(`  ERROR  src/data/content/equipment-loot.v1.json ${JSON.stringify(duplicate)}`);
+}
+console.log(`checked equipment acquisition — ${String(equipmentLootConfig.events.length)} live event pools`);
 
 const eventDiscoveryFile = new URL('../src/data/content/event-discoveries.v1.json', import.meta.url);
 const eventDiscoveryDupes = findDuplicateKeys(readFileSync(eventDiscoveryFile, 'utf8'));

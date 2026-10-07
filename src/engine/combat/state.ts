@@ -2,10 +2,11 @@ import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantSt
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 import { powerLevelDeci } from '../balance';
+import { preparePassives } from '../passives/prepare';
 import { boardAffinities, boardEffectAffinities, primaryIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward';
+  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen';
   /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;
@@ -102,6 +103,7 @@ export interface PieceState {
   skill: SkillDef;
   /** Card-scope stat-gem modifiers, folded into this card's aura bundle. */
   gemMods: Partial<AuraMods>;
+  passiveWeightDelta?: number;
   /**
    * Global turn this piece last PERFORMED a cast (undefined = never cast, so
    * always available). Drives the reuse cooldown: `selectCast` skips this piece
@@ -175,6 +177,8 @@ export interface CombatantState {
   name: string;
   stats: CombatantStats;
   shields: ShieldPools;
+  preparedPassives?: import('../passives/types').PreparedPassives;
+  equipment?: import('../equipment/types').PreparedEquipment;
   /**
    * ATTUNED plating: pools tuned to one weapon/element that absorb DOUBLE from
    * matching damage (see the `attunedShield` docs in types.ts). A separate list
@@ -302,12 +306,14 @@ export interface CombatState {
 }
 
 function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBook: SkillBook): CombatantState {
+  const passivePlan = setup.passives ? preparePassives(setup, skillBook) : undefined;
+  const preparedPassives = passivePlan && passivePlan.receipts.length > 0 ? passivePlan : undefined;
   const occupied = new Array<boolean>(setup.boardSize).fill(false);
   const pieces: PieceState[] = [];
   for (const piece of setup.pieces) {
     const def = skillBook[piece.skillId];
     if (!def) throw new Error(`Unknown skill on board: ${piece.skillId}`);
-    const skill = resolveEffectiveSkill(def, piece);
+    const skill = preparedPassives?.effectiveSkills.get(piece.slot) ?? resolveEffectiveSkill(def, piece);
     if (piece.slot < 0 || piece.slot + skill.size > setup.boardSize) {
       throw new Error(`Skill ${piece.skillId} at slot ${piece.slot} exceeds board of ${setup.boardSize}`);
     }
@@ -315,7 +321,8 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
       if (occupied[s]) throw new Error(`Board overlap at slot ${s} (${piece.skillId})`);
       occupied[s] = true;
     }
-    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem) });
+    const reduction = (preparedPassives?.cardModifiers.get(piece.slot) ?? []).filter(mod => mod.kind === 'cardWeightReduction').reduce((sum, mod) => sum + mod.amount, 0);
+    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem), ...(reduction ? { passiveWeightDelta: -reduction } : {}) });
   }
   pieces.sort((a, b) => a.slot - b.slot);
   let spanEnd = -1;
@@ -347,6 +354,8 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     name: setup.name,
     stats: applyHeroGems({ ...setup.stats }, gemHeroStats(setup.pieces)),
     shields: { physical: 0, magical: 0, true: 0 },
+    ...(preparedPassives ? { preparedPassives } : {}),
+    ...(setup.equipment ? { equipment: setup.equipment } : {}),
     boardSize: setup.boardSize,
     pieces,
     castCursor: 0,

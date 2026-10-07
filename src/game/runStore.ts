@@ -1,4 +1,12 @@
 import type { SkillTier } from '../engine/types';
+import { equipEquipment, salvageEquipment, unequipEquipment } from '../run/equipmentInventory';
+import { awardBattleEquipment, awardCompletedEventEquipment } from '../run/equipmentLoot';
+import type { EquipmentSlot } from '../engine/equipment/types';
+import { resolveEquipment } from '../engine/equipment/resolve';
+import { equipmentCatalog } from '../data/equipmentContent';
+import { skillBook } from '../data/skills';
+import type { EquipmentRewardReceipt } from '../run/equipmentInventory';
+import { recordRunHistoryTransition } from '../run/runHistory';
 import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import { isEventDefV3 } from '../data/eventContentV3';
@@ -12,6 +20,8 @@ import {
   eventOutcomeForPendingOfferV3,
   finalizeBonusDraftV3,
   finalizeBuyStatPickV3,
+  finalizeForgeEquipmentV3,
+  finalizeUpgradeEquipmentV3,
   finalizeEventCardChoiceV3,
   finalizeGemChoiceV3,
   finalizeMergeCardsV3,
@@ -19,6 +29,7 @@ import {
   finalizeTargetedUpgradeV3,
   finalizeReshapeCardV3,
   finalizeReshapeGemV3,
+  finalizeRerollV3,
   finalizeUpgradeCardV3,
   materializeReachedEventV3,
   recordChallengeFightResult,
@@ -28,6 +39,7 @@ import {
 } from '../run/eventsV3';
 import type { MarketStat } from '../data/eventTypes';
 import type { ActiveChallengeFight } from '../run/challengeFight';
+import type { EventRerollStepV3 } from '../run/eventReshape';
 import type { EventDefinitionLookup } from '../run/eventCallbacks';
 import { previewEventForNode } from '../run/eventPreview';
 import { bankedPL, type Allocation } from '../run/leveling';
@@ -178,13 +190,14 @@ let activeRunIsEphemeralDevFixture = false;
  * `saveRunSave`, which only ever accepts a real `RunState`. A failed save is
  * logged, not thrown — gameplay must never block on a storage write. */
 function setActiveRun(next: RunState | null): void {
-  activeRun = next;
+  if (next !== null) next = awardCompletedEventEquipment(activeRun, next);
+  activeRun = next === null ? null : recordRunHistoryTransition(activeRun, next);
   if (activeRunIsEphemeralDevFixture) return;
   if (next === null) {
     clearRunSave(localStorageDriver);
     return;
   }
-  const outcome = saveRunSave(localStorageDriver, next);
+  const outcome = saveRunSave(localStorageDriver, activeRun!);
   if (!outcome.ok) {
     // eslint-disable-next-line no-console -- best-effort dev/user visibility; non-fatal by design.
     console.warn(`run not saved (${outcome.reason}) — a page refresh will not be able to resume it`);
@@ -192,6 +205,34 @@ function setActiveRun(next: RunState | null): void {
 }
 
 /** The one active run, or null if none has been started yet this session. */
+export function currentEquipmentInventory() { return activeRun?.ownedEquipment ?? []; }
+export function currentEquippedEquipment() { return activeRun?.equippedEquipment ?? []; }
+export function currentEquipmentResolution() {
+  return resolveEquipment(currentEquippedEquipment(), (activeRun?.pieces ?? []).map(piece => skillBook[piece.skillId]!), equipmentCatalog);
+}
+export function equipRunEquipment(instanceId: string): boolean {
+  if (!activeRun) return false;
+  const next = equipEquipment(activeRun, instanceId);
+  if (next === activeRun) return false;
+  setActiveRun(next);
+  return true;
+}
+export function currentBrokenEquipment(): number { return activeRun?.brokenEquipment ?? 0; }
+export function salvageRunEquipment(instanceId: string): boolean {
+  if (!activeRun) return false;
+  const next = salvageEquipment(activeRun, instanceId);
+  if (next === activeRun) return false;
+  setActiveRun(next);
+  return true;
+}
+export function unequipRunEquipment(slot: EquipmentSlot): boolean {
+  if (!activeRun) return false;
+  setActiveRun(unequipEquipment(activeRun, slot));
+  return true;
+}
+export function currentEquipmentDropReceipt(): EquipmentRewardReceipt | null {
+  return activeRun?.equipmentRewardReceipts?.at(-1) ?? null;
+}
 export function getActiveRun(): RunState | null {
   return activeRun;
 }
@@ -509,7 +550,7 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
   }, log);
   const substituteFight = state.activeGhostFight;
   const { state: nextState, bossReward } = recordBattleResult(state, { won, goldEarned: payout, ...battleStats, battleFact });
-  setActiveRun(nextState);
+  setActiveRun(awardBattleEquipment(nextState, battleFact.battleId, enemyIds, won));
   lastBossReward = bossRewardInfoOf(bossReward);
   if (substituteFight && substituteFight.nodeId === node.id && substituteFight.role === 'substitute' && activeRun) {
     const key = ghostResultReportKey(node.id, 'substitute');
@@ -581,9 +622,10 @@ export function activeChallengeFight(): ActiveChallengeFight | null {
  * `resolveExtraGhostFightResult`. No battle gold/level; those are fight-column-only. */
 export function resolveChallengeFightResult(log: BattleLog): void {
   if (!activeRun) return;
+  const fight = activeRun.activeChallengeFight;
   const won = log.result === 'win';
   const { state } = recordChallengeFightResult(activeRun, won);
-  setActiveRun(state);
+  setActiveRun(!fight ? state : awardBattleEquipment(state, `challenge:${fight.instanceId}:${fight.choiceId}`, [fight.enemyId], won));
   if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
 }
 
@@ -593,6 +635,7 @@ export function resolveExtraGhostFightResult(log: BattleLog): void {
   const won = log.result === 'win';
   const { state } = recordExtraGhostFightResult(activeRun, won);
   let nextState = state;
+  if (active) nextState = awardBattleEquipment(nextState, `ghost:${active.nodeId}:extra`, ['ghost'], won);
   if (active && active.role === 'extra') {
     const key = ghostResultReportKey(active.nodeId, 'extra');
     if (!hasReportedGhostResult(nextState, key)) {
@@ -814,7 +857,10 @@ export type RunEventOfferSelection =
   | { kind: 'mergeCards'; skillId: string; consumedIds?: readonly string[] }
   | { kind: 'statPick'; stat: MarketStat }
   | { kind: 'reshape'; instanceId: string }
-  | { kind: 'reshapeGem'; optionId: string };
+  | { kind: 'reshapeGem'; optionId: string }
+  | { kind: 'reroll'; target: 'rerollCard' | 'rerollGem'; step: EventRerollStepV3 }
+  | { kind: 'forgeEquipment'; itemId: string }
+  | { kind: 'upgradeEquipment'; instanceId: string };
 
 interface CurrentCommittedEvent {
   node: RunNode;
@@ -994,7 +1040,13 @@ function finishCurrentV3Offer(
                     ? finalizeReshapeCardV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
                     : selection.kind === 'reshapeGem' && offer.kind === 'reshapeGem'
                       ? finalizeReshapeGemV3(activeRun, committed.instanceId, resolution.choiceId, selection.optionId, lookup)
-                      : undefined;
+                      : selection.kind === 'reroll' && offer.kind === selection.target
+                        ? finalizeRerollV3(activeRun, committed.instanceId, resolution.choiceId, selection.target, selection.step, lookup)
+                        : selection.kind === 'forgeEquipment' && offer.kind === 'forgeEquipment'
+                          ? finalizeForgeEquipmentV3(activeRun, committed.instanceId, resolution.choiceId, selection.itemId, lookup)
+                          : selection.kind === 'upgradeEquipment' && offer.kind === 'upgradeEquipment'
+                            ? finalizeUpgradeEquipmentV3(activeRun, committed.instanceId, resolution.choiceId, selection.instanceId, lookup)
+                            : undefined;
   if (result === undefined || !result.ok) return undefined;
   if (result.state !== activeRun) setActiveRun(result.state);
   return result.outcome;

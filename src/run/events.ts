@@ -47,7 +47,7 @@ import { eventRequirementMet } from './eventEligibility';
 import { eventRequirementMetV3 } from './eventEligibilityV3';
 import { eventIsChainStarter, eventRarityEligible } from './eventOpportunityHint';
 import { materializeReachedEventV3 } from './eventsV3';
-import { reshapeGemOfferV3, scavengeOptionsV3 } from './eventReshape';
+import { rerollCardOfferV3, rerollGemOfferV3, reshapeGemOfferV3, scavengeOptionsV3 } from './eventReshape';
 import { BOSS_EVERY } from './runMap';
 import { previewEventChoicesV3, type EventDeferredOfferV3 } from './eventV3Materialization';
 import {
@@ -248,6 +248,9 @@ import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
 import { bandIndexOf, biomeFor, counterTypeFor, leanLabel } from './biome';
 import { applyGrantMapInfo, mapInfoRevealsAnything, mapIntelRecords } from './eventMapInfo';
+import { equippedInSlot } from './equipmentInventory';
+import { eventEquipmentPool } from './equipmentLoot';
+import { canForge, canUpgrade } from './equipmentWorkshop';
 import { addTierValue, cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, pointsOf, sellPriceOfGem } from './shop';
 import {
   availableChoices,
@@ -719,7 +722,9 @@ function isOrdinaryV3FactKind(fact: string): boolean {
     || fact === 'node.depth'
     || fact === 'node.wave'
     || fact === 'owned.card.count'
-    || fact === 'owned.gem.count';
+    || fact === 'owned.gem.count'
+    || fact === 'equipment.equipped.count'
+    || fact === 'equipment.broken.count';
 }
 
 function eligibilityIsOrdinaryV3(requirement: EventRequirementV3): boolean {
@@ -1223,6 +1228,10 @@ function v3OutcomeHasUsableReward(state: RunState, outcome: EventOutcomeSpecV3):
   if (outcome.kind === 'mergeCards') return mergeCardsPlan(state) !== null;
   if (outcome.kind === 'scavengeCard') return scavengeOptionsV3(state).length > 0;
   if (outcome.kind === 'reshapeGem') return reshapeGemOfferV3(state, '', '', outcome).options.length > 0;
+  if (outcome.kind === 'rerollCard') return rerollCardOfferV3(state, outcome).options.length > 0;
+  if (outcome.kind === 'rerollGem') return rerollGemOfferV3(state, outcome).options.length > 0;
+  if (outcome.kind === 'forgeEquipment') return canForge(state, outcome);
+  if (outcome.kind === 'upgradeEquipment') return canUpgrade(state, outcome);
   return true;
 }
 
@@ -1232,9 +1241,11 @@ function hasAffordableChoice(state: RunState, event: LoadedEventDef, node?: RunN
     return previewEventChoicesV3(state.map.seed, `event:${node.id}`, event).some((choice) => (
       (choice.cost ?? 0) <= state.gold
       && (choice.lifeCost ?? 0) < state.lives
+      && (choice.equipmentCost === undefined || equippedInSlot(state, choice.equipmentCost) !== undefined)
       && (choice.requires === undefined || eventGateMet(state, choice.requires))
       && (choice.requiresTally === undefined || eventTallyMet(state, choice.requiresTally))
-      && v3OutcomeHasUsableReward(state, choice.outcome)
+      && (v3OutcomeHasUsableReward(state, choice.outcome)
+        || eventEquipmentPool(event.id, eventContentMeta[event.id]?.version ?? 0, choice.id) !== undefined)
     ));
   }
   return event.choices.some((c) => isEventChoiceUsable(state, c) && c.outcome.kind !== 'nothing');

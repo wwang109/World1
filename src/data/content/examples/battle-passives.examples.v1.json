@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "status": "Development examples only. Illustrative magnitudes; no production source catalog or approved prices.",
+  "baseRequest": {
+    "heroLevel": 1,
+    "heroAllocation": {},
+    "foes": [
+      {
+        "enemyId": "bandit_duelist",
+        "level": 1,
+        "rank": 0,
+        "title": "normal"
+      }
+    ],
+    "seed": 5
+  },
+  "sourceCatalog": [
+    {
+      "source": {
+        "kind": "talent",
+        "id": "quick_preparation",
+        "version": 1,
+        "displayName": "Quick Preparation"
+      },
+      "effects": [
+        {
+          "id": "quicker_card",
+          "targetBinding": "playerCard",
+          "selector": {
+            "archetype": "offense"
+          },
+          "effect": {
+            "kind": "cardWeightReduction",
+            "amount": 3
+          }
+        }
+      ]
+    },
+    {
+      "source": {
+        "kind": "relic",
+        "id": "guardians_seal",
+        "version": 1,
+        "displayName": "Guardian's Seal"
+      },
+      "effects": [
+        {
+          "id": "opening_shield",
+          "targetBinding": "automatic",
+          "conditions": {
+            "boardCount": {
+              "selector": {
+                "archetype": "defensive"
+              },
+              "min": 1
+            }
+          },
+          "effect": {
+            "kind": "setupShield",
+            "property": "physical",
+            "amount": 8
+          }
+        }
+      ]
+    },
+    {
+      "source": {
+        "kind": "talent",
+        "id": "fortified_position",
+        "version": 1,
+        "displayName": "Fortified Position"
+      },
+      "effects": [
+        {
+          "id": "stronger_shield",
+          "targetBinding": "playerSlot",
+          "selector": {
+            "archetype": "defensive"
+          },
+          "effect": {
+            "kind": "cardShieldPower",
+            "amount": 5
+          }
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "quick_preparation",
+      "name": "Quick Preparation",
+      "purpose": "Your chosen attack card costs 3 less WT.",
+      "pieces": [
+        {
+          "skillId": "sword_slash",
+          "slot": 0
+        },
+        {
+          "skillId": "war_banner",
+          "slot": 1
+        },
+        {
+          "skillId": "sword_slash",
+          "slot": 2
+        },
+        {
+          "skillId": "second_wind",
+          "slot": 3
+        },
+        {
+          "skillId": "iron_bulwark",
+          "slot": 4
+        }
+      ],
+      "preBattle": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "kind": "talent",
+            "id": "quick_preparation",
+            "version": 1
+          }
+        ],
+        "bindings": [
+          {
+            "source": {
+              "kind": "talent",
+              "id": "quick_preparation",
+              "version": 1
+            },
+            "effectId": "quicker_card",
+            "binding": {
+              "pieceRef": "example-selected-sword"
+            }
+          }
+        ]
+      },
+      "heroPieceRefs": [
+        {
+          "slot": 2,
+          "pieceRef": "example-selected-sword"
+        }
+      ]
+    },
+    {
+      "id": "guardians_seal",
+      "name": "Guardian's Seal",
+      "purpose": "Start with 8 physical shield if your board has a defensive card.",
+      "pieces": [
+        {
+          "skillId": "sword_slash",
+          "slot": 0
+        },
+        {
+          "skillId": "war_banner",
+          "slot": 1
+        },
+        {
+          "skillId": "sword_slash",
+          "slot": 2
+        },
+        {
+          "skillId": "second_wind",
+          "slot": 3
+        },
+        {
+          "skillId": "iron_bulwark",
+          "slot": 4
+        }
+      ],
+      "preBattle": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "kind": "relic",
+            "id": "guardians_seal",
+            "version": 1
+          }
+        ],
+        "bindings": []
+      },
+      "heroPieceRefs": []
+    },
+    {
+      "id": "fortified_position",
+      "name": "Fortified Position",
+      "purpose": "A defensive card in your chosen slot gains 5 shield power.",
+      "pieces": [
+        {
+          "skillId": "sword_slash",
+          "slot": 0
+        },
+        {
+          "skillId": "war_banner",
+          "slot": 1
+        },
+        {
+          "skillId": "sword_slash",
+          "slot": 2
+        },
+        {
+          "skillId": "second_wind",
+          "slot": 3
+        },
+        {
+          "skillId": "iron_bulwark",
+          "slot": 4
+        }
+      ],
+      "preBattle": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "kind": "talent",
+            "id": "fortified_position",
+            "version": 1
+          }
+        ],
+        "bindings": [
+          {
+            "source": {
+              "kind": "talent",
+              "id": "fortified_position",
+              "version": 1
+            },
+            "effectId": "stronger_shield",
+            "binding": {
+              "slot": 4,
+              "match": "anchor"
+            }
+          }
+        ]
+      },
+      "heroPieceRefs": []
+    },
+    {
+      "id": "guardians_seal_inactive",
+      "name": "Guardian's Seal - Inactive",
+      "purpose": "No defensive card: the opening shield stays inactive.",
+      "pieces": [
+        {
+          "skillId": "sword_slash",
+          "slot": 0
+        },
+        {
+          "skillId": "war_banner",
+          "slot": 1
+        },
+        {
+          "skillId": "sword_slash",
+          "slot": 2
+        },
+        {
+          "skillId": "second_wind",
+          "slot": 3
+        },
+        {
+          "skillId": "sword_slash",
+          "slot": 4
+        }
+      ],
+      "preBattle": {
+        "sources": [
+          {
+            "kind": "relic",
+            "id": "guardians_seal",
+            "version": 1
+          }
+        ],
+        "schemaVersion": 1,
+        "bindings": []
+      },
+      "heroPieceRefs": []
+    }
+  ]
+}

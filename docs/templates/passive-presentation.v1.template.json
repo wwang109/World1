@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "status": "DRAFT presentation schema. Not accepted by current engine/API. Copyable design examples only; magnitudes and prices are not approved.",
+  "notes": [
+    "mechanicalExamples uses supported engine recipe fields; presentation metadata remains a separate proposed manifest.",
+    "All asset/animation IDs below are reserved references, not shipped artwork paths.",
+    "Source visuals are keyed by kind/id/version. Shared effect icons describe mechanics; each source has its own visual identity.",
+    "Targets are chosen at talent unlock or relic acquisition, saved, then explained at battle start without another picker."
+  ],
+  "mechanicalExamples": {
+    "schemaVersion": 1,
+    "sources": [
+      {
+        "source": {
+          "kind": "talent",
+          "id": "quick_preparation",
+          "version": 1,
+          "displayName": "Quick Preparation"
+        },
+        "effects": [
+          {
+            "id": "quicker_card",
+            "targetBinding": "playerCard",
+            "selector": {
+              "archetype": "offense"
+            },
+            "effect": {
+              "kind": "cardWeightReduction",
+              "amount": 3
+            }
+          }
+        ]
+      },
+      {
+        "source": {
+          "kind": "relic",
+          "id": "windbound_charm",
+          "version": 1,
+          "displayName": "Windbound Charm"
+        },
+        "effects": [
+          {
+            "id": "windbound_slot",
+            "targetBinding": "playerSlot",
+            "selector": {
+              "archetype": "offense"
+            },
+            "effect": {
+              "kind": "cardWeightReduction",
+              "amount": 3
+            }
+          }
+        ]
+      },
+      {
+        "source": {
+          "kind": "talent",
+          "id": "fortified_position",
+          "version": 1,
+          "displayName": "Fortified Position"
+        },
+        "effects": [
+          {
+            "id": "stronger_shield",
+            "targetBinding": "playerSlot",
+            "selector": {
+              "archetype": "defensive"
+            },
+            "effect": {
+              "kind": "cardShieldPower",
+              "amount": 5
+            }
+          }
+        ]
+      },
+      {
+        "source": {
+          "kind": "relic",
+          "id": "guardians_seal",
+          "version": 1,
+          "displayName": "Guardian's Seal"
+        },
+        "effects": [
+          {
+            "id": "opening_shield",
+            "targetBinding": "automatic",
+            "conditions": {
+              "boardCount": {
+                "selector": {
+                  "archetype": "defensive"
+                },
+                "min": 1
+              }
+            },
+            "effect": {
+              "kind": "setupShield",
+              "property": "physical",
+              "amount": 8
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "reservedIcons": [
+    {
+      "id": "source.quick_preparation.wings",
+      "meaning": "Cyan wings; Quick Preparation source"
+    },
+    {
+      "id": "source.windbound_charm.spiral",
+      "meaning": "Orange wind spiral; Windbound Charm source"
+    },
+    {
+      "id": "source.fortified_position.bastion",
+      "meaning": "Blue bastion; Fortified Position source"
+    },
+    {
+      "id": "source.guardians_seal.seal",
+      "meaning": "Gold seal; Guardian's Seal source"
+    },
+    {
+      "id": "effect.weight",
+      "meaning": "Shared WT semantic icon"
+    },
+    {
+      "id": "effect.shield_power",
+      "meaning": "Shared shield-power semantic icon"
+    },
+    {
+      "id": "effect.physical_shield",
+      "meaning": "Shared physical-shield semantic icon"
+    },
+    {
+      "id": "state.inactive",
+      "meaning": "Inactive source overlay"
+    },
+    {
+      "id": "source.family.talent",
+      "meaning": "Generic talent source fallback; reserved"
+    },
+    {
+      "id": "source.family.relic",
+      "meaning": "Generic relic source fallback; reserved"
+    },
+    {
+      "id": "source.family.equipment",
+      "meaning": "Generic equipment source fallback; reserved"
+    }
+  ],
+  "animationStyles": [
+    {
+      "id": "motion.wing_sweep",
+      "attach": "Cyan wing sweep from source icon to chosen card/slot.",
+      "activate": "Brief cyan sweep on the affected card with its actual WT change."
+    },
+    {
+      "id": "motion.wind_spiral",
+      "attach": "Orange spiral moves from the relic icon to the chosen slot.",
+      "activate": "Brief orange spiral around the eligible card in that slot."
+    },
+    {
+      "id": "motion.seal_pulse",
+      "attach": "Source emblem settles with one restrained glow.",
+      "activate": "Short source emblem pulse beside the shield change."
+    }
+  ],
+  "familyFallbacks": {
+    "talent": {
+      "attachAnimationId": "motion.wing_sweep",
+      "activateAnimationId": "motion.wing_sweep",
+      "iconId": "source.family.talent"
+    },
+    "relic": {
+      "attachAnimationId": "motion.seal_pulse",
+      "activateAnimationId": "motion.seal_pulse",
+      "iconId": "source.family.relic"
+    },
+    "equipment": {
+      "attachAnimationId": "motion.seal_pulse",
+      "activateAnimationId": "motion.seal_pulse",
+      "iconId": "source.family.equipment"
+    },
+    "reducedMotion": {
+      "mode": "static",
+      "showSourceIcon": true,
+      "showTargetHighlight": true,
+      "showActualChange": true
+    }
+  },
+  "entries": [
+    {
+      "source": {
+        "kind": "talent",
+        "id": "quick_preparation",
+        "version": 1
+      },
+      "iconId": "source.quick_preparation.wings",
+      "effectIconId": "effect.weight",
+      "attachAnimationId": "motion.wing_sweep",
+      "activateAnimationId": "motion.wing_sweep",
+      "inactiveIconId": "state.inactive",
+      "tapDetails": "sharedSourceDetails",
+      "reducedMotionFallback": "static"
+    },
+    {
+      "source": {
+        "kind": "relic",
+        "id": "windbound_charm",
+        "version": 1
+      },
+      "iconId": "source.windbound_charm.spiral",
+      "effectIconId": "effect.weight",
+      "attachAnimationId": "motion.wind_spiral",
+      "activateAnimationId": "motion.wind_spiral",
+      "inactiveIconId": "state.inactive",
+      "tapDetails": "sharedSourceDetails",
+      "reducedMotionFallback": "static"
+    },
+    {
+      "source": {
+        "kind": "talent",
+        "id": "fortified_position",
+        "version": 1
+      },
+      "iconId": "source.fortified_position.bastion",
+      "effectIconId": "effect.shield_power",
+      "attachAnimationId": "motion.seal_pulse",
+      "activateAnimationId": "motion.seal_pulse",
+      "inactiveIconId": "state.inactive",
+      "tapDetails": "sharedSourceDetails",
+      "reducedMotionFallback": "static"
+    },
+    {
+      "source": {
+        "kind": "relic",
+        "id": "guardians_seal",
+        "version": 1
+      },
+      "iconId": "source.guardians_seal.seal",
+      "effectIconId": "effect.physical_shield",
+      "attachAnimationId": "motion.seal_pulse",
+      "activateAnimationId": "motion.seal_pulse",
+      "inactiveIconId": "state.inactive",
+      "tapDetails": "sharedSourceDetails",
+      "reducedMotionFallback": "static"
+    }
+  ]
+}

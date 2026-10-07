@@ -56,6 +56,7 @@ import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { tierUpgradePreview } from '../ui/tierUpgradePreview';
 import { renderTierUpgradeDetailOverlay } from '../ui/tierUpgradeDetailOverlay';
+import { buildTierUpgradeDiff, changedTierUpgradeLines } from '../ui/tierUpgradeDiff';
 import { tierProgressMergeLine } from '../ui/tierProgressDisplay';
 import {
   activateMobileShopCard, closeMobileShopCardDetails, mobileRunShopBrowseLayout,
@@ -653,7 +654,8 @@ export class MobileShopScene extends Phaser.Scene {
         // has width to spare. Both reservations live in one module.
         const cell: CellBox = { x: 10, y, w: this.W - 20, h: cardH };
         const { token: tokenBox, gutter } = gutterCell(cell, SHELF_PRICE_GUTTER_W, 'left');
-        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier, onInspect: () => {
+        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
+        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier, shine: shelfMergeTarget != null, onInspect: () => {
           const pointer = this.input.activePointer;
           const v = this.shelfViewport;
           if (pointer.worldY < v.y || pointer.worldY > v.y + v.height) return;
@@ -663,7 +665,6 @@ export class MobileShopScene extends Phaser.Scene {
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index: i }, obj: tok });
         // MERGE affordance — same lookup the BUY confirm dialog already uses;
         // Shop-only outline and opaque bottom label, independent of token art.
-        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
         if (shelfMergeTarget) A(this.renderMergeBadge(tokenBox.x, tokenBox.y, shelfMergeTarget, F.tiny, tokenBox.w, tokenBox.h));
         const affordable = this.activeGold() >= offer.price;
         const priceAt = boxCenter(gutter);
@@ -1619,7 +1620,9 @@ export class MobileShopScene extends Phaser.Scene {
       contentY += warning.height + 12;
     }
     if (mergePreview) {
-      const stats = this.add.text(16, contentY, `${mergePreview.toSkill.tier.toUpperCase()} UPGRADE\n${stripCardTextMarkup(renderSkillText(mergePreview.toSkill))}`, {
+      const changes = changedTierUpgradeLines(buildTierUpgradeDiff(mergePreview.fromSkill, mergePreview.toSkill, 'summed'));
+      const body = changes.length > 0 ? changes.join('\n') : stripCardTextMarkup(renderSkillText(mergePreview.toSkill));
+      const stats = this.add.text(16, contentY, `${mergePreview.toSkill.tier.toUpperCase()} UPGRADE\n${body}`, {
         fontSize: `${F.small}px`, color: UI.textBright, fontFamily: FONT.body, lineSpacing: 4, wordWrap: { width: bw - 32 },
       }).setOrigin(0, 0);
       mergeContent.push(stats);

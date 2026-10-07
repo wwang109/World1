@@ -8,6 +8,8 @@
 
 import { clampTierToCard, TIER_ORDER } from '../engine/types';
 import type { Gem, SkillTier } from '../engine/types';
+import type { EquippedItemRef } from '../engine/equipment/types';
+import type { OwnedEquipmentItem, EquipmentRewardReceipt } from './equipmentInventory';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
@@ -39,6 +41,7 @@ import type { EventTheme } from '../data/eventTypes';
 import type { EventBoundSubjectsV3 } from '../data/eventContentV3';
 import type { EventInstanceRecord, EventInstanceRecordV2 } from './eventInstances';
 import type { BandForecast } from './biomeForecast';
+import type { RunHistoryEntry } from './runHistory';
 import {
   recordBattleFacts,
   type CombatFactLedgerEntry,
@@ -423,6 +426,7 @@ export interface RunStateV2 {
 
 /** Fields introduced by the durable schema-v3 event foundation. */
 export interface RunStateV3Fields {
+  history?: readonly RunHistoryEntry[];
   combatFactLedger: readonly CombatFactLedgerEntry[];
   revengeFactLedger: readonly RevengeFactRecord[];
   signatureFactLedger: readonly SignatureFactRecord[];
@@ -468,6 +472,11 @@ export interface RunStateV3Fields {
    * untouched by an event-sourced battle. */
   challengeFights?: { won: number; lost: number };
   freeShopRerolls?: number;
+  ownedEquipment?: readonly OwnedEquipmentItem[];
+  equippedEquipment?: readonly EquippedItemRef[];
+  equipmentRewardReceipts?: readonly EquipmentRewardReceipt[];
+  spentEquipment?: readonly string[];
+  brokenEquipment?: number;
 }
 
 export type RunState = Omit<RunStateV2, 'eventInstances' | 'eventCallbackQueue'> & RunStateV3Fields & {
@@ -743,6 +752,9 @@ export function createRun(seed: number): RunState {
     held: null,
     draft: { rerolls: 0, picks: {} },
     gemInventory: [],
+    ownedEquipment: [],
+    equippedEquipment: [],
+    equipmentRewardReceipts: [],
     nextCardInstanceId: 1,
     shopShelves: {},
     eventBag: [],

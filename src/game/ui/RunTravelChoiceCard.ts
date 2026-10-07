@@ -7,6 +7,8 @@ import { runTravelChoiceCardCopy } from './runTravelChoiceCardCopy';
 import type { RunTravelChoiceViewModel } from './runTravelChoiceViewModel';
 import type { Rect } from './runScreenTemplate';
 import { roundRect } from './roundedRect';
+import { trackedLootSummary } from './equipmentLootTrackingModel';
+import { renderEquipmentChancePanel } from './equipmentPossibleLoot';
 
 interface TravelCardOptions { compact: boolean; pending?: boolean }
 
@@ -18,6 +20,7 @@ export interface RunTravelChoiceCardLayout {
   title: Rect;
   detail: Rect;
   footer?: Rect;
+  trackedLoot?: Rect;
   requirements?: { heading: Rect; lines: Rect[] };
   action: Rect;
 }
@@ -92,7 +95,8 @@ export function runTravelChoiceCardLayout(
   const headerTextX = textX + headerInsetX;
   const headerTextW = Math.max(1, textW - headerInsetX * 2);
   cursor += headerInsetY;
-  const eyebrow = block(copy.eyebrow, 'kicker', headerTextX, headerTextW);
+  const iconInset = model.categoryIconKey ? (compact ? 24 : 30) : 0;
+  const eyebrow = block(copy.eyebrow, 'kicker', headerTextX + iconInset, headerTextW - iconInset);
   cursor = eyebrow.y + eyebrow.height + 6;
   const title = block(copy.title, titleRole, headerTextX, headerTextW);
   const header = { x: textX, y: headerY, width: textW, height: title.y + title.height + headerInsetY - headerY };
@@ -101,6 +105,9 @@ export function runTravelChoiceCardLayout(
   if (compact && art) cursor = Math.max(cursor, art.y + art.height + gap);
   const footer = model.footer
     ? block(model.footer, 'micro', bounds.x + pad, innerW, model.footerSegments?.length ?? 1)
+    : undefined;
+  const trackedLoot = model.trackedLoot?.length
+    ? block(trackedLootSummary(model.trackedLoot), 'micro', bounds.x + pad, innerW)
     : undefined;
   let requirements: RunTravelChoiceCardLayout['requirements'];
   if (copy.requirementLines.length > 0) {
@@ -113,7 +120,7 @@ export function runTravelChoiceCardLayout(
   const minHeight = cursor - bounds.y + 6 + actionH + pad;
   const height = Math.max(bounds.height, minHeight);
   return {
-    bounds: { ...bounds, height }, art, header, eyebrow, title, detail, footer, requirements,
+    bounds: { ...bounds, height }, art, header, eyebrow, title, detail, footer, trackedLoot, requirements,
     action: { x: bounds.x + pad, y: bounds.y + height - pad - actionH, width: innerW, height: actionH },
   };
 }
@@ -206,6 +213,13 @@ export function renderRunTravelChoiceCard(
     auditTextBlock(text, { name: `${model.nodeId} travel footer segment: ${segment.text}`, maxWidth: Math.max(1, rect.x + rect.width - textX), maxHeight: rect.height, minFontSize: 9 });
     parts.push(text);
   };
+  if (model.categoryIconKey) {
+    const size = opts.compact ? 20 : 24;
+    const icon = scene.add.image(layout.eyebrow.x - size / 2 - 4, layout.eyebrow.y + layout.eyebrow.height / 2,
+      model.categoryIconKey).setDisplaySize(size, size).setAlpha(model.enabled ? 1 : 0.48)
+      .setName(`event-category-${model.nodeId}`);
+    parts.push(icon);
+  }
   addText(layout.eyebrow, copy.eyebrow, 'kicker', colors.ink);
   addText(layout.title, copy.title, opts.compact ? 'statValue' : 'section', 'primary');
   addText(layout.detail, copy.detail, opts.compact ? 'micro' : 'body', 'secondary');
@@ -220,6 +234,11 @@ export function renderRunTravelChoiceCard(
   if (layout.requirements) {
     addText(layout.requirements.heading, copy.requirementHeading, 'kicker', 'gain');
     layout.requirements.lines.forEach((rect, index) => addText(rect, copy.requirementLines[index]!, 'micro', 'secondary'));
+  }
+  if (layout.trackedLoot && model.trackedLoot?.length) {
+    const label = addText(layout.trackedLoot, trackedLootSummary(model.trackedLoot), 'micro', 'accent');
+    label.setData('equipmentTrackedLoot', model.nodeId).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => renderEquipmentChancePanel(scene, opts.compact, model.trackedLoot!));
   }
   const actionFill = chain && model.enabled ? UI.chip : UI.panelMuted;
   const action = roundRect(scene.add.rectangle(layout.action.x, layout.action.y, layout.action.width, layout.action.height, actionFill, alpha), opts.compact ? 12 : 0)
