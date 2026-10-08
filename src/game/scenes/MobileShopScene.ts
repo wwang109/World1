@@ -43,6 +43,8 @@ import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { renderItemChrome } from '../ui/itemChrome';
+import { containShopItemInput, renderShopButtonChrome, renderShopChrome, renderShopHeaderAction, setShopChromeTheme, shopChromeContentBox } from '../ui/shopChrome';
 import { boxCenter, gutterCell, MOBILE_SHELF_CARD_CELL_H, SHELF_PRICE_GUTTER_W, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
@@ -249,6 +251,7 @@ export class MobileShopScene extends Phaser.Scene {
   private shelfFadeTop: Phaser.GameObjects.Rectangle | null = null;
   private shelfFadeBottom: Phaser.GameObjects.Rectangle | null = null;
   private shelfViewport = { x: 0, y: 0, width: 0, height: 0 };
+  private shelfOuterBottom = 0;
   private shelfMaxScroll = 0;
 
   private setShelfScrollPosition(y: number): void {
@@ -408,6 +411,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.renderGoldBalance();
     }
     const shopId = runShop ?? this.selectedShop;
+    setShopChromeTheme(this, shopId);
     if (shopId) {
       if (runShop) this.renderRunBrowse(shopId);
       else {
@@ -523,6 +527,7 @@ export class MobileShopScene extends Phaser.Scene {
       cell.on('pointerdown', () => { playSfx('uiClick'); ensureShelf(id); this.selectedShop = id; this.rerender(); });
       const bannerH = layout.grid.artHeight;
       this.addRoundedShopArt(shopArtKey(id), { x, y, width: cellW, height: bannerH }, BRIGHT_ART_TREATMENT.storefront, 0);
+      renderShopChrome(this, x, y, cellW, h, false, id);
       this.add.rectangle(x, y + bannerH, cellW, 1, UI.border, BRIGHT_ART_TREATMENT.storefront.dividerAlpha).setOrigin(0, 0);
       const title = this.add.text(x + 10, y + bannerH + 8, shop.name.toUpperCase(), {
         fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: cellW - 20 },
@@ -535,6 +540,7 @@ export class MobileShopScene extends Phaser.Scene {
 
     const renderPageControl = (box: typeof layout.pager.previous, label: string, enabled: boolean, onPress: () => void): void => {
       const control = roundRect(this.add.rectangle(box.x, box.y, box.width, box.height, enabled ? 0x131f32 : 0x16233a, enabled ? 1 : 0.5), 12).setOrigin(0, 0).setStrokeStyle(1, enabled ? UI.chip : UI.border, enabled ? 0.8 : 0.4);
+      renderShopButtonChrome(this, control);
       const controlLabel = this.add.text(box.x + box.width / 2, layout.pager.labelY, label, {
         ...textRole('label'), color: enabled ? UI.textBright : UI.textDisabled,
       }).setOrigin(0.5);
@@ -574,10 +580,12 @@ export class MobileShopScene extends Phaser.Scene {
       width: this.W - 20,
       height: header.contentTop - top,
     }, { imageAlpha: 0.35, liftAlpha: 0.12 });
+    renderShopChrome(this, 10, top, this.W - 20, header.contentTop - top, false, undefined, true);
 
     let titleX = 10;
     if (!runShop) {
       const back = roundRect(this.add.rectangle(header.back.x, header.back.y, header.back.width, header.back.height, 0x131f32), 6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderShopButtonChrome(this, back);
       this.add.text(header.back.x + header.back.width / 2, header.labelY, '‹ SHOPS', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = header.back.x + header.back.width + 8;
@@ -588,23 +596,14 @@ export class MobileShopScene extends Phaser.Scene {
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
     const rerollY = header.stock.y;
     const rerollW = header.stock.width;
-    if (info.fullStock) {
-      roundRect(this.add.rectangle(header.stock.x, rerollY, rerollW, header.stock.height, 0x16233a, 0.5), 6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-      this.add.text(header.stock.x + rerollW / 2, header.labelY, 'FULL STOCK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    } else {
-      // Run Mode's reroll cost escalates per node (1, 2, 3, 4… — see
-      // `currentShopRerollCost`); the sandbox shop has no run node to key
-      // off of and keeps its pre-existing flat 1-gold label/gate.
-      const cost = runShop ? currentShopRerollCost() : 1;
-      const canReroll = this.activeGold() >= cost;
-      const rr = roundRect(this.add.rectangle(header.stock.x, rerollY, rerollW, header.stock.height, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5), 6).setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(header.stock.x + rerollW / 2, header.labelY, (cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`), { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-      if (canReroll) {
-        rr.setInteractive({ useHandCursor: true });
-        rr.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
-      }
-    }
-    this.renderMergeSlotButton(shopId, header.stock.x - 6 - rerollW, rerollY, rerollW, header.stock.height, 6);
+    const cost = runShop ? currentShopRerollCost() : 1;
+    const canReroll = !info.fullStock && this.activeGold() >= cost;
+    renderShopHeaderAction(this, header.stock, {
+      label: info.fullStock ? 'FULL STOCK' : cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`,
+      enabled: canReroll, fill: UI.chip, fontSize: F.tiny,
+      onPress: () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
+    });
+    this.renderMergeSlotButton(shopId, header.stock.x - 6 - rerollW, rerollY, rerollW, header.stock.height, F.tiny);
 
     const cardSlots = info.cardSlots;
     const gemSlots = info.gemSlots;
@@ -616,8 +615,12 @@ export class MobileShopScene extends Phaser.Scene {
     const bottomLimit = (runShop ? (this.embedded ? this.H - 10 : TEMPLATE.regions.footer.y) : this.H - MOBILE_PROFILE.safe.bottom) - 6;
     const viewportBottom = bottomLimit - OWNED_BAND_H - STRIP_GAP;
     const viewportH = Math.max(40, viewportBottom - contentTop);
-    this.shelfViewport = { x: 10, y: contentTop, width: this.W - 20, height: viewportH };
+    const shelfFrame = { x: 7, y: contentTop - 3, width: this.W - 14, height: viewportH + 6 };
+    this.shelfOuterBottom = contentTop + viewportH;
+    this.shelfViewport = shopChromeContentBox(shelfFrame);
+    const content = this.shelfViewport;
 
+    renderShopChrome(this, shelfFrame.x, shelfFrame.y, shelfFrame.width, shelfFrame.height);
     const container = this.add.container(0, this.shelfScrollY);
     bindShopShelfMaskSync(container);
     this.shelfContainer = container;
@@ -629,15 +632,15 @@ export class MobileShopScene extends Phaser.Scene {
     const cardH = MOBILE_SHELF_CARD_CELL_H;
     const gemH = 76;
 
-    let y = contentTop;
+    let y = content.y;
     if (cardSlots > 0) {
-      A(this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }));
+      A(this.add.text(content.x, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, backgroundColor: `#${UI.bg.toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold' }));
       y += labelH;
       for (let i = 0; i < cardSlots; i++) {
         const offer = shelf.cards[i];
         if (!offer) {
-          A(roundRect(this.add.rectangle(10 + (this.W - 20) / 2, y + cardH / 2, this.W - 20, cardH, 0x0d1b28, 0.4), 12).setStrokeStyle(1, UI.border, 0.3));
-          A(this.add.text(this.W / 2, y + cardH / 2, 'SOLD OUT', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5));
+          A(roundRect(this.add.rectangle(content.x + content.width / 2, y + cardH / 2, content.width, cardH, 0x0d1b28, 0.4), 12).setStrokeStyle(1, UI.border, 0.3));
+          A(this.add.text(content.x + content.width / 2, y + cardH / 2, 'SOLD OUT', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5));
           y += cardH + rowGap;
           continue;
         }
@@ -652,7 +655,7 @@ export class MobileShopScene extends Phaser.Scene {
         // uses): this viewport is only ~205px tall and a 24px strip per row
         // would cost it a fifth of what it can show, while a 392px-wide row
         // has width to spare. Both reservations live in one module.
-        const cell: CellBox = { x: 10, y, w: this.W - 20, h: cardH };
+        const cell: CellBox = { x: content.x, y, w: content.width, h: cardH };
         const { token: tokenBox, gutter } = gutterCell(cell, SHELF_PRICE_GUTTER_W, 'left');
         const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId, offer.tier) : mergeTargetFor(offer.skillId, offer.tier);
         const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier, shine: shelfMergeTarget != null, onInspect: () => {
@@ -662,6 +665,7 @@ export class MobileShopScene extends Phaser.Scene {
           this.detailCardIndex = i; this.detailTier = offer.tier; this.inspectOwned = null; this.renderCardDetail();
         } });
         A(tok);
+        containShopItemInput(tok, content);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index: i }, obj: tok });
         // MERGE affordance — same lookup the BUY confirm dialog already uses;
         // Shop-only outline and opaque bottom label, independent of token art.
@@ -674,18 +678,18 @@ export class MobileShopScene extends Phaser.Scene {
     }
 
     if (gemSlots > 0) {
-      A(this.add.text(12, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }));
+      A(this.add.text(44, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, backgroundColor: `#${UI.bg.toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold' }));
       y += labelH;
       for (let i = 0; i < gemSlots; i++) {
         const offer = shelf.gems[i];
         if (!offer) {
-          A(roundRect(this.add.rectangle(10 + (this.W - 20) / 2, y + gemH / 2, this.W - 20, gemH, 0x0d1b28, 0.4), 12).setStrokeStyle(1, UI.border, 0.3));
-          A(this.add.text(this.W / 2, y + gemH / 2, 'SOLD OUT', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5));
+          A(roundRect(this.add.rectangle(content.x + content.width / 2, y + gemH / 2, content.width, gemH, 0x0d1b28, 0.4), 12).setStrokeStyle(1, UI.border, 0.3));
+          A(this.add.text(content.x + content.width / 2, y + gemH / 2, 'SOLD OUT', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5));
           y += gemH + rowGap;
           continue;
         }
         const gem = gemBook[offer.gemId]!;
-        const cell = A(roundRect(this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94), 12).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8));
+        const cell = A(roundRect(this.add.rectangle(content.x, y, content.width, gemH, 0x101a2a, 0.94), 12).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8));
         // Routed through the unified `draggables` system (see `DragSource`'s
         // `shelfGem` doc comment) instead of a native `setInteractive` +
         // `pointerdown` — that native form had no viewport gate, so a gem row
@@ -693,25 +697,25 @@ export class MobileShopScene extends Phaser.Scene {
         // a non-interactive SOLD OUT placeholder) kept its full hit box and
         // could swallow taps aimed at content below it, including the run
         // HUD's footer-anchored LEAVE SHOP button on mobile.
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(10, y, this.W - 20, gemH), src: { kind: 'shelfGem', index: i }, obj: cell });
-        A(new GemToken(this, 28, y + gemH / 2, gem, { width: 32, height: 32 }));
-        A(this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }));
-        const body = A(this.add.text(42, y + 24, stripCardTextMarkup(renderGemText(gem)), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } }));
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(content.x, y, content.width, gemH), src: { kind: 'shelfGem', index: i }, obj: cell });
+        A(new GemToken(this, content.x + 18, y + gemH / 2, gem, { width: 32, height: 32 }));
+        A(this.add.text(content.x + 32, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }));
+        const body = A(this.add.text(content.x + 32, y + 24, stripCardTextMarkup(renderGemText(gem)), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: content.width - 80 } }));
         let s = stripCardTextMarkup(renderGemText(gem));
         while (s.length > 1 && body.height > gemH - 34) { s = s.slice(0, -1); body.setText(`${s}…`); }
         const affordable = this.activeGold() >= offer.price;
-        A(this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0));
+        A(this.add.text(content.x + content.width - 10, y + gemH - 18, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0));
         y += gemH + rowGap;
       }
     }
 
     if (cardSlots === 0 && gemSlots === 0) {
-      A(this.add.text(12, y, 'This shop has nothing to sell.', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }));
+      A(this.add.text(content.x, y, 'This shop has nothing to sell.', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }));
     }
 
     container.add(created);
-    const contentH = y - contentTop;
-    this.shelfMaxScroll = Math.max(0, contentH - viewportH);
+    const contentH = y - content.y;
+    this.shelfMaxScroll = Math.max(0, contentH - content.height);
     this.shelfScrollY = Phaser.Math.Clamp(this.shelfScrollY, -this.shelfMaxScroll, 0);
     container.setY(this.shelfScrollY);
 
@@ -736,30 +740,32 @@ export class MobileShopScene extends Phaser.Scene {
 
     this.addRoundedShopArt(RUN_ART_KEYS.shopBanner, layout.header, { imageAlpha: 0.3, liftAlpha: 0.12 });
     roundRect(this.add.rectangle(layout.header.x, layout.header.y, layout.header.width, layout.header.height, UI.panel, 0.72), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.75);
-    this.add.text(layout.header.x + 8, layout.header.y + 7, shop.name.toUpperCase(), {
+    renderShopChrome(this, layout.header.x, layout.header.y, layout.header.width, layout.header.height, false, undefined, true);
+    const headerContent = shopChromeContentBox(layout.header, true);
+    this.add.text(headerContent.x + 8, headerContent.y, shop.name.toUpperCase(), {
       ...textRole('section', { ink: 'accent' }), fontFamily: FONT.display, fontStyle: 'bold',
-      wordWrap: { width: layout.header.width - 214 }, maxLines: 1,
+      wordWrap: { width: headerContent.width - 16 }, maxLines: 1,
     });
-    this.add.text(layout.header.x + 8, layout.header.y + 29, `${this.activeGold()} GOLD`, textRole('micro', { ink: 'resource' }));
+    this.add.text(headerContent.x + 8, headerContent.y + 20, `${this.activeGold()} GOLD`, textRole('micro', { ink: 'resource' }));
 
     const cost = currentShopRerollCost();
     const canReroll = !info.fullStock && this.activeGold() >= cost;
-    const rerollW = 92;
+    const rerollW = (headerContent.width - 6) / 2;
     const rerollH = 40;
-    const rerollX = layout.header.x + layout.header.width - rerollW - 6;
-    const rerollY = layout.header.y + layout.header.height - rerollH - 5;
-    const reroll = roundRect(this.add.rectangle(rerollX, rerollY, rerollW, rerollH, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.6), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.45);
+    const rerollX = headerContent.x + rerollW + 6;
+    const rerollY = headerContent.y + headerContent.height - rerollH;
     const rerollLabel = info.fullStock ? 'FULL STOCK' : (cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`);
-    this.add.text(rerollX + rerollW / 2, rerollY + rerollH / 2, rerollLabel, textRole('micro', { ink: canReroll ? 'onAccent' : 'disabled' })).setOrigin(0.5);
-    if (canReroll) reroll.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-      playSfx('purchase'); this.selectedCardIndex = null; this.runBrowsePage = 0; rerollCurrentShop(); this.rerender();
+    renderShopHeaderAction(this, { x: rerollX, y: rerollY, width: rerollW, height: rerollH }, {
+      label: rerollLabel, enabled: canReroll, fill: UI.chip, fontSize: F.label,
+      onPress: () => { playSfx('purchase'); this.selectedCardIndex = null; this.runBrowsePage = 0; rerollCurrentShop(); this.rerender(); },
     });
-    this.renderMergeSlotButton(this.activeShopId(), rerollX - 6 - rerollW, rerollY, rerollW, rerollH, 12);
+    this.renderMergeSlotButton(this.activeShopId(), headerContent.x, rerollY, rerollW, rerollH, F.label);
 
     const renderTab = (box: typeof layout.tabs.cards, id: 'cards' | 'gems', label: string): void => {
       const active = this.runBrowseTab === id;
       const plate = roundRect(this.add.rectangle(box.x, box.y, box.width, box.height, active ? UI.panelAlt : UI.panelMuted, 0.96), 6).setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, active ? UI.chip : UI.border, active ? 1 : 0.65)
         .setInteractive({ useHandCursor: true });
+      renderShopButtonChrome(this, plate);
       this.add.text(box.x + box.width / 2, box.y + box.height / 2, label, textRole('label', { ink: active ? 'accent' : 'secondary' })).setOrigin(0.5);
       plate.on('pointerdown', () => {
         if (this.runBrowseTab === id) return;
@@ -769,20 +775,23 @@ export class MobileShopScene extends Phaser.Scene {
     renderTab(layout.tabs.cards, 'cards', `CARDS · ${shelf.cards.length}/${info.cardSlots}`);
     renderTab(layout.tabs.gems, 'gems', `GEMS · ${shelf.gems.length}/${info.gemSlots}`);
 
-    this.shelfViewport = { ...layout.shelf };
+    const shelfFrame = { x: layout.shelf.x - 3, y: layout.shelf.y - 3, width: layout.shelf.width + 6, height: layout.shelf.height + 6 };
+    const content = shopChromeContentBox(shelfFrame);
+    this.shelfViewport = content;
     this.shelfScrollY = 0;
     this.shelfMaxScroll = 0;
-    const rows = mobileShopRowsLayout(layout.shelf, this.runBrowseTab === 'cards' ? shelf.cards.length : shelf.gems.length, this.runBrowsePage);
+    const rows = mobileShopRowsLayout(content, this.runBrowseTab === 'cards' ? shelf.cards.length : shelf.gems.length, this.runBrowsePage);
     this.runBrowsePage = rows.page;
+    renderShopChrome(this, shelfFrame.x, shelfFrame.y, shelfFrame.width, shelfFrame.height);
     const container = this.add.container(0, 0);
     bindShopShelfMaskSync(container);
     this.shelfContainer = container;
     const created: Phaser.GameObjects.GameObject[] = [];
     const A = <T extends Phaser.GameObjects.GameObject>(obj: T): T => { created.push(obj); return obj; };
     const rowGap = 6;
-    let y = layout.shelf.y;
+    let y = content.y;
     if (this.manageOpen) {
-      this.renderRunManage(layout.shelf);
+      this.renderRunManage(content);
     } else if (this.runBrowseTab === 'cards') {
       const cardH = rows.rowHeight;
       shelf.cards.slice(rows.start, rows.end).forEach((offer, offset) => {
@@ -790,7 +799,7 @@ export class MobileShopScene extends Phaser.Scene {
         const base = skillBook[offer.skillId];
         if (!base) return;
         const skill = applyTier(base, offer.tier);
-        const cell: CellBox = { x: layout.shelf.x, y, w: layout.shelf.width, h: cardH };
+        const cell: CellBox = { x: content.x, y, w: content.width, h: cardH };
         if (this.selectedCardIndex === index) A(roundRect(this.add.rectangle(cell.x, cell.y, cell.w, cell.h, UI.chip, 0.08), 12).setOrigin(0, 0).setStrokeStyle(3, UI.chip, 1));
         const { token: tokenBox, gutter } = gutterCell(cell, 54, 'left');
         const token = A(new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, {
@@ -802,6 +811,7 @@ export class MobileShopScene extends Phaser.Scene {
             this.selectedCardIndex = index; this.detailCardIndex = index; this.detailTier = offer.tier; this.renderCardDetail();
           },
         }));
+        containShopItemInput(token, content);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index }, obj: token });
         const affordable = this.activeGold() >= offer.price;
         const price = boxCenter(gutter);
@@ -814,22 +824,22 @@ export class MobileShopScene extends Phaser.Scene {
         const index = rows.start + offset;
         const gem = gemBook[offer.gemId];
         if (!gem) return;
-        const cell = A(roundRect(this.add.rectangle(layout.shelf.x, y, layout.shelf.width, gemH, UI.panelAlt, 0.96), 12).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.85));
-        A(new GemToken(this, layout.shelf.x + 26, y + gemH / 2, gem, { width: 42, height: 42 }));
-        A(this.add.text(layout.shelf.x + 54, y + 8, gem.name, textRole('label')).setOrigin(0, 0));
-        A(this.add.text(layout.shelf.x + 54, y + 27, stripCardTextMarkup(renderGemText(gem)), {
-          ...textRole('micro', { ink: 'secondary' }), wordWrap: { width: layout.shelf.width - 120 },
+        const cell = A(roundRect(this.add.rectangle(content.x, y, content.width, gemH, UI.panelAlt, 0.96), 12).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.85));
+        A(new GemToken(this, content.x + 26, y + gemH / 2, gem, { width: 42, height: 42 }));
+        A(this.add.text(content.x + 54, y + 8, gem.name, textRole('label')).setOrigin(0, 0));
+        A(this.add.text(content.x + 54, y + 27, stripCardTextMarkup(renderGemText(gem)), {
+          ...textRole('micro', { ink: 'secondary' }), wordWrap: { width: content.width - 120 },
         }));
-        A(this.add.text(layout.shelf.x + layout.shelf.width - 10, y + gemH / 2, `${offer.price} G`, textRole('label', { ink: this.activeGold() >= offer.price ? 'resource' : 'alarm' })).setOrigin(1, 0.5));
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(layout.shelf.x, y, layout.shelf.width, gemH), src: { kind: 'shelfGem', index }, obj: cell });
+        A(this.add.text(content.x + content.width - 10, y + gemH / 2, `${offer.price} G`, textRole('label', { ink: this.activeGold() >= offer.price ? 'resource' : 'alarm' })).setOrigin(1, 0.5));
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(content.x, y, content.width, gemH), src: { kind: 'shelfGem', index }, obj: cell });
         y += gemH + rowGap;
       });
     }
     container.add(created);
-    const maskShape = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(layout.shelf.x, layout.shelf.y, layout.shelf.width, layout.shelf.height);
+    const maskShape = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(content.x, content.y, content.width, content.height);
     container.setMask(maskShape.createGeometryMask());
     container.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
-    this.add.rectangle(layout.shelf.x, layout.shelf.y, layout.shelf.width, layout.shelf.height, 0xffffff, 0.001).setOrigin(0, 0);
+    this.add.rectangle(content.x, content.y, content.width, content.height, 0xffffff, 0.001).setOrigin(0, 0);
     if (!this.manageOpen) this.renderRunPager(rows, (page) => { this.runBrowsePage = page; this.selectedCardIndex = null; this.rerender(); });
 
     const boardUsed = this.boardOccupied().filter(Boolean).length;
@@ -846,6 +856,7 @@ export class MobileShopScene extends Phaser.Scene {
       const fill = primary && enabled ? UI.chip : UI.panelAlt;
       const plate = roundRect(this.add.rectangle(box.x, box.y, box.width, box.height, fill, enabled ? 1 : 0.55), 12).setOrigin(0, 0)
         .setStrokeStyle(primary && enabled ? 2 : 1, primary && enabled ? UI.chip : UI.border, enabled ? 1 : 0.45);
+      renderShopButtonChrome(this, plate);
       const caption = this.add.text(box.x + box.width / 2, box.y + box.height / 2, label, textRole('label', { ink: primary && enabled ? 'onAccent' : enabled ? 'primary' : 'disabled' })).setOrigin(0.5);
       auditControlLabel(plate, caption, { name: `Mobile Run Shop ${label}`, horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });
       if (enabled) {
@@ -864,6 +875,7 @@ export class MobileShopScene extends Phaser.Scene {
   private runBrowseButton(box: { x: number; y: number; width: number; height: number }, label: string, onPress: () => void): void {
     const plate = roundRect(this.add.rectangle(box.x, box.y, box.width, box.height, UI.panelAlt, 0.98), 12).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, 0.85).setInteractive({ useHandCursor: true });
+    renderShopButtonChrome(this, plate);
     const caption = this.add.text(box.x + box.width / 2, box.y + box.height / 2, label, textRole('label', { ink: 'accent' })).setOrigin(0.5);
     attachButtonFeel(this, plate, { fill: UI.panelAlt, hover: UI.chipDark, follow: [caption], onPress });
   }
@@ -896,6 +908,7 @@ export class MobileShopScene extends Phaser.Scene {
         const gem = gemBook[this.gemInventory[index]!];
         if (!gem) continue;
         this.runBrowseButton({ x: area.x, y, width: area.width, height: rows.rowHeight }, gem.name, () => { this.inspectGemIndex = index; this.renderOwnedGemDetail(); });
+        renderItemChrome(this, area.x, y, area.width, rows.rowHeight, { variant: 'bag' });
         continue;
       }
       const entry = entries[index]!;
@@ -906,6 +919,7 @@ export class MobileShopScene extends Phaser.Scene {
       const token = new CardToken(this, area.x + area.width / 2, y + rows.rowHeight / 2, applyTier(base, entry.card.tier), {
         width: area.width, height: rows.rowHeight, side: 'left', tier: entry.card.tier, onInspect: inspect,
       });
+      containShopItemInput(token, area);
       this.draggables.push({ bounds: new Phaser.Geom.Rectangle(area.x, y, area.width, rows.rowHeight), src: { kind: location, index: entry.index }, obj: token });
     }
     this.renderRunPager(rows, (page) => { this.managePage = page; this.rerender(); });
@@ -994,19 +1008,22 @@ export class MobileShopScene extends Phaser.Scene {
    * name/tier label), per the user's explicit "more spacing" ask.
    */
   private renderOwnedColumns(): void {
-    const colW = (this.W - 20 - 8) / 2; // matches MobileDeckBuildScene's column width
-    const boardX = 10;
-    const bagX = 10 + colW + 8;
-    const colTop = this.shelfViewport.y + this.shelfViewport.height + STRIP_GAP;
+    const outerW = (this.W - 20 - 8) / 2;
+    const outerTop = this.shelfOuterBottom + STRIP_GAP;
+    const boardFrame = { x: 7, y: outerTop - 3, width: outerW + 6, height: OWNED_COL_H + 6 };
+    const bagFrame = { ...boardFrame, x: 7 + outerW + 8 };
+    renderShopChrome(this, boardFrame.x, boardFrame.y, boardFrame.width, boardFrame.height);
+    renderShopChrome(this, bagFrame.x, bagFrame.y, bagFrame.width, bagFrame.height);
+    const boardContent = shopChromeContentBox(boardFrame), bagContent = shopChromeContentBox(bagFrame);
+    const colW = boardContent.width, boardX = boardContent.x, bagX = bagContent.x, colTop = boardContent.y, colH = boardContent.height;
     const rowGap = OWNED_ROW_GAP;
-    const colH = OWNED_COL_H;
     const rowH = (colH - rowGap * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
-    const colBottom = colTop + colH;
+    const colBottom = outerTop + OWNED_COL_H;
 
-    this.add.text(boardX + colW / 2, colTop - 4, `BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
+    this.add.text(boardX + colW / 2, outerTop - 4, `BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5, 1);
-    this.add.text(bagX + colW / 2, colTop - 4, `BAG · ${this.bagOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
+    this.add.text(bagX + colW / 2, outerTop - 4, `BAG · ${this.bagOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5, 1);
 
@@ -1033,6 +1050,7 @@ export class MobileShopScene extends Phaser.Scene {
         this.renderOwnedCardDetail();
       },
     });
+    boardCol.tokens.forEach(token => containShopItemInput(token, boardContent));
     this.wireColumnDraggables(boardCol, boardX, colTop, colW, rowH, rowGap, (slot) => {
       const piece = this.pieces.find((p) => p.slot === slot);
       if (!piece || !skillBook[piece.skillId]) return null;
@@ -1063,6 +1081,7 @@ export class MobileShopScene extends Phaser.Scene {
         this.renderOwnedCardDetail();
       },
     });
+    bagCol.tokens.forEach(token => containShopItemInput(token, bagContent));
     this.wireColumnDraggables(bagCol, bagX, colTop, colW, rowH, rowGap, (slot) => {
       const card = this.bagSlots[slot];
       if (!card || !skillBook[card.skillId]) return null;
@@ -1070,11 +1089,12 @@ export class MobileShopScene extends Phaser.Scene {
     });
 
     // SELL ZONE + GEM POUCH, stacked directly under the two columns.
-    const rowX = boardX;
-    const rowW = bagX + colW - boardX;
+    const rowX = boardFrame.x + 3;
+    const rowW = this.W - 20;
     let y = colBottom + 6;
     const sellRect = new Phaser.Geom.Rectangle(rowX, y, rowW, SELL_ZONE_H);
     this.sellZoneRectObj = roundRect(this.add.rectangle(rowX, y, rowW, SELL_ZONE_H, UI.badSoft, 0.35), 12).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
+    renderShopButtonChrome(this, this.sellZoneRectObj);
     this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, y + SELL_ZONE_H / 2, 'SELL ZONE — drag a card or gem here', {
       fontSize: `${F.tiny}px`, color: '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -1147,6 +1167,7 @@ export class MobileShopScene extends Phaser.Scene {
       const bg = roundRect(this.add.rectangle(cellW / 2, POUCH_CELL_H / 2, cellW, POUCH_CELL_H, 0x101a2a, 0.94), 6).setStrokeStyle(1, gem ? GEM_RARITY_COLOR[gem.rarity] : UI.border, 0.9);
       box.add(bg);
       if (gem) box.add(new GemToken(this, cellW / 2, POUCH_CELL_H / 2, gem, { width: cellW, height: POUCH_CELL_H }));
+      box.add(renderItemChrome(this, 0, 0, cellW, POUCH_CELL_H, { variant: 'bag' }));
       this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, cellW, POUCH_CELL_H), src: { kind: 'gem', index: i }, obj: box });
     });
     if (pouch.length > maxShown) {
@@ -1631,6 +1652,7 @@ export class MobileShopScene extends Phaser.Scene {
     const bh = mergeTarget ? contentY + 64 : 140;
     const by = this.H / 2 - bh / 2;
     panel.setPosition(bx, by).setSize(bw, bh);
+    renderShopChrome(this, bx, by, bw, bh);
     mergeContent.forEach(text => text.setPosition(bx + text.x, by + text.y));
     const headline = dest ? `BUY → ${dest.where.toUpperCase()} SLOT ${dest.slot + 1}` : `Buy ${name}?`;
     const confirmHeadline = this.add.text(this.W / 2, by + 24, headline, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
@@ -1691,6 +1713,7 @@ export class MobileShopScene extends Phaser.Scene {
     buttons.forEach((b, i) => {
       const box = buttonLayout.buttons[i]!;
       const r = roundRect(this.add.rectangle(box.x, box.y, box.width, box.height, b.fill), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderShopButtonChrome(this, r);
       // The BOARD/BAG columns now sit directly under this dialog, so this
       // exact click would otherwise also be reprocessed as a board/bag tap
       // once `b.fn()`'s `rerender()` closes it — `wasPointerConsumedByRebuild`
@@ -1700,7 +1723,7 @@ export class MobileShopScene extends Phaser.Scene {
     });
   }
 
-  private renderMergeSlotButton(shopId: string, x: number, y: number, w: number, h: number, radius: number): void {
+  private renderMergeSlotButton(shopId: string, x: number, y: number, w: number, h: number, fontSize: number): void {
     const runMode = this.isRunMode();
     const price = shopMergeSlotPrice(runMode);
     const available = shopMergeSlotAvailable(runMode, shopId);
@@ -1708,15 +1731,10 @@ export class MobileShopScene extends Phaser.Scene {
     const affordable = !runMode || this.activeGold() >= price;
     const enabled = available && hasTarget && affordable;
     const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE · ${price}G`;
-    const btn = roundRect(this.add.rectangle(x, y, w, h, enabled ? 0x7cab63 : 0x16233a, enabled ? 1 : 0.5), radius)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, enabled ? 1 : 0.4);
-    this.add.text(x + w / 2, y + h / 2, label, {
-      fontSize: `${F.tiny}px`, color: enabled ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    if (enabled) {
-      btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); });
-    }
+    renderShopHeaderAction(this, { x, y, width: w, height: h }, {
+      label, enabled, fill: UI.good, fontSize,
+      onPress: () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
+    });
   }
 
   private pickerCommon(): Pick<Parameters<typeof renderOwnedCardPicker>[1], 'viewWidth' | 'viewHeight' | 'fontBody' | 'fontName' | 'font' | 'compact' | 'page' | 'onPageChange' | 'inspectedInstanceId' | 'onInspect'> {
@@ -1831,9 +1849,11 @@ export class MobileShopScene extends Phaser.Scene {
     const cancelBox = buttonLayout.buttons[0]!;
     const sellBox = buttonLayout.buttons[1]!;
     const cancel = roundRect(this.add.rectangle(cancelBox.x, cancelBox.y, cancelBox.width, cancelBox.height, 0x1b2940), 12).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    renderShopButtonChrome(this, cancel);
     this.add.text(cancelBox.x + cancelBox.width / 2, buttonLayout.labelY, 'CANCEL', { fontSize: `${F.name}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     cancel.on('pointerdown', () => { playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
     const sellBtn = roundRect(this.add.rectangle(sellBox.x, sellBox.y, sellBox.width, sellBox.height, 0x7a2e2a), 12).setOrigin(0, 0).setStrokeStyle(1, 0xd05c4e, 1).setInteractive({ useHandCursor: true });
+    renderShopButtonChrome(this, sellBtn);
     this.add.text(sellBox.x + sellBox.width / 2, buttonLayout.labelY, 'SELL', { fontSize: `${F.name}px`, color: '#ffffff', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     sellBtn.on('pointerdown', () => { doSell(); });
   }

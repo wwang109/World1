@@ -26,17 +26,19 @@ function prepareFrames(scene: Phaser.Scene): boolean {
 
 export function renderPaintedChrome(
   scene: Phaser.Scene, x: number, y: number, width: number, height: number,
-  options: { button?: boolean; compact?: boolean; borderOnly?: boolean; corner?: number } = {},
+  options: { button?: boolean; compact?: boolean; borderOnly?: boolean; corner?: number; shadow?: boolean } = {},
 ): Phaser.GameObjects.Container | undefined {
   if (!prepareFrames(scene)) return undefined;
   const corner = options.corner ?? (options.button ? Math.min(12, height / 3) : options.compact ? 20 : 24);
   const texture = scene.textures.get(PAINTED_CHROME_BORDER_ASSET.key);
   const edge = corner * texture.get('chrome-top').height / texture.get('chrome-tl').width;
   const group = scene.add.container(x, y).setName('painted-chrome');
-  const shadow = scene.add.graphics();
-  shadow.lineStyle(options.button ? 3 : 5, 0x000a10, 0.5);
-  shadow.strokeRoundedRect(2, 3, width - 2, height - 2, Math.min(6, corner / 3));
-  group.add(shadow);
+  if (options.shadow !== false) {
+    const shadow = scene.add.graphics();
+    shadow.lineStyle(options.button ? 3 : 5, 0x000a10, 0.5);
+    shadow.strokeRoundedRect(2, 3, width - 2, height - 2, Math.min(6, corner / 3));
+    group.add(shadow);
+  }
   const part = (name: string, px: number, py: number, w: number, h: number, alpha = 1) => {
     const key = name === 'center' ? PAINTED_CHROME_ASSET.key : PAINTED_CHROME_BORDER_ASSET.key;
     const image = scene.add.image(px, py, key, `chrome-${name}`).setOrigin(0).setDisplaySize(w, h).setAlpha(alpha);

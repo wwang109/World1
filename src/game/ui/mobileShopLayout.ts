@@ -40,7 +40,7 @@ export function closeMobileShopCardDetails(state: MobileShopBrowseState): Mobile
 export function mobileRunShopBrowseLayout(width: number, height: number, top = 6) {
   const edge = 6;
   const gap = 6;
-  const header: MobileShopBox = { x: edge, y: top, width: width - edge * 2, height: 48 };
+  const header: MobileShopBox = { x: edge, y: top, width: width - edge * 2, height: 100 };
   const tabY = header.y + header.height + gap;
   const tabWidth = (header.width - gap) / 2;
   const tabs = {
@@ -187,14 +187,16 @@ export function mobileShopShelfHeaderLayout(width: number, top: number): {
   contentTop: number;
 } {
   const height = MOBILE_PROFILE.minTap;
-  const back: MobileShopBox = { x: SIDE, y: top, width: 70, height };
-  const stock: MobileShopBox = { x: width - SIDE - 92, y: top, width: 92, height };
+  const inset = 12;
+  const controlY = top + inset;
+  const back: MobileShopBox = { x: SIDE + inset, y: controlY, width: 62, height };
+  const stock: MobileShopBox = { x: width - SIDE - inset - 104, y: controlY, width: 104, height };
   return {
     back,
     stock,
-    titleY: top + (height - MOBILE_PROFILE.font.lead) / 2,
-    labelY: top + height / 2,
-    contentTop: top + height + MOBILE_PROFILE.gap,
+    titleY: controlY + (height - MOBILE_PROFILE.font.lead) / 2,
+    labelY: controlY + height / 2,
+    contentTop: top + height + inset * 2 + MOBILE_PROFILE.gap,
   };
 }
 

@@ -19,6 +19,7 @@ import { attachButtonFeel } from './motion';
 import { renderRunBagTabs } from './runBagTabs';
 import { renderEquipmentLootPanel } from './equipmentLootPanel';
 import { renderRunMapChoiceViewport } from './runMapChoiceViewport';
+import { renderItemChrome } from './itemChrome';
 
 export function equipmentIcon(scene:Phaser.Scene,x:number,y:number,slot:EquipmentSlot,color=UI.chip):Phaser.GameObjects.Graphics {
   const g=scene.add.graphics().setPosition(x,y).lineStyle(2,color,1);
@@ -58,7 +59,8 @@ export abstract class EquipmentScreen extends Phaser.Scene {
     const inventory = currentEquipmentInventory(), equipped = currentEquippedEquipment(), resolution = currentEquipmentResolution();
     const selected = inventory.find(item => item.instanceId === this.selected) ?? inventory.find(item => item.itemId === 'duelist_knot') ?? inventory[0];
     if (selected) this.selected = selected.instanceId;
-    const gap = m ? 8 : 16, pad = m ? 0 : 12, x = r.x + pad, y = r.y + pad, w = r.width - pad * 2, h = r.height - pad * 2;
+    const gap = m ? 8 : 16, pad = m ? 0 : 12, tabBand = m ? 0 : 46;
+    const x = r.x + pad, y = r.y + pad + tabBand, w = r.width - pad * 2, h = r.height - pad * 2 - tabBand;
     const text = (tx: number, ty: number, value: string, width: number, size = m ? 12 : 17, color = UI.textBright, heading = false) =>
       this.add.text(tx, ty, value, { fontFamily: heading ? FONT.display : FONT.body, fontSize: `${size}px`, color, wordWrap: { width }, lineSpacing: m ? 3 : 7 });
     const modifierLine = (tx: number, ty: number, clause: string, width: number, size: number, color: string) => {
@@ -114,10 +116,11 @@ export abstract class EquipmentScreen extends Phaser.Scene {
     inventory.slice(this.page * perPage, (this.page + 1) * perPage).forEach((item, i) => {
       const tx = gridX + i % columns * (tileW + tileGap), ty = gridY + Math.floor(i / columns) * (tileH + tileGap), def = equipmentCatalog.item(item.itemId, item.itemVersion);
       const active = equipped.some(ref => ref.instanceId === item.instanceId), chosen = item.instanceId === this.selected;
-      const box = panel(tx, ty, tileW, tileH, chosen ? UI.chip : UI.border).setFillStyle(UI.slot, 0.65).setStrokeStyle(chosen ? 3 : 1, chosen ? UI.chip : UI.border, 0.9).setData('equipmentBagTile', true);
+      const box = panel(tx, ty, tileW, tileH).setFillStyle(UI.slot, 0.65).setStrokeStyle(0).setData('equipmentBagTile', true);
+      renderItemChrome(this, tx, ty, tileW, tileH, { variant: 'bag', selected: chosen });
       art(item.itemId, tx + (tileW - imageSize) / 2, ty + 6, imageSize, imageSize).setData('equipmentBagImageSize', imageSize);
       text(tx + 6, ty + imageSize + 12, `${def.name}${item.level ? ` +${item.level}` : ''}`, tileW - 12, m ? 9 : 13);
-      text(tx + 6, ty + tileH - (m ? 11 : 14), active ? 'EQUIPPED' : def.slot.toUpperCase(), tileW - 12, m ? 7 : 10, active ? '#9adb9e' : UI.textMuted);
+      text(tx + 6, ty + tileH - (m ? 16 : 20), active ? 'EQUIPPED' : def.slot.toUpperCase(), tileW - 12, m ? 7 : 10, active ? '#9adb9e' : UI.textMuted);
       if (active) { this.add.circle(tx + tileW - 13, ty + 13, 9, UI.chip); this.add.text(tx + tileW - 13, ty + 13, '\u2713', { fontSize: '13px', color: UI.textOnChip }).setOrigin(0.5); }
       box.setInteractive({ useHandCursor: true }).setData('equipmentItem', item.instanceId).on('pointerdown', () => select(item));
     });

@@ -11,6 +11,7 @@ import { GEM_ART_ASSETS } from '../ui/gemArt';
 import { CARD_TEMPLATE_BADGE_ASSETS } from '../ui/cardArtPresentation';
 import { EQUIPMENT_ART_ASSETS } from '../ui/equipmentArt';
 import { PAINTED_CHROME_ASSET, PAINTED_CHROME_BORDER_ASSET } from '../ui/paintedChrome';
+import { SHOP_BORDER_ART_ASSETS } from '../ui/shopBorderArt';
 import { installDevRunFixture } from '../runStore';
 import { buildDevEquipmentFixture, buildDevEquipmentTrackingFixture } from '../devLaunch';
 
@@ -121,6 +122,7 @@ export class BootScene extends Phaser.Scene {
     this.buildLoadingUi();
     this.load.image(PAINTED_CHROME_ASSET.key, PAINTED_CHROME_ASSET.path);
     this.load.image(PAINTED_CHROME_BORDER_ASSET.key, PAINTED_CHROME_BORDER_ASSET.path);
+    for (const asset of SHOP_BORDER_ART_ASSETS) this.load.image(asset.key, asset.path);
     this.load.image('card-template-parts', '/game-art/card-template-parts-transparent.png');
     for (const asset of CARD_TEMPLATE_BADGE_ASSETS) this.load.image(asset.key, asset.path);
     for (const asset of EQUIPMENT_ART_ASSETS) this.load.image(asset.key, asset.path);

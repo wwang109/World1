@@ -5,15 +5,19 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import { attachButtonFeel } from './motion';
 
 export function renderRunBagTabs(scene: Phaser.Scene, compact: boolean, active: 'cards' | 'equipment'): void {
-  const slot = runScreenLayoutRef(compact ? 'mobile' : 'desktop').actionSlots.secondary;
-  const width = (slot.width - 4) / 2;
+  const template = runScreenLayoutRef(compact ? 'mobile' : 'desktop');
+  const slot = compact ? template.actionSlots.secondary : {
+    x: template.regions.content.x, y: template.regions.content.y, width: 276, height: 34,
+  };
+  const gap = compact ? 4 : 12;
+  const width = (slot.width - gap) / 2;
   (['cards', 'equipment'] as const).forEach((tab, index) => {
     const selected = tab === active, fill = selected ? UI.chip : UI.panelAlt;
-    const x = slot.x + index * (width + 4);
+    const x = slot.x + index * (width + gap);
     const plate = scene.add.rectangle(x, slot.y, width, slot.height, fill).setOrigin(0)
       .setStrokeStyle(1, UI.chip).setData('bagTab', tab);
     const caption = scene.add.text(x + width / 2, slot.y + slot.height / 2, tab.toUpperCase(), {
-      fontFamily: FONT.body, fontSize: '8px', fontStyle: 'bold', color: selected ? UI.textOnChip : UI.textAccent,
+      fontFamily: FONT.body, fontSize: compact ? '8px' : '12px', fontStyle: 'bold', color: selected ? UI.textOnChip : UI.textAccent,
     }).setOrigin(0.5);
     if (!selected) {
       plate.setInteractive({ useHandCursor: true });

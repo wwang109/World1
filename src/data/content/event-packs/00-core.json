@@ -2524,6 +2524,47 @@
               }
             ]
           }
+        },
+        {
+          "version": 3,
+          "def": {
+            "title": "The Thorn Garden Shrine",
+            "theme": "cache",
+            "body": "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it.",
+            "choices": [
+              {
+                "id": "gather_thorns",
+                "label": "Gather the fallen thorns at the edge",
+                "cost": 0,
+                "outcome": {
+                  "kind": "grantGem"
+                }
+              },
+              {
+                "id": "push_through",
+                "label": "Push through the brambles",
+                "cost": 0,
+                "outcome": {
+                  "kind": "cardChoice",
+                  "filter": [
+                    {
+                      "archetypes": [
+                        "defensive"
+                      ]
+                    }
+                  ],
+                  "tier": "bronze"
+                }
+              },
+              {
+                "id": "leave_it",
+                "label": "Leave the shrine to the thorns",
+                "outcome": {
+                  "kind": "nothing"
+                }
+              }
+            ]
+          }
         }
       ]
     },

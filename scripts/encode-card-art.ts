@@ -76,6 +76,8 @@ const GROUPS: Group[] = [
     atlas: { file: 'illustrated-event-icons.png', columns: 3, names: ['gold','card','gamble','gem','level','nothing'] } },
   { name: 'card-badges', srcDir: 'art-src/ui/card-badges', outDir: 'public/game-art/ui/card-badges', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
     atlas: { file: 'illustrated-badges.png', columns: 4, names: ['sword','axe','lance','bow','fangs','fire','frost','lightning','nature','holy','dark','offense','defensive','healing','support','debuff'] } },
+  { name: 'shop-frame-jointed', srcDir: 'art-src/ui/shop-borders', outDir: 'public/game-art/ui/shop-borders', maxHeight: 512, quality: 0.96, trimTransparent: true,
+    atlas: { file: 'jointed-shop-frame-v3.png', columns: 1, names: ['jointed-shop-frame-v3'] } },
   { name: 'templates', srcDir: 'art-src/templates', outDir: 'public/game-art/template', maxHeight: 0, quality: 0.9, trimTransparent: true, outputSize: { width: 840, height: 1380 } },
   { name: 'gems', srcDir: 'art-src/ui/gems', outDir: 'public/game-art/ui/gems', maxHeight: 256, quality: 0.84 },
   { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.68 },
@@ -123,10 +125,12 @@ async function main(): Promise<void> {
         await img.decode();
         let left = 0, top = 0, sourceWidth = img.naturalWidth, sourceHeight = img.naturalHeight;
         if (atlas) {
-          sourceWidth = img.naturalWidth / atlas.columns;
-          sourceHeight = img.naturalHeight / atlas.rows;
-          left = (atlas.index % atlas.columns) * sourceWidth;
-          top = Math.floor(atlas.index / atlas.columns) * sourceHeight;
+          const column = atlas.index % atlas.columns;
+          const row = Math.floor(atlas.index / atlas.columns);
+          left = Math.round(column * img.naturalWidth / atlas.columns);
+          top = Math.round(row * img.naturalHeight / atlas.rows);
+          sourceWidth = Math.round((column + 1) * img.naturalWidth / atlas.columns) - left;
+          sourceHeight = Math.round((row + 1) * img.naturalHeight / atlas.rows) - top;
         }
         if (trimTransparent) {
           const source = document.createElement('canvas');

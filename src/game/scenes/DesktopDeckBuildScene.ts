@@ -865,7 +865,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.gemInventory.forEach((id, index) => {
       const gem = gemBook[id];
       if (!gem) return;
-      slots.push({ key: `pouch:${index}`, label: `POUCH ${index + 1}`, gem, action: {
+      slots.push({ key: `pouch:${index}`, label: `POUCH ${index + 1}`, gem, itemFrame: 'bag', action: {
         label: piece.gem ? 'SWAP' : 'SOCKET', enabled: true, onPress: () => {
           if (this.gemInventory[index] !== gem.id) return;
           const result = piece.gem ? swapGem(piece, gem) : { piece: socketGem(piece, gem), displaced: null };

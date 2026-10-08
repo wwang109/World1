@@ -19954,11 +19954,11 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 - Callback: none
 
 
-## `thorn_garden_shrine` · current version `2`
+## `thorn_garden_shrine` · current version `3`
 
 - Source pack: `src/data/content/event-packs/00-core.json`
-- Identity: `thorn_garden_shrine@v2`
-- Retained versions: v1 (schema 1), v2 (schema 1)
+- Identity: `thorn_garden_shrine@v3`
+- Retained versions: v1 (schema 1), v2 (schema 1), v3 (schema 1)
 - Draw: repeatable
 - Presentation title: "The Thorn Garden Shrine"
 - Presentation body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it."
@@ -19988,8 +19988,8 @@ These are stable, account-ready labels only. `accountStatus: future` means no ru
 
 #### Fixed choice 2: `push_through`
 
-- Presentation label: "Push through the brambles (1 gold)"
-- Cost: `1` gold
+- Presentation label: "Push through the brambles"
+- Cost: `0` gold
 - Typed outcome:
 
 ```json

@@ -10,9 +10,10 @@ import { GemToken } from './GemToken';
 import { gemChipLines, gemStandaloneRuleEntries } from './gemPresentation';
 import { renderDetailText } from './detailText';
 import { openRunModal, type RunModalLayout, type RunModalOptions } from './RunModal';
+import { renderItemChrome, type ItemFrameVariant } from './itemChrome';
 
 export interface GemDetailsAction { label: string; enabled: boolean; onPress(): void }
-export interface GemDetailsSlot { key: string; label: string; gem: GemDef; action?: GemDetailsAction }
+export interface GemDetailsSlot { key: string; label: string; gem: GemDef; action?: GemDetailsAction; itemFrame?: ItemFrameVariant }
 export interface GemDetailsOptions {
   compact: boolean; view?: DetailsRect; onClose(): void;
   primaryAction?: GemDetailsAction; slots?: readonly GemDetailsSlot[]; selectedKey?: string;
@@ -138,7 +139,9 @@ function renderGemDetailsBody(scene: Phaser.Scene, gem: GemDef | null, opts: Gem
     const label = text(x + 6, y + 6, slot.label, slotWidth - 12, 'label', UI.textAccent);
     const jewel = new GemToken(scene, x + 26, y + 58, slot.gem, { width: 40, height: 40 });
     const name = slotNames[index]!.setPosition(x + 52, y + 36);
-    content.add([bg, label, jewel, name]);
+    content.add(bg);
+    if (slot.itemFrame) content.add(renderItemChrome(scene, x, y, slotWidth, slotHeight, { variant: slot.itemFrame, selected: slot.key === opts.selectedKey }));
+    content.add([label, jewel, name]);
     let press: { x: number; y: number } | null = null;
     cancelPress.push(() => { press = null; });
     bg.on('pointerdown', (p: Phaser.Input.Pointer) => { if (inBody(p)) press = { x: p.worldX, y: p.worldY }; });

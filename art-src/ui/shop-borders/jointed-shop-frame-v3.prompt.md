@@ -1,0 +1,14 @@
+# Jointed shop frame v3
+
+Generated with the built-in image-generation tool. Construction reference: [Game frames by Yevhenii Movliev](https://yevhenii_movliev.artstation.com/projects/wJdVQ5). The reference was used for fitted bevel planes and directional light; its masks, horns, and diamond silhouettes were excluded.
+
+Runtime: one alpha WebP, stretched through a continuous eight-part grid with square, uniformly scaled corners. Panels use a 6–8px material face, buttons about 3–4px. Theme identity uses restrained material tint and a recessed inner accent; no skill cards receive this frame.
+
+## Exact generation prompt
+
+Use case: stylized-concept
+Asset type: one original production fantasy game UI frame sprite, square 1024x1024 composition with actual transparent background and hollow transparent center. Reference image 1 is a construction/material/lighting study only: study its continuous sculpted bevel and fitted corners; DO NOT copy the masks, horns, spikes or diamond silhouette.
+Primary request: craft one restrained, believable rectangular square frame made from aged neutral silver with subtle warm brass undertones. Four perfectly straight rails are physically joined by clean 45-degree miter joints at all four square corners. The face, outer lip, bevel highlights and dark recessed inner groove turn continuously around each corner, like one artisan fitted object. A small shallow chiseled detail at each joint belongs to the same material, no stuck-on ornaments. Front view, orthographic, precisely square with consistent rail cross-section.
+Construction for nine-slice: outer square nearly fills canvas with narrow transparent margin. Each rail is around 5 percent of canvas width. Corners confined to outer 15 percent. Middle 70 percent of each edge is perfectly straight and plain, with constant cross-section and consistent alignment into corner sections. No variation in rail thickness, no nodes or bulges along middle edges. The square inner opening is completely transparent. No painted fill or backdrop anywhere inside or outside frame.
+Depth and lighting: clear raised outer lip, broad angled metallic face, engraved recessed inner trim, tight soft contact shadow limited to inner edge. One upper-left light direction: upper and left bevel faces catch light; lower and right faces retain deeper shaded material. Natural hand-painted surface grain and small tool marks, restrained contrast, neutral light metal suitable for tasteful theme tinting. Depth comes from coherent bevel planes and shadow, not black outlines or glow.
+Avoid: clipart corner weapons, jewels, masks, horns, spikes, flames, vines, plastic chrome, colorful glow, fuzzy drop shadows, ornamental stickers, separate floating pieces, excessive engraving, text, logos, numbers, watermark, scene or storefront art, skewed perspective. This is one hollow transparent asset, not a gallery or screenshot.

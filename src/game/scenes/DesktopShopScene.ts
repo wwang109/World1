@@ -33,6 +33,8 @@ import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, textRoleFor, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { renderItemChrome } from '../ui/itemChrome';
+import { renderShopButtonChrome, renderShopChrome, renderShopHeaderAction, setShopChromeTheme, shopChromeContentBox } from '../ui/shopChrome';
 import { boxCenter, captionCell, captionCellHeight, DESKTOP_SHELF_CARD_TOKEN_H, SHELF_PRICE_STRIP_H, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
@@ -416,6 +418,7 @@ export class DesktopShopScene extends Phaser.Scene {
       this.renderGoldBalance();
     }
     const shopId = runShop ?? this.selectedShop;
+    setShopChromeTheme(this, shopId);
     if (shopId) {
       this.renderShelf(shopId);
       this.renderOwnedColumns(shopId);
@@ -514,6 +517,7 @@ export class DesktopShopScene extends Phaser.Scene {
         this.rerender();
       });
       addBrightRunArt(this, shopArtKey(id), { x: cx, y: gridTopRow, width: cellW, height: bannerH }, BRIGHT_ART_TREATMENT.storefront);
+      renderShopChrome(this, cx, gridTopRow, cellW, cellH, false, id);
       this.add.rectangle(cx, gridTopRow + bannerH, cellW, 1, UI.border, BRIGHT_ART_TREATMENT.storefront.dividerAlpha).setOrigin(0, 0);
       const tileTitle = this.add.text(cx + 16, gridTopRow + bannerH + 8, shop.name.toUpperCase(), {
         fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
@@ -534,6 +538,7 @@ export class DesktopShopScene extends Phaser.Scene {
       const fill = enabled ? UI.panelAlt : UI.panelMuted;
       const control = this.add.rectangle(box.x, box.y, box.width, box.height, fill, enabled ? 1 : 0.55)
         .setOrigin(0, 0).setStrokeStyle(1, enabled ? UI.chip : UI.border, enabled ? 0.8 : 0.4);
+      renderShopButtonChrome(this, control);
       const controlLabel = this.add.text(box.x + box.width / 2, layout.pager.labelY, label, {
         ...textRoleFor('desktop', 'label', { ink: enabled ? 'primary' : 'disabled' }),
       }).setOrigin(0.5);
@@ -581,11 +586,13 @@ export class DesktopShopScene extends Phaser.Scene {
       width: shelfRight - gx,
       height: SHOP_HEADER_H,
     }, { imageAlpha: 0.35, liftAlpha: 0.12 });
+    renderShopChrome(this, gx, top, shelfRight - gx, SHOP_HEADER_H);
 
     let titleX = gx;
     if (!runShop) {
       const backW = 90;
       const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderShopButtonChrome(this, back);
       this.add.text(gx + backW / 2, top + 14, '‹ SHOPS', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
       back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = gx + backW + 16;
@@ -605,37 +612,17 @@ export class DesktopShopScene extends Phaser.Scene {
     // A thin shop whose WHOLE pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
     // hide it behind a "FULL STOCK" label rather than inviting a wasted gold.
-    const rerollControl = desktopShopBannerControlLayout({
-      x: gx,
-      y: top,
-      width: shelfRight - gx,
-      height: SHOP_HEADER_H,
-    });
+    const rerollControl = desktopShopBannerControlLayout({ x: gx, y: top, width: shelfRight - gx, height: SHOP_HEADER_H }, 120, 32, 12);
     const rerollW = rerollControl.width;
     const rerollX = rerollControl.x;
     const rerollY = rerollControl.y;
-    if (info.fullStock) {
-      this.add.rectangle(rerollX, rerollY, rerollW, rerollControl.height, UI.panelMuted, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, 'FULL STOCK', {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
-      }).setOrigin(0.5);
-    } else {
-      // Run Mode's reroll cost escalates per node (1, 2, 3, 4… — see
-      // `currentShopRerollCost`); the sandbox shop has no run node to key
-      // off of and keeps its pre-existing flat 1-gold label/gate.
-      const cost = runShop ? currentShopRerollCost() : 1;
-      const canReroll = this.activeGold() >= cost;
-      const reroll = this.add.rectangle(rerollX, rerollY, rerollW, rerollControl.height, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
-        .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(rerollX + rerollW / 2, rerollY + rerollControl.height / 2, cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost} G`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
-      }).setOrigin(0.5);
-      if (canReroll) {
-        reroll.setInteractive({ useHandCursor: true });
-        reroll.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
-      }
-    }
-
+    const cost = runShop ? currentShopRerollCost() : 1;
+    const canReroll = !info.fullStock && this.activeGold() >= cost;
+    renderShopHeaderAction(this, rerollControl, {
+      label: info.fullStock ? 'FULL STOCK' : cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost} G`,
+      enabled: canReroll, fill: UI.chip, fontSize: F.small,
+      onPress: () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
+    });
     const mergeX = this.renderMergeSlotButton(shopId, rerollX - 8, rerollY, rerollW, rerollControl.height);
     const titleWrapW = Math.max(80, mergeX - 16 - (titleX + 8));
     titleText.setWordWrapWidth(titleWrapW);
@@ -649,8 +636,11 @@ export class DesktopShopScene extends Phaser.Scene {
     // is what makes the shelf immune to overflow regardless of offer count.
     const viewportTop = rowTop;
     const viewportH = Math.max(40, footerTop - OWNED_COL_GAP - viewportTop);
-    this.shelfViewport = { x: gx, y: viewportTop, width: shelfRight - gx, height: viewportH };
+    const shelfFrame = { x: gx - 3, y: viewportTop - 3, width: shelfRight - gx + 6, height: viewportH + 6 };
+    this.shelfViewport = shopChromeContentBox(shelfFrame);
+    const content = this.shelfViewport;
 
+    renderShopChrome(this, shelfFrame.x, shelfFrame.y, shelfFrame.width, shelfFrame.height);
     const container = this.add.container(0, this.shelfScrollY);
     bindShopShelfMaskSync(container);
     this.shelfContainer = container;
@@ -660,15 +650,15 @@ export class DesktopShopScene extends Phaser.Scene {
     // `sectionTop` threads from the CARDS block into the GEMS block below it
     // — whichever sections exist stack with a consistent margin, and an
     // absent section (a shop with 0 of either) costs no space at all.
-    let sectionTop = rowTop;
+    let sectionTop = content.y;
 
     // cardCols/gemCols cap at the shop's WHOLE pool size, so a thin theme
     // (e.g. a 1-card element stall) never renders permanent dead "SOLD OUT"
     // gaps — only genuinely transient ones (bought out mid-visit) show up.
     const cardCols = info.cardSlots;
-    const offerGrid = desktopShopOfferGridLayout(shelfRight - gx, viewportH, cardCols, info.gemSlots, Boolean(this.embedded));
+    const offerGrid = desktopShopOfferGridLayout(content.width, content.height, cardCols, info.gemSlots, Boolean(this.embedded));
     if (cardCols > 0) {
-      A(this.add.text(gx, sectionTop, `CARDS · ${shelf.cards.length}/${cardCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
+      A(this.add.text(content.x, sectionTop, `CARDS · ${shelf.cards.length}/${cardCols}`, { backgroundColor: `#${UI.bg.toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
       sectionTop += F.tiny + 8;
       // Denser grid: wrap past N offers into further rows instead of one
       // ever-widening single row — the deepest-stocked shop (Caravan, 6
@@ -680,9 +670,9 @@ export class DesktopShopScene extends Phaser.Scene {
       const gridCols = offerGrid.cardColumns;
       const rows = offerGrid.cardRows;
       const cardGap = DESKTOP_LAYOUT.gap;
-      const cardW = (shelfRight - gx - cardGap * (gridCols - 1)) / gridCols;
+      const cardW = (content.width - cardGap * (gridCols - 1)) / gridCols;
       const rowW = gridCols * cardW + (gridCols - 1) * cardGap;
-      const rowX = gx + (shelfRight - gx - rowW) / 2;
+      const rowX = content.x + (content.width - rowW) / 2;
       const cardH = offerGrid.cardHeight || DESKTOP_SHELF_CARD_TOKEN_H;
       // The price strip is a RESERVED band under the card, never a chip on it
       // — `ui/cardCellLayout.ts`. This shelf has always worked that way (which
@@ -731,15 +721,15 @@ export class DesktopShopScene extends Phaser.Scene {
 
     const gemCols = info.gemSlots;
     if (gemCols > 0) {
-      A(this.add.text(gx, sectionTop, `GEMS · ${shelf.gems.length}/${gemCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
+      A(this.add.text(content.x, sectionTop, `GEMS · ${shelf.gems.length}/${gemCols}`, { backgroundColor: `#${UI.bg.toString(16).padStart(6, '0')}`, fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }));
       sectionTop += F.tiny + 8;
       // The selected desktop design keeps a two-column gem shelf below the
       // two-column card shelf; only row height changes on shorter panels.
       const gridCols = offerGrid.gemColumns;
       const gemGap = DESKTOP_LAYOUT.gap;
-      const gemW = (shelfRight - gx - gemGap * (gridCols - 1)) / gridCols;
+      const gemW = (content.width - gemGap * (gridCols - 1)) / gridCols;
       const gemRowW = gridCols * gemW + (gridCols - 1) * gemGap;
-      const gemRowX = gx + (shelfRight - gx - gemRowW) / 2;
+      const gemRowX = content.x + (content.width - gemRowW) / 2;
       const gemH = offerGrid.gemHeight;
       const gemRowStride = gemH + offerGrid.rowGap;
       for (let i = 0; i < gemCols; i++) {
@@ -790,14 +780,14 @@ export class DesktopShopScene extends Phaser.Scene {
     }
 
     if (cardCols === 0 && gemCols === 0) {
-      A(this.add.text(gx, rowTop, 'This shop has nothing to sell.', {
+      A(this.add.text(content.x, content.y, 'This shop has nothing to sell.', {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
       }));
     }
 
     container.add(created);
-    const contentH = sectionTop - rowTop;
-    this.shelfMaxScroll = Math.max(0, contentH - viewportH);
+    const contentH = sectionTop - content.y;
+    this.shelfMaxScroll = Math.max(0, contentH - content.height);
     this.shelfScrollY = Phaser.Math.Clamp(this.shelfScrollY, -this.shelfMaxScroll, 0);
     container.setY(this.shelfScrollY);
 
@@ -908,9 +898,14 @@ export class DesktopShopScene extends Phaser.Scene {
     const colBottom = footerY - OWNED_COL_GAP;
     const colH = Math.max(80, colBottom - colTop);
     const rowGap = OWNED_ROW_GAP;
-    const rowH = (colH - rowGap * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
+    const boardContent = shopChromeContentBox({ x: boardX - 3, y: colTop - 3, width: boardW + 6, height: colH + 6 });
+    const bagContent = shopChromeContentBox({ x: bagX - 3, y: colTop - 3, width: bagW + 6, height: colH + 6 });
+    const rowH = (boardContent.height - rowGap * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
 
     this.add.rectangle(boardX, labelY, boardW, headerH, UI.panelAlt, 0.96).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
+    renderShopChrome(this, boardX - 3, colTop - 3, boardW + 6, colH + 6);
+    renderShopChrome(this, bagX - 3, colTop - 3, bagW + 6, colH + 6);
+    renderShopChrome(this, boardX, labelY, boardW, headerH);
     this.add.text(boardX + 12, labelY + headerH / 2, `YOUR BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     }).setOrigin(0, 0.5);
@@ -927,6 +922,7 @@ export class DesktopShopScene extends Phaser.Scene {
       const label = this.add.text(x + tabW / 2, labelY + headerH / 2, tab.label, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textAccent,
       }).setOrigin(0.5);
+      renderShopButtonChrome(this, box);
       auditControlLabel(box, label, { name: `Desktop shop ${tab.id} tab`, horizontalPadding: 10, verticalPadding: 6, minFontSize: 9 });
       box.on('pointerup', () => {
         if (this.inventoryTab === tab.id) return;
@@ -952,10 +948,10 @@ export class DesktopShopScene extends Phaser.Scene {
       boardSkills.push(skill);
     }
     const boardCol = new BoardColumn(this, {
-      x: boardX, y: colTop, width: boardW, height: colH, side: 'left',
+      x: boardContent.x, y: boardContent.y, width: boardContent.width, height: boardContent.height, side: 'left',
       slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: boardPieces, deck: boardSkills,
     });
-    this.wireColumnDraggables(boardCol, boardX, colTop, boardW, rowH, rowGap, (slot) => {
+    this.wireColumnDraggables(boardCol, boardContent.x, boardContent.y, boardContent.width, rowH, rowGap, (slot) => {
       const piece = this.pieces.find((p) => p.slot === slot);
       if (!piece || !skillBook[piece.skillId]) return null;
       return { size: this.sizeOf(piece.skillId), src: { kind: 'board', index: this.pieces.indexOf(piece) } };
@@ -974,36 +970,37 @@ export class DesktopShopScene extends Phaser.Scene {
         bagSkills.push(skill);
       });
       const bagCol = new BoardColumn(this, {
-        x: bagX, y: colTop, width: bagW, height: colH, side: 'right',
+        x: bagContent.x, y: bagContent.y, width: bagContent.width, height: bagContent.height, side: 'right',
         slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: bagPieces, deck: bagSkills,
       });
-      this.wireColumnDraggables(bagCol, bagX, colTop, bagW, rowH, rowGap, (slot) => {
+      this.wireColumnDraggables(bagCol, bagContent.x, bagContent.y, bagContent.width, rowH, rowGap, (slot) => {
         const card = this.bagSlots[slot];
         if (!card || !skillBook[card.skillId]) return null;
         return { size: this.sizeOf(card.skillId), src: { kind: 'bag', index: slot } };
       });
     } else {
-      this.renderOwnedGemInventory(bagX, colTop, bagW, colH);
+      this.renderOwnedGemInventory(bagContent.x, bagContent.y, bagContent.width, bagContent.height);
     }
 
     const rowX = gx;
     const rowW = areaRight - gx;
     const sellRect = new Phaser.Geom.Rectangle(rowX, footerY, rowW, SELL_ZONE_H);
     this.sellZoneRectObj = this.add.rectangle(rowX, footerY, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
+    renderShopButtonChrome(this, this.sellZoneRectObj);
     this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, footerY + SELL_ZONE_H / 2, 'SELL ZONE — drag a card or gem here', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: BAD_HEX,
     }).setOrigin(0.5);
 
-    this.ownedColumns = { boardX, bagX, boardW, bagW, colTop, rowH, rowGap, sellRect };
+    this.ownedColumns = { boardX: boardContent.x, bagX: bagContent.x, boardW: boardContent.width, bagW: bagContent.width, colTop: boardContent.y, rowH, rowGap, sellRect };
 
     // One-shot invalid-drop flash — read + cleared here so it never survives
     // past the single rebuild it was set for.
     if (this.invalidFlash) {
       const flash = this.invalidFlash;
       this.invalidFlash = null;
-      const fx = flash.where === 'board' ? boardX : bagX;
-      const fw = flash.where === 'board' ? boardW : bagW;
-      const fy = colTop + flash.index * (rowH + rowGap);
+      const fx = flash.where === 'board' ? boardContent.x : bagContent.x;
+      const fw = flash.where === 'board' ? boardContent.width : bagContent.width;
+      const fy = boardContent.y + flash.index * (rowH + rowGap);
       const overlay = this.add.rectangle(fx, fy, fw, rowH, UI.bad, 0.6).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 1);
       this.tweens.add({ targets: overlay, alpha: 0, duration: 420, onComplete: () => overlay.destroy() });
     }
@@ -1098,7 +1095,7 @@ export class DesktopShopScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
       wordWrap: { width: width - 24 }, maxLines: 2,
     });
-    tile.add([bg, mark, name, effect]);
+    tile.add([bg, renderItemChrome(this, 0, 0, width, height, { variant: 'bag' }), mark, name, effect]);
     return tile;
   }
 
@@ -1352,6 +1349,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const btnY = bottom - 56;
     const btn = this.add.rectangle(centerX, btnY, pw - 40, 40, canBuy ? UI.chip : UI.panelMuted, canBuy ? 1 : 0.5)
       .setOrigin(0.5, 0).setStrokeStyle(1, UI.border, canBuy ? 1 : 0.4);
+    renderShopButtonChrome(this, btn);
     const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
     this.add.text(centerX, btnY + 20, label, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: canBuy ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);
     if (canBuy) {
@@ -1823,6 +1821,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const bh = mergeTarget ? contentY + 64 : 180;
     const bx = this.viewWidth / 2 - bw / 2; const by = this.viewHeight / 2 - bh / 2;
     panel.setPosition(bx, by).setSize(bw, bh);
+    renderShopChrome(this, bx, by, bw, bh);
     mergeContent.forEach(text => text.setPosition(bx + text.x, by + text.y));
     const headline = dest
       ? `BUY → ${dest.where.toUpperCase()} SLOT ${dest.slot + 1} · ${price} GOLD`
@@ -1885,6 +1884,7 @@ export class DesktopShopScene extends Phaser.Scene {
     buttons.forEach((b, i) => {
       const dx = bx + margin + i * (btnW + gap);
       const r = this.add.rectangle(dx, btnY, btnW, 44, b.fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderShopButtonChrome(this, r);
       // The BOARD/BAG columns now sit directly under this dialog, so this
       // exact click would otherwise also be reprocessed as a board/bag tap
       // once `b.fn()`'s `rerender()` closes it — `wasPointerConsumedByRebuild`
@@ -1922,20 +1922,10 @@ export class DesktopShopScene extends Phaser.Scene {
     const affordable = !runMode || this.activeGold() >= price;
     const enabled = available && hasTarget && affordable;
     const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE CARD · ${price} G`;
-    const btn = this.add.rectangle(0, y, minW, h, enabled ? UI.good : UI.panelMuted, enabled ? 1 : 0.5)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, enabled ? 1 : 0.4);
-    const text = this.add.text(0, y + h / 2, label, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: enabled ? UI.textOnChip : UI.textSoft,
-    }).setOrigin(0.5);
-    const w = Math.max(minW, Math.ceil(text.width) + 24);
-    const x = right - w;
-    btn.setPosition(x, y).setSize(w, h);
-    text.setX(x + w / 2);
-    if (enabled) {
-      btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); });
-    }
-    return x;
+    return renderShopHeaderAction(this, { x: right - minW, y, width: minW, height: h }, {
+      label, enabled, fill: UI.good, fontSize: F.small, growLeft: true,
+      onPress: () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
+    }).x;
   }
 
   private renderMergeSlotChooser(): void {
@@ -2038,9 +2028,11 @@ export class DesktopShopScene extends Phaser.Scene {
     const btnW = (bw - margin * 2 - gap) / 2;
     const btnY = by + bh - 64;
     const cancel = this.add.rectangle(bx + margin, btnY, btnW, 44, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    renderShopButtonChrome(this, cancel);
     this.add.text(bx + margin + btnW / 2, btnY + 22, 'CANCEL', { fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     cancel.on('pointerdown', () => { playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
     const sellBtn = this.add.rectangle(bx + margin + btnW + gap, btnY, btnW, 44, UI.bad).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 1).setInteractive({ useHandCursor: true });
+    renderShopButtonChrome(this, sellBtn);
     this.add.text(bx + margin + btnW + gap + btnW / 2, btnY + 22, 'SELL', { fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     sellBtn.on('pointerdown', () => { doSell(); });
   }
