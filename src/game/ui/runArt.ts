@@ -19,6 +19,14 @@ export * from './runArtKeys';
  * placeholder would be conspicuous.
  */
 export const RUN_ART_ASSETS = [
+  { key: RUN_ART_KEYS.enemy.giant_rat, path: '/game-art/enemies/giant-rat-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.stone_beetle, path: '/game-art/enemies/stone-beetle-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.ember_imp, path: '/game-art/enemies/ember-imp-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.wolf_king, path: '/game-art/enemies/wolf-king-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.pike_conscript, path: '/game-art/enemies/pike-conscript-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.toxic_druid, path: '/game-art/enemies/toxic-druid-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.cleric, path: '/game-art/enemies/cleric-v1.webp' },
+  { key: RUN_ART_KEYS.enemy.greenwood_sovereign, path: '/game-art/enemies/greenwood-sovereign-v1.webp' },
   { key: RUN_ART_KEYS.shopBanner, path: '/game-art/placeholders/shop-banner.webp' },
   { key: RUN_ART_KEYS.runMap, path: '/game-art/placeholders/run-map.webp' },
   { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/ui/event-icons/card.webp' },
@@ -162,6 +170,19 @@ export function addRunArt(
     .setCrop(geometry.cropX, geometry.cropY, geometry.cropWidth, geometry.cropHeight)
     .setScale(geometry.scaleX, geometry.scaleY)
     .setAlpha(alpha);
+}
+
+export function addEnemyPortrait(
+  scene: Phaser.Scene,
+  key: string,
+  bounds: { x: number; y: number; width: number; height: number },
+  alpha = 1,
+): Phaser.GameObjects.Image | undefined {
+  if (!scene.textures.exists(key)) return undefined;
+  const source = scene.textures.get(key).getSourceImage();
+  const scale = Math.min(bounds.width * 0.96 / source.width, bounds.height * 0.96 / source.height);
+  return scene.add.image(bounds.x + bounds.width / 2, bounds.y + bounds.height, key)
+    .setOrigin(0.5, 1).setScale(scale).setAlpha(alpha);
 }
 
 export function driftRunArt(

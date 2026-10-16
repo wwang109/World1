@@ -10,7 +10,7 @@ import type { RunNode, RunNodeKind, RunState } from '../../run/runState';
 import { GEM_RARITY_COLOR, INK, UI, type InkRole } from '../theme';
 import { counterTypeColor } from './bandBannerViewModel';
 import { eventThemeBlurb } from './eventThemeBlurb';
-import { biomeArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
+import { biomeArtKey, enemyPortraitArtKey, eventArtKey, RUN_ART_KEYS, shopArtKey } from './runArtKeys';
 import { shopMapFooter } from './shopMapFooter';
 import { isEquipmentEvent } from './equipmentEventCategory';
 import { encounterLootChances, trackedEncounterLoot, trackedEventLoot, type EquipmentLootChance } from './equipmentLootTrackingModel';
@@ -37,6 +37,7 @@ export interface RunTravelChoiceViewModel {
    * segment instead of tinting `footer` as a single run. */
   footerSegments?: readonly RunTravelChoiceFooterSegment[];
   artKey?: string;
+  portraitArtKey?: string;
   categoryIconKey?: string;
   accent: number;
   enabled: boolean;
@@ -111,6 +112,7 @@ export function buildRunTravelChoiceViewModel(
   }
   if (node.kind === 'fight' || node.kind === 'boss') {
     const biome = biomeFor(state.seed, node.wave, node.biomeId);
+    const portraitArtKey = encounter?.units[0] ? enemyPortraitArtKey(encounter.units[0].enemyId) : undefined;
     const showsEncounter = node.kind === 'fight' && encounter !== null;
     const reward = showsEncounter ? (() => {
       const won = mapFightGoldReward(node.fightOption, false);
@@ -123,7 +125,8 @@ export function buildRunTravelChoiceViewModel(
       detail: encounter ? encounterHintDetail(encounter, node.kind === 'fight' ? node.fightOption : undefined) : '',
       ...(reward ? { footer: reward, footerInk: 'gain' as const } : {}),
       ...(showsEncounter ? { artKey: biomeArtKey(biome.id) } : {}),
-      ...(node.kind === 'boss' ? { artKey: RUN_ART_KEYS.icon.bossSkull } : {}),
+      ...(node.kind === 'boss' ? { artKey: portraitArtKey ? biomeArtKey(biome.id) : RUN_ART_KEYS.icon.bossSkull } : {}),
+      ...(portraitArtKey ? { portraitArtKey } : {}),
       ...(encounter ? { trackedLoot: trackedEncounterLoot(encounter.units.map(unit => unit.enemyId)) } : {}),
       ...(encounter ? { equipmentDrops: encounterLootChances(encounter.units.map(unit => unit.enemyId)) } : {}),
     };

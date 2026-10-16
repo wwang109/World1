@@ -11,6 +11,7 @@ import { applyCast, dealDamage, targetInfoForCast, tickRegen, type Ctx } from '.
 import { cursorPiece } from './splash';
 import { cardType } from './typeIdentity';
 import { passiveSummaryText } from '../passives/text';
+import { passiveEffectHandler } from '../passives/registry';
 
 export interface CombatResult {
   result: CombatOutcome;
@@ -212,6 +213,29 @@ function lowestInitiativeFirst(units: CombatantState[]): CombatantState[] {
  * deals 2 × the current stack count, then stacks HALVE (floored) — burn 8
  * ticks 16, 8, 4, 2. Either pile expires at 0 stacks.
  */
+function tickFuses(ctx: Ctx, c: CombatantState): void {
+  if (!c.statuses.some((status) => status.kind === 'fuse')) return;
+  const remaining: typeof c.statuses = [];
+  for (const status of c.statuses) {
+    if (status.kind !== 'fuse' || status.fresh) {
+      remaining.push(status);
+      continue;
+    }
+    status.turnsLeft -= 1;
+    if (status.turnsLeft > 0) {
+      remaining.push(status);
+      continue;
+    }
+    if (c.alive) {
+      ctx.source = status.source;
+      dealDamage(ctx, c, status.amount ?? 0, status.property ?? 'true', { source: 'fuse' });
+      ctx.source = undefined;
+    }
+    ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: 'fuse' });
+  }
+  c.statuses = remaining;
+}
+
 function tickTurnDot(ctx: Ctx, c: CombatantState, kind: 'poison' | 'burn'): void {
   const remaining: typeof c.statuses = [];
   for (const status of c.statuses) {
@@ -393,19 +417,12 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   }
   for (const team of [state.playerTeam, state.enemyTeam]) for (const unit of team) {
     if (!unit.alive) continue;
-    for (const effect of unit.preparedPassives?.setupEffects ?? []) {
-      const before = unit.shields.physical + unit.shields.magical + unit.shields.true;
-      const poolBefore = unit.shields[effect.property];
-      const amount = Math.min(effect.amount, Math.max(0, unit.stats.maxHp - before));
-      unit.shields[effect.property] += amount;
-      const receipt = unit.preparedPassives!.receipts.find(entry => entry.source === effect.source)!;
-      receipt.changes.push({ field: 'setupShield', property: effect.property, before: poolBefore,
-        after: unit.shields[effect.property], amount: effect.amount, stage: 'setup', basis: 'startingShieldPool' });
+    for (const queued of unit.preparedPassives?.setupEffects ?? []) {
+      const { change, event } = passiveEffectHandler(queued.effect).setup!(queued.effect, unit, queued.source);
+      const receipt = unit.preparedPassives!.receipts.find(entry => entry.source === queued.source)!;
+      receipt.changes.push(change);
       receipt.displayText = passiveSummaryText(receipt);
-      setupEvents.push({ turn: 0, kind: 'shieldGain', side: unit.side, unit: unit.index,
-        property: effect.property, amount, wasted: effect.amount - amount,
-        totalAfter: before + amount, poolsAfter: { ...unit.shields },
-        calculation: { power: effect.amount, statBonus: 0 }, sourcePassive: effect.source });
+      if (event) setupEvents.push(event);
     }
   }
   for (const team of [state.playerTeam, state.enemyTeam]) for (const unit of team) {
@@ -621,6 +638,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.readiness -= choice.weight;
         c.castCursor = cursorAfter;
         choice.piece.lastCastTurn = state.turn;
+        choice.piece.castCount = (choice.piece.castCount ?? 0) + 1;
         const effectStart = events.length;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, { before: cursorBefore, after: cursorAfter }, choice.auraSources);
         const firstHit = events.slice(effectStart).find(
@@ -743,6 +761,8 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     // unit at a time in canonical order, stopping at the tick that wipes a side.
     beginStep();
     outcome = sweep(units, (c) => tickTurnDot(ctx, c, 'poison'));
+    if (outcome !== null) return finish(outcome);
+    outcome = sweep(units, (c) => tickFuses(ctx, c));
     if (outcome !== null) return finish(outcome);
     for (const c of units) tickRegen(ctx, c);
 

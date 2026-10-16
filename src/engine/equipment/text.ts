@@ -1,5 +1,6 @@
 import { EQUIPMENT_EFFECT_KEYS, EQUIPMENT_EFFECT_REGISTRY, EQUIPMENT_SELECTOR_KEYS, EQUIPMENT_SELECTOR_REGISTRY, EQUIPMENT_STAT_KEYS, EQUIPMENT_STAT_REGISTRY } from './registry';
 import type { EquipmentDef, EquipmentEffectMods, EquipmentSetDef, EquipmentStatMods } from './types';
+import { describePassiveEffect } from '../passives/text';
 
 export function equipmentModifierClauses(stats: EquipmentStatMods = {}, effects: EquipmentEffectMods = {}): string[] {
   return [
@@ -8,7 +9,7 @@ export function equipmentModifierClauses(stats: EquipmentStatMods = {}, effects:
   ];
 }
 export function equipmentItemText(item: EquipmentDef): string {
-  return equipmentModifierClauses(item.statMods).join(' · ');
+  return [...equipmentModifierClauses(item.statMods), ...(item.passives ?? []).map(describePassiveEffect)].join(' · ');
 }
 export function equipmentSetText(set: EquipmentSetDef): { requirement: string; bonuses: readonly string[] } {
   const match = set.boardRequirement.match;

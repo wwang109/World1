@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
+import { hasNothingToCast, weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, TIER_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
@@ -13,6 +13,7 @@ import { syncCardArtMask } from './cardTokenArtMask';
 import { driftCardArt } from './cardArtDrift';
 import { makeTokenCardBody } from './fantasyCardPrintedBody';
 import { fantasyCardRulesRows } from './fantasyCardRulesRows';
+import { getFantasyCardTierSkin } from './fantasyCardTierSkins';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -49,17 +50,7 @@ export interface CardTokenOptions {
   faceMode?: SkillFaceMode;
   /** Badges for the accessory rail (rendered bottom-up on the inward edge). */
   accessories?: TokenAccessory[];
-  /**
-   * This card INSTANCE's tier (bronze/silver/gold/diamond) — when supplied,
-   * the token's outer frame is stroked in `TIER_COLOR[tier]` instead of the
-   * generic outline, so tier reads at a glance without opening the inspect
-   * dock. Optional and additive: omitted by any caller with no per-instance
-   * tier handy (a bare unowned `SkillDef`, e.g. deck build's "available
-   * skills" list) — those keep today's generic-colored frame, just at the
-   * same slightly thicker weight every token now draws (see the stroke width
-   * below). Callers that DO track an instance tier (shop shelf offers, owned
-   * board/bag pieces) should pass it.
-   */
+  /** Instance tier; renders a metallic rim above the art when supplied. */
   tier?: SkillTier;
   /** Looping highlight sweep; the shop sets it on shelf offers that can merge. */
   shine?: boolean;
@@ -230,13 +221,8 @@ export class CardToken extends Phaser.GameObjects.Container {
     const { width: w, height: h } = opts;
     this.cornerRadius = ACTIVE_PROFILE.id === 'mobile' ? Math.min(12, h / 4) : 0;
     const side = opts.side ?? 'left';
-    const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0, Boolean(opts.onInspect));
+    const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0, Boolean(opts.onInspect), Boolean(opts.tier));
 
-    // background panel. Frame stroke is TIER-colored whenever an instance
-    // tier is known (see `CardTokenOptions.tier`); a bump from 1px to 2px
-    // ("slight", not a slab — see that field's doc comment) applies either
-    // way, so every token reads a touch crisper even where tier isn't wired
-    // up yet. `cursor`/`drag` state below still overrides this outright.
     const frameColor = opts.tier ? TIER_COLOR[opts.tier] : (UI.battleOutline ?? 0x24344a);
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(2, frameColor, opts.tier ? 0.95 : 0.9);
     if (this.cornerRadius) roundRect(bg, this.cornerRadius);
@@ -293,10 +279,11 @@ export class CardToken extends Phaser.GameObjects.Container {
       : skill.weapon
         ? (WEAPON_COLOR[skill.weapon] ?? PROPERTY_COLOR[skill.property])
         : PROPERTY_COLOR[skill.property];
-    const accent = scene.add.rectangle(spec.accent.x, 0, spec.accent.width, h, accentColor).setOrigin(0.5);
+    const accent = scene.add.rectangle(spec.accent.x, 0, spec.accent.width, spec.accent.height, accentColor).setOrigin(0.5);
     if (this.cornerRadius) accent.setMask(artMask);
     this.add(accent);
     if (opts.shine) this.addShine(scene, w, h, artMask);
+    if (opts.tier) this.addTierFrame(scene, w, h, opts.tier, spec, opts.state);
 
     // text block: NAME · effects summary · affinity(n/3) — all from data,
     // positioned/clamped by the spec's line entries.
@@ -399,9 +386,11 @@ export class CardToken extends Phaser.GameObjects.Container {
     // always renders — unlike the accessory rail, which computes zero slots at
     // mobile card widths and so cannot carry a battle overlay at all.
     const burden = opts.slotMods?.burden ?? 0;
-    scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${Math.max(1, (opts.preparedWeight ?? weightOf(skill)) + burden)}`, {
-      fontSize: '9px', color: burden > 0 ? keywordTextColor('burden')! : '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(spec.cornerOriginX, 1));
+    if (!hasNothingToCast(skill)) {
+      scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${Math.max(1, (opts.preparedWeight ?? weightOf(skill)) + burden)}`, {
+        fontSize: '9px', color: burden > 0 ? keywordTextColor('burden')! : '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(spec.cornerOriginX, 1));
+    }
 
     // accessory rail — gem sockets / tier plates / future attachments.
     this.renderAccessories(scene, spec, opts.accessories ?? []);
@@ -411,7 +400,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       this.renderInspectButton(scene, spec.inspectButton, opts.onInspect);
     }
 
-    if (opts.state === 'cursor' || opts.state === 'drag') {
+    if (!opts.tier && (opts.state === 'cursor' || opts.state === 'drag')) {
       bg.setStrokeStyle(3, 0xe8b446, 1);
     }
     // Playback cursor badge: gold "▶ NEXT" chip, bottom-outward corner,
@@ -430,6 +419,42 @@ export class CardToken extends Phaser.GameObjects.Container {
     }
     this.setSize(w, h);
     scene.add.existing(this);
+  }
+
+  private addTierFrame(
+    scene: Phaser.Scene, width: number, height: number, tier: SkillTier,
+    spec: CardTokenSpec, state: CardTokenOptions['state'],
+  ): void {
+    const frame = spec.tierFrame;
+    if (!frame) return;
+    const skin = getFantasyCardTierSkin(tier);
+    const rim = scene.add.graphics().setName('card-token-tier-frame');
+    const stroke = (inset: number, thickness: number, color: number, alpha = 1): void => {
+      rim.lineStyle(thickness, color, alpha);
+      const x = -width / 2 + inset;
+      const y = -height / 2 + inset;
+      const w = width - inset * 2;
+      const h = height - inset * 2;
+      if (this.cornerRadius) rim.strokeRoundedRect(x, y, w, h, Math.max(0, this.cornerRadius - inset));
+      else rim.strokeRect(x, y, w, h);
+    };
+    stroke(frame.thickness / 2, frame.thickness, skin.trimColor);
+    stroke(frame.seam / 2, frame.seam, 0x0b1420);
+    stroke(frame.thickness - frame.seam / 2, frame.seam, skin.frameColor);
+    const inset = frame.seam * 1.5;
+    const x = width / 2 - inset;
+    const y = height / 2 - inset;
+    const corner = Math.max(this.cornerRadius - inset, frame.thickness);
+    rim.lineStyle(frame.seam, skin.accentColor);
+    rim.lineBetween(-x + corner, -y, x - corner, -y);
+    rim.lineBetween(-x, -y + corner, -x, y - corner);
+    rim.lineStyle(frame.seam, skin.frameColor);
+    rim.lineBetween(-x + corner, y, x - corner, y);
+    rim.lineBetween(x, -y + corner, x, y - corner);
+    if (state === 'cursor' || state === 'drag') {
+      stroke(frame.thickness + frame.focusGap, frame.seam, 0xffffff, 0.95);
+    }
+    this.add(rim);
   }
 
   private addShine(scene: Phaser.Scene, w: number, h: number, mask: Phaser.Display.Masks.GeometryMask): void {

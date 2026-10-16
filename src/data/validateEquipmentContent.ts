@@ -1,5 +1,9 @@
 import { EQUIPMENT_EFFECT_KEYS, EQUIPMENT_SELECTOR_KEYS, EQUIPMENT_SELECTOR_REGISTRY, EQUIPMENT_STAT_KEYS } from '../engine/equipment/registry';
 import { EQUIPMENT_SLOTS, type EquipmentDocument } from '../engine/equipment/types';
+import { validatePassiveRecipe } from '../engine/passives/validate';
+import type { Rarity } from '../engine/types';
+
+const RARITIES: readonly Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 
 export interface EquipmentContentProblem { where: string; message: string }
 function record(value: unknown): value is Record<string, unknown> {
@@ -49,11 +53,21 @@ export function validateEquipmentDocument(input: unknown): EquipmentContentProbl
         }
         const def = version.def;
         const defAt = `${path}.def`;
-        if (!object(def, kind === 'items' ? ['name', 'slot', 'setId', 'statMods', 'dropEligibility'] : ['name', 'boardRequirement', 'bonuses'], defAt)) return;
+        if (!object(def, kind === 'items' ? ['name', 'slot', 'rarity', 'setId', 'statMods', 'passives', 'dropEligibility'] : ['name', 'boardRequirement', 'bonuses'], defAt)) return;
         if (typeof def.name !== 'string' || !def.name.trim()) fail(`${defAt}.name`, 'expected nonempty name');
         if (kind === 'items') {
           if (!EQUIPMENT_SLOTS.includes(def.slot as typeof EQUIPMENT_SLOTS[number])) fail(`${defAt}.slot`, 'unsupported slot');
-          mods(def.statMods, EQUIPMENT_STAT_KEYS, `${defAt}.statMods`);
+          if (!RARITIES.includes(def.rarity as Rarity)) fail(`${defAt}.rarity`, 'expected common, rare, epic or legendary');
+          const effectOnly = record(def.statMods) && Object.keys(def.statMods).length === 0 && Array.isArray(def.passives) && def.passives.length > 0;
+          if (!effectOnly) mods(def.statMods, EQUIPMENT_STAT_KEYS, `${defAt}.statMods`);
+          if (def.passives !== undefined) {
+            if (!Array.isArray(def.passives) || def.passives.length === 0) fail(`${defAt}.passives`, 'expected nonempty array');
+            else if (def.passives.some((p: unknown) => !record(p) || p.targetBinding !== 'automatic')) fail(`${defAt}.passives`, 'item passives must use automatic targeting');
+            else {
+              try { validatePassiveRecipe({ schemaVersion: 1, sources: [{ source: { kind: 'equipment', id: String(entry.id), version: Number(version.version) }, effects: def.passives }] }); }
+              catch (error) { fail(`${defAt}.passives`, (error as Error).message); }
+            }
+          }
           if (def.setId !== undefined) {
             if (typeof def.setId !== 'string') fail(`${defAt}.setId`, 'expected set id');
             else itemRefs.push({ setId: def.setId, slot: String(def.slot), at: defAt });

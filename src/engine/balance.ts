@@ -11,8 +11,10 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { BASELINE_COOLDOWN, isMultiTargetSkill, tierResolved, weightOf, TIER_ORDER, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { BASELINE_COOLDOWN, hasNothingToCast, isMultiTargetSkill, tierResolved, weightOf, TIER_ORDER, type Action, type AuraDef, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 import { buildKeywordPricing, priceActionDeci, scalableRateDeci, walkBrackets, type CapFamily } from './keywords/pricing';
+import type { EquipmentDef, EquipmentStat } from './equipment/types';
+import type { CardSelector, PassiveEffect, PassiveEffectDefinition } from './passives/types';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -462,6 +464,12 @@ export const PRICE = {
    * no kit can supply "the caster is at half HP".
    */
   conditionalBonusDen: 2,
+  /** % of casts landing on or after turn [i] — 177 `npm run fight` runs, 2026-10-14. */
+  castsFromTurnSharePct: [100, 100, 82, 65, 49, 35, 22, 16, 11, 8, 5],
+  /** % of casts landing on or before turn [i] (complement of the row above). */
+  castsThroughTurnSharePct: [0, 18, 35, 51, 65, 78, 84, 89, 92, 95, 97],
+  /** % of casts that are a card's [i]-th cast or later, same runs; floored at 2. */
+  nthCastOnwardSharePct: [100, 100, 22, 4, 2, 2],
 
   /**
    * AFFINITY PAYOFF (`affinityStrike`) — pay `affinityPayoffNumDeci(tier,
@@ -658,10 +666,20 @@ export const PRICE = {
    * exactly PL-fair vs a same-budget damage card (edge placement stays worse —
    * placement remains a real decision). The old 20 deci/pt (4×) overpriced
    * auras 2-4× because the aura card also burns its own cast turn every
-   * rotation. War Banner +10 = 100 = Bronze. */
+   * rotation. A pure aura no longer casts and pays `passiveAuraDeci` instead:
+   * War Banner +4 (40) + 60 = 100 = Bronze. */
   auraDamageFlat: 10,
   auraHealFlat: 10,
   auraWeightDelta: 20,
+
+  /** A pure-aura card never casts (`hasNothingToCast`), freeing its rotation turn: `passiveAura + tierIndex × passiveAuraTierStep` (60/70/80/90) — about weight 0 (10 × `weightPer`), stepped so 10- and 20-per-point auras land on every tier budget. */
+  passiveAura: 60,
+  passiveAuraTierStep: 10,
+
+  /** Aura coverage, as num/den of `auraModsDeci`: touching (reach 1) = den/den, 2-slot range = 4/3, whole board = 6/3 (the old allBoard ×2). */
+  auraRange2Num: 4,
+  auraBoardNum: 6,
+  auraCoverageDen: 3,
 
   /** Tierless gem hit-instance premium. */
   extraHitPremium: 30,
@@ -793,6 +811,12 @@ export const PRICE = {
     magicResist: 10,
     speed: 5,
   } as Record<BuffableStat, number>,
+
+  /** Item Max HP: one `LEVEL_STAT_COST` step is +5 Max HP = +1 Attack = `heroStatPerPoint.attack`, so 10 / 5. */
+  heroMaxHpPerPoint: 2,
+
+  /** Item card-scope effects (damage, shield power, WT) pay per point × matching-card reach: every card 4, one property 2 (Attack parity), one type (weapon, element or archetype) 1. */
+  itemCardReach: { every: 4, property: 2, type: 1 },
 } as const;
 
 /**
@@ -942,6 +966,16 @@ export function cooldownDeviationDeci(cooldownTurns: number | undefined): number
  * exact expression a THIRD time. `reach` (aura-only; a stat gem has none) is
  * left to the caller, matching how each caller already applies it.
  */
+export function auraPriceDeci(aura: AuraDef): number {
+  const num = aura.affects === 'allBoard' ? PRICE.auraBoardNum
+    : (aura.reach ?? 1) >= 2 ? PRICE.auraRange2Num : PRICE.auraCoverageDen;
+  return Math.floor(auraModsDeci(aura.mods) * num / PRICE.auraCoverageDen);
+}
+
+export function passiveAuraDeci(tier: SkillTier): number {
+  return PRICE.passiveAura + TIER_ORDER.indexOf(tier) * PRICE.passiveAuraTierStep;
+}
+
 export function auraModsDeci(mods: { damageFlat?: number; healFlat?: number; weightDelta?: number }): number {
   return (
     Math.abs(mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
@@ -1056,6 +1090,8 @@ export function riderReadsResource(
     case 'wardRelease': return { resource: 'ward', on: 'caster', magnitude: action.cap };
     case 'desperation': return { resource: 'lowHp', on: 'caster', magnitude: action.amount };
     case 'execute': return { resource: 'lowHp', on: 'target', magnitude: action.amount };
+    case 'dormant': return { resource: 'fightTurn', on: 'caster', magnitude: action.amount };
+    case 'buildUp': return { resource: 'ownCasts', on: 'caster', magnitude: action.amount };
     // THE CASTER'S OWN CAST HISTORY — a fourth resource no keyword can supply
     // (alongside 'lowHp'/'overheal'/'cleansed'): nothing an action DOES puts a
     // type in the caster's previous-cast slot, only the act of having cast. So
@@ -1082,7 +1118,7 @@ export function riderReadsResource(
  */
 function riderFullRateDeci(action: Action, property: Property): number {
   const term = KEYWORD_PRICING[action.kind].price[0];
-  if (term === undefined || term.form !== 'perUnitByProperty') {
+  if (term === undefined || (term.form !== 'perUnitByProperty' && term.form !== 'perUnitByPropertyShare')) {
     throw new Error(`${action.kind} is a conditional rider but does not price perUnitByProperty`);
   }
   return term.num[property];
@@ -1116,6 +1152,8 @@ export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
     case 'wardRelease':
     case 'desperation':
     case 'execute':
+    case 'dormant':
+    case 'buildUp':
       return 'damage';
     default: return null;
   }
@@ -1394,8 +1432,8 @@ export function powerLevelDeci(raw: SkillDef): number {
   let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope, skill.effects, skill.tier, skill.size);
 
   if (skill.aura) {
-    const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
-    deci += auraModsDeci(skill.aura.mods) * reach;
+    deci += auraPriceDeci(skill.aura);
+    if (hasNothingToCast(skill)) deci += passiveAuraDeci(skill.tier);
   }
 
   // Weight: lighter than baseline costs, heavier refunds (slower attacks).
@@ -1492,8 +1530,8 @@ export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
   }
 
   if (skill.aura) {
-    const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
-    push('aura', auraModsDeci(skill.aura.mods) * reach);
+    push('aura', auraPriceDeci(skill.aura));
+    if (hasNothingToCast(skill)) push('passive aura', passiveAuraDeci(skill.tier));
   }
 
   const baseline = skill.size * 10;
@@ -1894,6 +1932,47 @@ export function gemPowerLevel(gem: Gem): number {
  */
 export function isGemOnBudget(gem: Gem): boolean {
   return Math.abs(gemPowerLevelDeci(gem) - RARITY_PL_DECI[gem.rarity]) <= BUDGET_TOLERANCE_DECI;
+}
+
+const ITEM_STAT_RATE: Record<EquipmentStat, number> = { ...PRICE.heroStatPerPoint, maxHp: PRICE.heroMaxHpPerPoint };
+
+export function itemCardReach(selector: CardSelector | undefined): number {
+  if (!selector || Object.keys(selector).length === 0) return PRICE.itemCardReach.every;
+  if (selector.weapon || selector.element || selector.archetype) return PRICE.itemCardReach.type;
+  return PRICE.itemCardReach.property;
+}
+
+const PASSIVE_EFFECT_PRICE: { [K in PassiveEffect['kind']]: (effect: Extract<PassiveEffect, { kind: K }>, reach: number) => number } = {
+  cardPower: (effect, reach) => effect.amount * PRICE.flatPowerPerPoint * reach,
+  cardShieldPower: (effect, reach) => effect.amount * PRICE.flatPowerPerPoint * reach,
+  cardWeightReduction: (effect, reach) => effect.amount * PRICE.weightPer * reach,
+  setupShield: (effect) => actionsPriceDeci([{ kind: 'shield', power: effect.amount }], effect.property),
+  setupStatus: (effect) => actionsPriceDeci([effect.status === 'regen' ? { kind: 'regen', stacks: effect.amount } : { kind: 'ward', charges: effect.amount }], GEM_CANONICAL_PROPERTY),
+  setupReadiness: (effect) => actionsPriceDeci([{ kind: 'haste', amount: effect.amount }], GEM_CANONICAL_PROPERTY),
+};
+
+/** A start-of-battle effect pays one cast of the matching card action; conditions are not discounted. */
+export function passiveEffectPriceDeci(def: PassiveEffectDefinition): number {
+  const price = PASSIVE_EFFECT_PRICE[def.effect.kind] as (effect: PassiveEffect, reach: number) => number;
+  return price(def.effect, itemCardReach(def.selector));
+}
+
+export function equipmentPowerLevelBreakdown(item: EquipmentDef): PlBreakdownPart[] {
+  const parts: PlBreakdownPart[] = [];
+  for (const stat of Object.keys(ITEM_STAT_RATE) as EquipmentStat[]) {
+    const points = item.statMods[stat];
+    if (points !== undefined) parts.push({ label: stat, deci: points * ITEM_STAT_RATE[stat] });
+  }
+  for (const def of item.passives ?? []) parts.push({ label: def.effect.kind, deci: passiveEffectPriceDeci(def) });
+  return parts;
+}
+
+export function equipmentPowerLevelDeci(item: EquipmentDef): number {
+  return equipmentPowerLevelBreakdown(item).reduce((sum, part) => sum + part.deci, 0);
+}
+
+export function isEquipmentOnBudget(item: EquipmentDef): boolean {
+  return Math.abs(equipmentPowerLevelDeci(item) - RARITY_PL_DECI[item.rarity]) <= BUDGET_TOLERANCE_DECI;
 }
 
 /**

@@ -10,9 +10,11 @@ import type { RunEventOfferSelection, RunEventOutcome } from '../runStore';
 import { choiceArtKey } from './runArt';
 import { burstReward } from './ambience';
 import { assembleObjects, isFreshRender } from './motion';
-import { eventOutcomePaneTemplate } from './runRewardGeometry';
+import { eventOutcomePaneTemplate, eventPickerBodyHeight, FEATURE_CARD_ROW_H } from './runRewardGeometry';
 import { layoutRunGemReward } from './runGemRewardLayout';
-import type { RunScreenTemplate } from './runScreenTemplate';
+import type { RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
+import { runModalLayout } from './runModalLayout';
+import { SCREEN } from '../theme';
 import { buildRunRewardViewModel } from './runRewardViewModel';
 import { GEM_RESHAPE_PICK_TITLE, REROLL_PICK_TITLE, RESHAPE_PICK_TITLE } from './eventOutcomeText';
 import {
@@ -24,10 +26,27 @@ import {
 } from './runMergeViewModel';
 import { buildReshapeConfirmView, INITIAL_RESHAPE_UI, reshapePickCards, type ReshapeUiState } from './reshapePickerView';
 import {
+  FEATURE_GEM_CHIP_H,
+  renderPickerSkipButton,
   renderRunBonusDraftPicker, renderRunEquipmentPicker, renderRunGemChoicePicker, renderRunMergeConfirmPicker, renderRunMergeSelectPicker, renderRunReshapeGemPicker, renderRunRerollPicker,
   renderRunReshapeConfirm, renderRunReshapeSelectPicker,
   renderRunRewardPanel, renderRunSellGemPicker, renderRunStatPickPicker, renderRunTradePicker, renderRunUpgradeCardPicker,
 } from './RunRewardPanel';
+
+export function fittedPickerModalHeight(picker: RunEventPickerPresentation, platform: RunTemplatePlatform): number | undefined {
+  const rows = picker.kind === 'cardChoice' || picker.kind === 'bonusDraft'
+    ? { count: picker.options.length, height: FEATURE_CARD_ROW_H[platform] }
+    : picker.kind === 'gemChoice' ? { count: picker.options.length, height: FEATURE_GEM_CHIP_H[platform] } : undefined;
+  if (!rows) return undefined;
+  const modal = runModalLayout({ x: 0, y: 0, width: SCREEN.width, height: SCREEN.height }, { compact: platform === 'mobile' });
+  return modal.header.y + modal.header.height - modal.panel.y + eventPickerBodyHeight(platform, rows.count, rows.height, pickerSkippable(picker.kind));
+}
+
+const PICKERS_WITH_OWN_BACK: readonly RunEventPickerPresentation['kind'][] = ['buyStatPick', 'forgeEquipment', 'upgradeEquipment'];
+
+function pickerSkippable(kind: RunEventPickerPresentation['kind']): boolean {
+  return !PICKERS_WITH_OWN_BACK.includes(kind);
+}
 
 /** Scene-independent UI state. A null receipt is a committed/re-entered choice,
  * whose authored presentation supplies the receipt without replaying rewards. */
@@ -230,6 +249,7 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     ? renderRunBonusDraftPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
       ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
       title: REROLL_PICK_TITLE.card,
+      actionLabel: 'REROLL THIS CARD',
       onPick: card => {
         const chosen = picker.options.find(option => option === card);
         if (chosen !== undefined) ctx.onFinalize({ kind: 'reroll', target: 'rerollCard', step: { kind: 'pick', id: chosen.instanceId } });
@@ -332,9 +352,12 @@ export class RunEventOutcomePaneController {
         // checks each concrete strategy's input, with this sole dispatch cast.
         const render = RUN_EVENT_OUTCOME_RENDERERS[state.picker.kind] as
           (picker: RunEventPickerPresentation, context: PickerContext) => void;
+        const skip = pickerSkippable(state.picker.kind);
+        const rewardTemplate = eventOutcomePaneTemplate(ctx.template, 'picker', ctx.panel, ctx.header, skip);
+        if (skip) renderPickerSkipButton(ctx.scene, rewardTemplate, ctx.font, ctx.onContinue);
         return render(state.picker, {
           ...ctx,
-          rewardTemplate: eventOutcomePaneTemplate(ctx.template, 'picker', ctx.panel, ctx.header),
+          rewardTemplate,
           paging: { page: this.page, onPageChange: page => { this.page = page; ctx.onChange(); } },
           // Desktop otherwise relies on `attachCellHoverTip`'s mouse-hover tip
           // for a picker's detail, but the upgrade picker's before/after diff

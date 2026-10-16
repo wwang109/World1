@@ -1,10 +1,10 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Element, Property, SkillDef, WeaponType } from '../types';
 import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
-import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
+import type { AntiHealCategory, AntiHealReduction, BonusPart, BonusSource, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, stackBonusCount, stripAttunedShields, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, stackBonusCount, stripAttunedShields, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type PieceState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { cardTargetPieces } from './splash';
 import { cardType } from './typeIdentity';
@@ -66,6 +66,14 @@ function isOffensiveAction(action: Action): boolean {
     // is why desperation needs no AoE refusal while `shieldBurst`/`wardRelease` do.
     case 'desperation':
     case 'execute':
+    case 'dormant':
+    case 'buildUp':
+    case 'opener':
+    case 'fleeting':
+    case 'crescendo':
+    case 'isolate':
+    case 'firstBlood':
+    case 'fuse':
       return true;
     default:
       // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
@@ -807,6 +815,8 @@ interface CastCtx {
    * "this cast spreads" instead of "everything after this line spreads".
    */
   spreadsBand: boolean;
+  bonusFlatParts: BonusPart[];
+  bonusByTargetParts: BonusPart[][];
 }
 
 /**
@@ -831,9 +841,10 @@ function castSpreadsBand(effects: readonly Action[]): boolean {
  * through here: its resource is the caster's own, so it arms the scalar
  * `bonusFlat` — see its arm in `applyAction`.)
  */
-function armTargetBonus(cast: CastCtx, victim: CombatantState, amount: number): void {
+function armTargetBonus(cast: CastCtx, victim: CombatantState, amount: number, source: BonusSource): void {
   if (amount <= 0) return;
   cast.bonusByTarget[victim.index] = (cast.bonusByTarget[victim.index] ?? 0) + amount;
+  (cast.bonusByTargetParts[victim.index] ??= []).push({ source, amount });
 }
 
 /**
@@ -890,7 +901,7 @@ export function dealDamage(
      * why attunement never doubles against those.
      */
     attackType?: Element | WeaponType;
-    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
+    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition' | 'fuse';
     /**
      * The card type that opened this hit's affinity gate (`affinityMark`). Set
      * ONLY by `applyStrike` for a hit whose action carries `affinity: true`; every
@@ -1150,6 +1161,7 @@ interface StrikeParts {
   effectiveStat: number;
   /** Flat attacker-side adds: aura / card-scope gem `damageFlat` + a triggered combo. */
   flatBonus: number;
+  bonusParts?: BonusPart[];
   /**
    * PRESENTATION ONLY — the card type that opened this hit's affinity gate, or
    * `undefined` for an ordinary hit. It changes NO arithmetic below; it is carried
@@ -1225,6 +1237,7 @@ function applyStrike(
       baseDamage,
       statBonusDamage: scaledDamage - baseDamage,
       effectBonusDamage: modifiedDamage - scaledDamage,
+      ...(parts.bonusParts !== undefined && parts.bonusParts.length > 0 ? { bonusParts: parts.bonusParts } : {}),
       defense: modifiedDamage - afterDefenseWithoutFloor,
       minimumDamageBonus: (afterDefense - afterDefenseWithoutFloor) + (amount - amountBeforeFinalFloor),
       matchupBonusDamage: afterMatchup - afterDefense,
@@ -1323,6 +1336,65 @@ function reflectThorns(ctx: Ctx, victim: CombatantState, attacker: CombatantStat
  * a share — non-damage actions, `statStrike`, and any GEM-APPENDED hit — is
  * handed `SINGLE_HIT` and never reads it.
  */
+function castingPieceCount(caster: CombatantState, slot: number | undefined): number {
+  for (let i = 0; i < caster.pieces.length; i += 1) {
+    const piece = caster.pieces[i]!;
+    if (piece.slot === slot) return piece.castCount ?? 0;
+  }
+  return 0;
+}
+
+function pieceAtSlot(caster: CombatantState, slot: number | undefined): PieceState | undefined {
+  for (let i = 0; i < caster.pieces.length; i += 1) if (caster.pieces[i]!.slot === slot) return caster.pieces[i];
+  return undefined;
+}
+
+function healPartsField(caster: CombatantState, slot: number | undefined, healFlat: number, riderBonus: number): { bonusParts?: BonusPart[] } {
+  const parts: BonusPart[] = [];
+  const gem = healFlat === 0 ? 0 : pieceAtSlot(caster, slot)?.gemMods.healFlat ?? 0;
+  const aura = healFlat - gem;
+  if (aura !== 0) parts.push({ source: 'aura', amount: aura });
+  if (gem !== 0) parts.push({ source: 'gem', amount: gem });
+  if (riderBonus > 0) parts.push({ source: 'cleanseConvert', amount: riderBonus });
+  return parts.length > 0 ? { bonusParts: parts } : {};
+}
+
+function equipmentPartsField(caster: CombatantState, equipmentBonus: number): { equipmentParts?: { name: string; amount: number }[] } {
+  const sets = (caster.equipment?.sets ?? []).filter((set) => (set.effectMods?.outgoingHealPct ?? 0) > 0);
+  const total = sets.reduce((sum, set) => sum + (set.effectMods?.outgoingHealPct ?? 0), 0);
+  if (equipmentBonus <= 0 || total <= 0) return {};
+  const parts: { name: string; amount: number }[] = [];
+  let given = 0;
+  for (let i = 0; i < sets.length; i += 1) {
+    const set = sets[i]!;
+    const amount = i === sets.length - 1 ? equipmentBonus - given : Math.floor((equipmentBonus * (set.effectMods?.outgoingHealPct ?? 0)) / total);
+    given += amount;
+    if (amount > 0) parts.push({ name: set.name ?? set.setId, amount });
+  }
+  return parts.length > 0 ? { equipmentParts: parts } : {};
+}
+
+function hitBonusParts(caster: CombatantState, slot: number | undefined, damageFlat: number, cast: CastCtx, victim: CombatantState): BonusPart[] {
+  const parts: BonusPart[] = [];
+  const piece = pieceAtSlot(caster, slot);
+  const gem = piece?.gemMods.damageFlat ?? 0;
+  const curse = piece?.curse ? -piece.curse.amount : 0;
+  const aura = damageFlat - gem - curse;
+  if (aura !== 0) parts.push({ source: 'aura', amount: aura });
+  if (gem !== 0) parts.push({ source: 'gem', amount: gem });
+  if (curse !== 0) parts.push({ source: 'curse', amount: curse });
+  for (const part of cast.bonusFlatParts) parts.push(part);
+  for (const part of cast.bonusByTargetParts[victim.index] ?? []) parts.push(part);
+  return parts;
+}
+
+function livingCount(state: CombatState, unit: CombatantState): number {
+  const team = teamOf(state, unit.side);
+  let alive = 0;
+  for (let i = 0; i < team.length; i += 1) if (team[i]!.alive) alive += 1;
+  return alive;
+}
+
 function applyAction(
   ctx: Ctx,
   caster: CombatantState,
@@ -1375,6 +1447,7 @@ function applyAction(
         // this cast, against THIS victim (see `CastCtx.bonusByTarget`). A
         // gem-appended hit takes neither, exactly as before.
         flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat + (cast.bonusByTarget[enemy.index] ?? 0),
+        ...(flat ? {} : { bonusParts: hitBonusParts(caster, ctx.source?.slot, mods.damageFlat, cast, enemy) }),
         affinity: affinityMark(skill, action),
       });
       break;
@@ -1525,7 +1598,7 @@ function applyAction(
       // A clamped-away (<= 0) request attempted nothing and stays silent, exactly
       // as a 0 heal always has.
       if (applied > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property, ...(bonus > 0 ? { bonus } : {}), ...(equipmentBonus > 0 ? { equipmentBonus } : {}) } });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property, ...(bonus > 0 ? { bonus } : {}), ...(equipmentBonus > 0 ? { equipmentBonus } : {}), ...healPartsField(caster, ctx.source?.slot, healFlat, bonus), ...equipmentPartsField(caster, equipmentBonus) } });
       }
       // OVERHEAL -> PLATING (`overhealShield`, armed earlier in this cast). The
       // overflow is `applied − healed`, i.e. what the heal had left AFTER the
@@ -2007,6 +2080,7 @@ function applyAction(
     case 'comboBonus':
       if (caster.lastCastArchetypes.some((a) => skill.archetypes.includes(a))) {
         cast.bonusFlat += action.amount;
+        cast.bonusFlatParts.push({ source: action.kind, amount: action.amount });
       }
       break;
     // CHAIN BONUS — comboBonus's twin, one field different: it compares the
@@ -2023,6 +2097,7 @@ function applyAction(
     case 'chainBonus':
       if (caster.lastCastType === action.after) {
         cast.bonusFlat += action.amount;
+        cast.bonusFlatParts.push({ source: action.kind, amount: action.amount });
       }
       break;
     case 'exploit': {
@@ -2035,7 +2110,7 @@ function applyAction(
       // cross-cast: leave the pile this cast, collect on the next one.
       if (!enemy.alive) break;
       if (!hasStatus(enemy, action.status)) break;
-      armTargetBonus(cast, enemy, action.amount);
+      armTargetBonus(cast, enemy, action.amount, action.kind);
       break;
     }
     case 'stackBonus': {
@@ -2058,7 +2133,7 @@ function applyAction(
       const holder = action.of === 'caster' ? caster : enemy;
       const count = stackBonusCount(holder, action.status);
       if (count <= 0) break;
-      armTargetBonus(cast, enemy, Math.min(action.per * count, action.cap));
+      armTargetBonus(cast, enemy, Math.min(action.per * count, action.cap), action.kind);
       break;
     }
     case 'shieldBurst': {
@@ -2082,6 +2157,7 @@ function applyAction(
       const spent = spendShieldsForBurst(caster, action.cap);
       if (spent <= 0) break;
       cast.bonusFlat += spent;
+      cast.bonusFlatParts.push({ source: action.kind, amount: spent });
       // THE DRAIN IS EVENTED, because it is observable state leaving a unit: the
       // shield bar drops before the hit lands. Same event `shieldBreak` emits
       // (same two facts — how much left, what remains), marked `burst` so
@@ -2114,6 +2190,7 @@ function applyAction(
       const { released, pilesEmptied } = releaseWardCharges(caster, Math.ceil(action.cap / action.per));
       if (released <= 0) break;
       cast.bonusFlat += Math.min(action.per * released, action.cap);
+      cast.bonusFlatParts.push({ source: action.kind, amount: Math.min(action.per * released, action.cap) });
       // THE SPEND IS EVENTED, because charges leaving a unit is observable state:
       // the ward pips drop before the hit lands. `wardReleased` rather than
       // `warded` — nothing was prevented, so there is no affliction to name.
@@ -2139,13 +2216,62 @@ function applyAction(
       // so under `scope: 'all'` it is delivered once per foe and pays AoE reach.
       if (!enemy.alive) break;
       if (caster.stats.hp * 2 > caster.stats.maxHp) break;
-      armTargetBonus(cast, enemy, action.amount);
+      armTargetBonus(cast, enemy, action.amount, action.kind);
       break;
     }
     case 'execute': {
       if (!enemy.alive) break;
       if (enemy.stats.hp * 2 > enemy.stats.maxHp) break;
-      armTargetBonus(cast, enemy, action.amount);
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'dormant': {
+      if (!enemy.alive) break;
+      if (ctx.state.turn < action.turn) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'buildUp': {
+      if (!enemy.alive) break;
+      if (castingPieceCount(caster, ctx.source?.slot) < action.casts) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'opener': {
+      if (!enemy.alive) break;
+      if (castingPieceCount(caster, ctx.source?.slot) !== 1) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'fleeting': {
+      if (!enemy.alive) break;
+      if (ctx.state.turn > action.turn) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'crescendo': {
+      if (!enemy.alive) break;
+      const earlier = Math.max(0, castingPieceCount(caster, ctx.source?.slot) - 1);
+      const bonus = Math.min(action.per * earlier, action.cap);
+      if (bonus <= 0) break;
+      armTargetBonus(cast, enemy, bonus, action.kind);
+      break;
+    }
+    case 'isolate': {
+      if (!enemy.alive) break;
+      if (livingCount(ctx.state, enemy) !== 1) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'firstBlood': {
+      if (!enemy.alive) break;
+      if (enemy.stats.hp < enemy.stats.maxHp) break;
+      armTargetBonus(cast, enemy, action.amount, action.kind);
+      break;
+    }
+    case 'fuse': {
+      if (!enemy.alive || action.amount <= 0 || action.turns <= 0) break;
+      addStatus(ctx, enemy, { kind: 'fuse', property: skill.property, amount: action.amount, turnsLeft: action.turns, fresh: true, source: ctx.source });
       break;
     }
     case 'overhealShield': {
@@ -2380,7 +2506,7 @@ export function applyCast(
       caster.empowerNext = undefined;
     }
   }
-  const cast: CastCtx = { damageDealt: 0, bonusFlat: chargeSpent, bonusByTarget: [], healBonusFlat: 0, overhealShieldCap: 0, cleansedStacks: 0, spreadsBand: castSpreadsBand(skill.effects) };
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: chargeSpent, bonusByTarget: [], healBonusFlat: 0, overhealShieldCap: 0, cleansedStacks: 0, spreadsBand: castSpreadsBand(skill.effects), bonusFlatParts: chargeSpent > 0 ? [{ source: 'empowerNext', amount: chargeSpent }] : [], bonusByTargetParts: [] };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
   // split nor advances the ordinal, so socketing a gem cannot shrink the hits
@@ -2425,6 +2551,8 @@ export function applyCast(
     if (readsCastBonus(action)) {
       cast.bonusFlat = 0;
       cast.bonusByTarget = [];
+      cast.bonusFlatParts = [];
+      cast.bonusByTargetParts = [];
     }
     // THE HEAL-SIDE SEAM, cleared on exactly the same schedule and for exactly the
     // same reason: the first own `heal` action spends the cast's armed heal bonus

@@ -19,6 +19,7 @@
 // `26 ... = 33 HP`. The engine's arithmetic was right in all 2208; only the
 // rendering of it was short a term.
 import type { DamageCalculation } from '../src/engine/combat/events';
+import { bonusSourceToken } from '../src/engine/keywords/text';
 import type { Element, WeaponType } from '../src/engine/types';
 import type { PassiveSourceRef } from '../src/engine/passives/types';
 
@@ -69,7 +70,12 @@ export function fmtDamage(c: DamageCalculation): string {
     if (value !== 0) terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
   };
   add('STAT', c.statBonusDamage);
-  add('BONUS', c.effectBonusDamage);
+  let namedBonus = 0;
+  for (const part of c.bonusParts ?? []) {
+    add(bonusSourceToken(part.source), part.amount);
+    namedBonus += part.amount;
+  }
+  add('BONUS', c.effectBonusDamage - namedBonus);
   add('DEF', -c.defense);
   add('MIN', c.minimumDamageBonus);
   add('AFFINITY', c.matchupBonusDamage);
@@ -77,6 +83,5 @@ export function fmtDamage(c: DamageCalculation): string {
   add('GUARD', -c.guardReduction);
   add('EXPOSE', c.exposeBonus ?? 0);
   add('BLOCK', -c.shieldBlocked);
-  const bonusLabel = `+${c.effectBonusDamage} aura/chain`;
-  return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat}, ${bonusLabel})`;
+  return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat})`;
 }

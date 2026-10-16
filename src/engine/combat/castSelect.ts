@@ -1,4 +1,4 @@
-import { BASELINE_COOLDOWN, weightOf, type SkillBook, type SkillDef } from '../types';
+import { BASELINE_COOLDOWN, hasNothingToCast, weightOf, type SkillBook, type SkillDef } from '../types';
 import { resolveAuras, type AuraMods, type AuraSource } from './auras';
 import type { CombatantState, PieceState } from './state';
 
@@ -77,7 +77,7 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
       continue;
     }
     const skill = piece.skill;
-    if (skill.effects.length === 0 && skill.special === undefined && skill.aura === undefined) continue;
+    if (hasNothingToCast(skill)) continue;
     const { mods, sources } = resolveAuras(c, piece, skillBook);
     // THE single place a cast's weight is summed: card base + auras/gems +
     // the UNIT-scope pending tax (`slow`) + the CARD-scope pending tax on this
@@ -104,8 +104,8 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
 
 /**
  * Strict left-to-right rotation: scan slots from the cast cursor (wrapping),
- * skip cooling cards, and return the first playable card. Aura cards are valid
- * plays and still consume readiness.
+ * skip cooling cards, and return the first playable card. A card with nothing to
+ * cast (a pure aura) is never played; its aura applies regardless.
  * null = this side has nothing to perform this turn.
  *
  * `allies` (default `[c]`) are the living same-side units this unit's support

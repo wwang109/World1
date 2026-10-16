@@ -5,7 +5,7 @@ import type { Archetype, SkillDef } from '../../engine/types';
 import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
   type BattleTimelineInput,
-  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
+  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type PlayedCardRef, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -38,7 +38,10 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
-import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import { layoutVisibleBattleLogRows, drawBattleLogLines, LOG_GROUP_BAND, LOG_GROUP_STRIPE } from '../ui/battleLogLine';
+import { createStatusIconChip } from '../ui/statusIcon';
+import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
+import { skillBook } from '../../data/skills';
 import { passiveFxAt, renderBattlePassiveNotice, highlightBattlePassiveTargets, type PassiveBoardBounds } from '../ui/battlePassiveFx';
 import {
   applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
@@ -714,15 +717,21 @@ export class DesktopBattleScene extends Phaser.Scene {
     const availableHeight = (y + h - 12) - headerBottom;
     const rows = layoutVisibleBattleLogRows(
       this, feed, ({ line }) => line,
-      ({ line }) => w - (textX - x) - (line.detail ? 30 : 16),
+      ({ line }) => w - (textX - x) - (line.detail || line.card ? 30 : 16),
       bodyStyle, rowH, availableHeight,
     );
     let ly = headerBottom;
     let prevTurn = -1;
+    let prevGroup: number | undefined;
     for (const { item: { t, local, line }, wrapped } of rows) {
       if (ly > y + h - 20) break;
       const key = `${t}:${local}`;
-      this.add.rectangle(x + 16, ly - 3, w - 32, 1, 0x1c2940).setOrigin(0, 0);
+      const sameGroup = line.group !== undefined && line.group.id === prevGroup;
+      prevGroup = line.group?.id;
+      const rowTop = ly - 3;
+      const band = line.group ? this.add.rectangle(x + 8, rowTop, w - 16, wrapped.length * rowH, LOG_GROUP_BAND[line.group.side], 1).setOrigin(0, 0) : undefined;
+      const stripe = line.group ? this.add.rectangle(x + 8, rowTop, 3, wrapped.length * rowH, LOG_GROUP_STRIPE[line.group.side], 1).setOrigin(0, 0) : undefined;
+      if (!sameGroup) this.add.rectangle(x + 16, ly - 3, w - 32, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.boundedText(turnX, ly + 3, `T${t}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }, tagX - turnX - 8);
       prevTurn = t;
       const tagText = this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
@@ -758,11 +767,19 @@ export class DesktopBattleScene extends Phaser.Scene {
           attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
         }
       }
+      if (line.card && !line.detail) {
+        const card = line.card;
+        this.add.text(x + w - 16, ly, '›', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
+        const cardZone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        cardZone.on('pointerdown', () => this.openPlayedCard(card));
+      }
       ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < y + h - 16) {
         const d = this.boundedText(textX, ly, line.detail, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim }, w - (textX - x) - 16);
         ly += d.height + 6;
       }
+      band?.setSize(w - 16, ly - rowTop);
+      stripe?.setSize(3, ly - rowTop);
     }
   }
 
@@ -808,7 +825,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     };
     if (getBattleContext() === 'run') {
       const dest = this.isChallengeFight ? 'DesktopRunEvent' : 'DesktopRunMap';
-      return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start(dest) }];
+      return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start(dest, {}) }];
     }
     // The primary slot is stage-aware: END fast-forwards playback, then
     // becomes the way OUT once the outcome is on screen.
@@ -960,7 +977,9 @@ export class DesktopBattleScene extends Phaser.Scene {
       const cellX = px + pad + col * (cellW + GAP);
       const cellY = cy + rowIndex * rowH;
       const accent = row.side === 'player' ? 0x315f43 : 0x6c3838;
-      this.add.rectangle(cellX, cellY, cellW, rowH - 6, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55);
+      const cell = this.add.rectangle(cellX, cellY, cellW, rowH - 6, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55);
+      const rowCard = row.card;
+      if (rowCard) cell.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPlayedCard(rowCard));
       const prefix = row.side === 'player' ? 'YOU' : 'FOE';
       this.boundedText(cellX + 8, cellY + 3, `${prefix} · ${row.name}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.text }, cellW * 0.55);
       const metrics = [
@@ -975,6 +994,14 @@ export class DesktopBattleScene extends Phaser.Scene {
     if (isOutcomeStep && this.ghostOffer) {
       this.renderGhostSavePrompt(px, cy + gridRows * rowH + 8, pw, pad);
     }
+  }
+
+  private openPlayedCard(card: PlayedCardRef): void {
+    const pieces = card.side === 'player' ? this.heroPieces : this.foes[card.unit]?.pieces ?? [];
+    const skill = pieces.find((piece) => piece.slot === card.slot)?.skill ?? skillBook[card.skillId];
+    if (!skill) return;
+    this.stopPlayback();
+    renderCardDetailsDrawer(this, skill, { compact: false, onClose: () => undefined });
   }
 
   private renderGhostSavePrompt(px: number, y: number, pw: number, pad: number): void {
@@ -1130,8 +1157,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     // `chips` param doc). Created unplaced for measurement like every other
     // label; `chainChipsRow` decides how many fit and where the `+N` overflow
     // marker lands, and any chip it could not place is destroyed unrendered.
-    const chipTexts = chips.map((c) =>
-      this.add.text(0, 0, c.text, { ...bold, fontSize: `${F.tiny}px`, color: STATUS_CHIP_COLOR[c.kind] ?? UI.textDim }));
+    const chipIcons = chips.map((c) => createStatusIconChip(this, c, F.tiny));
     // Worst-case overflow sample ("+99") so the layout reserves honest room;
     // the real `+N` is written in after placement. Muted, not a status color —
     // it counts hidden chips, it is not itself an effect.
@@ -1146,7 +1172,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       hp: measured(hpLabelText, F.name),
       statLine: measured(statText, F.small),
       shield: shieldText ? measured(shieldText, F.tiny) : undefined,
-      chips: chipTexts.map((t) => measured(t, F.tiny)),
+      chips: chipIcons.map((icon) => ({ text: icon.label, width: icon.width, fontSize: F.tiny })),
       chipsOverflow: moreText ? measured(moreText, F.tiny) : undefined,
     });
     const apply = (t: Phaser.GameObjects.Text | undefined, key: HpBlockLabelKey): void => {
@@ -1159,13 +1185,13 @@ export class DesktopBattleScene extends Phaser.Scene {
     apply(hpLabelText, 'hp');
     apply(shieldText, 'shield');
     apply(statText, 'statLine');
-    const placedChips: Phaser.GameObjects.Text[] = [];
-    chipTexts.forEach((t, i) => {
+    const placedChips: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Container> = [];
+    chipIcons.forEach((icon, i) => {
       const placed = geo.byKey[`chip${i}`];
-      if (!placed) { t.destroy(); return; } // overflowed — counted by the +N marker
-      apply(t, `chip${i}`);
-      placedChips.push(t);
-      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, t, this.speedMult);
+      if (!placed) { icon.destroy(); return; }
+      icon.place(placed.originX === 1 ? placed.x - icon.width : placed.x, placed.y - 2);
+      placedChips.push(icon.container);
+      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, icon.container, this.speedMult);
     });
     if (moreText) {
       const moreBox = geo.byKey.chipMore;

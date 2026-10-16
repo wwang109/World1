@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtAffinity, fmtDamage, fmtPassiveSources } from './logFormat';
+import { bonusSourceToken, equipmentSetTitle, logToken } from '../src/engine/keywords/text';
 import { battlePassiveFixture } from './battle-passives-fixtures';
 import { buildBattlePassiveExample } from '../src/data/battlePassiveExamples';
 import { prepareBattleConfig } from '../src/run/resolveBattle';
@@ -736,13 +737,18 @@ for (const e of events) {
           if (value !== 0) terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
         };
         add(hc.property === 'physical' ? 'ARMOR' : 'MRES', hc.statBonus);
-        add('AURA', hc.healFlat);
-        // A rider's flat contribution to the request (`cleanseConvert`). Part of
-        // the pre-tax request, so it sits ahead of the ANTIHEAL line. On a TRUE
-        // heal `hc.power` is the base alone and this term is what makes the sum
-        // add up.
-        add('RIDER', hc.bonus ?? 0);
-        add('EQUIPMENT', hc.equipmentBonus ?? 0);
+        let namedHeal = 0;
+        for (const part of hc.bonusParts ?? []) {
+          add(bonusSourceToken(part.source), part.amount);
+          namedHeal += part.amount;
+        }
+        add('BONUS', hc.healFlat + (hc.bonus ?? 0) - namedHeal);
+        let namedEquipment = 0;
+        for (const part of hc.equipmentParts ?? []) {
+          add(logToken(equipmentSetTitle(part.name)), part.amount);
+          namedEquipment += part.amount;
+        }
+        add('EQUIPMENT', (hc.equipmentBonus ?? 0) - namedEquipment);
         add('ANTIHEAL', -(e.antiHeal?.reduced ?? 0));
         add('OVERHEAL', -e.overheal);
         console.log(`${t} │  calc             ${terms.join(' ')} = ${e.amount} HP`);
@@ -770,7 +776,7 @@ for (const e of events) {
       } else if (e.property) {
         detail = `(${e.property})`;
       }
-      console.log(`${t} │  ${tag(e.side, e.unit)} gains ${e.status}${detail} for ${e.turns}t`);
+      console.log(`${t} │  ${tag(e.side, e.unit)} gains ${e.status}${detail} for ${e.turns}t${fmtPassiveSources(e.sourcePassive ? [e.sourcePassive] : [])}`);
       break;
     }
     case 'statusExpired':
@@ -815,7 +821,7 @@ for (const e of events) {
       );
       break;
     case 'hastened':
-      console.log(`${t} │  ${tag(e.side, e.unit)} hastened +${e.amount} readiness -> ${e.readinessAfter}`);
+      console.log(`${t} │  ${tag(e.side, e.unit)} hastened +${e.amount} readiness -> ${e.readinessAfter}${fmtPassiveSources(e.sourcePassive ? [e.sourcePassive] : [])}`);
       break;
     case 'disrupted':
       console.log(`${t} │  ${tag(e.side, e.unit)} disrupted −${e.amount} bank -> ${e.bankAfter}`);

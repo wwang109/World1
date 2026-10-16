@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { SkillDef } from '../../engine/types';
+import { hasNothingToCast, type SkillDef } from '../../engine/types';
 import { FONT, TIER_COLOR, textRoleFor } from '../theme';
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
@@ -100,7 +100,7 @@ function renderDescriptions(scene: Phaser.Scene, bounds: Rect, skill: SkillDef, 
   const statsY = bounds.y + bounds.height - statsHeight;
   scene.add.rectangle(bounds.x, statsY, bounds.width, 1, colors.border, 0.6).setOrigin(0);
   const stats = [['TYPE', (skill.weapon ?? skill.element ?? skill.property).toUpperCase()],
-    ['WEIGHT', String(content.weight)], ['SLOTS', String(skill.size)]];
+    ['WEIGHT', String(content.weight)], ['SLOTS', String(skill.size)]].filter(([label]) => label !== 'WEIGHT' || !hasNothingToCast(skill));
   stats.forEach(([label, value], index) => {
     const x = bounds.x + index * bounds.width / 3;
     const statWidth = bounds.width / 3 - 8;

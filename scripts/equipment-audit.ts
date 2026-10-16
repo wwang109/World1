@@ -72,7 +72,7 @@ check('mixed sets and standalone item', () => {
   const result = resolveEquipment(refs, [...cardsFor('duelist'), ...cardsFor('arcanist')], equipmentCatalog);
   assert.equal(result.sets.length, 2);
   assert(result.sets.every((set) => set.activeThresholds.length === 0));
-  assert.equal(result.statMods.speed, 1);
+  assert.equal(result.statMods.speed, equipmentCatalog.item('wind_charm', 1).statMods.speed);
 });
 check('combined selectors require both criteria', () => {
   const cards = cardsFor('ravager');
@@ -115,6 +115,13 @@ check('strict schema rejects malformed content', () => {
     (d) => { d.sets[0].versions[0].def.bonuses[0].pieces = 3; },
     (d) => { d.items[0].versions[0].def.dropEligibility.sourceKinds = ['shop']; },
     (d) => { d.items = d.items.filter((i: any) => i.id !== 'duelist_coat'); },
+    (d) => { delete d.items[0].versions[0].def.rarity; },
+    (d) => { d.items[0].versions[0].def.rarity = 'mythic'; },
+    (d) => { d.items[0].versions[0].def.passives = []; },
+    (d) => { d.items[0].versions[0].def.passives = [{ id: 'x', targetBinding: 'playerCard', effect: { kind: 'cardPower', amount: 1 } }]; },
+    (d) => { d.items[0].versions[0].def.passives = [{ id: 'x', targetBinding: 'automatic', effect: { kind: 'setupStatus', status: 'poison', amount: 1 } }]; },
+    (d) => { d.items[0].versions[0].def.passives = [{ id: 'x', targetBinding: 'automatic', selector: { weapon: 'gun' }, effect: { kind: 'cardPower', amount: 1 } }]; },
+    (d) => { d.items[0].versions[0].def.statMods = {}; },
   ];
   for (const mutate of mutations) {
     const copy = structuredClone(equipmentDocument);
@@ -168,7 +175,9 @@ check('Restorer additive healing floors once and excludes other actions', () => 
   assert.throws(() => applyEquipmentDirectHeal(action, Number.MAX_SAFE_INTEGER, { outgoingHealPct: 20 }));
 });
 check('generated descriptions and shared rules', () => {
-  assert.equal(equipmentItemText(equipmentCatalog.item('duelist_coat', 1)), 'HP +12 · DEF +1');
+  assert.equal(equipmentItemText(equipmentCatalog.item('duelist_coat', 1)), 'HP +5 · DEF +1');
+  assert.equal(equipmentItemText(equipmentCatalog.item('duelist_crest', 1)), 'ATK +1 · sword card: Damage +6.');
+  assert.equal(equipmentItemText(equipmentCatalog.item('restorer_seal', 1)), 'Start battle with Regen 3.');
   assert.equal(equipmentSetText(equipmentCatalog.set('ravager', 1)).requirement, '3 PHYSICAL + OFFENSE cards on board');
   assert.equal(equipmentSetText(equipmentCatalog.set('restorer', 1)).bonuses[1], '3 pieces (additional): HP +10 · HEAL +10%');
   assert(Object.values(EQUIPMENT_STAT_REGISTRY).every((r) => r.title && r.rule));

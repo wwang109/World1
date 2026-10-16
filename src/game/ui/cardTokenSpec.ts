@@ -35,7 +35,8 @@ export interface CardTokenSpec {
   /** Below this height the token renders the single-line COMPACT variant. */
   compact: boolean;
   /** Colored identity stripe on the outward edge. */
-  accent: { x: number; width: number };
+  accent: { x: number; width: number; height: number };
+  tierFrame: { thickness: number; seam: number; focusGap: number } | null;
   /** Anchor x for inward-corner badges (slot number, weight). */
   inwardX: number;
   /** Origin x (0 or 1) for inward-corner badges and their scrims. */
@@ -202,8 +203,11 @@ export function cardTokenSpec(
   side: TokenSide = 'left',
   accessoryCount = 0,
   withInspect = false,
+  withTierFrame = false,
 ): CardTokenSpec {
   const mirror = side === 'left' ? 1 : -1;
+  const tierFrame = withTierFrame ? { thickness: height < TOKEN_COMPACT_HEIGHT ? 3 : 4, seam: 1, focusGap: 2 } : null;
+  const frameInset = tierFrame?.thickness ?? 0;
   const inwardX = mirror * (width / 2 - EDGE_PAD);
   // The inspect button reserves a full-height vertical strip on the OUTWARD
   // edge (the same edge text starts from) — shifting `textX` inward by the
@@ -231,7 +235,8 @@ export function cardTokenSpec(
 
   return {
     compact: height < TOKEN_COMPACT_HEIGHT,
-    accent: { x: -mirror * (width / 2 - 2), width: 4 },
+    accent: { x: -mirror * (width / 2 - 2 - frameInset), width: 4, height: Math.max(0, height - frameInset * 2) },
+    tierFrame,
     inwardX,
     cornerOriginX: side === 'left' ? 1 : 0,
     textX,

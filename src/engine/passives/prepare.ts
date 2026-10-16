@@ -10,7 +10,9 @@ import { passiveEffectHandler } from './registry';
 
 function matches(skill: SkillDef, selector?: CardSelector): boolean {
   return !selector || ((!selector.property || skill.property === selector.property)
-    && (!selector.archetype || skill.archetypes.includes(selector.archetype)));
+    && (!selector.archetype || skill.archetypes.includes(selector.archetype))
+    && (!selector.weapon || skill.weapon === selector.weapon)
+    && (!selector.element || skill.element === selector.element));
 }
 export function preparePassives(setup: CombatantSetup, book: SkillBook): PreparedPassives {
   const tieredSkills = new Map<number, SkillDef>();
@@ -82,7 +84,7 @@ export function preparePassives(setup: CombatantSetup, book: SkillBook): Prepare
       && (!def.conditions || Object.keys(def.conditions).every(key => key === 'boardCount')) && countMet;
     const applicable = eligible.filter(({ skill }) => handler.eligible(skill));
     const active = globalSetup || applicable.length > 0;
-    const entryReceipt = receipt(def, source, active, active ? 'active' : !countMet ? 'conditions-unmet' : targets.length === 0 ? 'target-unavailable' : eligible.length === 0 ? 'conditions-unmet' : 'no-shield-action', globalSetup ? [] : applicable);
+    const entryReceipt = receipt(def, source, active, active ? 'active' : !countMet ? 'conditions-unmet' : targets.length === 0 ? 'target-unavailable' : eligible.length === 0 ? 'conditions-unmet' : handler.ineligibleReason ?? 'no-shield-action', globalSetup ? [] : applicable);
     result.receipts.push(entryReceipt);
     if (!active) continue;
     handler.apply(def.effect, { source, targets: applicable, prepared: result, changes: entryReceipt.changes });

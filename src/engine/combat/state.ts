@@ -6,7 +6,7 @@ import { preparePassives } from '../passives/prepare';
 import { boardAffinities, boardEffectAffinities, primaryIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen';
+  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen' | 'fuse';
   /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;
@@ -111,6 +111,8 @@ export interface PieceState {
    * so persisted state stays float-free and deterministic.
    */
   lastCastTurn?: number;
+  /** Casts this piece has performed this fight, including the one resolving. Lazily written, like `lastCastTurn`. */
+  castCount?: number;
   /**
    * CARD-SCOPE weight tax pending on THIS piece (from an enemy `burden`): the
    * next time this piece is played it costs this much extra weight, and the
@@ -305,7 +307,14 @@ export interface CombatState {
   enemy: CombatantState;
 }
 
-function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBook: SkillBook): CombatantState {
+function withoutAuraGems(setup: CombatantSetup, skillBook: SkillBook): CombatantSetup {
+  const holds = (piece: CombatantSetup['pieces'][number]): boolean => piece.gem != null && skillBook[piece.skillId]?.aura !== undefined;
+  if (!setup.pieces.some(holds)) return setup;
+  return { ...setup, pieces: setup.pieces.map(piece => (holds(piece) ? { ...piece, gem: null } : piece)) };
+}
+
+function initCombatant(side: Side, index: number, rawSetup: CombatantSetup, skillBook: SkillBook): CombatantState {
+  const setup = withoutAuraGems(rawSetup, skillBook);
   const passivePlan = setup.passives ? preparePassives(setup, skillBook) : undefined;
   const preparedPassives = passivePlan && passivePlan.receipts.length > 0 ? passivePlan : undefined;
   const occupied = new Array<boolean>(setup.boardSize).fill(false);

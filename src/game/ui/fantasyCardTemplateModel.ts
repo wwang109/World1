@@ -1,4 +1,4 @@
-import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
+import { hasNothingToCast, weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import { renderSkillClauses, renderSkillText } from '../../engine/keywords/compose';
 import type { TierProgress } from '../../run/shop';
 import { archetypeBadges, cardTypeBadge } from './cardArtPresentation';
@@ -33,6 +33,7 @@ export interface FantasyCardTemplateModel {
   type: ReturnType<typeof cardTypeBadge>;
   archetypes: ReturnType<typeof archetypeBadges>;
   weight: number;
+  showsWeight: boolean;
   slotLabel: string;
   slotBoxCount: number;
   title: string;
@@ -94,6 +95,7 @@ export function buildFantasyCardTemplateModel(
     type: cardTypeBadge(skill),
     archetypes: archetypeBadges(skill),
     weight,
+    showsWeight: !hasNothingToCast(skill),
     slotLabel: 'Slot',
     slotBoxCount: skill.size,
     title: skill.name,

@@ -5,7 +5,7 @@ import type { Archetype, SkillDef } from '../../engine/types';
 import { type CursorSlotSnap,
   buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
   type BattleTimelineInput,
-  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
+  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type PlayedCardRef, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -38,7 +38,10 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
-import { layoutVisibleBattleLogRows, drawBattleLogLines } from '../ui/battleLogLine';
+import { layoutVisibleBattleLogRows, drawBattleLogLines, LOG_GROUP_BAND, LOG_GROUP_STRIPE } from '../ui/battleLogLine';
+import { createStatusIconChip } from '../ui/statusIcon';
+import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
+import { skillBook } from '../../data/skills';
 import { passiveFxAt, renderBattlePassiveNotice, highlightBattlePassiveTargets, type PassiveBoardBounds } from '../ui/battlePassiveFx';
 import {
   applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
@@ -314,7 +317,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const primaryFlex = 1.6;
     if (getBattleContext() === 'run') {
       const dest = this.isChallengeFight ? 'MobileRunEvent' : 'MobileRunMap';
-      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start(dest) }];
+      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start(dest, {}) }];
     }
     // The primary slot is stage-aware: END fast-forwards playback, then
     // becomes the way OUT once the outcome is on screen.
@@ -372,6 +375,14 @@ export class MobileBattleScene extends Phaser.Scene {
    * Split out of `boundedText` because the HP strip has to MEASURE its labels
    * before it knows their budgets (the badge chain sets them) — see
    * `battleHpBlockLayout.ts`. */
+  private openPlayedCard(card: PlayedCardRef): void {
+    const pieces = card.side === 'player' ? this.heroPieces : this.foes[card.unit]?.pieces ?? [];
+    const skill = pieces.find((piece) => piece.slot === card.slot)?.skill ?? skillBook[card.skillId];
+    if (!skill) return;
+    this.stopPlayback();
+    renderCardDetailsDrawer(this, skill, { compact: true, onClose: () => undefined });
+  }
+
   private clampTextWidth(t: Phaser.GameObjects.Text, maxW: number): Phaser.GameObjects.Text {
     if (t.width > maxW && t.text.length > 1) {
       let s = t.text;
@@ -534,15 +545,21 @@ export class MobileBattleScene extends Phaser.Scene {
     const availableHeight = (dockBottom - 6) - headerBottom;
     const rows = layoutVisibleBattleLogRows(
       this, feed, ({ line }) => line,
-      ({ line }) => this.W - textX - (line.detail ? 26 : 14),
+      ({ line }) => this.W - textX - (line.detail || line.card ? 26 : 14),
       bodyStyle, rowH, availableHeight,
     );
     let ly = headerBottom;
     let prevTurn = -1;
+    let prevGroup: number | undefined;
     for (const { item: { t, local, line }, wrapped } of rows) {
       if (ly + (wrapped.length - 1) * rowH > dockBottom - 16) break;
       const key = `${t}:${local}`;
-      this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
+      const sameGroup = line.group !== undefined && line.group.id === prevGroup;
+      prevGroup = line.group?.id;
+      const rowTop = ly - 3;
+      const band = line.group ? this.add.rectangle(8, rowTop, this.W - 16, wrapped.length * rowH, LOG_GROUP_BAND[line.group.side], 1).setOrigin(0, 0) : undefined;
+      const stripe = line.group ? this.add.rectangle(8, rowTop, 3, wrapped.length * rowH, LOG_GROUP_STRIPE[line.group.side], 1).setOrigin(0, 0) : undefined;
+      if (!sameGroup) this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
       prevTurn = t;
       const tagText = this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
@@ -578,11 +595,19 @@ export class MobileBattleScene extends Phaser.Scene {
           attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
         }
       }
+      if (line.card && !line.detail) {
+        const card = line.card;
+        this.add.text(this.W - 12, ly, '›', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
+        const cardZone = this.add.rectangle(0, ly - 3, this.W, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        cardZone.on('pointerdown', () => this.openPlayedCard(card));
+      }
       ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < dockBottom - 12) {
         const d = this.add.text(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, wordWrap: { width: this.W - textX - 14 } });
         ly += d.height + 4;
       }
+      band?.setSize(this.W - 16, ly - rowTop);
+      stripe?.setSize(3, ly - rowTop);
     }
 
     // ---- HP block: bars + shield strip. Ailments live ON the bar (tint +
@@ -845,7 +870,9 @@ export class MobileBattleScene extends Phaser.Scene {
         const y = summaryBy + 66 + rowIndex * summaryRowH;
         const prefix = row.side === 'player' ? 'YOU' : 'FOE';
         const accent = row.side === 'player' ? 0x315f43 : 0x6c3838;
-        this.add.rectangle(cellX, y, cellW - 6, 27, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55).setDepth(D);
+        const cell = this.add.rectangle(cellX, y, cellW - 6, 27, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55).setDepth(D);
+        const rowCard = row.card;
+        if (rowCard) cell.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openPlayedCard(rowCard));
         this.boundedText(cellX + 6, y + 3, `${prefix} · ${row.name}`, { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }, cellW - 18).setDepth(D);
         const metrics = [
           row.damage > 0 ? `DMG ${row.damage}` : '',
@@ -1073,8 +1100,7 @@ export class MobileBattleScene extends Phaser.Scene {
     // `chips` param doc). Created unplaced for measurement like every other
     // label; `chainChipsRow` decides how many fit and where the `+N` overflow
     // marker lands, and any chip it could not place is destroyed unrendered.
-    const chipTexts = chips.map((c) =>
-      this.add.text(0, 0, c.text, { ...bold, fontSize: `${F.tiny}px`, color: STATUS_CHIP_COLOR[c.kind] ?? UI.textDim }));
+    const chipIcons = chips.map((c) => createStatusIconChip(this, c, F.tiny));
     // Worst-case overflow sample ("+99") so the layout reserves honest room;
     // the real `+N` is written in after placement. Muted, not a status color —
     // it counts hidden chips, it is not itself an effect.
@@ -1090,7 +1116,7 @@ export class MobileBattleScene extends Phaser.Scene {
       hp: measured(hpText, F.body),
       statLine: measured(statText, F.tiny),
       shield: shieldText ? measured(shieldText, F.label) : undefined,
-      chips: chipTexts.map((t) => measured(t, F.tiny)),
+      chips: chipIcons.map((icon) => ({ text: icon.label, width: icon.width, fontSize: F.tiny })),
       chipsOverflow: moreText ? measured(moreText, F.tiny) : undefined,
     });
     const apply = (t: Phaser.GameObjects.Text | undefined, key: HpBlockLabelKey): void => {
@@ -1103,13 +1129,13 @@ export class MobileBattleScene extends Phaser.Scene {
     apply(hpText, 'hp');
     apply(shieldText, 'shield');
     apply(statText, 'statLine');
-    const placedChips: Phaser.GameObjects.Text[] = [];
-    chipTexts.forEach((t, i) => {
+    const placedChips: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Container> = [];
+    chipIcons.forEach((icon, i) => {
       const placed = geo.byKey[`chip${i}`];
-      if (!placed) { t.destroy(); return; } // overflowed — counted by the +N marker
-      apply(t, `chip${i}`);
-      placedChips.push(t);
-      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, t, this.speedMult);
+      if (!placed) { icon.destroy(); return; }
+      icon.place(placed.originX === 1 ? placed.x - icon.width : placed.x, placed.y - 2);
+      placedChips.push(icon.container);
+      if (newlyAppliedChipKinds.has(chips[i]!.kind)) popStatusChip(this, icon.container, this.speedMult);
     });
     if (moreText) {
       const moreBox = geo.byKey.chipMore;

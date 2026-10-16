@@ -68,10 +68,13 @@ export function attachHoverTip(
   target: Phaser.GameObjects.GameObject,
   rect: { x: number; y: number; w: number; h: number },
   entries: readonly HoverTipEntry[],
+  opts: { pinOnClick?: boolean } = {},
 ): void {
   if (entries.length === 0) return;
   let tip: Phaser.GameObjects.Container | undefined;
+  let pinned = false;
   const hide = (): void => {
+    pinned = false;
     tip?.destroy();
     tip = undefined;
     // Only clear the registry if IT IS STILL US — a scene-wide takeover
@@ -97,13 +100,18 @@ export function attachHoverTip(
   // silently reopen the tip `pointerdown`'s `toggle` just closed two events
   // earlier. `pointerdown` owns touch's entire open/close state instead.
   const onPointerOver = (pointer: Phaser.Input.Pointer): void => { if (!pointer.wasTouch) show(); };
-  const onPointerOut = (pointer: Phaser.Input.Pointer): void => { if (!pointer.wasTouch) hide(); };
+  const onPointerOut = (pointer: Phaser.Input.Pointer): void => { if (!pointer.wasTouch && !pinned) hide(); };
   emitter.on('pointerover', onPointerOver);
   emitter.on('pointerout', onPointerOut);
   // First tap opens (tip undefined -> show); a second tap on the SAME target
   // dismisses it (tip set -> hide). Mouse also reaches this on click, which
   // pre-dates this fix and is unchanged here.
-  emitter.on('pointerdown', toggle);
+  emitter.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    if (!opts.pinOnClick || pointer.wasTouch) { toggle(); return; }
+    if (pinned) { hide(); return; }
+    show();
+    pinned = true;
+  });
   scene.events.once('shutdown', hide);
   // Battle scenes re-attach tips on every playback tick, so each attach must
   // unhook its scene-level shutdown listener when its target dies mid-scene —
@@ -171,12 +179,13 @@ export function addHoverTipZone(
    * depth 0 under a modal panel (depth 5000+, itself `setInteractive`) never
    * receives the pointer and its tip can never fire. */
   depth = 0,
+  opts: { pinOnClick?: boolean } = {},
 ): Phaser.GameObjects.Rectangle | undefined {
   if (entries.length === 0) return undefined;
   const zone = scene.add.rectangle(rect.x, rect.y, rect.w, rect.h, 0xffffff, 0.001)
     .setOrigin(0, 0)
     .setDepth(depth)
     .setInteractive({ useHandCursor: true });
-  attachHoverTip(scene, zone, rect, entries);
+  attachHoverTip(scene, zone, rect, entries, opts);
   return zone;
 }

@@ -108,7 +108,7 @@ const rewardColors = (template: RunScreenTemplate): RewardColors => template.eve
  * three-gem offer out as "2 + 1 orphan centred underneath", the same wrap the
  * card pass removed from the three card pickers. Every picker in the run is now
  * one stack of full-width rows. */
-const FEATURE_GEM_CHIP_H: Record<RunTemplatePlatform, number> = { desktop: 84, mobile: 84 };
+export const FEATURE_GEM_CHIP_H: Record<RunTemplatePlatform, number> = { desktop: 84, mobile: 84 };
 const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mobile: 80 };
 
 /**
@@ -734,6 +734,7 @@ export function renderRunBonusDraftPicker(
     inspectedIndex?: number | null;
     onInspect?: (index: number | null) => void;
     title?: string;
+    actionLabel?: string;
   } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('bonusDraft'), opts.title ?? 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
@@ -749,8 +750,11 @@ export function renderRunBonusDraftPicker(
     const skill = skillBook[card.skillId];
     if (!skill) return;
     const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
-    const hit = renderPickableCardRow(scene, cell, cell, shown, () => opts.onPick(card),
-      () => renderCardDetailsDrawer(scene, shown, { compact: template.platform === 'mobile', onClose: () => {} }));
+    const select = () => scene.time.delayedCall(0, () => showCardDetails(scene, template, shown, {
+      font: opts.font, eventTitle: opts.eventTitle, kicker: card.tier.toUpperCase(), onClose: () => {},
+      action: { label: opts.actionLabel ?? 'KEEP THIS CARD', enabled: true, onPress: () => opts.onPick(card) },
+    }));
+    const hit = renderPickableCardRow(scene, cell, cell, shown, select, select);
     attachCellHoverTip(scene, template, hit, cell, shown);
   });
 }
@@ -917,18 +921,7 @@ export function renderRunUpgradeCardPicker(
  * with `renderGemChip` (the SAME chip visual `renderBigFeature`'s solo gem
  * feature draws, as a full-width row at the grid's own `FEATURE_GEM_CHIP_H`
  * instead of the solo `_SOLO` size) filling each cell instead of a `CardToken`.
- *
- * NO INSPECT AFFORDANCE IS NEEDED HERE — because the chip itself now carries
- * the information, on both platforms. That claim used to be made and was
- * false: the chip drew a marker and a name, and the effect/rarity lived ONLY
- * in the `attachHoverTip` wired below for `template.platform === 'desktop'`,
- * so the phone — the device this game is read on — was asked to make an
- * irreversible pick with nothing but three names to go on. `renderGemChip`
- * prints the rarity, the kind and the effect text inline now (see its doc
- * comment), which is what the two card pickers' ⓘ badge exists to reach and
- * what the shop shelf has always shown. The desktop hover stays: it costs a
- * mouse user nothing and is the same tip the solo resolved-outcome gem
- * feature shows, so the two surfaces still agree.
+ * A tap opens the gem drawer; its KEEP THIS GEM button commits the pick.
  */
 export function renderRunGemChoicePicker(
   scene: Phaser.Scene,
@@ -951,8 +944,15 @@ export function renderRunGemChoicePicker(
     renderGemChip(scene, box, gem, template.platform, undefined, rewardColors(template));
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(gemId); });
-    attachGemCellInspect(scene, template, hit, box, gem);
+    hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (wasPointerConsumedByRebuild(scene, pointer)) return;
+      playSfx('uiClick');
+      scene.time.delayedCall(0, () => renderGemDetailsDrawer(scene, gem, {
+        compact: template.platform === 'mobile', onClose: () => {},
+        primaryAction: { label: 'KEEP THIS GEM', enabled: true, onPress: () => opts.onPick(gemId) },
+      }));
+    });
+    if (template.platform === 'desktop') attachHoverTip(scene, hit, box, gemHoverEntries(gem));
   });
 }
 
@@ -1264,6 +1264,12 @@ export function renderRunEquipmentPicker(
 
 const MERGE_BAR_H: Record<RunTemplatePlatform, number> = { desktop: 40, mobile: 44 };
 const MERGE_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 18, mobile: 16 };
+
+export function renderPickerSkipButton(scene: Phaser.Scene, template: RunScreenTemplate, font: LayoutProfile['font'], onSkip: () => void): void {
+  const { buttons } = template.contentSlots.reward;
+  if (buttons.height <= 0) return;
+  renderPaneButton(scene, { x: buttons.x, y: buttons.y, w: buttons.width, h: buttons.height }, 'SKIP ›', true, false, font, onSkip, rewardColors(template));
+}
 
 function renderPaneButton(
   scene: Phaser.Scene,

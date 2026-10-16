@@ -1,0 +1,452 @@
+[
+  {
+    "kind": "desktop",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "route": "http://127.0.0.1:5173/?scene=desktop-runevent&eventFixture=cracked_idol&seed=1103&layoutAudit=1",
+    "fixture": "gemsellers_mishap v2 / help",
+    "actual": {
+      "state": {
+        "kind": "receipt",
+        "outcome": {
+          "kind": "grantGem",
+          "gemId": "shield_splitter_echo"
+        }
+      },
+      "entries": [
+        {
+          "title": "Gem effect",
+          "body": "{{Shatter}} 16."
+        },
+        {
+          "title": "Shatter",
+          "body": "Deal 16 damage to any shield."
+        }
+      ],
+      "viewport": {
+        "x": 888,
+        "y": 439,
+        "width": 400,
+        "height": 176
+      },
+      "contentHeight": 70,
+      "maxScroll": 0,
+      "scroll": 0,
+      "art": {
+        "type": 5,
+        "x": 704,
+        "y": 447,
+        "width": 160,
+        "height": 160
+      },
+      "gold": 0
+    },
+    "probeReports": [
+      {
+        "gem": {
+          "id": "ward_of_silence_echo",
+          "name": "Aegis Sliver",
+          "kind": "effect",
+          "effect": "{{Physical Guard|guard}} 20% (2 turns)."
+        },
+        "before": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "ward_of_silence_echo"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "{{Physical Guard|guard}} 20% (2 turns)."
+            },
+            {
+              "title": "Guard",
+              "body": "Reduce physical damage by 20% for 2 turns."
+            }
+          ],
+          "viewport": {
+            "x": 888,
+            "y": 439,
+            "width": 400,
+            "height": 176
+          },
+          "contentHeight": 70,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 704,
+            "y": 447,
+            "width": 160,
+            "height": 160
+          },
+          "gold": 0
+        },
+        "after": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "ward_of_silence_echo"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "{{Physical Guard|guard}} 20% (2 turns)."
+            },
+            {
+              "title": "Guard",
+              "body": "Reduce physical damage by 20% for 2 turns."
+            }
+          ],
+          "viewport": {
+            "x": 888,
+            "y": 439,
+            "width": 400,
+            "height": 176
+          },
+          "contentHeight": 70,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 704,
+            "y": 447,
+            "width": 160,
+            "height": 160
+          },
+          "gold": 0
+        }
+      },
+      {
+        "gem": {
+          "id": "restorative_core",
+          "name": "Restorative Core",
+          "kind": "stat",
+          "effect": "Passive (this card): +8 healing."
+        },
+        "before": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "restorative_core"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "Passive (this card): +8 healing."
+            },
+            {
+              "title": "Flat healing",
+              "body": "Add 8 healing to each heal from this card."
+            }
+          ],
+          "viewport": {
+            "x": 888,
+            "y": 439,
+            "width": 400,
+            "height": 176
+          },
+          "contentHeight": 70,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 704,
+            "y": 447,
+            "width": 160,
+            "height": 160
+          },
+          "gold": 0
+        },
+        "after": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "restorative_core"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "Passive (this card): +8 healing."
+            },
+            {
+              "title": "Flat healing",
+              "body": "Add 8 healing to each heal from this card."
+            }
+          ],
+          "viewport": {
+            "x": 888,
+            "y": 439,
+            "width": 400,
+            "height": 176
+          },
+          "contentHeight": 70,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 704,
+            "y": 447,
+            "width": 160,
+            "height": 160
+          },
+          "gold": 0
+        }
+      }
+    ],
+    "cardBounds": {
+      "panel": {
+        "x": 0,
+        "y": 0,
+        "width": 800,
+        "height": 600
+      },
+      "header": {
+        "x": 12,
+        "y": 12,
+        "width": 776,
+        "height": 16
+      }
+    },
+    "continued": [
+      "DesktopRunMap"
+    ],
+    "failures": []
+  },
+  {
+    "kind": "mobile",
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "route": "http://127.0.0.1:5173/?scene=mrunevent&eventFixture=cracked_idol&seed=1103&layoutAudit=1",
+    "fixture": "gemsellers_mishap v2 / help",
+    "actual": {
+      "state": {
+        "kind": "receipt",
+        "outcome": {
+          "kind": "grantGem",
+          "gemId": "shield_splitter_echo"
+        }
+      },
+      "entries": [
+        {
+          "title": "Gem effect",
+          "body": "{{Shatter}} 16."
+        },
+        {
+          "title": "Shatter",
+          "body": "Deal 16 damage to any shield."
+        }
+      ],
+      "viewport": {
+        "x": 22,
+        "y": 384,
+        "width": 368,
+        "height": 214
+      },
+      "contentHeight": 66,
+      "maxScroll": 0,
+      "scroll": 0,
+      "art": {
+        "type": 5,
+        "x": 22,
+        "y": 274,
+        "width": 96,
+        "height": 96
+      },
+      "gold": 0
+    },
+    "probeReports": [
+      {
+        "gem": {
+          "id": "ward_of_silence_echo",
+          "name": "Aegis Sliver",
+          "kind": "effect",
+          "effect": "{{Physical Guard|guard}} 20% (2 turns)."
+        },
+        "before": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "ward_of_silence_echo"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "{{Physical Guard|guard}} 20% (2 turns)."
+            },
+            {
+              "title": "Guard",
+              "body": "Reduce physical damage by 20% for 2 turns."
+            }
+          ],
+          "viewport": {
+            "x": 22,
+            "y": 384,
+            "width": 368,
+            "height": 214
+          },
+          "contentHeight": 66,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 22,
+            "y": 274,
+            "width": 96,
+            "height": 96
+          },
+          "gold": 0
+        },
+        "after": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "ward_of_silence_echo"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "{{Physical Guard|guard}} 20% (2 turns)."
+            },
+            {
+              "title": "Guard",
+              "body": "Reduce physical damage by 20% for 2 turns."
+            }
+          ],
+          "viewport": {
+            "x": 22,
+            "y": 384,
+            "width": 368,
+            "height": 214
+          },
+          "contentHeight": 66,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 22,
+            "y": 274,
+            "width": 96,
+            "height": 96
+          },
+          "gold": 0
+        }
+      },
+      {
+        "gem": {
+          "id": "restorative_core",
+          "name": "Restorative Core",
+          "kind": "stat",
+          "effect": "Passive (this card): +8 healing."
+        },
+        "before": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "restorative_core"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "Passive (this card): +8 healing."
+            },
+            {
+              "title": "Flat healing",
+              "body": "Add 8 healing to each heal from this card."
+            }
+          ],
+          "viewport": {
+            "x": 22,
+            "y": 384,
+            "width": 368,
+            "height": 214
+          },
+          "contentHeight": 66,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 22,
+            "y": 274,
+            "width": 96,
+            "height": 96
+          },
+          "gold": 0
+        },
+        "after": {
+          "state": {
+            "kind": "receipt",
+            "outcome": {
+              "kind": "grantGem",
+              "gemId": "restorative_core"
+            }
+          },
+          "entries": [
+            {
+              "title": "Gem effect",
+              "body": "Passive (this card): +8 healing."
+            },
+            {
+              "title": "Flat healing",
+              "body": "Add 8 healing to each heal from this card."
+            }
+          ],
+          "viewport": {
+            "x": 22,
+            "y": 384,
+            "width": 368,
+            "height": 214
+          },
+          "contentHeight": 66,
+          "maxScroll": 0,
+          "scroll": 0,
+          "art": {
+            "type": 5,
+            "x": 22,
+            "y": 274,
+            "width": 96,
+            "height": 96
+          },
+          "gold": 0
+        }
+      }
+    ],
+    "cardBounds": {
+      "panel": {
+        "x": 0,
+        "y": 0,
+        "width": 800,
+        "height": 600
+      },
+      "header": {
+        "x": 12,
+        "y": 12,
+        "width": 776,
+        "height": 16
+      }
+    },
+    "continued": [
+      "MobileRunMap"
+    ],
+    "failures": []
+  }
+]

@@ -116,6 +116,14 @@ function seedAction(kind: Action['kind']): Action {
     case 'haste': return { kind, amount: 0 };
     case 'regen': return { kind, stacks: 0 };
     case 'execute': return { kind, amount: 0 };
+    case 'dormant': return { kind, turn: 4, amount: 0 };
+    case 'buildUp': return { kind, casts: 2, amount: 0 };
+    case 'opener': return { kind, amount: 0 };
+    case 'fleeting': return { kind, turn: 3, amount: 0 };
+    case 'crescendo': return { kind, per: 5, cap: 0 };
+    case 'isolate': return { kind, amount: 0 };
+    case 'firstBlood': return { kind, amount: 0 };
+    case 'fuse': return { kind, amount: 0, turns: 2 };
     case 'lifesteal': return { kind, pct: 0 };
     case 'shieldBreak': return { kind, amount: 0 };
     case 'comboBonus': return { kind, amount: 0 };
@@ -131,7 +139,8 @@ const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   poison: 'stacks', burn: 'stacks', bleed: 'stacks', thorns: 'stacks',
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
   slow: 'weight', burden: 'weight', curse: 'amount', disrupt: 'amount', lifesteal: 'pct',
-  shieldBreak: 'amount', comboBonus: 'amount', haste: 'amount', regen: 'stacks', execute: 'amount',
+  shieldBreak: 'amount', comboBonus: 'amount', haste: 'amount', regen: 'stacks', execute: 'amount', dormant: 'amount', buildUp: 'amount',
+  opener: 'amount', fleeting: 'amount', crescendo: 'cap', isolate: 'amount', firstBlood: 'amount', fuse: 'amount',
   negate: 'charges', cleanse: 'charges', ward: 'charges',
 };
 /** Intrinsic ceilings (engine clamps); the solver must not author past them. */

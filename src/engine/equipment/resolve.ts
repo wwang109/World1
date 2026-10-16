@@ -64,7 +64,11 @@ export function resolveEquipment(refs: readonly EquippedItemRef[], activeCards: 
         integer(out.effectMods[key]!, `equipment ${key}`);
       }
     }
-    return { setId: group.id, setVersion: group.version, equippedPieces: group.pieces, matchingCards, requiredCards: def.boardRequirement.minCount, requirementMet, activeThresholds: active.map((b) => b.pieces) };
+    const setEffectMods: EquipmentEffectMods = {};
+    for (const bonus of active) for (const key of EQUIPMENT_EFFECT_KEYS) {
+      if (bonus.effectMods?.[key] !== undefined) setEffectMods[key] = (setEffectMods[key] ?? 0) + bonus.effectMods[key]!;
+    }
+    return { setId: group.id, setVersion: group.version, equippedPieces: group.pieces, matchingCards, requiredCards: def.boardRequirement.minCount, requirementMet, activeThresholds: active.map((b) => b.pieces), name: def.name, ...(Object.keys(setEffectMods).length > 0 ? { effectMods: setEffectMods } : {}) };
   });
   return out;
 }

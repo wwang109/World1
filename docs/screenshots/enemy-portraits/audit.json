@@ -1,0 +1,628 @@
+[
+  {
+    "path": "art-src/enemies/pike-conscript-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 953866,
+    "opaque": 358,
+    "partial": 618292,
+    "solid": 588878
+  },
+  {
+    "path": "public/game-art/enemies/pike-conscript-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 158822,
+    "opaque": 0,
+    "partial": 103322,
+    "solid": 97294
+  },
+  {
+    "path": "art-src/enemies/toxic-druid-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 391422,
+    "opaque": 146,
+    "partial": 1180948,
+    "solid": 1087629
+  },
+  {
+    "path": "public/game-art/enemies/toxic-druid-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 65582,
+    "opaque": 0,
+    "partial": 196562,
+    "solid": 179557
+  },
+  {
+    "path": "art-src/enemies/cleric-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 590360,
+    "opaque": 322,
+    "partial": 981834,
+    "solid": 846565
+  },
+  {
+    "path": "public/game-art/enemies/cleric-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 99308,
+    "opaque": 0,
+    "partial": 162836,
+    "solid": 139653
+  },
+  {
+    "path": "art-src/enemies/greenwood-sovereign-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 335106,
+    "opaque": 86,
+    "partial": 1237324,
+    "solid": 1104186
+  },
+  {
+    "path": "public/game-art/enemies/greenwood-sovereign-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 56605,
+    "opaque": 0,
+    "partial": 205539,
+    "solid": 182412
+  },
+  {
+    "platform": "desktop",
+    "boss": false,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "fixture": {
+      "depth": 2,
+      "nodes": [
+        {
+          "id": "d3-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Pike Conscript",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 2,
+                  "pieces": [
+                    {
+                      "skillId": "lance_thrust",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "braced_pike",
+                      "slot": 1
+                    }
+                  ]
+                },
+                "level": 1,
+                "effectiveLevel": 1,
+                "title": "normal",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 1,
+                "enemyId": "pike_conscript",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d3-1",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Toxic Druid",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 3,
+                  "pieces": [
+                    {
+                      "skillId": "thorn_bite",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "poison_bloom",
+                      "slot": 1
+                    },
+                    {
+                      "skillId": "blooming_vine",
+                      "slot": 2
+                    }
+                  ]
+                },
+                "level": 1,
+                "effectiveLevel": 1,
+                "title": "normal",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 1,
+                "enemyId": "toxic_druid",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d3-2",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Cleric",
+                  "stats": {
+                    "maxHp": 105,
+                    "hp": 105,
+                    "attack": 1,
+                    "magicPower": 2,
+                    "armor": 1,
+                    "magicResist": 2,
+                    "speed": 10
+                  },
+                  "boardSize": 6,
+                  "pieces": [
+                    {
+                      "skillId": "mending_light",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "sanctified_bulwark",
+                      "slot": 2
+                    },
+                    {
+                      "skillId": "penitent_mending",
+                      "slot": 3
+                    },
+                    {
+                      "skillId": "hamstring",
+                      "slot": 4
+                    },
+                    {
+                      "skillId": "sanctuary_overflow",
+                      "slot": 5
+                    }
+                  ]
+                },
+                "level": 2,
+                "effectiveLevel": 2,
+                "title": "elite",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 2,
+                "enemyId": "cleric",
+                "modifiers": [],
+                "affix": "hobbling",
+                "bumped": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-enemy-portrait-d3-2",
+        "texture": "run-art-enemy-cleric",
+        "width": 127.67999999999995,
+        "height": 127.67999999999995,
+        "x": 582.16,
+        "y": 721.32
+      },
+      {
+        "name": "run-enemy-portrait-d3-1",
+        "texture": "run-art-enemy-toxic-druid",
+        "width": 127.67999999999995,
+        "height": 127.67999999999995,
+        "x": 582.16,
+        "y": 556.32
+      },
+      {
+        "name": "run-enemy-portrait-d3-0",
+        "texture": "run-art-enemy-pike-conscript",
+        "width": 127.67999999999995,
+        "height": 127.68,
+        "x": 582.16,
+        "y": 391.32
+      }
+    ],
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits/desktop-encounters.png"
+  },
+  {
+    "platform": "desktop",
+    "boss": true,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "fixture": {
+      "depth": 15,
+      "nodes": [
+        {
+          "id": "d15-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "The Greenwood Sovereign",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 16,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 17
+                  },
+                  "boardSize": 7,
+                  "pieces": [
+                    {
+                      "skillId": "barrage",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "spotters_mark",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "massed_volley",
+                      "slot": 3,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "sword_slash",
+                      "slot": 5,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "quiverwardens_call",
+                      "slot": 6,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 8,
+                "title": "boss",
+                "rank": 3,
+                "baseRank": 2,
+                "growthLevel": 5,
+                "enemyId": "greenwood_sovereign",
+                "modifiers": [
+                  "swift"
+                ],
+                "affix": null,
+                "bumped": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-boss-portrait-d15-0",
+        "texture": "run-art-enemy-greenwood-sovereign",
+        "width": 249.40800000000013,
+        "height": 249.40800000000002,
+        "x": 1113.1960000000001,
+        "y": 498.4920000000001
+      }
+    ],
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits/desktop-boss.png"
+  },
+  {
+    "platform": "mobile",
+    "boss": false,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "fixture": {
+      "depth": 2,
+      "nodes": [
+        {
+          "id": "d3-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Pike Conscript",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 2,
+                  "pieces": [
+                    {
+                      "skillId": "lance_thrust",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "braced_pike",
+                      "slot": 1
+                    }
+                  ]
+                },
+                "level": 1,
+                "effectiveLevel": 1,
+                "title": "normal",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 1,
+                "enemyId": "pike_conscript",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d3-1",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Toxic Druid",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 3,
+                  "pieces": [
+                    {
+                      "skillId": "thorn_bite",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "poison_bloom",
+                      "slot": 1
+                    },
+                    {
+                      "skillId": "blooming_vine",
+                      "slot": 2
+                    }
+                  ]
+                },
+                "level": 1,
+                "effectiveLevel": 1,
+                "title": "normal",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 1,
+                "enemyId": "toxic_druid",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d3-2",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Cleric",
+                  "stats": {
+                    "maxHp": 105,
+                    "hp": 105,
+                    "attack": 1,
+                    "magicPower": 2,
+                    "armor": 1,
+                    "magicResist": 2,
+                    "speed": 10
+                  },
+                  "boardSize": 6,
+                  "pieces": [
+                    {
+                      "skillId": "mending_light",
+                      "slot": 0
+                    },
+                    {
+                      "skillId": "sanctified_bulwark",
+                      "slot": 2
+                    },
+                    {
+                      "skillId": "penitent_mending",
+                      "slot": 3
+                    },
+                    {
+                      "skillId": "hamstring",
+                      "slot": 4
+                    },
+                    {
+                      "skillId": "sanctuary_overflow",
+                      "slot": 5
+                    }
+                  ]
+                },
+                "level": 2,
+                "effectiveLevel": 2,
+                "title": "elite",
+                "rank": 0,
+                "baseRank": 0,
+                "growthLevel": 2,
+                "enemyId": "cleric",
+                "modifiers": [],
+                "affix": "hobbling",
+                "bumped": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-enemy-portrait-d3-2",
+        "texture": "run-art-enemy-cleric",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 740.4
+      },
+      {
+        "name": "run-enemy-portrait-d3-1",
+        "texture": "run-art-enemy-toxic-druid",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 582.4
+      },
+      {
+        "name": "run-enemy-portrait-d3-0",
+        "texture": "run-art-enemy-pike-conscript",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 424.4
+      }
+    ],
+    "errors": [],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits/mobile-encounters.png"
+  },
+  {
+    "platform": "mobile",
+    "boss": true,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "fixture": {
+      "depth": 15,
+      "nodes": [
+        {
+          "id": "d15-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "The Greenwood Sovereign",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 16,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 17
+                  },
+                  "boardSize": 7,
+                  "pieces": [
+                    {
+                      "skillId": "barrage",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "spotters_mark",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "massed_volley",
+                      "slot": 3,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "sword_slash",
+                      "slot": 5,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "quiverwardens_call",
+                      "slot": 6,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 8,
+                "title": "boss",
+                "rank": 3,
+                "baseRank": 2,
+                "growthLevel": 5,
+                "enemyId": "greenwood_sovereign",
+                "modifiers": [
+                  "swift"
+                ],
+                "affix": null,
+                "bumped": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-boss-portrait-d15-0",
+        "texture": "run-art-enemy-greenwood-sovereign",
+        "width": 158.0544,
+        "height": 158.0544,
+        "x": 126.9728,
+        "y": 438.26559999999995
+      }
+    ],
+    "errors": [],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits/mobile-boss.png"
+  }
+]

@@ -6,7 +6,7 @@ import { buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encoun
 import { buildRequestHeroSetup } from './battleRequestValidation';
 import type { Allocation } from './leveling';
 import { assertKnownGhostEnemyId, buildGhostFoeSetup, type BattleGhostConfig } from './ghostFoeSetup';
-import { resolvePassiveRequest } from '../engine/passives/validate';
+import { mergePassiveRecipes, resolvePassiveRequest } from '../engine/passives/validate';
 import { applyBattleEquipment } from './battleEquipment';
 
 export { buildGhostFoeSetup } from './ghostFoeSetup';
@@ -136,8 +136,8 @@ export function prepareBattleConfig(request: BattleRequest, preparation?: Battle
   }
   if (request.preBattle !== undefined) {
     if (preparation?.heroPassives) throw new Error('Ambiguous passive preparation');
-    hero.passives = resolvePassiveRequest(request.preBattle, preparation?.sourceCatalog);
-  } else if (preparation?.heroPassives) hero.passives = preparation.heroPassives;
+    hero.passives = mergePassiveRecipes(hero.passives, resolvePassiveRequest(request.preBattle, preparation?.sourceCatalog));
+  } else if (preparation?.heroPassives) hero.passives = mergePassiveRecipes(hero.passives, preparation.heroPassives);
   const foeSetups = request.foes.map(buildFoeSetup);
   return { playerTeam: [hero], enemyTeam: foeSetups, skillBook };
 }

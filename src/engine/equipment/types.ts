@@ -1,4 +1,5 @@
-import type { Archetype, CombatantStats, Property, SkillDef, WeaponType } from '../types';
+import type { Archetype, CombatantStats, Property, Rarity, SkillDef, WeaponType } from '../types';
+import type { PassiveEffectDefinition } from '../passives/types';
 
 export const EQUIPMENT_SLOTS = ['armor', 'accessory', 'charm'] as const;
 export type EquipmentSlot = typeof EQUIPMENT_SLOTS[number];
@@ -9,8 +10,10 @@ export interface EquipmentMatch { weapon?: WeaponType; property?: Property; arch
 export interface EquipmentDef {
   name: string;
   slot: EquipmentSlot;
+  rarity: Rarity;
   setId?: string;
   statMods: EquipmentStatMods;
+  passives?: readonly PassiveEffectDefinition[];
   dropEligibility: { sourceKinds: readonly ('fight' | 'event')[] };
 }
 export interface EquipmentSetBonus {
@@ -51,6 +54,8 @@ export interface EquipmentSetProgress {
   requiredCards: number;
   requirementMet: boolean;
   activeThresholds: readonly number[];
+  name?: string;
+  effectMods?: EquipmentEffectMods;
 }
 export interface EquipmentResolution {
   statMods: EquipmentStatMods;

@@ -2385,7 +2385,9 @@
      "def": {
       "name": "Mending Aura",
       "notes": [
-       "Pure aura (no scalable sink) \u2014 grows exactly like war_banner's damageFlat curve."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze healFlat 4 (touching); Silver healFlat 6 (within 2); Gold healFlat 6 (whole board); Diamond healFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -2398,36 +2400,39 @@
       "effects": [],
       "aura": {
        "affects": "adjacent",
+       "reach": 1,
        "archetypeFilter": "healing",
        "mods": {
-        "healFlat": 10
+        "healFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
          "affects": "adjacent",
+         "reach": 2,
          "archetypeFilter": "healing",
          "mods": {
-          "healFlat": 15
+          "healFlat": 6
          }
         }
        },
        "gold": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "healing",
          "mods": {
-          "healFlat": 20
+          "healFlat": 6
          }
         }
        },
        "diamond": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "healing",
          "mods": {
-          "healFlat": 25
+          "healFlat": 6,
+          "weightDelta": -1
          }
         }
        }
@@ -3656,12 +3661,9 @@
      "def": {
       "name": "Spotter's Mark",
       "notes": [
-       "Bow's 6/6 cards are all `offense` \\u2014 this is bow's first non-attack card,",
-       "so a bow board can finally hold a support piece of its own type. Pure",
-       "aura (no scalable sink), identical shape/price to `war_banner` (its",
-       "sword analog): damageFlat 10 * auraDamageFlat 10 * adjacent reach x1 =",
-       "100 = Bronze exactly. CAP-HIT (no sink): hand-authored ladder grows the",
-       "aura itself, same as war_banner \\u2014 15/20/25 damageFlat = 150/200/250."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -3674,36 +3676,39 @@
       "effects": [],
       "aura": {
        "affects": "adjacent",
+       "reach": 1,
        "archetypeFilter": "offense",
        "mods": {
-        "damageFlat": 10
+        "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
          "affects": "adjacent",
+         "reach": 2,
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 15
+          "damageFlat": 6
          }
         }
        },
        "gold": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 20
+          "damageFlat": 6
          }
         }
        },
        "diamond": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 25
+          "damageFlat": 6,
+          "weightDelta": -1
          }
         }
        }
@@ -4048,8 +4053,9 @@
      "def": {
       "name": "Swift March",
       "notes": [
-       "Pure aura \u2014 weightDelta deepens and a self Speed buff sinks the rest",
-       "(same shape as time_crystal, but untargeted and quicker-firing)."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze weightDelta -2 (touching); Silver weightDelta -3 (within 2); Gold weightDelta -3 (whole board); Diamond weightDelta -3, damageFlat 2 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -4062,58 +4068,37 @@
       "effects": [],
       "aura": {
        "affects": "adjacent",
+       "reach": 1,
        "mods": {
-        "weightDelta": -5
+        "weightDelta": -2
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
          "affects": "adjacent",
+         "reach": 2,
          "mods": {
-          "weightDelta": -6
+          "weightDelta": -3
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 15,
-          "turns": 2
-         }
-        ]
+        }
        },
        "gold": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "mods": {
-          "weightDelta": -8
+          "weightDelta": -3
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 20,
-          "turns": 2
-         }
-        ]
+        }
        },
        "diamond": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "mods": {
-          "weightDelta": -10
+          "weightDelta": -3,
+          "damageFlat": 2
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 25,
-          "turns": 2
-         }
-        ]
+        }
        }
       }
      }
@@ -4301,10 +4286,9 @@
      "def": {
       "name": "Time Crystal",
       "notes": [
-       "Time theme: the aura's own weight-shave deepens, and a self Speed buff",
-       "(empower, well under the size-1 100-deci cap) rounds each tier out exact.",
-       "Silver: |6|*20=120 + 15*2*1=30 = 150. Gold: |8|*20=160 + 20*2*1=40 = 200.",
-       "Diamond: |10|*20=200 + 25*2*1=50 = 250."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze weightDelta -2 (touching); Silver weightDelta -3 (within 2); Gold weightDelta -3 (whole board); Diamond weightDelta -3, damageFlat 2 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -4317,62 +4301,41 @@
       "effects": [],
       "aura": {
        "affects": "adjacent",
+       "reach": 1,
        "propertyFilter": "magical",
        "mods": {
-        "weightDelta": -5
+        "weightDelta": -2
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
          "affects": "adjacent",
+         "reach": 2,
          "propertyFilter": "magical",
          "mods": {
-          "weightDelta": -6
+          "weightDelta": -3
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 15,
-          "turns": 2
-         }
-        ]
+        }
        },
        "gold": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "propertyFilter": "magical",
          "mods": {
-          "weightDelta": -8
+          "weightDelta": -3
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 20,
-          "turns": 2
-         }
-        ]
+        }
        },
        "diamond": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "propertyFilter": "magical",
          "mods": {
-          "weightDelta": -10
+          "weightDelta": -3,
+          "damageFlat": 2
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 25,
-          "turns": 2
-         }
-        ]
+        }
        }
       }
      }
@@ -4687,8 +4650,9 @@
      "def": {
       "name": "War Banner",
       "notes": [
-       "Pure aura (no scalable sink) \u2014 the aura itself grows: 15/20/25 damageFlat",
-       "\u00d7 auraDamageFlat 10 (adjacent reach \u00d71) = 150/200/250 exactly."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -4701,36 +4665,39 @@
       "effects": [],
       "aura": {
        "affects": "adjacent",
+       "reach": 1,
        "archetypeFilter": "offense",
        "mods": {
-        "damageFlat": 10
+        "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
          "affects": "adjacent",
+         "reach": 2,
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 15
+          "damageFlat": 6
          }
         }
        },
        "gold": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 20
+          "damageFlat": 6
          }
         }
        },
        "diamond": {
         "aura": {
-         "affects": "adjacent",
+         "affects": "allBoard",
          "archetypeFilter": "offense",
          "mods": {
-          "damageFlat": 25
+          "damageFlat": 6,
+          "weightDelta": -1
          }
         }
        }
@@ -4834,8 +4801,9 @@
      "def": {
       "name": "Warlord's Banner",
       "notes": [
-       "Pure aura at allBoard reach (2x cost); damageFlat grows and a self",
-       "Attack buff sinks the rest."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -4847,59 +4815,38 @@
       "tier": "bronze",
       "effects": [],
       "aura": {
-       "affects": "allBoard",
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
-        "damageFlat": 5
+        "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
-         "affects": "allBoard",
+         "affects": "adjacent",
+         "reach": 2,
          "mods": {
           "damageFlat": 6
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 15,
-          "turns": 2
-         }
-        ]
+        }
        },
        "gold": {
         "aura": {
          "affects": "allBoard",
          "mods": {
-          "damageFlat": 8
+          "damageFlat": 6
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 20,
-          "turns": 2
-         }
-        ]
+        }
        },
        "diamond": {
         "aura": {
          "affects": "allBoard",
          "mods": {
-          "damageFlat": 10
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 25,
-          "turns": 2
-         }
-        ]
+        }
        }
       }
      }
@@ -9946,29 +9893,9 @@
      "def": {
       "name": "Enfilade Volley",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` \\u2014 both had ZERO content",
-       "users before this card: all six shipped auras were `adjacent` or `allBoard`, and",
-       "nothing in the book had ever exercised a DIRECTION or a GAP. The lane it opens",
-       "reaches the two cards to its right, so the same three cards are a different",
-       "board depending on which end of them this one sits.",
-       "WHY THE COVERAGE IS TWO. `PRICE.auraDamageFlat` (10/pt) is derived as 5 x its",
-       "2-NEIGHBOUR coverage (see its doc comment), and `powerLevelDeci` multiplies an",
-       "aura only by `allBoard ? 2 : 1` \\u2014 it never reads `reach`. So a one-sided aura at",
-       "`reach: 2` covers at most two pieces and is priced EXACTLY at the rate's own",
-       "calibration, while `adjacent` at `reach: 2` would cover up to four at the same",
-       "price. That is why this card (and every positional card in this pass) uses",
-       "one-sided reach rather than widening `adjacent`; the rule is pinned by",
-       "tests/engine/auraCoverage.test.ts, and widening it needs a rate, not a card.",
-       "BUDGET. aura |3| * 10 = 30. Gated hit 8: base 8*5 = 40, affinity refund 1/2 ->",
-       "20, and it pays no multi-hit premium (gated hits are excluded from the count).",
-       "Sink damage 10 * 5 = 50. 30 + 20 + 50 = 100 = Bronze exactly. The gated line and",
-       "the aura are both FROZEN by `autoScaleTier`, so the sink absorbs every higher",
-       "budget: 20 / 30 / 40 at silver / gold / diamond, all whole PL.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: damage -> 18, gated damage -> 10. Gold PL 20: damage -> 20, gated damage -> 20. Diamond PL 25: damage -> 28, gated damage -> 20.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "offense"
@@ -9978,63 +9905,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "damage",
-        "power": 10
-       },
-       {
-        "kind": "damage",
-        "power": 8,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "right",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
-        "damageFlat": 3
+        "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 18
-         },
-         {
-          "kind": "damage",
-          "power": 10,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 6
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 20
-         },
-         {
-          "kind": "damage",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 6
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 28
-         },
-         {
-          "kind": "damage",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        ]
+        }
        }
       }
      }
@@ -10049,21 +9953,9 @@
      "def": {
       "name": "Rearguard Pike",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2`, on a DEFENSIVE card \\u2014 the",
-       "half of Q2 that matters: before this pass all six aura cards were `support`, so",
-       "position only ever mattered on a board that spent a slot on a pure buff piece.",
-       "A Lance card that pulls the rank BEHIND it forward is a placement decision on a",
-       "card you were already playing for its plating.",
-       "BUDGET. aura |-2| * 20 = 40. Gated guard (physical 20% x 2t) = 40 base, affinity",
-       "refund 1/2 -> 20. Sink shield 8 * 5 = 40. 40 + 20 + 40 = 100 = Bronze exactly.",
-       "Shield is the only unfrozen line, so it takes the whole ladder: 18 / 28 / 38.",
-       "Coverage is two pieces on ONE side, which is the calibration `PRICE.auraWeightDelta`",
-       "is derived at \\u2014 see Enfilade Volley's note for the full argument.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: shield -> 16, guard pct -> 25. Gold PL 20: shield -> 24, guard pct -> 29. Diamond PL 25: shield -> 30, guard pct -> 38.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze weightDelta -2 (touching); Silver weightDelta -3 (within 2); Gold weightDelta -3 (whole board); Diamond weightDelta -3, damageFlat 2 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "defensive",
@@ -10074,71 +9966,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "shield",
-        "power": 8
-       },
-       {
-        "kind": "guard",
-        "property": "physical",
-        "pct": 20,
-        "turns": 2,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "left",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
         "weightDelta": -2
        }
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "shield",
-          "power": 16
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 25,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "shield",
-          "power": 24
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 29,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "shield",
-          "power": 30
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 38,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "weightDelta": -3,
+          "damageFlat": 2
          }
-        ]
+        }
        }
       }
      }
@@ -10153,20 +10014,9 @@
      "def": {
       "name": "Gravelight Choir",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `healFlat` \\u2014 the",
-       "one aura mod with a single shipped user (`mending_aura`), and it had never been",
-       "authored anywhere but `adjacent`. A healer two slots back still gets the choir.",
-       "BUDGET. aura |4| * 10 = 40. Gated heal 12: base 60, affinity refund 1/2 -> 30.",
-       "Sink heal 6 * 5 = 30. 40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36.",
-       "TWO HEALS, ONE GATED, ON PURPOSE: the gated half is the payoff for holding the",
-       "Dark identity and is frozen at 12 forever (`autoScaleTier`'s GATED SINKS ARE",
-       "FROZEN rule), so ranking the card up can never move budget out of the always-on",
-       "heal and into the conditional one \\u2014 the `wildfire_rite` failure.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: heal -> 10, gated heal -> 20. Gold PL 20: heal -> 18, gated heal -> 20. Diamond PL 25: heal -> 26, gated heal -> 20.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze healFlat 4 (touching); Silver healFlat 6 (within 2); Gold healFlat 6 (whole board); Diamond healFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "healing",
@@ -10177,63 +10027,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "heal",
-        "power": 6
-       },
-       {
-        "kind": "heal",
-        "power": 12,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "left",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
         "healFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 10
-         },
-         {
-          "kind": "heal",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "mods": {
+          "healFlat": 6
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 18
-         },
-         {
-          "kind": "heal",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "healFlat": 6
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "heal",
-          "power": 26
-         },
-         {
-          "kind": "heal",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "healFlat": 6,
+          "weightDelta": -1
          }
-        ]
+        }
        }
       }
      }
@@ -10248,17 +10075,9 @@
      "def": {
       "name": "Rimebound Pact",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` on an OFFENSE/DEBUFF card.",
-       "Q3 AFFINITY PASS in the same card: frost shipped 2 bronze-reachable gated cards",
-       "against 10 on-type cards, the joint-thinnest type in the book.",
-       "BUDGET. aura |-2| * 20 = 40. Gated debuffStat (armor 20% x 2t) = 40 base,",
-       "affinity refund 1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly.",
-       "Ladder 18 / 28 / 38 on the damage line; gate and aura frozen.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: damage -> 16, debuffStat pct -> 25. Gold PL 20: damage -> 24, debuffStat pct -> 29. Diamond PL 25: damage -> 30, debuffStat pct -> 38.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze weightDelta -2 (touching); Silver weightDelta -3 (within 2); Gold weightDelta -3 (whole board); Diamond weightDelta -3, damageFlat 2 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "offense",
@@ -10269,71 +10088,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "damage",
-        "power": 8
-       },
-       {
-        "kind": "debuffStat",
-        "stat": "armor",
-        "pct": 20,
-        "turns": 2,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "right",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
         "weightDelta": -2
        }
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 16
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 25,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 24
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 29,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 30
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 38,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "weightDelta": -3,
+          "damageFlat": 2
          }
-        ]
+        }
        }
       }
      }
@@ -10348,18 +10136,9 @@
      "def": {
       "name": "Stormrank Relay",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). The one card in the pass that keeps `adjacent`,",
-       "with a `propertyFilter` \\u2014 the shape `time_crystal` established, moved off",
-       "`support` and onto an OFFENSE card so the relay competes for a slot with an",
-       "attack rather than being a dedicated buff piece.",
-       "Q3: lightning had 2 bronze-reachable gated cards against 11 on-type.",
-       "BUDGET. aura |-2| * 20 = 40. Gated buffStat (speed 20% x 2t) = 40 base, refund",
-       "1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly. Ladder 18/28/38.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: damage -> 16, buffStat pct -> 25. Gold PL 20: damage -> 24, buffStat pct -> 29. Diamond PL 25: damage -> 30, buffStat pct -> 38.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze weightDelta -2 (touching); Silver weightDelta -3 (within 2); Gold weightDelta -3 (whole board); Diamond weightDelta -3, damageFlat 2 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "offense",
@@ -10370,19 +10149,7 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "damage",
-        "power": 8
-       },
-       {
-        "kind": "buffStat",
-        "stat": "speed",
-        "pct": 20,
-        "turns": 2,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
        "affects": "adjacent",
        "reach": 1,
@@ -10393,49 +10160,33 @@
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 16
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 25,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 24
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 29,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -3
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 30
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 38,
-          "turns": 2,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -3,
+          "damageFlat": 2
          }
-        ]
+        }
        }
       }
      }
@@ -10450,18 +10201,9 @@
      "def": {
       "name": "Packline Flank",
       "notes": [
-       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `damageFlat`, the",
-       "mirror of Enfilade Volley \\u2014 the two are the pass's on/off pair for direction:",
-       "the same board reads differently depending on which of them holds the flank.",
-       "Q3: beast had 2 bronze-reachable gated cards against 13 on-type.",
-       "BUDGET. aura |4| * 10 = 40. Gated hit 12: base 60, refund 1/2 -> 30, no multi-hit",
-       "premium (gated hits are excluded from the count). Sink damage 6 * 5 = 30.",
-       "40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36.",
-       "AFFINITY LADDER RE-SOLVE (2026-09-20). The refund now erodes by tier and is",
-       "delayed by size (payNum = affinityPayoffNum + max(0, tierStep - (size - 1)));",
-       "Silver PL 15: damage -> 10, gated damage -> 20. Gold PL 20: damage -> 18, gated damage -> 20. Diamond PL 25: damage -> 26, gated damage -> 20.",
-       "Bronze is untouched — the ladder's tierStep is 0 there at every size, so",
-       "its magnitudes and price are byte-identical to before this pass."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "offense",
@@ -10472,63 +10214,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "damage",
-        "power": 6
-       },
-       {
-        "kind": "damage",
-        "power": 12,
-        "affinity": true
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "left",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
         "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 10
-         },
-         {
-          "kind": "damage",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "adjacent",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 6
          }
-        ]
+        }
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 18
-         },
-         {
-          "kind": "damage",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 6
          }
-        ]
+        }
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 26
-         },
-         {
-          "kind": "damage",
-          "power": 20,
-          "affinity": true
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        ]
+        }
        }
       }
      }
@@ -10881,52 +10600,9 @@
      "def": {
       "name": "Emberchant Rite",
       "notes": [
-       "THE FIRST FIRE SUPPORT CARD. Measured over the 166 shipped cards, the",
-       "`support` archetype has ZERO fire and ZERO frost entries (support is",
-       "holy 4 / dark 4 / lightning 3 / beast 2 / nature 1 / sword 1 / axe 1 /",
-       "lance 1 / bow 1). Fire's whole identity in the book is burn/DoT offense;",
-       "this is the first fire card that hands its power to the board instead.",
-       "THREE THINGS NO SHIPPED CARD DOES. (1) `buffStat` has only ever named",
-       "`attack` (4 uses) or `speed` (10 uses) \u2014 nothing in the game has ever",
-       "buffed magicPower, so a magical board has no way to raise its own MATK.",
-       "(2) Every shipped aura carries exactly ONE of damageFlat/healFlat/",
-       "weightDelta; this is the first aura with TWO mods, so the two pieces to",
-       "its right both hit harder and come round sooner. (3) It is the first",
-       "PURE support card (no damage line) to use a DIRECTIONAL aura \u2014 the five",
-       "left/right cards are all offense/defensive/healing hybrids.",
-       "WHY `right`, `reach: 2` AND NOT `adjacent`: PRICE.auraDamageFlat is",
-       "derived as 5 x its 2-NEIGHBOUR coverage, and powerLevelDeci never reads",
-       "`reach`, so one-sided reach 2 covers exactly the two pieces the rate is",
-       "calibrated for (the Q2 positional-pass rule, pinned by",
-       "tests/engine/auraCoverage.test.ts). `adjacent` at reach 2 would cover",
-       "four pieces at the same price.",
-       "THE AURA IS THE TIER SINK, DELIBERATELY. Both cast lines are `empower`",
-       "family, whose cap is FROZEN at 100 deci for a size-1 card at every tier",
-       "(EFFECT_CAPS_DECI.empower), so the buff can only climb to 100 and the",
-       "card would have nothing to spend Gold/Diamond on. Auras are exempt from",
-       "the caps (passive board identity, priced per reach), which is exactly",
-       "the room a capped support card needs \u2014 the same shape warlord_banner",
-       "uses in reverse.",
-       "PRICING, term by term (size 1 -> grant 0; weight and cooldown at",
-       "baseline -> 0):",
-       "  Bronze:  buffStat magicPower 30% x 2t = 30*2*1 = 60",
-       "         + aura (damageFlat 2 -> 2*10 = 20, weightDelta -1 -> 1*20 = 20)",
-       "           = 40, reach x1 (not allBoard)",
-       "         = 60 + 40 = 100 = Bronze exactly.",
-       "  Silver:  buffStat 40% x 2t = 80 + aura (3*10 + 2*20 = 30 + 40 = 70)",
-       "         = 150 = Silver exactly.",
-       "  Gold:    buffStat 50% x 2t = 100 + aura (4*10 + 3*20 = 40 + 60 = 100)",
-       "         = 200 = Gold exactly.",
-       "  Diamond: buffStat 50% x 2t = 100 + aura (5*10 + 5*20 = 50 + 100 = 150)",
-       "         = 250 = Diamond exactly.",
-       "CAP CHECK: empower spend 60 / 80 / 100 / 100 against the size-1 empower",
-       "ceiling of 100 at every tier \u2014 the Gold and Diamond copies sit exactly",
-       "ON the cap, never over it. No control, dot, damage, shield or heal line.",
-       "WHOLE-PL CHECK: every part is a multiple of 10 deci (60/40, 80/70,",
-       "100/100, 100/150).",
-       "NO-DOWNGRADE CHECK: alwaysOnOutputDeci counts EFFECTS only, so the",
-       "ladder it sees is 60 -> 80 -> 100 -> 100 \u2014 never falling. The aura",
-       "growth is on top of that and is not double-counted."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 2, weightDelta -1 (touching); Silver damageFlat 4, weightDelta -1 (within 2); Gold damageFlat 4, weightDelta -1 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -10936,17 +10612,10 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "buffStat",
-        "stat": "magicPower",
-        "pct": 30,
-        "turns": 2
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "right",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
         "damageFlat": 2,
         "weightDelta": -1
@@ -10955,57 +10624,31 @@
       "tierUpgrades": {
        "silver": {
         "aura": {
-         "affects": "right",
-         "reach": 2,
-         "mods": {
-          "damageFlat": 3,
-          "weightDelta": -2
-         }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "magicPower",
-          "pct": 40,
-          "turns": 2
-         }
-        ]
-       },
-       "gold": {
-        "aura": {
-         "affects": "right",
+         "affects": "adjacent",
          "reach": 2,
          "mods": {
           "damageFlat": 4,
-          "weightDelta": -3
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "magicPower",
-          "pct": 50,
-          "turns": 2
+        }
+       },
+       "gold": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 4,
+          "weightDelta": -1
          }
-        ]
+        }
        },
        "diamond": {
         "aura": {
-         "affects": "right",
-         "reach": 2,
+         "affects": "allBoard",
          "mods": {
-          "damageFlat": 5,
-          "weightDelta": -5
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "magicPower",
-          "pct": 50,
-          "turns": 2
-         }
-        ]
+        }
        }
       }
      }
@@ -11350,46 +10993,9 @@
      "def": {
       "name": "Quiverwarden's Call",
       "notes": [
-       "THE FIRST UNGATED `empowerNext` IN THE GAME. All three shipped armers \u2014",
-       "kindling_rite, whetstone_vow, thunderhead \u2014 carry `affinity: true` on",
-       "the empowerNext line, so the forward charge only exists on a board that",
-       "has ALREADY reached its type identity. That makes the keyword a payoff",
-       "and never a builder. This card pays the FULL rate",
-       "(empowerNext = flatPowerPerPoint, 5 deci/pt) instead of the halved",
-       "affinity price, and in exchange the charge stands on any board from the",
-       "first cast \u2014 which is the point: `empowerNext` arms the caster's next",
-       "cast OF THIS CARD'S OWN TYPE (`cardType(skill)` in the interpreter's",
-       "empowerNext arm), so an ungated armer is a card that PAYS you for",
-       "running more Bow, one card at a time, instead of demanding three of them",
-       "up front. It is the on-ramp to a Bow identity rather than its reward.",
-       "It is also the first card to combine `empowerNext` with an aura",
-       "(signature `empowerNext | aura` does not exist in the book), and the",
-       "second bow support card in a pool of one (spotter's_mark).",
-       "THE CHARGE DOES NOT STACK AND IS NOT LOST. The interpreter keeps the",
-       "STRONGEST standing charge (`standing.amount >= action.amount` breaks",
-       "early) and it is only spent by a matching-type cast, so the 16 points",
-       "sit there until a Bow card actually fires \u2014 which is why the rate is the",
-       "undiscounted one and not comboBonus's uptime-halved 2.5/pt.",
-       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0):",
-       "  Bronze:  empowerNext 16 = 16*5 = 80",
-       "         + aura damageFlat 2, right, reach 2 = 2*10 = 20 (reach x1)",
-       "         = 100 = Bronze exactly.",
-       "  Silver:  empowerNext 20 (100) + aura damageFlat 5 (50) = 150 = Silver.",
-       "  Gold:    empowerNext 20 (100) + aura damageFlat 10 (100) = 200 = Gold.",
-       "  Diamond: empowerNext 20 (100) + aura damageFlat 15 (150) = 250 = Diamond.",
-       "WHY THE AURA CARRIES THE LADDER: empowerNext is `empower` family, frozen",
-       "at 100 deci for a size-1 card at every tier, so 20 points is the most",
-       "the charge can ever be worth. Auras are cap-exempt, so the Gold and",
-       "Diamond budget goes into the two pieces on the right \u2014 the same",
-       "cap-relief the fire support card uses, and the reason `war_banner`'s",
-       "+10 adjacent (100 deci) is the calibration point for +15 at 150.",
-       "CAP CHECK: empower spend 80 / 100 / 100 / 100 against the frozen size-1",
-       "empower ceiling of 100. No control, dot, damage, shield or heal line.",
-       "WHOLE-PL CHECK: empowerNext amounts are EVEN (5 deci/pt), aura",
-       "damageFlat is priced at a whole 10 deci per point \u2014 every part is a",
-       "multiple of 10 deci.",
-       "NO-DOWNGRADE CHECK: effects-only 80 -> 100 -> 100 -> 100, never falling,",
-       "and the aura climbs 2 -> 5 -> 10 -> 15 on top."
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 4 (touching); Silver damageFlat 6 (within 2); Gold damageFlat 6 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
       ],
       "archetypes": [
        "support"
@@ -11399,64 +11005,40 @@
       "size": 1,
       "rarity": "rare",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "empowerNext",
-        "amount": 16
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "right",
-       "reach": 2,
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
-        "damageFlat": 2
+        "damageFlat": 4
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
-         "affects": "right",
+         "affects": "adjacent",
          "reach": 2,
          "mods": {
-          "damageFlat": 5
+          "damageFlat": 6
          }
-        },
-        "effects": [
-         {
-          "kind": "empowerNext",
-          "amount": 20
-         }
-        ]
+        }
        },
        "gold": {
         "aura": {
-         "affects": "right",
-         "reach": 2,
+         "affects": "allBoard",
          "mods": {
-          "damageFlat": 10
+          "damageFlat": 6
          }
-        },
-        "effects": [
-         {
-          "kind": "empowerNext",
-          "amount": 20
-         }
-        ]
+        }
        },
        "diamond": {
         "aura": {
-         "affects": "right",
-         "reach": 2,
+         "affects": "allBoard",
          "mods": {
-          "damageFlat": 15
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "empowerNext",
-          "amount": 20
-         }
-        ]
+        }
        }
       }
      }
@@ -11475,97 +11057,53 @@
       ],
       "property": "physical",
       "weapon": "sword",
-      "size": 2,
+      "size": 1,
       "rarity": "epic",
       "tier": "bronze",
-      "effects": [
-       {
-        "kind": "buffStat",
-        "stat": "attack",
-        "pct": 25,
-        "turns": 2
-       },
-       {
-        "kind": "buffStat",
-        "stat": "armor",
-        "pct": 20,
-        "turns": 2
-       }
-      ],
+      "effects": [],
       "aura": {
-       "affects": "allBoard",
+       "affects": "adjacent",
+       "reach": 1,
        "mods": {
-        "damageFlat": 6
+        "damageFlat": 2,
+        "weightDelta": -1
        }
       },
       "tierUpgrades": {
        "silver": {
         "aura": {
-         "affects": "allBoard",
+         "affects": "adjacent",
+         "reach": 2,
          "mods": {
-          "damageFlat": 9
+          "damageFlat": 4,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "armor",
-          "pct": 25,
-          "turns": 2
-         }
-        ]
+        }
        },
        "gold": {
         "aura": {
          "affects": "allBoard",
          "mods": {
-          "damageFlat": 13
+          "damageFlat": 4,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "armor",
-          "pct": 30,
-          "turns": 2
-         }
-        ]
+        }
        },
        "diamond": {
         "aura": {
          "affects": "allBoard",
          "mods": {
-          "damageFlat": 17
+          "damageFlat": 6,
+          "weightDelta": -1
          }
-        },
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "armor",
-          "pct": 30,
-          "turns": 2
-         }
-        ]
+        }
        }
-      }
+      },
+      "notes": [
+       "Pure aura card (no other keyword, no weight, no gem): it never casts and pays passiveAuraDeci (60/70/80/90).",
+       "Range grows each tier (auraPriceDeci: touching 1x, within 2 = 4/3x, whole board 2x); the buff grows a little.",
+       "Bronze damageFlat 2, weightDelta -1 (touching); Silver damageFlat 4, weightDelta -1 (within 2); Gold damageFlat 4, weightDelta -1 (whole board); Diamond damageFlat 6, weightDelta -1 (whole board). Diamond mixes in a second buff type."
+      ]
      }
     }
    ]

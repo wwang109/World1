@@ -1,4 +1,5 @@
 import type { Action, Archetype, BuffableStat, Element, Property, SkillSize, WeaponType } from '../types';
+import type { BonusSource } from '../combat/events';
 
 /**
  * KEYWORD TEXT — the TEXT facet of the keyword document, as DATA.
@@ -280,6 +281,12 @@ function defenseSuffix(ctx: RenderCtx): string {
 
 function turnsPhrase(turns: number): string {
   return `${turns} ${turns === 1 ? 'turn' : 'turns'}`;
+}
+
+export function ordinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
 }
 
 /** `physical`/`magical`/`TRUE` — a property named on an action, not the card. */
@@ -979,6 +986,70 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     ruleSentence: 'Deal X more damage to a target at or below half HP.',
     faceToken: (a) => ({ text: `EXECUTE ${a.amount}`, keyword: 'bleed' }),
   },
+  dormant: {
+    composeGroup: 'conditional',
+    displayToken: 'dormant',
+    faceClause: (a) => `{{Dormant}} +${a.amount} (from turn ${a.turn})`,
+    ruleTitle: 'Dormant',
+    ruleSentence: 'Deal X more damage from turn X onward.',
+    faceToken: (a) => ({ text: `DORMANT: T${a.turn} ${a.amount}`, keyword: 'dormant' }),
+  },
+  buildUp: {
+    composeGroup: 'conditional',
+    displayToken: 'buildup',
+    faceClause: (a) => `{{Build-up|buildup}} +${a.amount} (from ${ordinal(a.casts)} play)`,
+    ruleTitle: 'Build-up',
+    ruleSentence: 'Deal X more damage from this card’s X play onward.',
+    faceToken: (a) => ({ text: `BUILD-UP: ${ordinal(a.casts).toUpperCase()} ${a.amount}`, keyword: 'buildup' }),
+  },
+  opener: {
+    composeGroup: 'conditional',
+    displayToken: 'opener',
+    faceClause: (a) => `{{Opener}} +${a.amount}`,
+    ruleTitle: 'Opener',
+    ruleSentence: 'Deal X more damage the first time this card is played.',
+    faceToken: (a) => ({ text: `OPENER ${a.amount}`, keyword: 'opener' }),
+  },
+  fleeting: {
+    composeGroup: 'conditional',
+    displayToken: 'fleeting',
+    faceClause: (a) => `{{Fleeting}} +${a.amount} (through turn ${a.turn})`,
+    ruleTitle: 'Fleeting',
+    ruleSentence: 'Deal X more damage through turn X.',
+    faceToken: (a) => ({ text: `FLEETING: T${a.turn} ${a.amount}`, keyword: 'fleeting' }),
+  },
+  crescendo: {
+    composeGroup: 'conditional',
+    displayToken: 'crescendo',
+    faceClause: (a) => `{{Crescendo}} +${a.per} per play (max ${a.cap})`,
+    ruleTitle: 'Crescendo',
+    ruleSentence: 'Deal X more damage for each earlier play of this card, up to X.',
+    faceToken: (a) => ({ text: `CRESCENDO: ${a.per}/PLAY`, keyword: 'crescendo' }),
+  },
+  isolate: {
+    composeGroup: 'conditional',
+    displayToken: 'isolate',
+    faceClause: (a) => `{{Isolate}} +${a.amount}`,
+    ruleTitle: 'Isolate',
+    ruleSentence: 'Deal X more damage while the target is the last foe standing.',
+    faceToken: (a) => ({ text: `ISOLATE ${a.amount}`, keyword: 'isolate' }),
+  },
+  firstBlood: {
+    composeGroup: 'conditional',
+    displayToken: 'firstblood',
+    faceClause: (a) => `{{First Blood|firstblood}} +${a.amount}`,
+    ruleTitle: 'First Blood',
+    ruleSentence: 'Deal X more damage to a target at full HP.',
+    faceToken: (a) => ({ text: `FIRST BLOOD ${a.amount}`, keyword: 'firstblood' }),
+  },
+  fuse: {
+    composeGroup: 'payload',
+    displayToken: 'fuse',
+    faceClause: (a) => `{{Fuse}} ${a.amount} (in ${turnsPhrase(a.turns)})`,
+    ruleTitle: 'Fuse',
+    ruleSentence: 'Deal X damage to the target X turns after this card is played.',
+    faceToken: (a) => ({ text: `FUSE ${a.amount} ${a.turns}t`, keyword: 'fuse' }),
+  },
   overhealShield: {
     composeGroup: 'conditional',
     displayToken: 'shield',
@@ -1061,6 +1132,22 @@ export function ruleEntryByKind(kind: Action['kind']): { title: string; body: st
   const row = KEYWORD_TEXT[kind] as KeywordTextDef;
   if (row.ruleSentence === '') return undefined;
   return { title: row.ruleTitle, body: row.ruleSentence };
+}
+
+export function bonusSourceTitle(source: BonusSource): string {
+  return source === 'aura' ? AURA_RULE_ENTRY.title : source === 'gem' ? 'Gem' : (KEYWORD_TEXT[source] as KeywordTextDef).ruleTitle || source;
+}
+
+export function logToken(title: string): string {
+  return title.toUpperCase().replace(/\s+/g, '-');
+}
+
+export function bonusSourceToken(source: BonusSource): string {
+  return logToken(bonusSourceTitle(source));
+}
+
+export function equipmentSetTitle(name: string): string {
+  return `${name} set`;
 }
 
 /** The `KEYWORD_TEXT_COLOR` id this action's face clause marks up, if any. */

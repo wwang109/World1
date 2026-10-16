@@ -897,7 +897,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const gem = gemBook[id];
       if (!gem) return;
       slots.push({ key: `pouch:${index}`, label: `POUCH ${index + 1}`, gem, itemFrame: 'bag', action: {
-        label: piece.gem ? 'SWAP' : 'SOCKET', enabled: true, onPress: () => {
+        label: skill.aura ? 'NO GEMS ON AURA CARDS' : piece.gem ? 'SWAP' : 'SOCKET', enabled: !skill.aura, onPress: () => {
           if (this.gemInventory[index] !== gem.id) return;
           const result = piece.gem ? swapGem(piece, gem) : { piece: socketGem(piece, gem), displaced: null };
           if (!result.piece) return;
@@ -911,7 +911,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     });
     renderGemDetailsDrawer(this, current ?? slots[0]?.gem ?? null, {
       compact: true, view: { x: 0, y: 0, width: this.W, height: this.H },
-      onClose: () => { this.socketFor = null; }, context: skill.name,
+      onClose: () => { this.socketFor = null; }, context: skill.aura ? `${skill.name} - aura cards can't hold gems` : skill.name,
       slots, selectedKey: slots[0]?.key,
       emptyText: this.runContext
         ? 'No gems in the pouch — events and shops on the map grant them.'

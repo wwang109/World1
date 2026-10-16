@@ -10,6 +10,16 @@ import type { EventArtId, EventTheme } from '../../data/eventTypes';
  * Phaser-side renderer), both of which DO need Phaser and so stay there.
  */
 export const RUN_ART_KEYS = {
+  enemy: {
+    giant_rat: 'run-art-enemy-giant-rat',
+    stone_beetle: 'run-art-enemy-stone-beetle',
+    ember_imp: 'run-art-enemy-ember-imp',
+    wolf_king: 'run-art-enemy-wolf-king',
+    pike_conscript: 'run-art-enemy-pike-conscript',
+    toxic_druid: 'run-art-enemy-toxic-druid',
+    cleric: 'run-art-enemy-cleric',
+    greenwood_sovereign: 'run-art-enemy-greenwood-sovereign',
+  } as const,
   shopBanner: 'run-art-shop-banner',
   runMap: 'run-art-run-map',
   icon: {
@@ -96,6 +106,10 @@ export const RUN_ART_KEYS = {
 
 export function eventArtKey(theme: EventTheme, artId?: EventArtId): string {
   return artId === undefined ? RUN_ART_KEYS.event[theme] : RUN_ART_KEYS.eventStory[artId];
+}
+
+export function enemyPortraitArtKey(enemyId: string): string | undefined {
+  return RUN_ART_KEYS.enemy[enemyId as keyof typeof RUN_ART_KEYS.enemy];
 }
 
 export function shopArtKey(shopId: string): string {

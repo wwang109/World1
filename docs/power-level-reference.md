@@ -75,6 +75,7 @@ immediately):
 | Additional Stat (cards) | `sum(max(0, kindCount − 1)) * additionalStatPremium` | `PRICE.additionalStatPremium` — repeated `damage`, `statStrike`, `shield`, `heal`, `attunedShield`, `buffStat`, and `debuffStat` entries each cost budget in addition to their magnitude. Count each exact effect kind separately: mixed Damage + Heal has no fee. Affinity-gated and tier-locked-out entries do not count. The fee is flat, added after AoE scaling. Gem pricing keeps `PRICE.extraHitPremium` unchanged. |
 | AoE reach (`scope: 'all'`) | `offensiveShare * aoeTargetsNum/Den`, floored once over the whole offensive share | `PRICE.aoeTargetsNum/Den` — flat multiplier on the OFFENSIVE portion of a kit (damage/DoT/control; see `OFFENSIVE_KINDS`), derived from the game's own pack-frequency constants, not `MAX_FOES`; see rationale below |
 | aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reachMultiplier` (2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit). **`AuraDef.reach` is NOT an input** — the multiplier reads `affects` only, so coverage past 2 pieces is free PL; see the aura-coverage section below |
+| passive aura | `passiveAura + tierIndex * passiveAuraTierStep` (60/70/80/90), when the tier's kit has an aura and nothing to cast (`hasNothingToCast`) | `PRICE.passiveAura` / `passiveAuraTierStep` via `passiveAuraDeci` — such a card is never played (its aura is always on), so its rotation turn goes to the rest of the board; about the price of weight 0 (`10 * weightPer` = 50), stepped per tier so 10- and 20-per-point aura ladders land exactly on every tier budget |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
 | size grant | `−sizeGrantDeci(size, tier)` | `PRICE.sizeGrant2Bronze/3Bronze` — grows at HALF the tier-budget growth (user-locked 2026-07-19); big cards get extra kit budget for board space + turn span |
 | cooldown (`cooldownTurns`), SHORT side (shorter than baseline, costs PL) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn`, `BASELINE_COOLDOWN` (`src/engine/types.ts`) — see rationale below |
@@ -519,6 +520,29 @@ as too large a swing without sim data). `armor`/`magicResist` were already
 there; all four core combat stats now share one rate, with `speed` priced
 separately. Gems re-fit to stay on band: `brawlers_core`, `archmages_core`
 (`src/data/gems.ts`).
+
+## Item (equipment) PL accounting
+
+An item's PL is `equipmentPowerLevelDeci` and must equal its rarity's
+`RARITY_PL_DECI` band — the same four bands gems use. `npm run audit:pl`
+checks every item version. Owner functions: `equipmentPowerLevelBreakdown`,
+`passiveEffectPriceDeci`, `itemCardReach`, `isEquipmentOnBudget`.
+
+- **Stats** (`statMods`): `PRICE.heroStatPerPoint` per point, plus
+  `PRICE.heroMaxHpPerPoint` for Max HP — one `LEVEL_STAT_COST` step is +5 Max
+  HP or +1 Attack, so 5 Max HP costs what 1 Attack costs.
+- **Card effects** (`cardPower`, `cardShieldPower`, `cardWeightReduction`):
+  the card's own per-point rate (`flatPowerPerPoint`, `weightPer`) times
+  `PRICE.itemCardReach` for the selector — every card 4, one property 2 (so
+  +1 damage on physical cards costs exactly +1 Attack), one weapon, element
+  or archetype 1.
+- **Start-of-battle effects** (`setupShield`, `setupStatus`,
+  `setupReadiness`): one cast of the matching card action through
+  `actionsPriceDeci` — Shield, Regen, Ward, Haste.
+- **Conditions** (`boardCount`, slot rules) are not discounted, so a
+  conditional effect can only be over-priced.
+- **Not priced yet**: set bonuses (`statMods`/`effectMods` on a set) and
+  `outgoingHealPct`; item levels add stats above the band, like card tiers.
 
 ## Dated pricing changelogs
 

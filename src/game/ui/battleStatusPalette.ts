@@ -60,6 +60,8 @@ export const STATUS_CHIP_COLOR: Record<string, string> = {
   // fallback hex would be a second copy of the keyword palette's value — the
   // drift this module exists to end. The key is a literal in cardTextMarkup.ts.
   negate: KEYWORD_TEXT_COLOR.negate!,
+  regen: KEYWORD_TEXT_COLOR.regen!,
+  fuse: KEYWORD_TEXT_COLOR.fuse!,
   buff: INK.gain,
   debuff: INK.cost,
 };

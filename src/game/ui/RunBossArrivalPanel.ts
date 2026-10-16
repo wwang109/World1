@@ -7,8 +7,8 @@ import { textRoleFor, UI, type InkRole, type TextRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { BRIGHT_ART_TREATMENT } from './brightArtTreatment';
 import { attachButtonFeel } from './motion';
-import { addRunArt } from './runArt';
-import { biomeArtKey, RUN_ART_KEYS } from './runArtKeys';
+import { addEnemyPortrait, addRunArt } from './runArt';
+import { biomeArtKey, enemyPortraitArtKey, RUN_ART_KEYS } from './runArtKeys';
 import { encounterDestinationLabel } from './runTravelChoiceViewModel';
 import type { Rect } from './runScreenTemplate';
 import { encounterLootChances, type EquipmentLootChance } from './equipmentLootTrackingModel';
@@ -22,6 +22,7 @@ export interface RunBossArrivalViewModel {
   regionName: string;
   leanLabel: string;
   artKey: string;
+  portraitArtKey?: string;
   regionDay: number;
   equipmentDrops: readonly EquipmentLootChance[];
 }
@@ -44,6 +45,7 @@ export function bossArrivalViewModel(
     regionName: biome.name,
     leanLabel: leanLabel(biome.lean),
     artKey: biomeArtKey(biome.id),
+    portraitArtKey: enemyPortraitArtKey(primary.enemyId),
     regionDay: BAND_WAVES,
     equipmentDrops: encounterLootChances(encounter.units.map(unit => unit.enemyId)),
   };
@@ -123,11 +125,14 @@ export function renderRunBossArrivalPanel(
     scrim.fillGradientStyle(UI.panelMuted, UI.panelMuted, UI.panelMuted, UI.panelMuted, 0.98, 0.35, 0.98, 0.35);
   }
   scrim.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-  // Reuse the installed boss emblem, not a fabricated enemy-specific portrait.
   const emblem = layout.emblem;
-  scene.add.rectangle(emblem.x - 2, emblem.y - 2, emblem.width + 4, emblem.height + 4, UI.panelMuted, 0.96)
-    .setOrigin(0, 0).setStrokeStyle(2, UI.bad, 0.9);
-  addRunArt(scene, RUN_ART_KEYS.icon.bossSkull, emblem);
+  if (model.portraitArtKey) {
+    addEnemyPortrait(scene, model.portraitArtKey, emblem)?.setName(`run-boss-portrait-${model.nodeId}`);
+  } else {
+    scene.add.rectangle(emblem.x - 2, emblem.y - 2, emblem.width + 4, emblem.height + 4, UI.panelMuted, 0.96)
+      .setOrigin(0, 0).setStrokeStyle(2, UI.bad, 0.9);
+    addRunArt(scene, RUN_ART_KEYS.icon.bossSkull, emblem);
+  }
   const addText = (rect: Rect, value: string, role: TextRole, ink: InkRole): void => {
     const text = scene.add.text(rect.x, rect.y, value, {
       ...textRoleFor(profile, role, { ink }), wordWrap: { width: rect.width },

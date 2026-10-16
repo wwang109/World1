@@ -1,4 +1,4 @@
-import type { Archetype, Property } from '../types';
+import type { Archetype, Element, Property, WeaponType } from '../types';
 
 export interface PassiveSourceRef {
   kind: 'talent' | 'relic' | 'equipment';
@@ -8,10 +8,15 @@ export interface PassiveSourceRef {
   displayName?: string;
 }
 export type PassiveSourceIdentity = Pick<PassiveSourceRef, 'kind' | 'id' | 'version'>;
-export interface CardSelector { property?: Property; archetype?: Archetype }
+export interface CardSelector { property?: Property; archetype?: Archetype; weapon?: WeaponType; element?: Element }
 export interface PassiveSlotRange { min: number; max: number; match?: 'anchor' | 'occupies' }
+export type SetupStatus = 'regen' | 'ward';
 export type PassiveEffect = { kind: 'setupShield'; property: Property; amount: number }
-  | { kind: 'cardShieldPower'; amount: number } | { kind: 'cardWeightReduction'; amount: number };
+  | { kind: 'cardShieldPower'; amount: number } | { kind: 'cardWeightReduction'; amount: number }
+  | { kind: 'cardPower'; amount: number }
+  | { kind: 'setupStatus'; status: SetupStatus; amount: number }
+  | { kind: 'setupReadiness'; amount: number };
+export type SetupPassiveEffect = Extract<PassiveEffect, { kind: 'setupShield' | 'setupStatus' | 'setupReadiness' }>;
 export interface PassiveEffectDefinition {
   id: string;
   targetBinding: 'automatic' | 'playerCard' | 'playerSlot';
@@ -27,17 +32,17 @@ export interface PassiveRecipe {
     effects: readonly PassiveEffectDefinition[];
   }[];
 }
-export interface CardPassiveModifier { amount: number; source: PassiveSourceRef; kind: 'cardShieldPower' | 'cardWeightReduction' }
+export interface CardPassiveModifier { amount: number; source: PassiveSourceRef; kind: 'cardShieldPower' | 'cardWeightReduction' | 'cardPower' }
 export interface PassiveChange {
-  skillId?: string; slot?: number; pieceRef?: string; actionIndex?: number; property?: Property;
-  field: 'weight' | 'shieldPower' | 'setupShield'; before: number; after: number; amount: number;
+  skillId?: string; slot?: number; pieceRef?: string; actionIndex?: number; property?: Property; status?: SetupStatus;
+  field: 'weight' | 'shieldPower' | 'power' | 'setupShield' | 'setupStatus' | 'setupReadiness'; before: number; after: number; amount: number;
   rawBefore?: number; rawAfter?: number;
-  stage: 'prepared' | 'setup'; basis: 'castWeightWithoutTransientTaxes' | 'authoredActionPower' | 'startingShieldPool';
+  stage: 'prepared' | 'setup'; basis: 'castWeightWithoutTransientTaxes' | 'authoredActionPower' | 'startingShieldPool' | 'startingStatus' | 'startingReadiness';
 }
 export interface PassiveReceipt {
   source: PassiveSourceRef;
   active: boolean;
-  reason: 'active' | 'missing-binding' | 'target-unavailable' | 'conditions-unmet' | 'no-shield-action';
+  reason: 'active' | 'missing-binding' | 'target-unavailable' | 'conditions-unmet' | 'no-shield-action' | 'no-hit-action';
   targetSlots: number[];
   targets: { skillId: string; name?: string; slot: number; size: number; pieceRef?: string }[];
   binding?: PassiveEffectDefinition['binding'];
@@ -55,7 +60,7 @@ export interface PreparedPassives {
   effectiveSkills: ReadonlyMap<number, import('../types').SkillDef>;
   receipts: PassiveReceipt[];
   cardModifiers: ReadonlyMap<number, readonly CardPassiveModifier[]>;
-  setupEffects: { source: PassiveSourceRef; property: Property; amount: number }[];
+  setupEffects: { source: PassiveSourceRef; effect: SetupPassiveEffect }[];
 }
 export interface PassiveRequest {
   schemaVersion: 1;

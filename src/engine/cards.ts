@@ -455,6 +455,14 @@ export const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
    */
   desperation: 'pre',
   execute: 'pre',
+  dormant: 'pre',
+  buildUp: 'pre',
+  opener: 'pre',
+  fleeting: 'pre',
+  crescendo: 'pre',
+  isolate: 'pre',
+  firstBlood: 'pre',
+  fuse: 'post',
   /**
    * THE TWO HEAL-SIDE RIDERS. Both must be in place before the host's `heal`
    * resolves — `overhealShield` grants the allowance the heal arm converts against,
@@ -906,6 +914,27 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece, passiveM
   return resolveTieredSkill(applyTier(def, piece.tier ?? def.tier), piece, passiveModifiers);
 }
 
+function withPassivePower(
+  skill: SkillDef,
+  passiveModifiers: readonly import('./passives/types').CardPassiveModifier[],
+  modifierKind: 'cardShieldPower' | 'cardPower',
+  actionKind: 'shield' | 'damage',
+): SkillDef {
+  const matching = passiveModifiers.filter(modifier => modifier.kind === modifierKind);
+  const bonus = matching.reduce((sum, modifier) => sum + modifier.amount, 0);
+  if (!Number.isSafeInteger(bonus) || bonus < 0) throw new Error(`Invalid passive ${actionKind} bonus`);
+  if (bonus === 0) return skill;
+  return {
+    ...skill,
+    effects: skill.effects.map(action => {
+      if (action.kind !== actionKind) return action;
+      const power = action.power + bonus;
+      if (!Number.isSafeInteger(power)) throw new Error(`Passive ${actionKind} power overflow`);
+      return { ...action, power, passiveSources: matching.map(modifier => ({ ...modifier.source })) };
+    }),
+  };
+}
+
 /** Explicitly tiered input; preparation uses this seam to fold gems exactly once. */
 export function resolveTieredSkill(baseTiered: SkillDef, piece: BoardPiece, passiveModifiers: readonly import('./passives/types').CardPassiveModifier[] = []): SkillDef {
   // Rank/tier-up first (scales the base card), THEN fold the gem on top — a
@@ -914,18 +943,7 @@ export function resolveTieredSkill(baseTiered: SkillDef, piece: BoardPiece, pass
   // TIER LOCK is resolved, and an untiered piece plays the card's own tier —
   // which must still drop any line locked above it. Same reference back for a
   // card with no lock, so an un-featured piece resolves byte-identically.
-  const shieldModifiers = passiveModifiers.filter(modifier => modifier.kind === 'cardShieldPower');
-  const bonus = shieldModifiers.reduce((sum, modifier) => sum + modifier.amount, 0);
-  if (!Number.isSafeInteger(bonus) || bonus < 0) throw new Error('Invalid passive shield bonus');
-  const tiered = bonus === 0 ? baseTiered : {
-    ...baseTiered,
-    effects: baseTiered.effects.map(action => {
-      if (action.kind !== 'shield') return action;
-      const power = action.power + bonus;
-      if (!Number.isSafeInteger(power)) throw new Error('Passive shield power overflow');
-      return { ...action, power, passiveSources: shieldModifiers.map(modifier => ({ ...modifier.source })) };
-    }),
-  };
+  const tiered = withPassivePower(withPassivePower(baseTiered, passiveModifiers, 'cardShieldPower', 'shield'), passiveModifiers, 'cardPower', 'damage');
   const gem = piece.gem;
   // THE CAST ORDER — every hit, then every rider — is fixed on the way OUT of
   // every branch below (see `orderCastRiders`): whether a kit's debuffs, DoTs and

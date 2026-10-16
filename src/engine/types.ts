@@ -918,6 +918,22 @@ type ActionKinds =
    */
   | { kind: 'desperation'; amount: number }
   | { kind: 'execute'; amount: number }
+  /** Flat bonus damage once the fight reaches global turn `turn`. */
+  | { kind: 'dormant'; turn: number; amount: number }
+  /** Flat bonus damage from this card's `casts`-th cast of the fight onward. */
+  | { kind: 'buildUp'; casts: number; amount: number }
+  /** Flat bonus damage on this card's first cast of the fight only. */
+  | { kind: 'opener'; amount: number }
+  /** Flat bonus damage through global turn `turn`, then never again. */
+  | { kind: 'fleeting'; turn: number; amount: number }
+  /** `per` bonus damage for each earlier cast of this card this fight, at most `cap`. */
+  | { kind: 'crescendo'; per: number; cap: number }
+  /** Flat bonus damage while the target is the only living unit on its side. */
+  | { kind: 'isolate'; amount: number }
+  /** Flat bonus damage against a target at full HP. */
+  | { kind: 'firstBlood'; amount: number }
+  /** Plants a fuse on the target that deals `amount` damage of the card's property at the end of turn T + `turns`. */
+  | { kind: 'fuse'; amount: number; turns: number }
   /**
    * OVERHEAL SHIELD — healing past a full HP bar becomes PLATING instead of
    * vanishing: when this cast's own `heal` overflows the recipient's `maxHp`, up to
@@ -1230,6 +1246,10 @@ export type SkillBook = Record<string, SkillDef>;
 
 export function weightOf(skill: SkillDef): number {
   return skill.speedWeight ?? skill.size * 10;
+}
+
+export function hasNothingToCast(skill: SkillDef): boolean {
+  return tierResolved(skill).effects.length === 0 && skill.special === undefined;
 }
 
 /**

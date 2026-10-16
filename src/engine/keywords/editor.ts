@@ -215,6 +215,39 @@ const SPEC: { readonly [K in Action['kind']]: KeywordSpec } = {
   },
   desperation: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
   execute: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  dormant: {
+    fields: [
+      { key: 'turn', floor: 2, hardMax: 10, seed: 4, unbounded: true },
+      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+    ],
+  },
+  buildUp: {
+    fields: [
+      { key: 'casts', floor: 2, hardMax: 5, seed: 2, unbounded: true },
+      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+    ],
+  },
+  opener: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  fleeting: {
+    fields: [
+      { key: 'turn', floor: 1, hardMax: 10, seed: 3, unbounded: true },
+      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+    ],
+  },
+  crescendo: {
+    fields: [
+      { key: 'per', floor: 1, hardMax: AUTHOR_CEILING, seed: 5, unbounded: true },
+      { key: 'cap', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+    ],
+  },
+  isolate: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  firstBlood: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  fuse: {
+    fields: [
+      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+      { key: 'turns', floor: 1, hardMax: 5, seed: 2, unbounded: true },
+    ],
+  },
   overhealShield: { fields: [{ key: 'cap', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
   cleanseConvert: {
     fields: [

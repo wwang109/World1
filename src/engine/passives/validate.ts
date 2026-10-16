@@ -15,9 +15,11 @@ function text(value: unknown): void { if (typeof value !== 'string' || !value.tr
 function integer(value: unknown, min = 0): void { if (!Number.isSafeInteger(value) || (value as number) < min) throw new Error('Expected safe integer'); }
 function property(value: unknown): void { if (!['physical', 'magical', 'true'].includes(value as string)) throw new Error('Invalid property'); }
 function selector(value: unknown): void {
-  const obj = object(value, ['property', 'archetype'], 'selector');
+  const obj = object(value, ['property', 'archetype', 'weapon', 'element'], 'selector');
   if (obj.property !== undefined) property(obj.property);
   if (obj.archetype !== undefined && !['offense', 'defensive', 'healing', 'support', 'debuff'].includes(obj.archetype as string)) throw new Error('Invalid archetype');
+  if (obj.weapon !== undefined && !['sword', 'axe', 'lance', 'bow', 'beast'].includes(obj.weapon as string)) throw new Error('Invalid weapon');
+  if (obj.element !== undefined && !['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'].includes(obj.element as string)) throw new Error('Invalid element');
 }
 export function validatePassiveRecipe(value: unknown): PassiveRecipe {
   const recipe = object(value, ['schemaVersion', 'sources'], 'recipe');
@@ -65,12 +67,13 @@ export function validatePassiveRecipe(value: unknown): PassiveRecipe {
           if (count.selector !== undefined) selector(count.selector);
         }
       }
-      const raw = object(def.effect, ['kind', 'amount', 'property'], 'effect');
+      const raw = object(def.effect, ['kind', 'amount', 'property', 'status'], 'effect');
       if (typeof raw.kind !== 'string' || !Object.hasOwn(PASSIVE_EFFECT_REGISTRY, raw.kind)) throw new Error('Unsupported passive effect');
       const handler = PASSIVE_EFFECT_REGISTRY[raw.kind as keyof typeof PASSIVE_EFFECT_REGISTRY];
       const effect = object(def.effect, handler.fields, 'effect');
       integer(effect.amount, 1);
       if (effect.kind === 'setupShield') property(effect.property);
+      if (effect.kind === 'setupStatus' && !['regen', 'ward'].includes(effect.status as string)) throw new Error('Invalid setup status');
     }
   }
   return structuredClone(value) as PassiveRecipe;
@@ -120,4 +123,10 @@ export function resolvePassiveRequest(value: unknown, catalog: PassiveRecipe['so
     effect.binding = structuredClone(selection.binding) as NonNullable<typeof effect.binding>;
   }
   return validatePassiveRecipe({ schemaVersion: 1, sources: [...selected.values()] });
+}
+
+export function mergePassiveRecipes(base: PassiveRecipe | undefined, extra: PassiveRecipe | undefined): PassiveRecipe | undefined {
+  if (!base || base.sources.length === 0) return extra;
+  if (!extra || extra.sources.length === 0) return base;
+  return validatePassiveRecipe({ schemaVersion: 1, sources: [...base.sources, ...extra.sources] });
 }

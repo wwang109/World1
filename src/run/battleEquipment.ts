@@ -4,6 +4,8 @@ import { applyEquipmentStats, resolveEquipment } from '../engine/equipment/resol
 import { EQUIPMENT_SLOTS, type EquippedItemRef } from '../engine/equipment/types';
 import { EQUIPMENT_MAX_LEVEL } from '../engine/equipment/upgrade';
 import { skillBook } from '../data/skills';
+import { mergePassiveRecipes } from '../engine/passives/validate';
+import type { PassiveRecipe } from '../engine/passives/types';
 
 export function requestEquipment(value: unknown): EquippedItemRef[] {
   if (!Array.isArray(value) || value.length > EQUIPMENT_SLOTS.length) throw new Error('equipment must be an array of at most three item references');
@@ -39,5 +41,16 @@ export function applyBattleEquipment(setup: CombatantSetup, value: unknown): Com
   const resolution = resolveEquipment(items, cards, equipmentCatalog);
   const statsBefore: CombatantStats = { ...setup.stats };
   const stats = applyEquipmentStats(statsBefore, resolution, { fullHpAtBattleSetup: true });
-  return { ...setup, stats, equipment: { ...resolution, items, statsBefore, statsAfter: { ...stats } } };
+  const passives = mergePassiveRecipes(setup.passives, equipmentPassives(items));
+  return { ...setup, stats, ...(passives ? { passives } : {}), equipment: { ...resolution, items, statsBefore, statsAfter: { ...stats } } };
+}
+
+export function equipmentPassives(items: readonly EquippedItemRef[]): PassiveRecipe | undefined {
+  const sources = items.flatMap(ref => {
+    const item = equipmentCatalog.item(ref.itemId, ref.itemVersion);
+    return item.passives?.length
+      ? [{ source: { kind: 'equipment' as const, id: ref.itemId, version: ref.itemVersion, displayName: item.name }, effects: item.passives }]
+      : [];
+  });
+  return sources.length ? { schemaVersion: 1, sources } : undefined;
 }

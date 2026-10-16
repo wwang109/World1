@@ -55,6 +55,31 @@ edge-to-edge (the UI clips its own corners).
 
 ## Landing / front-door assets
 
+### Enemy encounter portrait overlays
+
+Transparent character masters live in `art-src/enemies/`; matching served
+WebP derivatives live in `public/game-art/enemies/`, encoded at up to 512px
+high with `npm run art:encode -- --group enemies`. The exact generation
+prompts are in `art-src/enemies/portraits-v1.prompt.md`.
+
+The initial family is `pike-conscript-v1`, `toxic-druid-v1`, `cleric-v1`,
+and the special boss `greenwood-sovereign-v1`. The second family adds
+`giant-rat-v1`, `stone-beetle-v1`, `ember-imp-v1`, and the special Howlmoor
+boss `wolf-king-v1`; its exact prompts are in
+`art-src/enemies/portraits-v2.prompt.md`. Each is one bright manga/anime
+character cutout with readable cool shadows, warm cream/coral/gold light,
+clean alpha, and no scenery, text, border or frame. The boss has a larger
+regal silhouette, crown and ornate bow. Preserve the original PNG alpha.
+
+`RunTravelChoiceCard` contains a separate portrait image inside the existing
+biome-art rectangle on both desktop and mobile. It never bakes a landscape
+into the cutout or replaces another enemy's identity with one of these.
+Encounters without a mapped portrait keep the current background or boss
+icon. `runTravelChoiceViewModel.ts` selects the primary encounter enemy;
+`runArtKeys.ts` maps identities and `runArt.ts` loads the derivatives.
+`RunBossArrivalPanel` uses the same contained portrait over its regional
+background for a mapped boss, retaining the skull for other boss identities.
+
 `StartScene` owns this isolated four-asset family; it is loaded directly by
 `startSceneAssetPaths()` rather than through the shared run-art catalog.
 

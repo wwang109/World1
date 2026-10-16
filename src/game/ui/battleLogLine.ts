@@ -4,7 +4,7 @@ import { AILMENT_COLOR } from './battleStatusPalette';
 
 export type BattleLogTextRole =
   | 'neutral' | 'player' | 'enemy' | 'damage' | 'heal' | 'shield' | 'readiness'
-  | 'poison' | 'burn' | 'bleed' | 'thorns';
+  | 'poison' | 'burn' | 'bleed' | 'thorns' | 'note';
 
 export interface BattleLogTextSegment {
   text: string;
@@ -24,7 +24,11 @@ export const BATTLE_LOG_COLOR: Record<Exclude<BattleLogTextRole, 'neutral'>, str
   // the desktop log ground); the log uses the theme's AA-cleared coral twin.
   bleed: INK.alarm,
   thorns: AILMENT_COLOR.thorns!,
+  note: INK.faint,
 };
+
+export const LOG_GROUP_BAND: Record<'player' | 'enemy', number> = { player: 0x1f395d, enemy: 0x4d2734 };
+export const LOG_GROUP_STRIPE: Record<'player' | 'enemy', number> = { player: 0x5b9bd8, enemy: 0xd0605a };
 
 function widthOf(segments: readonly BattleLogTextSegment[], measure: (text: string) => number): number {
   return segments.reduce((total, segment) => total + measure(segment.text), 0);
@@ -102,7 +106,7 @@ export function wrapBattleLogSegments(
 export function layoutVisibleBattleLogRows<T>(
   scene: Phaser.Scene,
   feed: readonly T[],
-  getLine: (item: T) => { text: string; segments?: readonly BattleLogTextSegment[] },
+  getLine: (item: T) => { text: string; segments?: readonly BattleLogTextSegment[]; notes?: readonly string[] },
   getMaxWidth: (item: T) => number,
   style: Phaser.Types.GameObjects.Text.TextStyle,
   rowHeight: number,
@@ -118,6 +122,7 @@ export function layoutVisibleBattleLogRows<T>(
     const line = getLine(item);
     const source = line.segments ?? [{ text: line.text, role: 'neutral' as const }];
     const wrapped = wrapBattleLogSegments(source, getMaxWidth(item), measure);
+    for (const note of line.notes ?? []) wrapped.push(...wrapBattleLogSegments([{ text: note, role: 'note' }], getMaxWidth(item), measure));
     const height = wrapped.length * rowHeight;
     if (selected.length > 0 && used + height > availableHeight) break;
     used += height;

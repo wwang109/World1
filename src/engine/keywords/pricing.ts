@@ -49,6 +49,7 @@ export type FlagOf<K extends Action['kind']> = FlagKeys<Extract<Action, { kind: 
 export type PriceTerm<K extends Action['kind'] = Action['kind']> =
   | { form: 'perUnit'; field: FieldOf<K>; num: number; den: number }
   | { form: 'perUnitByProperty'; field: FieldOf<K>; num: Record<Property, number>; den: number }
+  | { form: 'perUnitByPropertyShare'; field: FieldOf<K>; gate?: FieldOf<K>; num: Record<Property, number>; sharePct: readonly number[] }
   | { form: 'product'; fields: readonly [FieldOf<K>, FieldOf<K>]; num: number; den: number }
   | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] }
   // ONE RATE PER UNIT, CHOSEN BY A CAPABILITY FLAG — for a keyword whose payload
@@ -150,6 +151,9 @@ export interface PriceRates {
   comboPerPointNum: number;
   comboPerPointDen: number;
   conditionalBonusDen: number;
+  castsFromTurnSharePct: readonly number[];
+  castsThroughTurnSharePct: readonly number[];
+  nthCastOnwardSharePct: readonly number[];
   affinityPayoffNum: number;
   affinityPayoffDen: number;
   guardPerPctTurnNum: number;
@@ -473,6 +477,14 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // construction — there is no full-rate variant to escape to.
     desperation: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
     execute: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: 1 }] },
+    dormant: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByPropertyShare', field: 'amount', gate: 'turn', num: strikeRate, sharePct: P.castsFromTurnSharePct }] },
+    buildUp: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByPropertyShare', field: 'amount', gate: 'casts', num: strikeRate, sharePct: P.nthCastOnwardSharePct }] },
+    opener: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByPropertyShare', field: 'amount', num: strikeRate, sharePct: [100 - (P.nthCastOnwardSharePct[2] ?? 0)] }] },
+    fleeting: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByPropertyShare', field: 'amount', gate: 'turn', num: strikeRate, sharePct: P.castsThroughTurnSharePct }] },
+    crescendo: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByPropertyShare', field: 'cap', num: strikeRate, sharePct: [P.nthCastOnwardSharePct[2] ?? 100] }] },
+    isolate: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    firstBlood: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    fuse: { isHit: false, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // OVERHEAL SHIELD / CLEANSE CONVERT — the family's two HEAL-SIDE members. Same
     // denominator (`conditionalBonusDen`), same "the required cap is the priced
@@ -563,6 +575,11 @@ export function priceActionDeci(
       case 'perUnitByProperty':
         deci += Math.floor(((fields[term.field] ?? 0) * term.num[property]) / term.den);
         break;
+      case 'perUnitByPropertyShare': {
+        const at = term.gate === undefined ? 0 : Math.min(Math.max(fields[term.gate] ?? 0, 0), term.sharePct.length - 1);
+        deci += Math.floor(((fields[term.field] ?? 0) * term.num[property] * (term.sharePct[at] ?? 100)) / 100);
+        break;
+      }
       case 'perUnitByFlag':
         deci += Math.floor(((fields[term.field] ?? 0) * (flags[term.flag] === true ? term.numWhenSet : term.num)) / term.den);
         break;

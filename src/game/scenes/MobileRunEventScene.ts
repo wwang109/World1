@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { roundRect } from '../ui/roundedRect';
 import { type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
-import { RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
+import { fittedPickerModalHeight, RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
@@ -160,9 +160,10 @@ export class MobileRunEventScene extends Phaser.Scene {
     const feature = state.kind === 'receipt' && state.outcome ? buildRunRewardViewModel(state.outcome, state.mergeReceipt).feature.kind : 'icon';
     const choosing = state.kind === 'choices';
     const gem = state.kind === 'receipt' && feature === 'gem';
-    openRunModal(this, { id: 'run-event', title: choosing ? 'EVENT' : state.kind === 'picker' ? 'CHOOSE YOUR REWARD' : 'EVENT OUTCOME',
+    const picked = state.kind === 'picker' ? fittedPickerModalHeight(state.picker, 'mobile') : undefined;
+    openRunModal(this, { id: 'run-event', title: choosing ? 'EVENT' : state.kind === 'picker' ? view.title.toUpperCase() : 'EVENT OUTCOME',
       compact: true, width: 388,
-      height: gem ? 540 : state.kind === 'receipt' && feature !== 'card' ? 480 : 740,
+      height: gem ? 540 : state.kind === 'receipt' && feature !== 'card' ? 480 : picked ?? 740,
       onClose: choosing ? () => { if (this.embedded) this.embedded.onDismiss?.(); else this.scene.stop(); } : undefined,
       render: (scene, layout) => { this.modalView = scene; this.renderContents(layout); },
     });
@@ -299,6 +300,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     // battle scene's CONTINUE returns to.
     if (outcome?.kind === 'challengeFight') {
       setBattleContext('run');
+      this.scene.stop('MobileRunMap');
       this.scene.start('MobileBattle');
       return;
     }

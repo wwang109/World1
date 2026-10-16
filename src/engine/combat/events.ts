@@ -5,7 +5,14 @@ import type { ShieldPools } from './state';
 export type { AuraSource } from './auras';
 
 
-export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen';
+export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward' | 'regen' | 'fuse';
+
+export type BonusSource = Action['kind'] | 'aura' | 'gem';
+
+export interface BonusPart {
+  source: BonusSource;
+  amount: number;
+}
 
 /** Exact integer stages used to produce one direct skill hit. */
 export interface DamageCalculation {
@@ -18,6 +25,8 @@ export interface DamageCalculation {
   statBonusDamage: number;
   /** FLAT aura + combo + gem bonus damage added (no longer a percentage). */
   effectBonusDamage: number;
+  /** `effectBonusDamage` split by what added it; present only when it is non-zero. */
+  bonusParts?: BonusPart[];
   /** Actual damage removed by Armor/Magic Resist after the minimum-1 clamp. */
   defense: number;
   /** Damage restored by the engine's minimum-1 clamps. */
@@ -313,7 +322,7 @@ export type CombatEvent =
        * unblockable true damage on EVERY living combatant, owned by no card, so
        * it never carries `sourceCard` and never feeds riders/lifesteal/combo.
        */
-      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
+      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition' | 'fuse';
       /** The board card that produced this hit (cast card, or the card that applied the DoT). */
       sourceCard?: EffectSourceRef;
       /** Present for direct skill hits; DoT/fatigue/attrition damage has no cast formula. */
@@ -383,6 +392,10 @@ export type CombatEvent =
          * src/game/battleTimeline.ts) shows it as its own term.
          */
         bonus?: number;
+        /** `healFlat + bonus` split by what added it; present only when non-zero. */
+        bonusParts?: BonusPart[];
+        /** `equipmentBonus` split by the equipment set that granted it. */
+        equipmentParts?: { name: string; amount: number }[];
       };
     }
   | {
@@ -432,7 +445,7 @@ export type CombatEvent =
        */
       overheal?: true;
     }
-  | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number }
+  | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number; sourcePassive?: import('../passives/types').PassiveSourceRef }
   /**
    * A status left the unit. It NAMES NOTHING beyond the kind: every expiry is a
    * natural (duration/charge/stack) one, so a replay that tracked the window
@@ -493,7 +506,7 @@ export type CombatEvent =
    * knows what ended (exactly the contract `statusExpired` states).
    */
   | { turn: number; kind: 'curseExpired'; side: Side; unit: number; slots: number[] }
-  | { turn: number; kind: 'hastened'; side: Side; unit: number; amount: number; readinessAfter: number }
+  | { turn: number; kind: 'hastened'; side: Side; unit: number; amount: number; readinessAfter: number; sourcePassive?: import('../passives/types').PassiveSourceRef }
   | {
       turn: number;
       kind: 'disrupted';

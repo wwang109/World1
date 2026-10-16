@@ -239,6 +239,14 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   thorns: '#68c3a0',
   regen: '#8fd47a',
   haste: '#e6c35c',
+  dormant: '#a5b0f5',
+  fleeting: '#a8b0e6',
+  opener: '#4dcbc3',
+  buildup: '#3cddd2',
+  crescendo: '#6ec1bc',
+  isolate: '#e699e6',
+  firstblood: '#ed99d1',
+  fuse: '#c0d345',
   true: '#e8d5a0',
 };
 

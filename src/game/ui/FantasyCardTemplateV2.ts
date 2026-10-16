@@ -114,7 +114,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       this.add(this.makeTextPlate(scene, model, halfW, halfH));
     }
     this.add(this.makeBadges(scene, model, halfW, halfH).setName('fantasy-card-badges'));
-    this.add(this.makeWtPlate(scene, model, halfW, halfH));
+    if (model.showsWeight) this.add(this.makeWtPlate(scene, model, halfW, halfH));
     this.add(this.makeTierDiamond(scene, model, halfW, halfH));
     const pips = this.makeTierProgressPips(scene, model, halfW, halfH);
     if (pips) this.add(pips);

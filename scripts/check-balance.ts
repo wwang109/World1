@@ -30,11 +30,15 @@
 // scripts under a live/uninstalled `node_modules/.bin`).
 import { applyTier } from '../src/engine/cards';
 import { gemBook } from '../src/data/gems';
+import { equipmentDocument } from '../src/data/equipmentContent';
 import { skillBook } from '../src/data/skills';
 import {
   actionsPriceDeci,
   BUDGET_TOLERANCE_DECI,
   capViolations,
+  equipmentPowerLevelBreakdown,
+  equipmentPowerLevelDeci,
+  isEquipmentOnBudget,
   gemPowerLevelDeci,
   isGemOnBudget,
   powerLevelBreakdown,
@@ -128,9 +132,20 @@ for (const gem of Object.values(gemBook)) {
 
 const gemCount = Object.keys(gemBook).length;
 
+let itemVersions = 0;
+for (const item of equipmentDocument.items) for (const { version, def } of item.versions) {
+  itemVersions += 1;
+  const deci = equipmentPowerLevelDeci(def);
+  const summed = equipmentPowerLevelBreakdown(def).reduce((sum, part) => sum + part.deci, 0);
+  if (summed !== deci) violations.push(`ITEM BREAKDOWN ${item.id}@${version}: parts sum to ${summed}, equipmentPowerLevelDeci says ${deci}`);
+  if (isEquipmentOnBudget(def)) continue;
+  const band = RARITY_PL_DECI[def.rarity];
+  violations.push(`ITEM ${item.id}@${version} (${def.name}): ${deci} deci-PL (band ${band} deci-PL for ${def.rarity}, delta ${deci - band})`);
+}
+
 if (violations.length > 0) {
-  console.error(`Power Level audit violations (${ranksChecked} card-tier ranks across ${cardCount} cards, ${gemCount} gems checked):`);
+  console.error(`Power Level audit violations (${ranksChecked} card-tier ranks across ${cardCount} cards, ${gemCount} gems, ${itemVersions} item versions checked):`);
   for (const v of violations) console.error('  ' + v);
   process.exit(1);
 }
-console.log(`PL audit OK (${ranksChecked} card-tier ranks across ${cardCount} cards, ${gemCount} gems)`);
+console.log(`PL audit OK (${ranksChecked} card-tier ranks across ${cardCount} cards, ${gemCount} gems, ${itemVersions} item versions)`);

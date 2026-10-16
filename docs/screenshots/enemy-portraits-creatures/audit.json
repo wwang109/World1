@@ -1,0 +1,668 @@
+[
+  {
+    "path": "art-src/enemies/giant-rat-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 715915,
+    "opaque": 103,
+    "partial": 856498,
+    "solid": 777195
+  },
+  {
+    "path": "public/game-art/enemies/giant-rat-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 119877,
+    "opaque": 0,
+    "partial": 142267,
+    "solid": 128419
+  },
+  {
+    "path": "art-src/enemies/stone-beetle-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 862365,
+    "opaque": 300,
+    "partial": 709851,
+    "solid": 671124
+  },
+  {
+    "path": "public/game-art/enemies/stone-beetle-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 143963,
+    "opaque": 0,
+    "partial": 118181,
+    "solid": 110880
+  },
+  {
+    "path": "art-src/enemies/ember-imp-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 859970,
+    "opaque": 1229,
+    "partial": 711317,
+    "solid": 583783
+  },
+  {
+    "path": "public/game-art/enemies/ember-imp-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 144136,
+    "opaque": 0,
+    "partial": 118008,
+    "solid": 95339
+  },
+  {
+    "path": "art-src/enemies/wolf-king-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "transparent": 622437,
+    "opaque": 107,
+    "partial": 949972,
+    "solid": 864817
+  },
+  {
+    "path": "public/game-art/enemies/wolf-king-v1.webp",
+    "width": 512,
+    "height": 512,
+    "transparent": 104374,
+    "opaque": 0,
+    "partial": 157770,
+    "solid": 142900
+  },
+  {
+    "platform": "desktop",
+    "boss": false,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "fixture": {
+      "depth": 17,
+      "nodes": [
+        {
+          "id": "d18-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Giant Rat",
+                  "stats": {
+                    "maxHp": 105,
+                    "hp": 105,
+                    "attack": 4,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 14
+                  },
+                  "boardSize": 3,
+                  "pieces": [
+                    {
+                      "skillId": "savage_bite",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "venom_fang",
+                      "slot": 1,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "second_bite",
+                      "slot": 2,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 5,
+                "title": "normal",
+                "rank": 1,
+                "baseRank": 0,
+                "growthLevel": 5,
+                "enemyId": "giant_rat",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d18-1",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Stone Beetle",
+                  "stats": {
+                    "maxHp": 135,
+                    "hp": 135,
+                    "attack": 3,
+                    "magicPower": 1,
+                    "armor": 7,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 5,
+                  "pieces": [
+                    {
+                      "skillId": "iron_bulwark",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "savage_bite",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "barbed_rampart",
+                      "slot": 3,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "ironhide",
+                      "slot": 4,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 6,
+                "effectiveLevel": 6,
+                "title": "normal",
+                "rank": 2,
+                "baseRank": 0,
+                "growthLevel": 6,
+                "enemyId": "stone_beetle",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d18-2",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Ember Imp",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 21,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 12
+                  },
+                  "boardSize": 7,
+                  "pieces": [
+                    {
+                      "skillId": "fireball",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "cinder_dart",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "ember_lash",
+                      "slot": 3,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "leeching_fang",
+                      "slot": 4,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "wildfire_surge",
+                      "slot": 5,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 7,
+                "effectiveLevel": 9,
+                "title": "elite",
+                "rank": 4,
+                "baseRank": 2,
+                "growthLevel": 7,
+                "enemyId": "ember_imp",
+                "modifiers": [],
+                "affix": "leeching",
+                "bumped": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-enemy-portrait-d18-2",
+        "texture": "run-art-enemy-ember-imp",
+        "width": 127.67999999999995,
+        "height": 127.67999999999995,
+        "x": 582.16,
+        "y": 721.32
+      },
+      {
+        "name": "run-enemy-portrait-d18-1",
+        "texture": "run-art-enemy-stone-beetle",
+        "width": 127.67999999999995,
+        "height": 127.67999999999995,
+        "x": 582.16,
+        "y": 556.32
+      },
+      {
+        "name": "run-enemy-portrait-d18-0",
+        "texture": "run-art-enemy-giant-rat",
+        "width": 127.67999999999995,
+        "height": 127.68,
+        "x": 582.16,
+        "y": 391.32
+      }
+    ],
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:5173/favicon.ico"
+    ],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits-creatures/desktop-encounters.png"
+  },
+  {
+    "platform": "desktop",
+    "boss": true,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "fixture": {
+      "depth": 15,
+      "nodes": [
+        {
+          "id": "d15-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "The Wolf King",
+                  "stats": {
+                    "maxHp": 135,
+                    "hp": 135,
+                    "attack": 11,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 16
+                  },
+                  "boardSize": 5,
+                  "pieces": [
+                    {
+                      "skillId": "nettle_lash",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "venom_fang",
+                      "slot": 1,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "leeching_fang",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "sword_slash",
+                      "slot": 3,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "second_bite",
+                      "slot": 4,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 8,
+                "title": "boss",
+                "rank": 3,
+                "baseRank": 2,
+                "growthLevel": 5,
+                "enemyId": "wolf_king",
+                "modifiers": [
+                  "swift"
+                ],
+                "affix": null,
+                "bumped": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-boss-portrait-d15-0",
+        "texture": "run-art-enemy-wolf-king",
+        "width": 249.40800000000013,
+        "height": 249.40800000000002,
+        "x": 1113.1960000000001,
+        "y": 498.4920000000001
+      }
+    ],
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:5173/favicon.ico"
+    ],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits-creatures/desktop-boss.png"
+  },
+  {
+    "platform": "mobile",
+    "boss": false,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "fixture": {
+      "depth": 17,
+      "nodes": [
+        {
+          "id": "d18-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Giant Rat",
+                  "stats": {
+                    "maxHp": 105,
+                    "hp": 105,
+                    "attack": 4,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 14
+                  },
+                  "boardSize": 3,
+                  "pieces": [
+                    {
+                      "skillId": "savage_bite",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "venom_fang",
+                      "slot": 1,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "second_bite",
+                      "slot": 2,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 5,
+                "title": "normal",
+                "rank": 1,
+                "baseRank": 0,
+                "growthLevel": 5,
+                "enemyId": "giant_rat",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d18-1",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Stone Beetle",
+                  "stats": {
+                    "maxHp": 135,
+                    "hp": 135,
+                    "attack": 3,
+                    "magicPower": 1,
+                    "armor": 7,
+                    "magicResist": 1,
+                    "speed": 10
+                  },
+                  "boardSize": 5,
+                  "pieces": [
+                    {
+                      "skillId": "iron_bulwark",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "savage_bite",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "barbed_rampart",
+                      "slot": 3,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "ironhide",
+                      "slot": 4,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 6,
+                "effectiveLevel": 6,
+                "title": "normal",
+                "rank": 2,
+                "baseRank": 0,
+                "growthLevel": 6,
+                "enemyId": "stone_beetle",
+                "modifiers": [],
+                "affix": null,
+                "bumped": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "d18-2",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "Ember Imp",
+                  "stats": {
+                    "maxHp": 100,
+                    "hp": 100,
+                    "attack": 1,
+                    "magicPower": 21,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 12
+                  },
+                  "boardSize": 7,
+                  "pieces": [
+                    {
+                      "skillId": "fireball",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "cinder_dart",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "ember_lash",
+                      "slot": 3,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "leeching_fang",
+                      "slot": 4,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "wildfire_surge",
+                      "slot": 5,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 7,
+                "effectiveLevel": 9,
+                "title": "elite",
+                "rank": 4,
+                "baseRank": 2,
+                "growthLevel": 7,
+                "enemyId": "ember_imp",
+                "modifiers": [],
+                "affix": "leeching",
+                "bumped": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-enemy-portrait-d18-2",
+        "texture": "run-art-enemy-ember-imp",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 740.4
+      },
+      {
+        "name": "run-enemy-portrait-d18-1",
+        "texture": "run-art-enemy-stone-beetle",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 582.4
+      },
+      {
+        "name": "run-enemy-portrait-d18-0",
+        "texture": "run-art-enemy-giant-rat",
+        "width": 57.599999999999994,
+        "height": 57.60000000000002,
+        "x": 23.200000000000003,
+        "y": 424.4
+      }
+    ],
+    "errors": [],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits-creatures/mobile-encounters.png"
+  },
+  {
+    "platform": "mobile",
+    "boss": true,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "fixture": {
+      "depth": 15,
+      "nodes": [
+        {
+          "id": "d15-0",
+          "encounter": {
+            "variant": "solo",
+            "units": [
+              {
+                "setup": {
+                  "name": "The Wolf King",
+                  "stats": {
+                    "maxHp": 135,
+                    "hp": 135,
+                    "attack": 11,
+                    "magicPower": 1,
+                    "armor": 1,
+                    "magicResist": 1,
+                    "speed": 16
+                  },
+                  "boardSize": 5,
+                  "pieces": [
+                    {
+                      "skillId": "nettle_lash",
+                      "slot": 0,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "venom_fang",
+                      "slot": 1,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "leeching_fang",
+                      "slot": 2,
+                      "tier": "silver"
+                    },
+                    {
+                      "skillId": "sword_slash",
+                      "slot": 3,
+                      "tier": "bronze"
+                    },
+                    {
+                      "skillId": "second_bite",
+                      "slot": 4,
+                      "tier": "bronze"
+                    }
+                  ]
+                },
+                "level": 5,
+                "effectiveLevel": 8,
+                "title": "boss",
+                "rank": 3,
+                "baseRank": 2,
+                "growthLevel": 5,
+                "enemyId": "wolf_king",
+                "modifiers": [
+                  "swift"
+                ],
+                "affix": null,
+                "bumped": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "portraits": [
+      {
+        "name": "run-boss-portrait-d15-0",
+        "texture": "run-art-enemy-wolf-king",
+        "width": 158.0544,
+        "height": 158.0544,
+        "x": 126.9728,
+        "y": 438.26559999999995
+      }
+    ],
+    "errors": [],
+    "missingResources": [],
+    "screenshot": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\docs\\screenshots\\enemy-portraits-creatures/mobile-boss.png"
+  }
+]

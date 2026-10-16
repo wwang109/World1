@@ -1,6 +1,19 @@
 import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../layoutProfile';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 
+const PICKER_HEADLINE_BAND = 44;
+const PICKER_SKIP_H = 40;
+
+function eventPaneSpacing(platform: RunTemplatePlatform): { pad: number; gap: number } {
+  return platform === 'mobile' ? { pad: 12, gap: 8 } : { pad: 18, gap: 12 };
+}
+
+export function eventPickerBodyHeight(platform: RunTemplatePlatform, rows: number, rowH: number, skip: boolean): number {
+  const { pad, gap } = eventPaneSpacing(platform);
+  const gridGap = platform === 'mobile' ? MOBILE_PROFILE.gap : DESKTOP_PROFILE.gap;
+  return gap + PICKER_HEADLINE_BAND + rows * rowH + Math.max(0, rows - 1) * gridGap + (skip ? PICKER_SKIP_H + gap : 0) + pad;
+}
+
 /** Fit every event state inside the existing EVENT OUTCOME pane. The story
  * and outer pane are owned by the scene and never replaced by reward chrome. */
 export function eventOutcomePaneTemplate(
@@ -8,10 +21,10 @@ export function eventOutcomePaneTemplate(
   kind: 'icon' | 'gem' | 'card' | 'picker' | 'equipment',
   panel: Rect,
   header: Rect,
+  skip = false,
 ): RunScreenTemplate & { eventOutcomePane: { header: Rect } } {
+  const { pad, gap } = eventPaneSpacing(template.platform);
   const compact = template.platform === 'mobile';
-  const pad = compact ? 12 : 18;
-  const gap = compact ? 8 : 12;
   const innerX = panel.x + pad;
   const innerW = panel.width - pad * 2;
   const bodyY = header.y + header.height + gap;
@@ -19,12 +32,13 @@ export function eventOutcomePaneTemplate(
   const terminal = kind !== 'picker';
   const bodyH = terminal ? Math.min(availableH - 52, kind === 'icon' ? 160 : kind === 'gem' ? 190 : 350) : availableH;
   const body = { x: innerX, y: bodyY, width: innerW, height: Math.max(0, bodyH) };
-  const buttons = { x: innerX, y: bodyY + body.height + (terminal ? 12 : 0), width: innerW, height: terminal ? 40 : 0 };
+  const skipH = !terminal && skip ? PICKER_SKIP_H : 0;
+  const buttons = terminal
+    ? { x: innerX, y: bodyY + body.height + 12, width: innerW, height: 40 }
+    : { x: innerX, y: bodyY + body.height - skipH, width: innerW, height: skipH };
   const headline = { ...body, height: Math.min(36, body.height) };
-  // The merge price can borrow from feature as before, but a modest detail
-  // band keeps all three spent rows and a real candidate/pager reachable.
-  const detail = { ...body, y: bodyY + 44, height: terminal ? 0 : 56 };
-  const feature = { ...body, y: detail.y + detail.height, height: Math.max(0, body.height - 44 - detail.height) };
+  const detail = { ...body, y: bodyY + PICKER_HEADLINE_BAND, height: 0 };
+  const feature = { ...body, y: detail.y, height: Math.max(0, body.height - PICKER_HEADLINE_BAND - (skipH > 0 ? skipH + gap : 0)) };
   const stacked = compact && kind !== 'icon';
   const visualW = stacked ? innerW : Math.min(kind === 'card' ? 220 : kind === 'gem' ? 310 : 160, innerW * 0.42);
   const outcomeFeature = { x: innerX, y: bodyY, width: visualW, height: stacked ? Math.max(0, body.height - 76) : body.height };

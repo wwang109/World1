@@ -187,8 +187,7 @@ export function resolveAuras(c: Pick<CombatantState, 'pieces'>, piece: PieceStat
   // sources in ascending board-slot order without a separate sort.
   for (const source of c.pieces) {
     if (source === piece) continue;
-    const def = skillBook[source.skillId];
-    const aura = def?.aura;
+    const aura = source.skill.aura;
     if (!aura) continue;
     if (!covers(source, piece, aura.affects, aura.reach ?? 1)) continue;
     if (aura.archetypeFilter && !targetDef.archetypes.includes(aura.archetypeFilter)) continue;

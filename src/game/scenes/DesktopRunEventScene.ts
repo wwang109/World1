@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { type EmbeddedRunDestination } from '../ui/RunDestinationHost';
 import { eventOutcomePaneTemplate } from '../ui/runRewardGeometry';
-import { RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
+import { fittedPickerModalHeight, RunEventOutcomePaneController } from '../ui/RunEventOutcomePane';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
@@ -146,9 +146,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const feature = state.kind === 'receipt' && state.outcome ? buildRunRewardViewModel(state.outcome, state.mergeReceipt).feature.kind : 'icon';
     const choosing = state.kind === 'choices';
     const gem = state.kind === 'receipt' && feature === 'gem';
-    openRunModal(this, { id: 'run-event', title: choosing ? 'EVENT' : state.kind === 'picker' ? 'CHOOSE YOUR REWARD' : 'EVENT OUTCOME',
+    const picked = state.kind === 'picker' ? fittedPickerModalHeight(state.picker, 'desktop') : undefined;
+    openRunModal(this, { id: 'run-event', title: choosing ? 'EVENT' : state.kind === 'picker' ? view.title.toUpperCase() : 'EVENT OUTCOME',
       compact: false, width: choosing ? 1080 : gem ? 668 : 900,
-      height: choosing ? 700 : gem ? 500 : state.kind === 'receipt' && feature !== 'card' ? 400 : 680,
+      height: choosing ? 700 : gem ? 500 : state.kind === 'receipt' && feature !== 'card' ? 400 : picked ?? 680,
       onClose: choosing ? () => { if (this.embedded) this.embedded.onDismiss?.(); else this.scene.stop(); } : undefined,
       render: (scene, layout) => { this.modalView = scene; this.renderContents(layout); },
     });
@@ -286,6 +287,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     // battle scene's CONTINUE returns to.
     if (outcome?.kind === 'challengeFight') {
       setBattleContext('run');
+      this.scene.stop('DesktopRunMap');
       this.scene.start('DesktopBattle');
       return;
     }

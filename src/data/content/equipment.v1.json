@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "status": "runtime_equipment_and_sets",
   "notes": [
-    "Canonical runtime equipment content. Stats and percentages remain illustrative; equipment PL pricing has not been approved.",
+    "Canonical runtime equipment content. An item's PL (equipmentPowerLevelDeci in src/engine/balance.ts) must equal its rarity budget (RARITY_PL_DECI); set bonuses and outgoingHealPct are not priced yet.",
     "Slots are armor, accessory, and charm: at most one owned item instance is equipped in each slot. Only equipped items grant their flat statMods.",
     "Set pieces count distinct occupied equipment slots with the same setId, once per slot. Unequipped inventory items do not count.",
     "A set's boardRequirement counts matching active equipped board card instances using their resolved SkillDef fields. Each card instance counts once regardless of size; occupied size slots, bag cards, held cards, and gems do not count.",
     "All criteria in match must hold for a card to count. A card with weapon sword matches the Duelist requirement; a card with property magical matches the Arcanist requirement.",
     "Both set thresholds require the authored minCount of matching active board card instances (currently 3 for every set). If this requirement is met, 2 equipped set pieces grant the 2-piece bonus, and 3 grant BOTH the 2-piece and 3-piece bonuses additively. Losing the board requirement disables both bonuses.",
     "Equipping or swapping is allowed between fights. Next battle starts at full resolved maxHp. Current hp is not an equipment modifier.",
-    "Catalog entries use stable outer ids and versioned defs; owned items should reference item id and definition version. No artwork, gold price, PL budget, or drop chance is finalized here.",
+    "Catalog entries use stable outer ids and versioned defs; owned items should reference item id and definition version. No artwork, gold price, or drop chance is finalized here.",
     "archetypesIncludes selects one existing archetype literal by membership in SkillDef.archetypes; it combines with any property or weapon criterion using AND. Tank set requirements select defensive cards regardless of property.",
     "Set bonus effectMods are a separate modifier axis, not CombatantStats. outgoingHealPct is an illustrative positive integer percentage applying only to direct heal actions; it excludes drain, lifesteal, regeneration, and every other healing source.",
     "Descriptions are generated from typed modifier and requirement registries; never author duplicate bonus text. Direct healing applies the combined percentage once before anti-heal and HP clamping.",
@@ -24,9 +24,10 @@
           "def": {
             "name": "Duelist Coat",
             "slot": "armor",
+            "rarity": "common",
             "setId": "duelist",
             "statMods": {
-              "maxHp": 12,
+              "maxHp": 5,
               "armor": 1
             },
             "dropEligibility": {
@@ -47,10 +48,24 @@
           "def": {
             "name": "Duelist Crest",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "duelist",
             "statMods": {
               "attack": 1
             },
+            "passives": [
+              {
+                "id": "sword_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "weapon": "sword"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 6
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -69,10 +84,22 @@
           "def": {
             "name": "Duelist Knot",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "duelist",
             "statMods": {
               "attack": 1
             },
+            "passives": [
+              {
+                "id": "opening_ward",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "ward",
+                  "amount": 1
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -91,9 +118,10 @@
           "def": {
             "name": "Arcanist Robe",
             "slot": "armor",
+            "rarity": "common",
             "setId": "arcanist",
             "statMods": {
-              "maxHp": 12,
+              "maxHp": 5,
               "magicResist": 1
             },
             "dropEligibility": {
@@ -114,10 +142,21 @@
           "def": {
             "name": "Arcanist Pendant",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "arcanist",
             "statMods": {
-              "magicPower": 1
+              "magicPower": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 2
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -136,10 +175,24 @@
           "def": {
             "name": "Arcanist Seal",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "arcanist",
             "statMods": {
-              "magicPower": 1
+              "magicPower": 2
             },
+            "passives": [
+              {
+                "id": "magical_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "property": "magical"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -158,9 +211,21 @@
           "def": {
             "name": "Wind Charm",
             "slot": "charm",
+            "rarity": "legendary",
             "statMods": {
-              "speed": 1
+              "maxHp": 5,
+              "speed": 4
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 5
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -179,10 +244,10 @@
           "def": {
             "name": "Bastion Plate",
             "slot": "armor",
+            "rarity": "common",
             "setId": "bastion",
             "statMods": {
-              "maxHp": 12,
-              "armor": 1
+              "maxHp": 10
             },
             "dropEligibility": {
               "sourceKinds": [
@@ -202,10 +267,25 @@
           "def": {
             "name": "Bastion Emblem",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "bastion",
             "statMods": {
+              "armor": 1,
               "magicResist": 1
             },
+            "passives": [
+              {
+                "id": "shield_power",
+                "targetBinding": "automatic",
+                "selector": {
+                  "archetype": "defensive"
+                },
+                "effect": {
+                  "kind": "cardShieldPower",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -224,10 +304,22 @@
           "def": {
             "name": "Bastion Charm",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "bastion",
             "statMods": {
-              "maxHp": 5
+              "maxHp": 10
             },
+            "passives": [
+              {
+                "id": "opening_shield",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupShield",
+                  "property": "physical",
+                  "amount": 8
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -246,10 +338,10 @@
           "def": {
             "name": "Ironwall Plate",
             "slot": "armor",
+            "rarity": "common",
             "setId": "ironwall",
             "statMods": {
-              "maxHp": 10,
-              "armor": 1
+              "armor": 2
             },
             "dropEligibility": {
               "sourceKinds": [
@@ -269,10 +361,22 @@
           "def": {
             "name": "Ironwall Buckle",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "ironwall",
             "statMods": {
-              "armor": 1
+              "armor": 2
             },
+            "passives": [
+              {
+                "id": "opening_shield",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupShield",
+                  "property": "physical",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -291,10 +395,22 @@
           "def": {
             "name": "Ironwall Seal",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "ironwall",
             "statMods": {
-              "armor": 1
+              "armor": 2
             },
+            "passives": [
+              {
+                "id": "opening_regen",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "regen",
+                  "amount": 2
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -313,10 +429,10 @@
           "def": {
             "name": "Spellguard Robe",
             "slot": "armor",
+            "rarity": "common",
             "setId": "spellguard",
             "statMods": {
-              "maxHp": 10,
-              "magicResist": 1
+              "magicResist": 2
             },
             "dropEligibility": {
               "sourceKinds": [
@@ -336,10 +452,22 @@
           "def": {
             "name": "Spellguard Pendant",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "spellguard",
             "statMods": {
-              "magicResist": 1
+              "magicResist": 2
             },
+            "passives": [
+              {
+                "id": "opening_shield",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupShield",
+                  "property": "magical",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -358,10 +486,22 @@
           "def": {
             "name": "Spellguard Seal",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "spellguard",
             "statMods": {
               "magicResist": 1
             },
+            "passives": [
+              {
+                "id": "opening_ward",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "ward",
+                  "amount": 1
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -380,6 +520,7 @@
           "def": {
             "name": "Ravager Coat",
             "slot": "armor",
+            "rarity": "common",
             "setId": "ravager",
             "statMods": {
               "maxHp": 5,
@@ -403,10 +544,24 @@
           "def": {
             "name": "Ravager Crest",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "ravager",
             "statMods": {
-              "attack": 1
+              "attack": 2
             },
+            "passives": [
+              {
+                "id": "axe_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "weapon": "axe"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -425,10 +580,21 @@
           "def": {
             "name": "Ravager Fang",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "ravager",
             "statMods": {
-              "attack": 1
+              "attack": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -447,6 +613,7 @@
           "def": {
             "name": "Stormcaller Robe",
             "slot": "armor",
+            "rarity": "common",
             "setId": "stormcaller",
             "statMods": {
               "maxHp": 5,
@@ -470,10 +637,24 @@
           "def": {
             "name": "Stormcaller Pendant",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "stormcaller",
             "statMods": {
-              "magicPower": 1
+              "magicPower": 2
             },
+            "passives": [
+              {
+                "id": "lightning_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "element": "lightning"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -492,10 +673,21 @@
           "def": {
             "name": "Stormcaller Focus",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "stormcaller",
             "statMods": {
-              "magicPower": 1
+              "magicPower": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -514,11 +706,20 @@
           "def": {
             "name": "Restorer Vestments",
             "slot": "armor",
+            "rarity": "common",
             "setId": "restorer",
-            "statMods": {
-              "maxHp": 10,
-              "armor": 1
-            },
+            "statMods": {},
+            "passives": [
+              {
+                "id": "opening_regen",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "regen",
+                  "amount": 1
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -537,10 +738,20 @@
           "def": {
             "name": "Restorer Pendant",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "restorer",
-            "statMods": {
-              "magicResist": 1
-            },
+            "statMods": {},
+            "passives": [
+              {
+                "id": "opening_regen",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "regen",
+                  "amount": 2
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -559,10 +770,20 @@
           "def": {
             "name": "Restorer Seal",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "restorer",
-            "statMods": {
-              "maxHp": 5
-            },
+            "statMods": {},
+            "passives": [
+              {
+                "id": "opening_regen",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupStatus",
+                  "status": "regen",
+                  "amount": 3
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -581,10 +802,11 @@
           "def": {
             "name": "Huntsman Coat",
             "slot": "armor",
+            "rarity": "common",
             "setId": "huntsman",
             "statMods": {
-              "maxHp": 12,
-              "armor": 1
+              "maxHp": 5,
+              "speed": 2
             },
             "dropEligibility": {
               "sourceKinds": [
@@ -604,10 +826,24 @@
           "def": {
             "name": "Huntsman Crest",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "huntsman",
             "statMods": {
               "attack": 1
             },
+            "passives": [
+              {
+                "id": "bow_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "weapon": "bow"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 6
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -626,10 +862,22 @@
           "def": {
             "name": "Huntsman Feather",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "huntsman",
             "statMods": {
-              "speed": 1
+              "attack": 1,
+              "speed": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -648,11 +896,21 @@
           "def": {
             "name": "Tactician Coat",
             "slot": "armor",
+            "rarity": "common",
             "setId": "tactician",
             "statMods": {
-              "maxHp": 10,
-              "magicResist": 1
+              "maxHp": 5
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 1
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -671,10 +929,22 @@
           "def": {
             "name": "Tactician Brooch",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "tactician",
             "statMods": {
-              "magicPower": 1
+              "maxHp": 5,
+              "speed": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 2
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -693,10 +963,21 @@
           "def": {
             "name": "Tactician Knot",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "tactician",
             "statMods": {
-              "speed": 1
+              "speed": 2
             },
+            "passives": [
+              {
+                "id": "opening_haste",
+                "targetBinding": "automatic",
+                "effect": {
+                  "kind": "setupReadiness",
+                  "amount": 5
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -715,9 +996,10 @@
           "def": {
             "name": "Hexweaver Robe",
             "slot": "armor",
+            "rarity": "common",
             "setId": "hexweaver",
             "statMods": {
-              "maxHp": 10,
+              "magicPower": 1,
               "magicResist": 1
             },
             "dropEligibility": {
@@ -738,10 +1020,24 @@
           "def": {
             "name": "Hexweaver Pendant",
             "slot": "accessory",
+            "rarity": "rare",
             "setId": "hexweaver",
             "statMods": {
-              "magicPower": 1
+              "magicPower": 2
             },
+            "passives": [
+              {
+                "id": "dark_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "element": "dark"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 4
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",
@@ -760,10 +1056,25 @@
           "def": {
             "name": "Hexweaver Seal",
             "slot": "charm",
+            "rarity": "epic",
             "setId": "hexweaver",
             "statMods": {
+              "magicPower": 2,
               "magicResist": 1
             },
+            "passives": [
+              {
+                "id": "debuff_damage",
+                "targetBinding": "automatic",
+                "selector": {
+                  "archetype": "debuff"
+                },
+                "effect": {
+                  "kind": "cardPower",
+                  "amount": 6
+                }
+              }
+            ],
             "dropEligibility": {
               "sourceKinds": [
                 "fight",

@@ -1,7 +1,7 @@
 import { resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import { boardAffinities, boardEffectAffinities, cardType, type BoardIdentity } from '../engine/combat/typeIdentity';
-import type { CombatEvent, StatusName } from '../engine/combat/events';
+import type { BonusSource, CombatEvent, DamageCalculation, StatusName } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
 import type { Archetype, BuffableStat, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
@@ -12,7 +12,7 @@ import type { Allocation } from '../run/leveling';
 import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
 import { STAT_TOKEN } from './ui/statLabels';
-import { ruleEntryByKind, withTermEntries } from '../engine/keywords/text';
+import { bonusSourceTitle, bonusSourceToken, equipmentSetTitle, logToken, ruleEntryByKind, withTermEntries } from '../engine/keywords/text';
 import { cooldownRemainingClause, emptySlotClause } from '../engine/keywords/compose';
 import { passiveLogSummaryText } from '../engine/passives/text';
 import { equipmentCatalog } from '../data/equipmentContent';
@@ -32,7 +32,13 @@ import type { BattleLogTextRole, BattleLogTextSegment } from './ui/battleLogLine
  * `resolveBattle()` at all (enforced by `scripts/check-boundaries.mjs`).
  */
 
-export interface LogLine { tag: string; text: string; detail?: string; segments?: BattleLogTextSegment[]; }
+export interface PlayedCardRef { side: 'player' | 'enemy'; unit: number; slot: number; skillId: string }
+export interface LogLine {
+  tag: string; text: string; detail?: string; segments?: BattleLogTextSegment[];
+  group?: { id: number; side: 'player' | 'enemy' };
+  notes?: string[];
+  card?: PlayedCardRef;
+}
 /** HP snapshot. The singular `enemy`/`enemyMax` fields are ALWAYS enemy unit 0
  * (mobile's 1v1 view); multi-foe renderers read the parallel `enemies` arrays. */
 export interface HpSnap {
@@ -108,6 +114,7 @@ interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: Shie
 export interface CardSummaryRow {
   side: 'player' | 'enemy';
   name: string;
+  card?: PlayedCardRef;
   /** Direct skill-hit damage only (source === 'skill') — never DoT ticks or
    * thorns reflects, which this card may ALSO deal; see `dots`. */
   damage: number;
@@ -308,7 +315,10 @@ export function cardAffinityOpen(skill: SkillDef, affinity: AffinityHolder): boo
  * HERE, once, so both platforms render byte-identical chips — a scene only
  * measures, places and colors them.
  */
-export interface StatusChip { kind: string; text: string; }
+export interface StatusChip {
+  kind: string; text: string;
+  value?: string; title?: string; info?: string; polarity?: 'buff' | 'debuff';
+}
 /** Per-side (and per-enemy-unit) chip rows for one turn — parallel shape to
  * `statusByTurn`. Chips are pre-ordered (see `CHIP_KIND_ORDER`); a renderer
  * caps the row and shows `+N` for what it cannot fit, never reorders. */
@@ -584,8 +594,55 @@ function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): stri
     case 'debuff': kind = 'debuffStat'; break;
     case 'thorns': kind = 'thorns'; break;
     case 'regen': kind = 'regen'; break;
+    case 'fuse': kind = 'fuse'; break;
   }
-  return withTermSentences(ruleEntryByKind(kind));
+  const entry = ruleEntryByKind(kind);
+  return withTermSentences(entry && { ...entry, body: bindStatusSentence(entry.body, e) });
+}
+
+function statusValues(e: Extract<CombatEvent, { kind: 'statusApplied' }>): Array<number | undefined> {
+  switch (e.status) {
+    case 'poison': case 'bleed': case 'thorns': case 'regen': return [e.stacks];
+    case 'guard': case 'expose': case 'buff': case 'debuff': return [e.pct, e.turns];
+    case 'negate': case 'ward': return [e.charges];
+    case 'fuse': return [e.amount, e.turns];
+    default: return [];
+  }
+}
+
+function bindStatusSentence(body: string, e: Extract<CombatEvent, { kind: 'statusApplied' }>): string {
+  const text = e.status === 'burn' && e.stacks !== undefined ? body.replace('2X', String(2 * e.stacks)) : body;
+  const values = statusValues(e);
+  const slots = text.match(/\bX\b/g)?.length ?? 0;
+  if (slots === 0 || slots !== values.length || values.some((value) => value === undefined)) return text;
+  let index = 0;
+  return text.replace(/\bX\b/g, () => String(values[index++]));
+}
+
+const signedAmount = (value: number): string => (value >= 0 ? `+${value}` : `−${-value}`);
+
+function hitNotes(c: DamageCalculation): string[] {
+  const notes = (c.bonusParts ?? []).map((part) => `${bonusSourceTitle(part.source)} ${signedAmount(part.amount)}`);
+  if (c.matchupBonusDamage) notes.push(`Affinity ${signedAmount(c.matchupBonusDamage)}`);
+  if (c.exposeBonus) notes.push(`Expose ${signedAmount(c.exposeBonus)}`);
+  if (c.guardReduction) notes.push(`Guard ${signedAmount(-c.guardReduction)}`);
+  if (c.suddenDeathBonusDamage) notes.push(`Sudden death ${signedAmount(c.suddenDeathBonusDamage)}`);
+  return notes;
+}
+
+function healNotes(e: Extract<CombatEvent, { kind: 'heal' }>): string[] {
+  const c = e.calculation;
+  if (!c) return [];
+  const notes = (c.bonusParts ?? []).map((part) => `${bonusSourceTitle(part.source)} ${signedAmount(part.amount)}`);
+  for (const term of equipmentHealTerms(c)) notes.push(`${term.title} +${term.amount}`);
+  return notes;
+}
+
+function equipmentHealTerms(c: NonNullable<Extract<CombatEvent, { kind: 'heal' }>['calculation']>): Array<{ title: string; token: string; amount: number }> {
+  const terms = (c.equipmentParts ?? []).map((part) => ({ title: equipmentSetTitle(part.name), token: logToken(equipmentSetTitle(part.name)), amount: part.amount }));
+  const rest = (c.equipmentBonus ?? 0) - terms.reduce((sum, term) => sum + term.amount, 0);
+  if (rest > 0) terms.push({ title: 'Equipment', token: 'EQUIPMENT', amount: rest });
+  return terms;
 }
 
 function withTermSentences(entry: { title: string; body: string } | undefined): string | undefined {
@@ -649,7 +706,12 @@ export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }
   const add = (label: string, v: number): void => { if (v) terms.push(`${v > 0 ? '+' : '−'} (${Math.abs(v)} ${label})`); };
   add(stat, c.baseStat);
   add('BUFF', c.statBonusDamage);
-  add('BONUS', c.effectBonusDamage);
+  let namedBonus = 0;
+  for (const part of c.bonusParts ?? []) {
+    add(bonusSourceToken(part.source), part.amount);
+    namedBonus += part.amount;
+  }
+  add('BONUS', c.effectBonusDamage - namedBonus);
   add(def, -c.defense);
   add('MIN', c.minimumDamageBonus);
   add('AFFINITY', c.matchupBonusDamage);
@@ -696,11 +758,16 @@ export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | 
   const request = e.amount + e.overheal + reduced;
   const terms = [c && !e.flat ? `base ${c.power}` : `${e.flat ? 'flat' : 'heal'} ${request}`];
   if (c && c.statBonus > 0) terms.push(`+ (${c.statBonus} ${defStatToken(c.property)})`);
-  if (c && c.healFlat > 0) terms.push(`+ (${c.healFlat} BONUS)`);
+  const healPart = (part: { source: BonusSource; amount: number }): boolean => part.source !== 'cleanseConvert';
+  const named = (c?.bonusParts ?? []).filter(healPart);
+  for (const part of named) if (part.amount > 0) terms.push(`+ (${part.amount} ${bonusSourceToken(part.source)})`);
+  const unnamedFlat = c ? c.healFlat - named.reduce((sum, part) => sum + part.amount, 0) : 0;
+  if (unnamedFlat > 0) terms.push(`+ (${unnamedFlat} BONUS)`);
   // A TRUE heal opens with the whole `flat N` request, which already INCLUDES the
   // bonus, so adding the term again would double-count it in the printed sum.
-  if (c && !e.flat && (c.bonus ?? 0) > 0) terms.push(`+ (${c.bonus} RIDER)`);
-  if(c&&(c.equipmentBonus??0)>0)terms.push(e.flat?`(includes ${c.equipmentBonus} EQUIPMENT)`:`+ (${c.equipmentBonus} EQUIPMENT)`);
+  if (c && !e.flat && (c.bonus ?? 0) > 0) terms.push(`+ (${c.bonus} ${bonusSourceToken('cleanseConvert')})`);
+  const equipmentTerms = c ? equipmentHealTerms(c) : [];
+  for (const term of equipmentTerms) terms.push(e.flat ? `(includes ${term.amount} ${term.token})` : `+ (${term.amount} ${term.token})`);
   if (reduced > 0) terms.push(`− (${reduced} ANTI-HEAL)`);
   if (e.overheal > 0) terms.push(`− (${e.overheal} OVERHEAL)`);
   return `H: ${terms.join(' ')} = ${e.amount}`;
@@ -1112,6 +1179,32 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // across spends — the chip deliberately reads THIS tracker instead; the
   // bucket keeps only its presence-for-tint job.
   const wardChargesByUnit = new Map<string, number>();
+  const fusesByUnit = new Map<string, Array<{ amount: number; detonateTurn: number }>>();
+  const fusesFor = (side: 'player' | 'enemy', unit: number): Array<{ amount: number; detonateTurn: number }> => {
+    const k = unitKey(side, unit);
+    const existing = fusesByUnit.get(k);
+    if (existing) return existing;
+    const fresh: Array<{ amount: number; detonateTurn: number }> = [];
+    fusesByUnit.set(k, fresh);
+    return fresh;
+  };
+  const regenByUnit = new Map<string, number>();
+  const ruleText = (kind: Parameters<typeof ruleEntryByKind>[0], values: Array<number | undefined>, twoX?: number): string => {
+    const entry = ruleEntryByKind(kind);
+    if (!entry) return '';
+    const text = twoX !== undefined ? entry.body.replace('2X', String(twoX)) : entry.body;
+    const slots = text.match(/\bX\b/g)?.length ?? 0;
+    if (slots === 0 || slots !== values.length || values.some((value) => value === undefined)) return text;
+    let index = 0;
+    return text.replace(/\bX\b/g, () => String(values[index++]));
+  };
+  const ruleTitleText = (kind: Parameters<typeof ruleEntryByKind>[0]): string => ruleEntryByKind(kind)?.title ?? kind;
+  const turnsLeft = (piles: ReadonlyArray<{ expiresAtTurn: number }>, turn: number): number | undefined => {
+    let latest: number | undefined;
+    for (const pile of piles) if (pile.expiresAtTurn >= turn && (latest === undefined || pile.expiresAtTurn > latest)) latest = pile.expiresAtTurn;
+    return latest === undefined ? undefined : Math.max(1, latest - turn);
+  };
+  const leftSuffix = (left: number | undefined): string => (left === undefined ? '' : ` · ${left} turn${left === 1 ? '' : 's'} left`);
   /**
    * Aggregate one kind's ACTIVE stat-mod piles into per-stat chips, mirroring
    * the engine's own `effStat` fold (state.ts): pct terms SUM per stat and
@@ -1122,7 +1215,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
    * never reshuffle between turns. Remaining duration is deliberately NOT on
    * the chip (mobile width; the application row's expandable detail states it).
    */
-  const statModChips = (kind: 'buff' | 'debuff', piles: StatModPile[] | undefined): StatusChip[] => {
+  const statModChips = (kind: 'buff' | 'debuff', piles: StatModPile[] | undefined, turn: number): StatusChip[] => {
     if (!piles || piles.length === 0) return [];
     const out: StatusChip[] = [];
     const sign = kind === 'buff' ? '+' : '−';
@@ -1134,7 +1227,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       }
       if (pct <= 0 && flat <= 0) continue;
       const parts = `${pct > 0 ? `${sign}${pct}%` : ''}${flat > 0 ? `${sign}${flat}` : ''}`;
-      out.push({ kind, text: `${STAT_TOKEN[stat]} ${parts}` });
+      const left = turnsLeft(piles.filter((p) => p.stat === stat), turn);
+      out.push({
+        kind, text: `${STAT_TOKEN[stat]} ${parts}`, value: `${STAT_TOKEN[stat]} ${parts}`, polarity: kind,
+        title: `${STAT_TOKEN[stat]} ${parts}${leftSuffix(left)}`,
+        info: ruleText(kind === 'buff' ? 'buffStat' : 'debuffStat', [pct > 0 ? pct : undefined, left]),
+      });
     }
     return out;
   };
@@ -1162,32 +1260,71 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
    *  - THR n — remaining thorn stacks (sting decay mirrored in the `damage`
    *    case).
    */
-  const buildChips = (side: 'player' | 'enemy', unit: number): StatusChip[] => {
+  const buildChips = (side: 'player' | 'enemy', unit: number, turn: number): StatusChip[] => {
     const bucket = side === 'player' ? dotsPlayer : dotsEnemies[unit]!;
     const chips: StatusChip[] = [];
     for (const kind of ['poison', 'burn', 'bleed'] as const) {
       const stacks = bucket.get(kind) ?? 0;
-      if (stacks > 0) chips.push({ kind, text: `${CHIP_GLYPH[kind]} ${stacks}` });
+      if (stacks > 0) chips.push({
+        kind, text: `${CHIP_GLYPH[kind]} ${stacks}`, value: `${stacks}`, polarity: 'debuff',
+        title: `${ruleTitleText(kind)} ${stacks}`,
+        info: kind === 'burn' ? ruleText(kind, [], 2 * stacks) : ruleText(kind, [stacks]),
+      });
     }
-    if (bucket.has('stun')) chips.push({ kind: 'stun', text: CHIP_GLYPH.stun! });
+    if (bucket.has('stun')) chips.push({ kind: 'stun', text: CHIP_GLYPH.stun!, polarity: 'debuff', title: 'Stunned', info: ruleText('stun', []) });
     const exposePct = bucket.get('expose') ?? 0;
-    if (exposePct > 0) chips.push({ kind: 'expose', text: `${CHIP_GLYPH.expose} +${exposePct}%` });
-    chips.push(...statModChips('debuff', debuffPilesByUnit.get(unitKey(side, unit))));
+    if (exposePct > 0) {
+      const left = turnsLeft(exposePilesFor(side, unit), turn);
+      chips.push({
+        kind: 'expose', text: `${CHIP_GLYPH.expose} +${exposePct}%`, value: `+${exposePct}%`, polarity: 'debuff',
+        title: `${ruleTitleText('expose')} +${exposePct}%${leftSuffix(left)}`, info: ruleText('expose', [exposePct, left]),
+      });
+    }
+    chips.push(...statModChips('debuff', debuffPilesByUnit.get(unitKey(side, unit)), turn));
+    const fuses = fusesByUnit.get(unitKey(side, unit)) ?? [];
+    if (fuses.length > 0) {
+      const total = fuses.reduce((sum, fuse) => sum + fuse.amount, 0);
+      const soonest = Math.max(1, Math.min(...fuses.map((fuse) => fuse.detonateTurn)) - turn);
+      chips.push({
+        kind: 'fuse', text: `FUSE ${total}`, value: `${total}`, polarity: 'debuff',
+        title: `${ruleTitleText('fuse')} ${total} · goes off in ${soonest} turn${soonest === 1 ? '' : 's'}`, info: ruleText('fuse', [total, soonest]),
+      });
+    }
     const guardEntries = guardBadgeCurrent.get(guardBadgeKey(side, unit)) ?? [];
     if (guardEntries.length > 0) {
-      chips.push({ kind: 'guard', text: `${CHIP_GLYPH.guard} ${guardEntries.map((g) => `${g.pct}%${propertyLetter(g.property)}`).join(' ')}` });
+      const left = turnsLeft(guardPilesFor(side, unit), turn);
+      chips.push({
+        kind: 'guard', text: `${CHIP_GLYPH.guard} ${guardEntries.map((g) => `${g.pct}%${propertyLetter(g.property)}`).join(' ')}`,
+        value: guardEntries.map((g) => `${g.pct}%${propertyLetter(g.property)}`).join(' '), polarity: 'buff',
+        title: `${ruleTitleText('guard')} ${guardEntries.map((g) => `${g.pct}% ${g.property}`).join(' · ')}${leftSuffix(left)}`,
+        info: ruleText('guard', [guardEntries[0]!.pct, left]),
+      });
     }
     const neg = negateChargesByUnit.get(unitKey(side, unit));
     if (neg) {
       for (const p of SHIELD_PROPERTIES) {
-        if (neg[p] > 0) chips.push({ kind: 'negate', text: `${CHIP_GLYPH.negate} ${neg[p]}${propertyLetter(p)}` });
+        if (neg[p] > 0) chips.push({
+          kind: 'negate', text: `${CHIP_GLYPH.negate} ${neg[p]}${propertyLetter(p)}`, value: `${neg[p]}${propertyLetter(p)}`, polarity: 'buff',
+          title: `${ruleTitleText('negate')} ${neg[p]} ${p}`, info: ruleText('negate', [neg[p]]),
+        });
       }
     }
     const wardCharges = wardChargesByUnit.get(unitKey(side, unit)) ?? 0;
-    if (wardCharges > 0) chips.push({ kind: 'ward', text: `${CHIP_GLYPH.ward} ${wardCharges}` });
+    if (wardCharges > 0) chips.push({
+      kind: 'ward', text: `${CHIP_GLYPH.ward} ${wardCharges}`, value: `${wardCharges}`, polarity: 'buff',
+      title: `${ruleTitleText('ward')} ${wardCharges}`, info: ruleText('ward', [wardCharges]),
+    });
     const thorns = bucket.get('thorns') ?? 0;
-    if (thorns > 0) chips.push({ kind: 'thorns', text: `${CHIP_GLYPH.thorns} ${thorns}` });
-    chips.push(...statModChips('buff', buffPilesByUnit.get(unitKey(side, unit))));
+    if (thorns > 0) chips.push({
+      kind: 'thorns', text: `${CHIP_GLYPH.thorns} ${thorns}`, value: `${thorns}`, polarity: 'buff',
+      title: `${ruleTitleText('thorns')} ${thorns}`, info: ruleText('thorns', [thorns]),
+    });
+    const regen = regenByUnit.get(unitKey(side, unit)) ?? 0;
+    if (regen > 0) chips.push({
+      kind: 'regen', text: `${CHIP_GLYPH.regen} ${regen}`, value: `${regen}`, polarity: 'buff',
+      title: `${ruleTitleText('regen')} ${regen}`, info: ruleText('regen', [regen]),
+    });
+    chips.push(...statModChips('buff', buffPilesByUnit.get(unitKey(side, unit)), turn));
     return chips;
   };
   /** The turn's standing burden/curse per slot — read off the SAME shadow maps
@@ -1355,6 +1492,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const push = (turn: number, tag: string, text: string, detail?: string): LogLine => {
     const arr = linesByTurn.get(turn) ?? [];
     const line: LogLine = { tag, text, detail };
+    if (tag !== 'PLAY' && pendingPlayLine?.line.group) line.group = pendingPlayLine.line.group;
     arr.push(line);
     linesByTurn.set(turn, arr);
     if (tag !== 'PLAY') {
@@ -1395,6 +1533,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // (not a map) is enough; keyed by (side, unit) anyway as a self-check that
   // the `cost` actually matches the play it claims to.
   let pendingPlayLine: { side: 'player' | 'enemy'; unit: number; line: LogLine } | undefined;
+  let logGroupSeq = 0;
   /** Identity fields threaded onto a fx from its source skill — undefined when
    * there's no skill to attribute (e.g. a DoT tick), in which case callers
    * keep their existing ailment-color fallback keyed off `source` instead. */
@@ -1454,7 +1593,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const names=e.items.map(item=>equipmentCatalog.item(item.itemId,item.itemVersion).name);
         const bonuses=equipmentModifierClauses(e.statMods,e.effectMods).join(' · ');
         const sets=e.sets.map(set=>`${equipmentCatalog.set(set.setId,set.setVersion).name}: ${set.equippedPieces}/3 pieces · ${set.matchingCards}/${set.requiredCards} cards · ${set.requirementMet?'ready':'inactive'}`).join('\n');
-        pushActor(e.turn,'EQUIP',e,` · ${bonuses||'Equipment active'}`,`${names.join(' · ')}\n${sets}`);
+        const activeSets=e.sets.filter(set=>set.requirementMet&&set.activeThresholds.length>0).map(set=>equipmentSetTitle(equipmentCatalog.set(set.setId,set.setVersion).name));
+        pushActor(e.turn,'EQUIP',e,` · ${bonuses||'Equipment active'}${activeSets.length>0?` (${activeSets.join(', ')})`:''}`,`${names.join(' · ')}\n${sets}`);
         break;
       }
       // Readiness gain — mockup turnline: "Hero 18 · SPD +16 · Bandit 25 · SPD +15".
@@ -1538,6 +1678,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (target) playSegments.push(neutral(' · target '), colored(target, sideRole(targetSide)));
         playSegments.push(neutral(`${curseNote} · WEIGHT ${e.weight}${slowNote}`));
         const playLine = pushSegments(e.turn, 'PLAY', playSegments);
+        logGroupSeq += 1;
+        playLine.group = { id: logGroupSeq, side: e.side };
+        playLine.card = { side: e.side, unit: unitOf(e), slot: e.slot, skillId: e.skillId };
         // The matching `cost` event (readinessAfter = the bank left once this
         // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
         // comment above. Held here; filled in by the `cost` case below.
@@ -1555,6 +1698,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const card = cardSummaries.get(key) ?? {
           side: e.side,
           name: skillName(e.skillId),
+          card: { side: e.side, unit: unitOf(e), slot: e.slot, skillId: e.skillId },
           damage: 0,
           shield: 0,
           healing: 0,
@@ -1642,7 +1786,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
             ]
           : [colored(`−${dealt}`, resultRole)];
         if (e.source === 'skill') {
-          pushSegments(e.turn, 'HIT', [actorSegment(e), neutral(' '), ...damageSegments, neutral(` · ${hp}`)], e.calculation ? formatDmg(e.calculation) : undefined);
+          const hitLine = pushSegments(e.turn, 'HIT', [actorSegment(e), neutral(' '), ...damageSegments, neutral(` · ${hp}`)], e.calculation ? formatDmg(e.calculation) : undefined);
+          const hitNoteLines = e.calculation ? hitNotes(e.calculation) : [];
+          if (hitNoteLines.length > 0) hitLine.notes = hitNoteLines;
         } else {
           // A DoT/attrition/fatigue tick is a DIFFERENT moment than a HIT (a
           // card striking you) or a DEBUFF (an effect just being APPLIED to
@@ -1737,10 +1883,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // overheal = landed), same affordance as a HIT's `D:` math strip, so
         // the printed number is reconstructable rather than asserted.
         const antiHealTax = e.antiHeal ? ` (anti-heal −${e.antiHeal.pct}%: −${e.antiHeal.reduced})` : '';
-        pushSegments(e.turn, 'BUFF', [
+        const healLine = pushSegments(e.turn, 'BUFF', [
           actorSegment(e), neutral(' '), colored(`+${e.amount} HP`, 'heal'),
           neutral(`${antiHealTax} · ${e.hpAfter}/${max}`),
         ], formatHeal(e));
+        const healNoteLines = healNotes(e);
+        if (healNoteLines.length > 0) healLine.notes = healNoteLines;
+        if (!e.calculation && !pendingPlayLine) {
+          const k = unitKey(e.side, u);
+          const left = (regenByUnit.get(k) ?? 0) - 1;
+          if (left > 0) regenByUnit.set(k, left); else regenByUnit.delete(k);
+        }
         pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined, e.antiHeal?.pct);
         break;
       }
@@ -2059,7 +2212,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         break;
       }
       case 'statusApplied': {
-        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate' || e.status === 'thorns' || e.status === 'ward';
+        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate' || e.status === 'thorns' || e.status === 'ward' || e.status === 'regen';
         // Guard and negate each cover ONE property (their own, not the card's),
         // so both are named by a property-qualified token exactly like the
         // shield pools are — a bare "Guard"/"Negate" left the player no way to
@@ -2110,6 +2263,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
         pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${cap}${stacksText}`, explainStatus(e));
+        if (e.status === 'fuse') fusesFor(e.side, unitOf(e)).push({ amount: e.amount ?? 0, detonateTurn: e.turn + (e.turns ?? 0) });
+        if (e.status === 'regen') {
+          const k = unitKey(e.side, unitOf(e));
+          const prior = regenByUnit.get(k) ?? 0;
+          regenByUnit.set(k, e.sourcePassive ? Math.max(prior, e.stacks ?? 0) : prior + (e.stacks ?? 0));
+        }
         // The per-card DOT column (`CardSummaryRow.dots`) is fed from actual
         // TICK/REFLECT damage in the `damage` case below, not from here — see
         // that case's comment. (Used to add a raw STACK count on application,
@@ -2354,9 +2513,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     // `statusByTurn` above (last event of the turn wins), so a scrub to turn T
     // shows exactly the piles standing when T ended.
     chipsByTurn.set(e.turn, {
-      player: buildChips('player', 0),
-      enemy: buildChips('enemy', 0),
-      enemyUnits: foes.map((_, u) => buildChips('enemy', u)),
+      player: buildChips('player', 0, e.turn),
+      enemy: buildChips('enemy', 0, e.turn),
+      enemyUnits: foes.map((_, u) => buildChips('enemy', u, e.turn)),
     });
     slotModsByTurn.set(e.turn, snapSlotMods());
     // `dotsPlayer`/`dotsEnemies`' 'expose' VALUE is now always the effective

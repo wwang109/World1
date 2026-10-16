@@ -9,7 +9,7 @@ export interface HpBarHandles {
   fillRect: Phaser.GameObjects.Rectangle;
   shieldRect: Phaser.GameObjects.Rectangle;
   border: Phaser.GameObjects.Rectangle;
-  shakeTargets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>;
+  shakeTargets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container>;
   floatX: number;
   floatY: number;
   barX: number;
@@ -59,7 +59,7 @@ export function spawnFxFloat(
 }
 
 export function shakeBar(
-  scene: Phaser.Scene, targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>, speedMult: number,
+  scene: Phaser.Scene, targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container>, speedMult: number,
 ): void {
   if (targets.length === 0) return;
   const origins = targets.map((t) => ({ t, x: t.x }));
@@ -218,13 +218,13 @@ export function flashHpBarKind(
 }
 
 export function fadeDefeated(
-  scene: Phaser.Scene, targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle>, speedMult: number,
+  scene: Phaser.Scene, targets: Array<Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container>, speedMult: number,
 ): void {
   if (targets.length === 0) return;
   scene.tweens.add({ targets, alpha: 0.4, duration: 220 / speedMult, ease: 'Quad.easeOut' });
 }
 
-export function popStatusChip(scene: Phaser.Scene, chip: Phaser.GameObjects.Text, speedMult: number): void {
+export function popStatusChip(scene: Phaser.Scene, chip: Phaser.GameObjects.Text | Phaser.GameObjects.Container, speedMult: number): void {
   chip.setScale(0.4);
   scene.tweens.add({ targets: chip, scale: 1, duration: 140 / speedMult, ease: 'Back.easeOut' });
 }

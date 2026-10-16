@@ -172,6 +172,14 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   // own HP bar, so there is nothing to name and a flat `amount` is the whole thing.
   desperation: ['amount'],
   execute: ['amount'],
+  dormant: ['turn', 'amount'],
+  buildUp: ['casts', 'amount'],
+  opener: ['amount'],
+  fleeting: ['turn', 'amount'],
+  crescendo: ['per', 'cap'],
+  isolate: ['amount'],
+  firstBlood: ['amount'],
+  fuse: ['amount', 'turns'],
   // The two HEAL-SIDE riders, same required-`cap` rule: the payload is
   // `min(this cast's heal overflow, cap)` / `min(per × stacks cleansed, cap)`.
   overhealShield: ['cap'],
@@ -481,6 +489,31 @@ export function validateAction(
       num('amount');
       break;
     case 'execute': req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems); break;
+    case 'dormant':
+      req(raw, 'turn', inRange(2, 10), 'an integer 2..10', at, problems);
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems);
+      break;
+    case 'buildUp':
+      req(raw, 'casts', inRange(2, 5), 'an integer 2..5', at, problems);
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems);
+      break;
+    case 'opener':
+    case 'isolate':
+    case 'firstBlood':
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems);
+      break;
+    case 'fleeting':
+      req(raw, 'turn', inRange(1, 10), 'an integer 1..10', at, problems);
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems);
+      break;
+    case 'crescendo':
+      req(raw, 'per', inRange(1, 999), 'an integer 1..999', at, problems);
+      req(raw, 'cap', inRange(1, 999), 'an integer 1..999', at, problems);
+      break;
+    case 'fuse':
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999', at, problems);
+      req(raw, 'turns', inRange(1, 5), 'an integer 1..5', at, problems);
+      break;
     case 'overhealShield':
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because the overflow of a heal is unbounded in the recipient\'s missing HP', at, problems);
       break;
@@ -740,7 +773,7 @@ function validateAura(raw: unknown, where: string, problems: ContentProblem[]): 
   if (!isObj(raw)) { problems.push({ where: at, message: 'aura must be an object' }); return; }
   req(raw, 'affects', (v) => AURA_AFFECTS.includes(v as string), AURA_AFFECTS.join('|'), at, problems);
   // `reach` is edge-to-edge gap; 0 reaches nothing, which is legal but pointless.
-  opt(raw, 'reach', inRange(0, 20), 'an integer 0..20', at, problems);
+  opt(raw, 'reach', inRange(0, 2), 'an integer 0..2 (wider coverage is allBoard; auraPriceDeci prices touching, within 2 and whole board)', at, problems);
   opt(raw, 'archetypeFilter', (v) => ARCHETYPES.includes(v as string), ARCHETYPES.join('|'), at, problems);
   opt(raw, 'propertyFilter', (v) => PROPERTIES.includes(v as string), PROPERTIES.join('|'), at, problems);
 
@@ -894,6 +927,22 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   // A card must DO something: cast effects, or project an aura.
   if (Array.isArray(raw.effects) && raw.effects.length === 0 && raw.aura === undefined) {
     problems.push({ where, message: 'a card with no effects must carry an aura — otherwise it does nothing and there is nothing to show' });
+  }
+  if (raw.aura !== undefined) {
+    if (Array.isArray(raw.effects) && raw.effects.length > 0) {
+      problems.push({ where, message: 'an aura card carries no other keyword: effects must be empty (aura cards never play)' });
+    }
+    for (const field of ['special', 'speedWeight', 'cooldownTurns', 'scope']) {
+      if (raw[field] !== undefined) problems.push({ where, message: 'an aura card never plays, so ' + field + ' is not allowed' });
+    }
+    if (isObj(raw.tierUpgrades)) {
+      for (const [tier, upgrade] of Object.entries(raw.tierUpgrades)) {
+        if (!isObj(upgrade)) continue;
+        for (const field of ['effects', 'speedWeight', 'cooldownTurns', 'scope']) {
+          if (upgrade[field] !== undefined) problems.push({ where: where + '.tierUpgrades.' + tier, message: 'an aura card upgrade may only change its aura, not ' + field });
+        }
+      }
+    }
   }
   /**
    * ...AND IT MUST DO SOMETHING AT ITS OWN TIER — the card-level half of the tier

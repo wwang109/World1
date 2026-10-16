@@ -67,6 +67,7 @@ interface Group {
 }
 
 const GROUPS: Group[] = [
+  { name: 'enemies', srcDir: 'art-src/enemies', outDir: 'public/game-art/enemies', maxHeight: 512, quality: 0.9 },
   { name: 'equipment', srcDir: 'art-src/equipment', outDir: 'public/game-art/equipment', maxHeight: 0, quality: 0.9, trimTransparent: true, outputSize: { width: 512, height: 512 }, contain: true, inset: 0.08 },
   { name: 'route-icons', srcDir: 'art-src/ui/route-icons', outDir: 'public/game-art/ui/route-icons', maxHeight: 0, quality: 0.94, trimTransparent: true, outputSize: { width: 256, height: 256 }, contain: true,
     atlas: { file: 'day-chapters-symbols.png', columns: 2, names: ['event','shop','battle','boss'] } },

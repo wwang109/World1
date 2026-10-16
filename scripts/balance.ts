@@ -145,7 +145,7 @@ const NAIVE_BUILD: CombatantSetup = {
   ],
 };
 
-type DamageSource = 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
+type DamageSource = 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition' | 'fuse';
 
 export interface MatchupStats {
   fights: number;
@@ -175,7 +175,7 @@ function emptyMatchupStats(): MatchupStats {
     playerHpLeftOnWinTotal: 0,
     enemyHpLeftOnLossTotal: 0,
     damageByProperty: { physical: 0, magical: 0, true: 0 },
-    damageBySource: { skill: 0, poison: 0, burn: 0, bleed: 0, thorns: 0, fatigue: 0, attrition: 0 },
+    damageBySource: { skill: 0, poison: 0, burn: 0, bleed: 0, thorns: 0, fatigue: 0, attrition: 0, fuse: 0 },
   };
 }
 

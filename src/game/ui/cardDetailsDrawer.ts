@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { roundRect } from './roundedRect';
-import { TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
+import { hasNothingToCast, TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import type { TierProgress } from '../../run/shop';
 import { FONT, UI, textRoleFor, type TextRole } from '../theme';
@@ -132,7 +132,7 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
     const power = opts.powerDeci === undefined ? '' : String(opts.powerDeci / 10).replace(/\.0$/, '');
     text(identity.x, identity.y + name.height + 5, `POWER ${power} - ${shown.tier.toUpperCase()}`, 'body', UI.textAccent, true, identity.width);
     const statY = identity.y + Math.min(identity.height - 45, name.height + 54);
-    const stats = [['TYPE', (shown.weapon ?? shown.element ?? shown.property).toUpperCase()], ['WEIGHT', String(content.weight)], ['SIZE', String(shown.size)]];
+    const stats = [['TYPE', (shown.weapon ?? shown.element ?? shown.property).toUpperCase()], ['WEIGHT', String(content.weight)], ['SIZE', String(shown.size)]].filter(([label]) => label !== 'WEIGHT' || !hasNothingToCast(shown));
     stats.forEach(([label, value], index) => {
       const x = identity.x + index * identity.width / 3;
       text(x, statY, label!, 'statLabelTight', UI.textMuted, false, identity.width / 3 - 4);
@@ -152,7 +152,7 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
     add(shown.name, 'title', UI.textBright, true);
     add(content.roles.join(' · '), 'body', UI.textSoft, true);
     if (content.progressLine) add(content.progressLine, 'body', UI.textAccent, true);
-    const stats = [['TYPE', (shown.weapon ?? shown.element ?? shown.property).toUpperCase()], ['WEIGHT', String(content.weight)], ['SIZE', String(shown.size)]];
+    const stats = [['TYPE', (shown.weapon ?? shown.element ?? shown.property).toUpperCase()], ['WEIGHT', String(content.weight)], ['SIZE', String(shown.size)]].filter(([label]) => label !== 'WEIGHT' || !hasNothingToCast(shown));
     const statY = y();
     const statWidth = Math.min(width, 360);
     stats.forEach(([label, value], index) => {

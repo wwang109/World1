@@ -69,6 +69,7 @@ export const SFX_RECIPES: Record<SfxKey, SfxRecipe> = {
 
   'status:poison': { wave: 'sawtooth', freqStart: 220, freqEnd: 160, durationMs: 130, attackMs: 8, decayMs: 115, gainDb: -13, pitchJitterPct: 8 },
   'status:burn': { wave: 'sawtooth', freqStart: 400, freqEnd: 260, durationMs: 130, attackMs: 3, decayMs: 120, gainDb: -12, noiseMs: 30, pitchJitterPct: 8 },
+  'status:fuse': { wave: 'square', freqStart: 520, freqEnd: 180, durationMs: 140, attackMs: 2, decayMs: 130, gainDb: -12, noiseMs: 40, pitchJitterPct: 6 },
   'status:bleed': { wave: 'square', freqStart: 340, freqEnd: 200, durationMs: 90, attackMs: 2, decayMs: 85, gainDb: -13, pitchJitterPct: 8 },
   'status:stun': { wave: 'square', freqStart: 1300, freqEnd: 1300, durationMs: 70, attackMs: 1, decayMs: 65, gainDb: -9, pitchJitterPct: 3 },
   'status:buff': { wave: 'sine', freqStart: 500, freqEnd: 760, durationMs: 170, attackMs: 20, decayMs: 145, gainDb: -11, pitchJitterPct: 4 },

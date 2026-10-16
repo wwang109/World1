@@ -2,7 +2,7 @@ import type Phaser from 'phaser';
 import { INK, textRoleFor, TEXT_ROLE_SPEC, UI, type InkRole, type TextRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
-import { addRunArt } from './runArt';
+import { addEnemyPortrait, addRunArt } from './runArt';
 import { runTravelChoiceCardCopy } from './runTravelChoiceCardCopy';
 import type { RunTravelChoiceViewModel } from './runTravelChoiceViewModel';
 import type { Rect } from './runScreenTemplate';
@@ -73,8 +73,8 @@ export function runTravelChoiceCardLayout(
   const { compact } = opts;
   const pad = compact ? 6 : 10;
   const headerInsetX = compact ? 12 : 16;
-  const headerInsetY = compact ? 10 : 4;
-  const headerGap = compact ? 10 : 4;
+  const headerInsetY = compact ? 8 : 4;
+  const headerGap = compact ? 6 : 4;
   // The 1.4× line boxes already include leading. Keep compact inter-block
   // spacing small enough for three independently earned receipts on a phone.
   const gap = compact ? 1 : 4;
@@ -145,8 +145,8 @@ export function runTravelChoiceCardMinHeight(
   return runTravelChoiceCardLayout({ x: 0, y: 0, width: opts.width, height: 0 }, model, opts).bounds.height;
 }
 
-/** Desktop aligns content-sized cards; compact rows each pay for their receipt.
- * Available viewport height is not empty space to inject into every card. */
+const CHOICE_SLOTS = 3;
+
 export function runTravelChoiceCardsLayout(
   bounds: Rect,
   models: readonly RunTravelChoiceViewModel[],
@@ -155,15 +155,19 @@ export function runTravelChoiceCardsLayout(
   if (models.length === 0) return { cards: [], height: 0 };
   const gap = opts.compact ? 8 : 12;
   const width = bounds.width;
-  const heights = models.map((model) => runTravelChoiceCardMinHeight(model, { ...opts, width }));
-  let y = bounds.y;
+  const slots = Math.max(CHOICE_SLOTS, models.length);
+  const share = Math.floor((bounds.height - gap * (slots - 1)) / slots);
+  const heights = models.map((model) => Math.max(share, runTravelChoiceCardMinHeight(model, { ...opts, width })));
+  const total = heights.reduce((sum, height) => sum + height, 0) + gap * (models.length - 1);
+  const offset = Math.max(0, Math.floor((bounds.height - total) / 2));
+  let y = bounds.y + offset;
   const cards = models.map((_model, index) => {
     const height = heights[index]!;
     const rect = { x: bounds.x, y, width, height };
     y += height + gap;
     return rect;
   });
-  return { cards, height: y - bounds.y - gap };
+  return { cards, height: offset + total };
 }
 
 export function renderRunTravelChoiceCard(
@@ -190,6 +194,10 @@ export function renderRunTravelChoiceCard(
   if (layout.art && model.artKey) {
     const art = addRunArt(scene, model.artKey, layout.art, model.enabled ? 1 : 0.48);
     if (art) parts.push(art);
+    if (model.portraitArtKey) {
+      const portrait = addEnemyPortrait(scene, model.portraitArtKey, layout.art, model.enabled ? 1 : 0.48);
+      if (portrait) parts.push(portrait.setName(`run-enemy-portrait-${model.nodeId}`));
+    }
   }
   // A bounded header groups kind and name, separate from body facts and CTA.
   const headerBounds = layout.header!;
