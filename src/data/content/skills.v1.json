@@ -12345,6 +12345,66 @@
      }
     }
    ]
+  },
+  {
+   "id": "waking_blade",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Waking Blade",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "dormant",
+        "turn": 4,
+        "amount": 33
+       },
+       {
+        "kind": "damage",
+        "power": 4
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "honed_edge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Honed Edge",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buildUp",
+        "casts": 2,
+        "amount": 28
+       },
+       {
+        "kind": "damage",
+        "power": 14
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }
