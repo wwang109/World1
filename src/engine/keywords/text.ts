@@ -992,7 +992,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Dormant}} +${a.amount} damage (turn ${a.turn}+)`,
     ruleTitle: 'Dormant',
     ruleSentence: 'This card deals X extra damage from battle turn X onward.',
-    faceToken: (a) => ({ text: `DORMANT T${a.turn}+ +${a.amount} DMG`, keyword: 'dormant' }),
+    faceToken: (a) => ({ text: `T${a.turn}+ +${a.amount} DMG`, keyword: 'dormant' }),
   },
   buildUp: {
     composeGroup: 'conditional',
@@ -1000,7 +1000,7 @@ export const KEYWORD_TEXT: KeywordTextTable = {
     faceClause: (a) => `{{Build-up|buildup}} +${a.amount} damage (${ordinal(a.casts)} play+)`,
     ruleTitle: 'Build-up',
     ruleSentence: 'This card deals X extra damage on its X play and every later play.',
-    faceToken: (a) => ({ text: `BUILD-UP ${ordinal(a.casts).toUpperCase()}+ +${a.amount} DMG`, keyword: 'buildup' }),
+    faceToken: (a) => ({ text: `${ordinal(a.casts).toUpperCase()}+ +${a.amount} DMG`, keyword: 'buildup' }),
   },
   opener: {
     composeGroup: 'conditional',
