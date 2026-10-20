@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wandering-hand-community-rounds",
+  "main": "workers/community-rounds.ts",
+  "compatibility_date": "2026-10-19",
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "COMMUNITY_REPOSITORY_ID": "1426486653",
+    "COMMUNITY_MERGE_ENABLED": "false",
+    "CONTENT_API_VERSION": "1"
+  }
+}

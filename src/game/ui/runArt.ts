@@ -1,3 +1,4 @@
+import { artManifest, manifestLoadAssets } from '../../data/artManifest';
 import Phaser from 'phaser';
 import { UI } from '../theme';
 import { RUN_ART_KEYS } from './runArtKeys';
@@ -18,89 +19,8 @@ export * from './runArtKeys';
  * run map / shop fronts / biome panes are full-bleed backdrops where a
  * placeholder would be conspicuous.
  */
-export const RUN_ART_ASSETS = [
-  { key: RUN_ART_KEYS.enemy.giant_rat, path: '/game-art/enemies/giant-rat-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.stone_beetle, path: '/game-art/enemies/stone-beetle-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.ember_imp, path: '/game-art/enemies/ember-imp-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.wolf_king, path: '/game-art/enemies/wolf-king-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.pike_conscript, path: '/game-art/enemies/pike-conscript-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.toxic_druid, path: '/game-art/enemies/toxic-druid-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.cleric, path: '/game-art/enemies/cleric-v1.webp' },
-  { key: RUN_ART_KEYS.enemy.greenwood_sovereign, path: '/game-art/enemies/greenwood-sovereign-v1.webp' },
-  { key: RUN_ART_KEYS.shopBanner, path: '/game-art/placeholders/shop-banner.webp' },
-  { key: RUN_ART_KEYS.runMap, path: '/game-art/placeholders/run-map.webp' },
-  { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/ui/event-icons/card.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGamble, path: '/game-art/ui/event-icons/gamble.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGem, path: '/game-art/ui/event-icons/gem.webp' },
-  { key: RUN_ART_KEYS.icon.choiceGold, path: '/game-art/ui/event-icons/gold.webp' },
-  { key: RUN_ART_KEYS.icon.choiceLevel, path: '/game-art/ui/event-icons/level.webp' },
-  { key: RUN_ART_KEYS.icon.choiceNothing, path: '/game-art/ui/event-icons/nothing.webp' },
-  { key: RUN_ART_KEYS.icon.coin, path: '/game-art/ui/event-icons/gold.webp' },
-  { key: RUN_ART_KEYS.icon.lifeHeart, path: '/game-art/placeholders/icon-life-heart.webp' },
-  { key: RUN_ART_KEYS.icon.bossSkull, path: '/game-art/placeholders/icon-boss-skull.webp' },
-  { key: RUN_ART_KEYS.icon.storefront, path: '/game-art/placeholders/icon-storefront.webp' },
-  { key: RUN_ART_KEYS.icon.routeLantern, path: '/game-art/placeholders/icon-route-lantern.webp' },
-  { key: RUN_ART_KEYS.icon.routeEvent, path: '/game-art/ui/route-icons/event.webp' },
-  { key: RUN_ART_KEYS.icon.routeShop, path: '/game-art/ui/route-icons/shop.webp' },
-  { key: RUN_ART_KEYS.icon.routeBattle, path: '/game-art/ui/route-icons/battle.webp' },
-  { key: RUN_ART_KEYS.icon.routeBoss, path: '/game-art/ui/route-icons/boss.webp' },
-  { key: RUN_ART_KEYS.icon.routeEquipment, path: '/game-art/ui/route-icons/equipment.webp' },
-  { key: RUN_ART_KEYS.shop.armory, path: '/game-art/placeholders/shop-front-armory.webp' },
-  { key: RUN_ART_KEYS.shop.wildworks, path: '/game-art/placeholders/shop-front-wildworks.webp' },
-  { key: RUN_ART_KEYS.shop.arcanum, path: '/game-art/placeholders/shop-front-arcanum.webp' },
-  { key: RUN_ART_KEYS.shop.sanctum, path: '/game-art/placeholders/shop-front-sanctum.webp' },
-  { key: RUN_ART_KEYS.shop.alchemist, path: '/game-art/placeholders/shop-front-alchemist.webp' },
-  { key: RUN_ART_KEYS.shop.gemcutter, path: '/game-art/placeholders/shop-front-gemcutter.webp' },
-  { key: RUN_ART_KEYS.shop.caravan, path: '/game-art/placeholders/shop-front-caravan.webp' },
-  { key: RUN_ART_KEYS.shop.bulwark, path: '/game-art/placeholders/shop-front-bulwark.webp' },
-  { key: RUN_ART_KEYS.shop.assassins_den, path: '/game-art/placeholders/shop-front-assassins_den.webp' },
-  { key: RUN_ART_KEYS.shop.relic_vault, path: '/game-art/placeholders/shop-front-relic_vault.webp' },
-  { key: RUN_ART_KEYS.shop.emberworks, path: '/game-art/placeholders/shop-front-emberworks.webp' },
-  { key: RUN_ART_KEYS.shop.frosthold, path: '/game-art/placeholders/shop-front-frosthold.webp' },
-  { key: RUN_ART_KEYS.shop.stormspire, path: '/game-art/placeholders/shop-front-stormspire.webp' },
-  { key: RUN_ART_KEYS.shop.grovekeep, path: '/game-art/placeholders/shop-front-grovekeep.webp' },
-  { key: RUN_ART_KEYS.shop.reliquary, path: '/game-art/placeholders/shop-front-reliquary.webp' },
-  { key: RUN_ART_KEYS.shop.umbral_stall, path: '/game-art/placeholders/shop-front-umbral_stall.webp' },
-  { key: RUN_ART_KEYS.shop.swordwright, path: '/game-art/placeholders/shop-front-swordwright.webp' },
-  { key: RUN_ART_KEYS.shop.cleaving_yard, path: '/game-art/placeholders/shop-front-cleaving_yard.webp' },
-  { key: RUN_ART_KEYS.shop.lancers_rest, path: '/game-art/placeholders/shop-front-lancers_rest.webp' },
-  { key: RUN_ART_KEYS.shop.fletchers_loft, path: '/game-art/placeholders/shop-front-fletchers_loft.webp' },
-  { key: RUN_ART_KEYS.shop.beastmoot, path: '/game-art/placeholders/shop-front-beastmoot.webp' },
-  { key: RUN_ART_KEYS.biome.arrowfell, path: '/game-art/placeholders/biome-arrowfell.webp' },
-  { key: RUN_ART_KEYS.biome.duskbarrow, path: '/game-art/placeholders/biome-duskbarrow.webp' },
-  { key: RUN_ART_KEYS.biome.emberwaste, path: '/game-art/placeholders/biome-emberwaste.webp' },
-  { key: RUN_ART_KEYS.biome.frostmarch, path: '/game-art/placeholders/biome-frostmarch.webp' },
-  { key: RUN_ART_KEYS.biome.hallowfield, path: '/game-art/placeholders/biome-hallowfield.webp' },
-  { key: RUN_ART_KEYS.biome.howlmoor, path: '/game-art/placeholders/biome-howlmoor.webp' },
-  { key: RUN_ART_KEYS.biome.ironmoot, path: '/game-art/placeholders/biome-ironmoot.webp' },
-  { key: RUN_ART_KEYS.biome.pikewold, path: '/game-art/placeholders/biome-pikewold.webp' },
-  { key: RUN_ART_KEYS.biome.stormreach, path: '/game-art/placeholders/biome-stormreach.webp' },
-  { key: RUN_ART_KEYS.biome.swornhold, path: '/game-art/placeholders/biome-swornhold.webp' },
-  { key: RUN_ART_KEYS.biome.thornwild, path: '/game-art/placeholders/biome-thornwild.webp' },
-  { key: RUN_ART_KEYS.event.training, path: '/game-art/placeholders/area-hollow-yard.webp' },
-  { key: RUN_ART_KEYS.event.cache, path: '/game-art/placeholders/area-silt-hollows.webp' },
-  { key: RUN_ART_KEYS.event.recruit, path: '/game-art/placeholders/area-muster-road.webp' },
-  { key: RUN_ART_KEYS.event.forge, path: '/game-art/placeholders/area-cinderworks.webp' },
-  { key: RUN_ART_KEYS.event.market, path: '/game-art/placeholders/area-tolling-road.webp' },
-  { key: RUN_ART_KEYS.event.omen, path: '/game-art/placeholders/area-crossroads-unquiet.webp' },
-  { key: RUN_ART_KEYS.eventStory.bell_beneath_ice, path: '/game-art/placeholders/event-bell-beneath-ice.webp' },
-  { key: RUN_ART_KEYS.eventStory.second_toll, path: '/game-art/placeholders/event-second-toll.webp' },
-  { key: RUN_ART_KEYS.eventStory.bell_unbound, path: '/game-art/placeholders/event-bell-unbound.webp' },
-] as const;
-
-export const DESKTOP_RUN_ART_ASSETS = [
-  { key: RUN_ART_KEYS.biomeDesktop.arrowfell, path: '/game-art/placeholders/biome-arrowfell-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.duskbarrow, path: '/game-art/placeholders/biome-duskbarrow-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.emberwaste, path: '/game-art/placeholders/biome-emberwaste-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.frostmarch, path: '/game-art/placeholders/biome-frostmarch-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.hallowfield, path: '/game-art/placeholders/biome-hallowfield-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.howlmoor, path: '/game-art/placeholders/biome-howlmoor-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.ironmoot, path: '/game-art/placeholders/biome-ironmoot-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.pikewold, path: '/game-art/placeholders/biome-pikewold-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.stormreach, path: '/game-art/placeholders/biome-stormreach-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.swornhold, path: '/game-art/placeholders/biome-swornhold-desktop-vertical-v2.webp' },
-  { key: RUN_ART_KEYS.biomeDesktop.thornwild, path: '/game-art/placeholders/biome-thornwild-desktop-vertical-v2.webp' },
-] as const;
+export const RUN_ART_ASSETS = manifestLoadAssets(artManifest.eager);
+export const DESKTOP_RUN_ART_ASSETS = manifestLoadAssets(artManifest.eagerDesktop);
 
 export interface RunArtCropGeometry {
   cropX: number;

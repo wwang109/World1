@@ -166,3 +166,50 @@ re-render.
 See the table in `CLAUDE.md`. The gate for every change is `npm test`
 (boundary checker + full vitest suite); `npm run typecheck` must also be
 clean.
+# Community content snapshots
+
+`content-source.json` names `wwang109/wandering-hand-content` on `main`.
+`npm run content:sync` resolves that branch once and downloads runtime JSON,
+the art manifest and served images at its immutable commit. Trusted game tooling
+validates raw JSON keys, schemas, retained versions, generated event bytes,
+image dimensions/alpha and hashes before journaled activation. Local managed
+changes and concurrent synchronization are refused; an interrupted activation
+recovers before the next sync. Builds refuse an active/interrupted journal.
+
+`npm run content:verify` validates the retained snapshot offline. `npm run build`
+uses that retained identity; `npm run deploy:prepare` explicitly refreshes first
+and fails on refresh errors. `src/data/contentBuild.ts` exposes the same content
+SHA/API/rules metadata to the client and service. The Boot registry records it
+as `contentBuild`. The initial unpublished local snapshot uses an honest
+`local-<manifest digest>` identity; release preparation requires an immutable
+GitHub source revision. Content merging does not deploy the game.
+
+Offline build preparation refreshes only the game-rules identity from the actual
+checkout HEAD. Uncommitted source/tooling uses `development-<HEAD>`; content SHA
+and manifest hashes stay fixed. Production executor preparation requires the
+same current clean committed rules revision as the metadata, in addition to its
+immutable content SHA and fresh active-executor database export. Metadata and
+generated executors are excluded from the rules-dirty check.
+
+`art-manifest.v1.json` owns logical assets, mapping tables, explicit legacy
+fallbacks and paired backgrounds. Production masters stay in `art-src`, served
+derivatives in `public/game-art`. Cards retain first-use loading. Events validate
+art IDs against this manifest and require those story assets in the paired
+eager subset. Existing texture keys and renderer crop rules remain stable.
+
+`npm run content:repository-export` prepares an allowlisted public contribution
+snapshot under `tmp/wandering-hand-content`; it refuses a nonempty destination.
+The public repository includes production inputs and read-only CI, never game
+engine/validator copies, staging references, credentials or account data.
+Candidate validation runs the maintainer-pinned trusted game revision in
+isolation and emits a source-bound report. The workflow intentionally fails
+until `TRUSTED_GAME_REVISION` names a published compatible tooling commit.
+Human mechanical evidence and protected merger authorization remain separate.
+
+Each proposal report separately binds its manifest hash to declared runtime/art
+paths changed from the exact immutable content base. Draft-only, master-only or
+unchanged declared paths remain `needs_implementation`, even when unrelated
+runtime files validate successfully. CI downloads the base manifest and canonical
+JSON at that fixed repository/SHA with hash and byte checks, preserving every
+base-retained version and frozen compatibility document as well as the trusted
+game checkout's history. Candidate scripts and arbitrary URLs are never used.

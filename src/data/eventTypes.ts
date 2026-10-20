@@ -44,7 +44,7 @@ export type MarketStat = 'maxHp' | 'attack' | 'magicPower' | 'armor' | 'magicRes
 
 /** Closed presentation vocabulary for event-specific story illustrations.
  * Map nodes still preview their theme because no event has been resolved there. */
-export type EventArtId = 'bell_beneath_ice' | 'second_toll' | 'bell_unbound';
+export type EventArtId = string;
 
 export type EventRequirement =
   | { kind: 'resolution'; eventId: string; choiceIds?: readonly string[] }

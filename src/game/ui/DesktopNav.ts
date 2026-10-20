@@ -22,7 +22,7 @@ export const DESKTOP_LAYOUT = {
 
 export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: DesktopPage): void {
   const gx = DESKTOP_LAYOUT.gutter;
-  scene.add.text(gx, 24, 'WORLD1 / ARCANE LOADOUT', {
+  scene.add.text(gx, 24, 'WANDERING HAND / ARCANE LOADOUT', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
   });
   scene.add.text(gx, 44, title, {

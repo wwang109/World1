@@ -1,0 +1,14 @@
+{
+  "name": "Wandering Hand Community Merger",
+  "url": "https://github.com/wwang109/wandering-hand-content",
+  "public": true,
+  "hook_attributes": { "active": false },
+  "default_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "checks": "write",
+    "metadata": "read",
+    "actions": "read"
+  },
+  "default_events": []
+}

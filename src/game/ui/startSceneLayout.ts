@@ -99,18 +99,18 @@ export function startSceneLifetimeOffsets(profile: StartSceneProfile): {
   };
 }
 
-/** State-specific front-door copy and the one narrower mobile Resume label. */
 export function startScenePrimaryPresentation(
-  activeRun: boolean,
   profile: StartSceneProfile,
 ): StartScenePrimaryPresentation {
   return {
-    label: activeRun ? 'RESUME THE JOURNEY ›' : 'BEGIN THE JOURNEY ›',
-    detail: activeRun
-      ? 'Return to the map · continue your climb'
-      : 'Draft your board · climb the endless ladder',
-    labelFontSize: profile === 'mobile' ? 16 : 32,
+    label: 'PLAY  ›',
+    detail: 'Online journey · boss victories earn vote points',
+    labelFontSize: profile === 'mobile' ? 24 : 32,
   };
+}
+
+export function startScenePracticePresentation(activeRun: boolean): { label: string; detail: string } {
+  return { label: activeRun ? 'RESUME PRACTICE  ›' : 'PRACTICE  ›', detail: 'Practice journey · no vote points' };
 }
 
 /** Pure geometry traced from the user-approved desktop and mobile mockups. */

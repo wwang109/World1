@@ -8,6 +8,17 @@ import { validateGhostSubmission, type GhostSubmissionInput } from '../src/run/g
 import { createFileGhostStore } from './ghostStoreFile';
 import { createAccountService, webCryptoRandomHex, webCryptoSha256Hex } from '../src/meta/account';
 import { createFileAccountStore } from './accountStoreFile';
+import { createDurableCommunityState, createFileCommunityStore } from './communityStoreFile';
+import { createCommunityService } from '../src/service/community/service';
+import { createGitHubReadPort } from '../src/service/community/github';
+import { COMMUNITY_BODY_MAX_BYTES } from '../src/community/types';
+import { CommunityError } from '../src/community/validate';
+import { createFileEligibleRunStore } from './eligibleRunStoreFile';
+import { createFileEligibleGhostPorts } from './eligibleGhostPorts';
+import { createEligibleRunService } from '../src/service/runs/service';
+import { executorRegistry, presentEligibleRun } from '../src/service/runs/executorRegistry';
+import { createEligibleRunHttpHandler } from './eligibleRunHttp';
+import { createGitHubTechnicalReadiness, trustedValidationConfig } from '../src/service/community/trustedValidation';
 
 /**
  * Battle API — the only thing that may run combat.
@@ -29,14 +40,32 @@ const PORT = Number(process.env.PORT ?? 8787);
 const ghostStore = process.env.GHOST_STORE_FILE
   ? createFileGhostStore(process.env.GHOST_STORE_FILE)
   : createFileGhostStore();
+const accountStore = createFileAccountStore(process.env.ACCOUNT_STORE_FILE);
 const accountService = createAccountService({
-  store: createFileAccountStore(process.env.ACCOUNT_STORE_FILE),
+  store: accountStore,
   now: () => Date.now(),
   randomHex: webCryptoRandomHex,
   sha256Hex: webCryptoSha256Hex,
   fetch: (target, init) => fetch(target, init),
   sendEmail: async (message) => { console.log(`[account email] to ${message.to}\n${message.text}`); },
   allowReturnTo: (returnTo, apiOrigin) => returnTo.hostname === new URL(apiOrigin).hostname,
+});
+const communityRepositoryId = process.env.COMMUNITY_REPOSITORY_ID && /^\d+$/.test(process.env.COMMUNITY_REPOSITORY_ID) ? process.env.COMMUNITY_REPOSITORY_ID : null;
+const eligibleCommunityState = createDurableCommunityState(process.env.ELIGIBLE_COMMUNITY_STORE_FILE);
+const eligibleRunHandler = createEligibleRunHttpHandler(createEligibleRunService(createFileEligibleRunStore(presentEligibleRun, eligibleCommunityState), executorRegistry, createFileEligibleGhostPorts(eligibleCommunityState)), accountService.authenticate, process.env.ELIGIBLE_RUNS_ENABLED === 'true');
+const communityStore = createFileCommunityStore(eligibleCommunityState);
+const validationConfig = trustedValidationConfig(process.env);
+const communityService = createCommunityService({
+  store: communityStore,
+  github: communityRepositoryId ? createGitHubReadPort({ repositoryId: communityRepositoryId, token: process.env.COMMUNITY_READER_TOKEN, lookupCachedProposal: key => communityStore.getProposal(key) }) : null,
+  repositoryId: communityRepositoryId,
+  authenticate: accountService.authenticate,
+  linkedProvider: async accountId => (await accountStore.linksFor(accountId)).length > 0,
+  moderators: (process.env.COMMUNITY_MODERATORS ?? '').split(',').map(value => value.trim()).filter(Boolean),
+  now: () => Date.now(), hash: webCryptoSha256Hex,
+  hashBytes: async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice().buffer))).map(value => value.toString(16).padStart(2, '0')).join(''),
+  randomId: () => webCryptoRandomHex(16), rulesRevision: process.env.GAME_RULES_REVISION ?? '', contentApiVersion: Number(process.env.CONTENT_API_VERSION ?? 1), readiness: validationConfig ? createGitHubTechnicalReadiness(communityStore, validationConfig) : null,
+  pointsEnabled: process.env.COMMUNITY_POINTS_ENABLED === 'true',
 });
 
 createServer((req, res) => {
@@ -55,6 +84,28 @@ createServer((req, res) => {
   }
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? `localhost:${String(PORT)}`}`);
   const route = url.pathname;
+
+  if (route === '/runs' || route.startsWith('/runs/')) {
+    res.setHeader('access-control-allow-origin', '*');
+    eligibleRunHandler(req, res).catch(() => json(503, { error: 'eligible-run-unavailable' }));
+    return;
+  }
+
+  if (route === '/community' || route.startsWith('/community/')) {
+    const preview = /^\/community\/proposals\/([1-9]\d*)\/previews$/.exec(route);
+    if (req.method === 'GET' && preview) {
+      communityService.asset(Number(preview[1]), url.searchParams.get('sha') ?? '', url.searchParams.get('path') ?? '').then(asset => {
+        if (!asset) { json(404, { error: 'preview-not-found' }); return; }
+        res.writeHead(200, { 'content-type': asset.contentType, 'access-control-allow-origin': '*', 'cache-control': 'public,max-age=31536000,immutable', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'", etag: `"${asset.hash}"` });
+        res.end(asset.bytes);
+      }).catch((error: unknown) => json(error instanceof CommunityError ? error.status : 503, { error: error instanceof CommunityError ? error.message : 'community-unavailable' }));
+      return;
+    }
+    let communityBody = ''; let bytes = 0; let rejected = false;
+    req.on('data', (chunk: Buffer) => { if (rejected) return; bytes += chunk.length; if (bytes > COMMUNITY_BODY_MAX_BYTES) { rejected = true; json(413, { error: 'body-too-large' }); return; } communityBody += chunk.toString('utf8'); });
+    req.on('end', () => { if (!rejected) communityService.handle({ method: req.method ?? 'GET', path: route, url, authorization: req.headers.authorization ?? null, body: communityBody }).then(result => json(result.status, result.body)).catch(() => json(503, { error: 'community-unavailable' })); });
+    return;
+  }
 
   if (route.startsWith('/account/')) {
     let accountBody = '';

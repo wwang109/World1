@@ -7,7 +7,7 @@ import { roundRect } from './roundedRect';
 import { buildCardArtPlaceholder } from './cardArtPlaceholder';
 import { whenCardArtReady } from './cardArtLoader';
 import { effectSegmentJoiner, summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
-import { keywordTextColor } from './cardTextMarkup';
+import { keywordTextColor, stripCardTextMarkup } from './cardTextMarkup';
 import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
 import { syncCardArtMask } from './cardTokenArtMask';
 import { driftCardArt } from './cardArtDrift';
@@ -27,6 +27,7 @@ export interface TokenAccessory {
 }
 
 export interface CardTokenOptions {
+  pinnedPresentation?: { body: string; artKey?: string };
   width: number;
   height: number;
   /** Left column (your deck) or right column (opponent). Mirrors number + text. */
@@ -218,6 +219,29 @@ export class CardToken extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.sourceSkill = skill;
     this.sourceOpts = opts;
+    if (opts.pinnedPresentation) {
+      const { width, height, pinnedPresentation: pinned } = opts;
+      this.setSize(width, height);
+      this.add(scene.add.rectangle(0, 0, width, height, UI.panelAlt).setStrokeStyle(2, TIER_COLOR[opts.tier ?? skill.tier]));
+      const artHeight = Math.round(height * .42);
+      if (pinned.artKey && scene.textures.exists(pinned.artKey)) {
+        const image = scene.add.image(0, -height / 2 + artHeight / 2 + 2, pinned.artKey);
+        image.setScale(Math.max((width - 4) / image.width, artHeight / image.height));
+        const mask = scene.make.graphics({}, false).fillStyle(0xffffff).fillRect(x - width / 2 + 2, y - height / 2 + 2, width - 4, artHeight);
+        image.setMask(mask.createGeometryMask());
+        this.once(Phaser.GameObjects.Events.DESTROY, () => mask.destroy());
+        this.add(image);
+      } else this.add(scene.add.rectangle(0, -height / 2 + artHeight / 2 + 2, width - 4, artHeight, UI.panelMuted));
+      const title = scene.add.text(-width / 2 + 10, -height / 2 + artHeight + 10, skill.name, { fontFamily: FONT.body, fontSize: 15, fontStyle: 'bold', color: UI.textAccent, wordWrap: { width: width - 20, useAdvancedWrap: true } });
+      this.add(title);
+      const bodyY = title.y + title.height + 7;
+      const body = scene.add.text(-width / 2 + 10, bodyY, stripCardTextMarkup(pinned.body), { fontFamily: FONT.body, fontSize: 12, color: UI.text, wordWrap: { width: width - 20, useAdvancedWrap: true }, lineSpacing: 2 });
+      let pinnedFontSize = 12;
+      while (body.height > height / 2 - bodyY - 27 && pinnedFontSize > 9) body.setFontSize(--pinnedFontSize);
+      this.add(body);
+      this.add(scene.add.text(-width / 2 + 10, height / 2 - 20, `${(opts.tier ?? skill.tier).toUpperCase()} · SIZE ${skill.size}`, { fontFamily: FONT.body, fontSize: 10, color: UI.textMuted }));
+      return;
+    }
     const { width: w, height: h } = opts;
     this.cornerRadius = ACTIVE_PROFILE.id === 'mobile' ? Math.min(12, h / 4) : 0;
     const side = opts.side ?? 'left';

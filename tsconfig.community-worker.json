@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.functions.json",
+  "include": ["workers/community-rounds.ts"]
+}

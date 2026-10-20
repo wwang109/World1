@@ -49,6 +49,7 @@ import { equipmentLootConfig } from '../src/data/equipmentLootConfig';
 import equipment from '../src/data/content/equipment.v1.json';
 import { validateEnemyDocument } from '../src/data/validateEnemyContent';
 import { validateModifierDocument } from '../src/data/validateModifierContent';
+import { validateContentReferences } from '../src/data/validateContentReferences';
 import { validateEventDocument } from '../src/data/validateEventContent';
 import { renderEventCatalogWiki, validateEventDiscoveryDocument } from './generateEventCatalog';
 import { assertGeneratedEventAggregateCurrent } from './eventPackCompiler';
@@ -249,6 +250,11 @@ if (actualEventCatalogWiki !== undefined && actualEventCatalogWiki !== expectedE
   }
 }
 
+for (const problem of validateContentReferences({ skills, gems, enemies, modifiers })) {
+  failures += 1;
+  console.error(`  ERROR  content references ${problem.where}: ${problem.message}`);
+}
+
 if (failures > 0) {
   console.error(
     `\ncontent validation FAILED: ${String(failures)} problem(s).`
@@ -258,3 +264,11 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log('content validation passed');
+
+if (process.argv.includes('--root') && !process.argv.includes('--internal-snapshot')) {
+  const { validateContentSnapshot } = await import('./contentSnapshot');
+  const root = process.argv[process.argv.indexOf('--root') + 1];
+  if (!root) throw new Error('--root requires a snapshot directory');
+  await validateContentSnapshot(root);
+  console.log('staged snapshot validation passed');
+}

@@ -16,6 +16,7 @@ import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, START_SCENE_INK, startSceneTextRole, UI } from '../theme';
 import { attachButtonFeel } from './motion';
 import { promptForLine } from './textPrompt';
+import { fetchCommunityMe } from '../communityApi';
 
 const PANEL_DEPTH = 1000;
 
@@ -46,7 +47,7 @@ function panelMetrics(mobile: boolean): PanelMetrics {
     : { width: 540, pad: 24, rowH: 54, labelW: 90, buttonW: 150, buttonH: 38, title: 18, body: 14, small: 12 };
 }
 
-function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => void): Phaser.GameObjects.Container {
+function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => void, points: string): Phaser.GameObjects.Container {
   const mobile = ACTIVE_PROFILE.id === 'mobile';
   const m = panelMetrics(mobile);
   const container = scene.add.container(0, 0).setDepth(PANEL_DEPTH);
@@ -88,6 +89,7 @@ function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => voi
 
   if (ready) {
     const account = state.account!;
+    addRow('VOTES', points, null);
     addRow('NAME', account.displayName, {
       label: 'RENAME',
       onPress: () => {
@@ -174,6 +176,7 @@ export function addAccountChip(scene: Phaser.Scene): void {
   }).setOrigin(0, 0.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
 
   let panel: Phaser.GameObjects.Container | null = null;
+  let points = 'Checking…';
   const close = (): void => {
     panel?.destroy();
     panel = null;
@@ -181,7 +184,18 @@ export function addAccountChip(scene: Phaser.Scene): void {
   };
   const open = (): void => {
     panel?.destroy();
-    panel = buildPanel(scene, getAccountState(), close);
+    panel = buildPanel(scene, getAccountState(), close, points);
+  };
+
+  const refreshPoints = (): void => {
+    const accountId = getAccountState().account?.id;
+    if (!accountId) return;
+    points = 'Checking…';
+    void fetchCommunityMe().then(result => {
+      if (getAccountState().account?.id !== accountId) return;
+      points = `${result.wallet.balance} saved vote points${result.pointsEnabled ? '' : ' · voting soon'}`;
+      if (panel) open();
+    }).catch(() => { points = 'Unavailable'; if (panel) open(); });
   };
 
   attachButtonFeel(scene, target, {
@@ -189,6 +203,7 @@ export function addAccountChip(scene: Phaser.Scene): void {
     onPress: () => {
       if (getAccountState().status === 'offline') void initAccount();
       open();
+      refreshPoints();
     },
   });
 

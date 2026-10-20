@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "repository": "wwang109/wandering-hand-content",
+  "repositoryId": "1426486653",
+  "mergerAppId": "5391036",
+  "mergerAppSlug": "wandering-hand-community-merger",
+  "mergerInstallationId": "",
+  "mainUpdateRulesetId": 25453489,
+  "validationWorkflowId": 0,
+  "validationWorkflowSha256": "",
+  "validationAnchorSha": "40bf157aca4b23615f1297ac1b5c9b60d804fb92",
+  "trustedGameRepository": "wwang109/World1",
+  "trustedGameRevision": "",
+  "contentSha": "40bf157aca4b23615f1297ac1b5c9b60d804fb92",
+  "gameOrigin": "https://proof-of-concept-ab-deckbuilder.pages.dev",
+  "cloudflareAccountId": "48d545d2fa70ded1fafd24bdefa8dacb",
+  "d1DatabaseId": "",
+  "d1DatabaseName": "",
+  "workerName": "wandering-hand-community-rounds",
+  "localRepositoryBundle": "tmp/community/backups/content-baseline-40bf157.bundle",
+  "allowWorkerDeploy": false
+}

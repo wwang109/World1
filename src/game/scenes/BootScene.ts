@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CONTENT_SHA, CONTENT_API_VERSION, RULES_REVISION } from '../../data/contentBuild';
 import { installUnlock } from '../audio/audioBus';
 import { applyDevLaunchConfig, buildDevBossFixture, buildDevEventFixture, buildDevGhostBattleFixture, buildDevGhostExtraFightFixture, buildDevGhostExtraFightLoseFixture, buildDevGhostOfferFixture, buildDevGhostSaveOkFixture, buildDevMarketPrepFixture } from '../devLaunch';
 import { setBattleContext } from '../battleContext';
@@ -143,6 +144,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.registry.set('contentBuild', { contentSha: CONTENT_SHA, contentApiVersion: CONTENT_API_VERSION, rulesRevision: RULES_REVISION });
     // Autoplay policy: the AudioContext can't start until a user gesture —
     // arm the one-shot unlock here so sound works from the first click on.
     installUnlock();
@@ -187,6 +189,10 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'equipment' ? (ACTIVE_PROFILE.id === 'mobile' ? 'MobileEquipment' : 'DesktopEquipment')
       : launch.scene === 'card-design' ? 'DesktopCardDesign'
       : launch.scene === 'credits' ? 'Credits'
+      : launch.scene === 'community' ? 'DesktopCommunity'
+      : launch.scene === 'mcommunity' ? 'MobileCommunity'
+      : launch.scene === 'eligible' ? 'DesktopEligibleRun'
+      : launch.scene === 'meligible' ? 'MobileEligibleRun'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
       : defaultScene;

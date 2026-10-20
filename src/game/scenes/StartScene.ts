@@ -11,8 +11,9 @@ import {
   startSceneAssetPaths,
   startSceneLayout,
   startSceneLifetimeOffsets,
-  startScenePrimaryPresentation,
   startScenePrimaryVisualLayout,
+  startScenePrimaryPresentation,
+  startScenePracticePresentation,
   type CenteredRect,
   type StartScenePrimaryPresentation,
 } from '../ui/startSceneLayout';
@@ -60,14 +61,18 @@ export class StartScene extends Phaser.Scene {
       ...startSceneTextRole('eyebrow'), letterSpacing: mobile ? 2 : 4,
     }).setOrigin(0.5).setShadow(0, 2, START_SCENE_INK.shadow, 5, true, true);
 
-    this.add.text(layout.title.x, layout.title.y, 'WORLD1', {
-      ...startSceneTextRole('masthead'), letterSpacing: mobile ? 1 : 4,
+    this.add.text(layout.title.x, layout.title.y, 'WANDERING HAND', {
+      ...startSceneTextRole('masthead'), fontSize: mobile ? '29px' : '64px', letterSpacing: mobile ? 1 : 4,
     }).setOrigin(0.5).setShadow(0, 5, START_SCENE_INK.shadow, 8, true, true);
     this.ornamentalRule(layout.centerX, layout.ruleY, mobile ? 255 : 500);
 
     const activeRun = getActiveRun();
-    const primary = startScenePrimaryPresentation(Boolean(activeRun), ACTIVE_PROFILE.id);
+    const primary = startScenePrimaryPresentation(ACTIVE_PROFILE.id);
     this.primaryButton(layout.primary, primary, () => {
+      this.scene.start(mobile ? 'MobileEligibleRun' : 'DesktopEligibleRun');
+    });
+
+    this.practiceButton(layout.sandbox, Boolean(activeRun), () => {
         if (getActiveRun()) {
           this.scene.start(mobile ? 'MobileRunMap' : 'DesktopRunMap');
         } else {
@@ -75,10 +80,6 @@ export class StartScene extends Phaser.Scene {
           this.scene.start(mobile ? 'MobileDraft' : 'DesktopDraft');
         }
       });
-
-    this.sandboxButton(layout.sandbox, () => {
-      this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep');
-    });
 
     // THIRD DOOR, DESKTOP ONLY (user decision 2026-09-16) — a deliberate
     // exception to the both-platforms rule: the Card Designer is an
@@ -92,6 +93,8 @@ export class StartScene extends Phaser.Scene {
     }
 
     this.creditsButton();
+    this.communityButton();
+    this.sandboxLink();
     addAccountChip(this);
 
     this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
@@ -139,15 +142,16 @@ export class StartScene extends Phaser.Scene {
     });
   }
 
-  private sandboxButton(rect: CenteredRect, onPress: () => void): void {
+  private practiceButton(rect: CenteredRect, active: boolean, onPress: () => void): void {
+    const presentation = startScenePracticePresentation(active);
     const fill = UI.bg;
     const target = this.add.rectangle(rect.x, rect.y, rect.width, rect.height, fill, 0.08)
       .setInteractive({ useHandCursor: true });
-    const label = this.add.text(rect.x, rect.y - 8, 'SANDBOX  ›', {
+    const label = this.add.text(rect.x, rect.y - 8, presentation.label, {
       ...startSceneTextRole('sandboxLabel'), letterSpacing: 2,
     }).setOrigin(0.5).setScale(ACTIVE_PROFILE.id === 'mobile' ? 0.9 : 1)
       .setShadow(0, 2, START_SCENE_INK.shadow, 4, true, true);
-    const sub = this.add.text(rect.x, rect.y + 20, 'Free build & balance playground', {
+    const sub = this.add.text(rect.x, rect.y + 20, presentation.detail, {
       ...startSceneTextRole('sandboxDetail'),
     }).setOrigin(0.5).setScale(ACTIVE_PROFILE.id === 'mobile' ? 0.9 : 1)
       .setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
@@ -187,6 +191,24 @@ export class StartScene extends Phaser.Scene {
       fill: UI.bg, hover: 0x1d3950, alpha: 0.001, follow: [label], lift: 1,
       onPress: () => { this.scene.start('Credits'); },
     });
+  }
+
+  private communityButton(): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const x = SCREEN.width - (mobile ? 70 : 90);
+    const y = mobile ? 82 : 88;
+    const target = this.add.rectangle(x, y, mobile ? 112 : 140, 44, UI.bg, .25).setInteractive({ useHandCursor: true });
+    const label = this.add.text(x, y, 'COMMUNITY ›', { ...startSceneTextRole('sandboxDetail'), letterSpacing: 1 }).setOrigin(.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, { fill: UI.bg, hover: 0x1d3950, alpha: .25, follow: [label], lift: 1, onPress: () => this.scene.start(mobile ? 'MobileCommunity' : 'DesktopCommunity') });
+  }
+
+  private sandboxLink(): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const x = mobile ? 70 : 90;
+    const y = mobile ? 82 : 88;
+    const target = this.add.rectangle(x, y, mobile ? 112 : 140, 44, UI.bg, .25).setInteractive({ useHandCursor: true });
+    const label = this.add.text(x, y, 'SANDBOX ›', { ...startSceneTextRole('sandboxDetail'), letterSpacing: 1 }).setOrigin(.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, { fill: UI.bg, hover: 0x1d3950, alpha: .25, follow: [label], lift: 1, onPress: () => this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep') });
   }
 
   private renderLifetimeLine(cx: number, y: number, mobile: boolean): void {

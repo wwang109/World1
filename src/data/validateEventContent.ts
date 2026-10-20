@@ -1,3 +1,4 @@
+import { artManifest } from './artManifest';
 import type { Action, Archetype, BuffableStat, Element, Property, SkillTier, WeaponType } from '../engine/types';
 import { biomeIds } from './biomes';
 import { enemies } from './enemies';
@@ -30,7 +31,7 @@ function enumValues<K extends string>(table: Readonly<Record<K, true>>): readonl
 const ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 const THEMES = enumValues<EventTheme>({ training: true, cache: true, recruit: true, forge: true, market: true, omen: true });
 const RARITIES = enumValues<EventRarity>({ common: true, uncommon: true, rare: true, secret: true });
-const EVENT_ART_IDS = enumValues<EventArtId>({ bell_beneath_ice: true, second_toll: true, bell_unbound: true });
+const EVENT_ART_IDS: readonly EventArtId[] = Object.keys(artManifest.events);
 const TIERS = enumValues<SkillTier>({ bronze: true, silver: true, gold: true, diamond: true });
 const FILTER_FROM = enumValues<FilterFromSource>({ biomeLean: true, biomeCounter: true, boardIdentity: true });
 const MARKET_STATS = enumValues<MarketStat>({ maxHp: true, attack: true, magicPower: true, armor: true, magicResist: true, speed: true });

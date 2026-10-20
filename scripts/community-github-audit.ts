@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { auditStore, auditProposal, fixtureGithub, auditHashBytes, AUDIT_HEAD, AUDIT_BASE, AUDIT_REPOSITORY_ID } from './community-audit-fixtures';
+import { createProposalImporter, inspectRaster } from '../src/service/community/importer';
+import { createGitHubReadPort, proposalKeyFromUrl } from '../src/service/community/github';
+import { parseCommunityJson, safeRepositoryPath, validateProposalManifest } from '../src/community/validate';
+assert.throws(() => parseCommunityJson('{"version":1,"version":1}'), /duplicate-json-key/);
+assert.throws(() => parseCommunityJson('{"nested":{"x":1,"\\u0078":2}}'), /duplicate-json-key/);
+assert.deepEqual(parseCommunityJson('{"array":[1,true,null,{"x":"escaped \\\" quote"}]}'), { array: [1, true, null, { x: 'escaped \" quote' }] });
+for (const path of ['../private', '/etc/passwd', 'https://evil.invalid/a.png', 'a\\b', 'a/%2e%2e/b', 'a/.hidden']) assert.throws(() => safeRepositoryPath(path));
+for (const url of ['http://github.com/wwang109/wandering-hand-content/pull/1', 'https://evil.invalid/pull/1', 'https://github.com/another/repo/pull/1', 'https://github.com/wwang109/wandering-hand-content/pull/1?x=1']) assert.throws(() => proposalKeyFromUrl(url, AUDIT_REPOSITORY_ID));
+assert.throws(() => inspectRaster(new Uint8Array(30)), /invalid-preview-dimensions/);
+assert.throws(() => inspectRaster(Uint8Array.from([255, 216, ...Array(100).fill(0)])), /invalid-preview-dimensions/);
+const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=', 'base64'));
+assert.equal(inspectRaster(png).width, 1);
+const oversized = png.slice(); new DataView(oversized.buffer).setUint32(16, 9000); assert.throws(() => inspectRaster(oversized));
+assert.throws(() => validateProposalManifest({ ...auditProposal().manifest, previewPaths: Array(5).fill('preview.png') }));
+for (const kind of ['file', 'd1'] as const) {
+  const { store } = await auditStore(kind); const github = fixtureGithub();
+  const importer = createProposalImporter({ github, store, now: Date.now, sha256: auditHashBytes });
+  await importer.importProposal(github.current.key); await importer.importProposal(github.current.key);
+  assert.equal((await store.listProposals(0, 50, 'newest')).length, 1);
+  github.current = { ...github.current, headSha: 'e'.repeat(40) }; github.race = true; await assert.rejects(() => importer.importProposal(github.current.key), /github-revision-changed/);
+  github.outage = true; await assert.rejects(() => importer.importProposal(github.current.key));
+  assert.equal((await store.getProposal(github.current.key))!.headSha, AUDIT_HEAD);
+  github.outage = false;
+  const reconciled = await importer.reconcileProposals(null); assert.equal(reconciled.updated, 1);
+  assert.equal((await store.getProposal(github.current.key))!.headSha, github.current.headSha);
+  console.log(`OK community-github ${kind}: exact-SHA/race/outage/rebuild/dedup/reconciliation`);
+  const canonical = auditProposal(99); canonical.manifest.contentPaths = ['src/data/content/skills.v1.json', 'src/data/content/events.v3.json'];
+  const largeGithub = fixtureGithub(canonical); let tooLarge = false;
+  largeGithub.readFilesAtSha = async (_key, sha, paths) => paths.map(path => ({ path, blobSha: sha, mode: '100644', bytes: path === canonical.manifestPath ? new TextEncoder().encode(JSON.stringify(canonical.manifest)) : tooLarge ? new Uint8Array(8 * 1024 * 1024 + 1) : new Uint8Array(readFileSync(path)) }));
+  const largeImporter = createProposalImporter({ github: largeGithub, store, now: Date.now, sha256: auditHashBytes });
+  const accepted = await largeImporter.importProposal(canonical.key); assert.equal(accepted.manifest.contentPaths.length, 2);
+  assert(readFileSync('src/data/content/skills.v1.json').length > 256 * 1024); assert(readFileSync('src/data/content/events.v3.json').length > 256 * 1024);
+  tooLarge = true; largeGithub.current = { ...canonical, headSha: 'f'.repeat(40) }; await assert.rejects(() => largeImporter.importProposal(canonical.key), /invalid-content-file/);
+  console.log(`OK community-github ${kind}: actual canonical skills/events JSON above256KiB accepted; above8MiB rejected`);
+}
+const manifest = new TextEncoder().encode(JSON.stringify(auditProposal().manifest));
+const blobSha = createHash('sha1').update(`blob ${manifest.length}\0`).update(manifest).digest('hex');
+const visited: string[] = []; let mode = '100644';
+const port = createGitHubReadPort({ repositoryId: AUDIT_REPOSITORY_ID, fetch: async (input, init) => {
+  const url = String(input); visited.push(url); assert(url.startsWith('https://api.github.com/repos/')); assert(!init?.method || init.method === 'GET');
+  if (url.includes('/pulls/1/files')) return Response.json([{ filename: 'community/proposals/audit-1/proposal.json', status: 'added' }]);
+  if (url.endsWith('/pulls/1')) return Response.json({ changed_files: 1, head: { sha: AUDIT_HEAD, repo: { id: 777, full_name: 'audit-contributor/content-fork' } }, base: { sha: AUDIT_BASE, ref: 'main', repo: { id: Number(AUDIT_REPOSITORY_ID), full_name: 'wwang109/wandering-hand-content' } }, state: 'open', draft: false, merged_at: null });
+  if (url.includes('/git/trees/')) { assert(url.includes('/audit-contributor/content-fork/')); return Response.json({ tree: [{ path: 'community/proposals/audit-1/proposal.json', mode, type: 'blob', size: manifest.length, sha: blobSha }], truncated: false }); }
+  if (url.includes('/git/blobs/')) return Response.json({ encoding: 'base64', size: manifest.length, content: Buffer.from(manifest).toString('base64') });
+  throw new Error(`Unexpected fixture request ${url}`);
+} });
+const key = { repositoryId: AUDIT_REPOSITORY_ID, number: 1 };
+await port.readPr(key); const files = await port.readFilesAtSha(key, AUDIT_HEAD, ['community/proposals/audit-1/proposal.json']); assert.equal(files.length, 1);
+await assert.rejects(() => port.readPr({ ...key, repositoryId: 'wrong' }));
+mode = '120000'; await assert.rejects(() => port.readFilesAtSha(key, AUDIT_HEAD, ['community/proposals/audit-1/proposal.json']), /invalid-source-file/);
+assert(visited.every(url => !url.includes('evil.invalid')));
+console.log('OK community-github transport: fixed-host/verified-fork-repository/blob-hash/symlink/path/duplicate-JSON/PNG-WebP-only');

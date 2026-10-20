@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { validateIntent, validateCommand, RUN_INTENT_KINDS } from '../src/run/online/validateIntent';
+import { applyDeckIntent, inventoryFingerprint } from '../src/run/online/deckIntent';
+import { drafted } from './online-audit-fixtures';
+import { gemBook } from '../src/data/gems';
+let rejected = 0;
+for (const input of [{ kind: 'win', won: true }, { kind: 'draftApply', seed: 1 }, { kind: 'chooseNode', nodeId: 'x', state: {} }, { kind: 'buyCard', index: -1 }, { kind: 'allocateStats', allocation: { evil: 1 } }, { kind: 'buyGem', index: 0.5 }, { kind: 'ghostSave', name: 'x', setup: {} }, { kind: 'moveCard', source: { kind: 'bag', instanceId: 'x', skillId: 'sword_slash' }, destination: { kind: 'held' } }]) {
+  assert.throws(() => validateIntent(input)); rejected++;
+}
+assert.throws(() => validateCommand({ operationId: 'operation', expectedRevision: 0, intent: { kind: 'retire' }, gold: 100 })); rejected++;
+let state = drafted();
+const gemId = Object.keys(gemBook)[0]!;
+state = { ...state, gemInventory: [gemId, gemId] };
+const card = state.pieces[0]!;
+const fingerprint = inventoryFingerprint(state);
+state = applyDeckIntent(state, { kind: 'attachGem', instanceId: card.instanceId, pouchIndex: 0 });
+state = applyDeckIntent(state, { kind: 'moveCard', source: { kind: 'board', instanceId: card.instanceId }, destination: { kind: 'held' } });
+assert.equal(state.gemInventory.length, 2);
+state = applyDeckIntent(state, { kind: 'moveCard', source: { kind: 'held', instanceId: card.instanceId }, destination: { kind: 'board', slot: card.slot } });
+assert.equal(inventoryFingerprint(state), fingerprint);
+assert.throws(() => applyDeckIntent(state, { kind: 'moveCard', source: { kind: 'board', instanceId: card.instanceId }, destination: { kind: 'board', slot: 99 } })); rejected++;
+assert.throws(() => applyDeckIntent(state, { kind: 'moveCard', source: { kind: 'bag', instanceId: 'forged' }, destination: { kind: 'held' } })); rejected++;
+assert.throws(() => inventoryFingerprint({ ...state, held: card })); rejected++;
+assert.throws(() => applyDeckIntent(state, { kind: 'attachGem', instanceId: card.instanceId, pouchIndex: 2 })); rejected++;
+const storeSource = readFileSync('src/game/runStore.ts', 'utf8');
+const functions = [...storeSource.matchAll(/^export (?:async )?function (\w+)/gm)].map(match => match[1]!);
+const practiceOnly = ['setCurrentRunPieces', 'setCurrentRunBagSlots', 'setCurrentRunHeld', 'commitRunDeckEdit', 'setCurrentRunGemInventory', 'installDevRunFixture', 'resolveRunBattleResult', 'resolveChallengeFightResult', 'resolveExtraGhostFightResult'];
+for (const name of practiceOnly) assert(functions.includes(name));
+mkdirSync('tmp/community', { recursive: true });
+writeFileSync('tmp/community/run-mutator-inventory.json', JSON.stringify({ intents: RUN_INTENT_KINDS, exports: functions, practiceOnly, cosmeticOnly: ['setCooldownWarningDismissedFor'], eligibleClear: 'server retire before clearing view' }, null, 2));
+console.log(`online intents OK: ${RUN_INTENT_KINDS.length} closed kinds; ${rejected} forged inputs rejected; card/gem/holding conservation; ${functions.length} runStore exports inventoried`);
