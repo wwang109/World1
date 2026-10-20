@@ -7,6 +7,7 @@ import { requireCommunity } from '../src/community/validate';
 import { createGitHubReadPort } from '../src/service/community/github';
 import { reconcileCommunitySources, sourcesFreshForRound } from '../src/service/community/reconcile';
 import { webCryptoRandomHex } from '../src/meta/account';
+import { createPrivateGithubReader } from '../src/service/community/privateGithubReader';
 interface RoundEnv extends TrustedValidationEnv {
   GHOSTS_DB?: D1Database;
   COMMUNITY_MERGE_ENABLED?: string;
@@ -45,4 +46,13 @@ export async function runCommunityRounds(env: RoundEnv, now = Date.now()): Promi
   }
   return { closed, automationConfigured: enabled, sourceHealthy: synchronization.healthy, imported: synchronization.updated };
 }
-export default { async scheduled(_controller: unknown, env: RoundEnv): Promise<void> { await runCommunityRounds(env); } };
+let privateReader: { identity: string; key: string; handle: (request: Request) => Promise<Response> } | null = null;
+export default {
+  async fetch(request: Request, env: RoundEnv): Promise<Response> {
+    const identity = JSON.stringify([env.COMMUNITY_REPOSITORY_ID, env.COMMUNITY_MERGER_APP_ID, env.COMMUNITY_MERGER_INSTALLATION_ID, env.COMMUNITY_MERGER_APP_SLUG]);
+    const key = env.COMMUNITY_MERGER_PRIVATE_KEY ?? '';
+    if (!privateReader || privateReader.identity !== identity || privateReader.key !== key) privateReader = { identity, key, handle: createPrivateGithubReader({ repositoryId: env.COMMUNITY_REPOSITORY_ID ?? '', appId: env.COMMUNITY_MERGER_APP_ID ?? '', installationId: env.COMMUNITY_MERGER_INSTALLATION_ID ?? '', appSlug: env.COMMUNITY_MERGER_APP_SLUG ?? '', privateKeyPem: key }) };
+    return privateReader.handle(request);
+  },
+  async scheduled(_controller: unknown, env: RoundEnv): Promise<void> { await runCommunityRounds(env); },
+};

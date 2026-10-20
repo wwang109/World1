@@ -77,8 +77,12 @@ export async function inspectCommunityAutomation(config: AutomationConfig, optio
   const worker = gates.find(item => item.name === 'scheduled-worker-deployment'); if (worker) worker.requiredForSetup = false;
   return { ready: gates.every(item => item.ready), setupReady: gates.filter(item => item.requiredForSetup !== false).every(item => item.ready), gates, pendingMigrations, tables };
 }
-function configuredWorker(config: AutomationConfig, root: string): unknown {
-  return { name: config.workerName, main: join(root, 'workers/community-rounds.ts'), compatibility_date: '2026-10-20', account_id: config.cloudflareAccountId, triggers: { crons: ['*/5 * * * *'] }, vars: { COMMUNITY_REPOSITORY_ID: config.repositoryId, COMMUNITY_MERGER_APP_ID: config.mergerAppId, COMMUNITY_MERGER_INSTALLATION_ID: config.mergerInstallationId, COMMUNITY_MERGER_APP_SLUG: config.mergerAppSlug, COMMUNITY_VALIDATION_WORKFLOW_ID: String(config.validationWorkflowId), COMMUNITY_VALIDATION_WORKFLOW_SHA256: config.validationWorkflowSha256, COMMUNITY_VALIDATION_BASE_SHA: config.validationAnchorSha, GAME_RULES_REVISION: config.trustedGameRevision, CONTENT_API_VERSION: '1', COMMUNITY_MERGE_ENABLED: 'false' }, d1_databases: [{ binding: 'GHOSTS_DB', database_name: config.d1DatabaseName, database_id: config.d1DatabaseId }] };
+export function privateReaderBindingPatch(config: AutomationConfig): unknown {
+  requireCommunity(config.workerName === 'wandering-hand-community-rounds', 'configured-private-reader-target-mismatch');
+  return { deployment_configs: { production: { services: { COMMUNITY_GITHUB_READER: { service: config.workerName, environment: 'production' } } } } };
+}
+export function configuredWorker(config: AutomationConfig, root: string): unknown {
+  return { name: config.workerName, main: join(root, 'workers/community-rounds.ts'), compatibility_date: '2026-10-20', account_id: config.cloudflareAccountId, workers_dev: false, preview_urls: false, routes: [], triggers: { crons: ['*/5 * * * *'] }, vars: { COMMUNITY_REPOSITORY_ID: config.repositoryId, COMMUNITY_MERGER_APP_ID: config.mergerAppId, COMMUNITY_MERGER_INSTALLATION_ID: config.mergerInstallationId, COMMUNITY_MERGER_APP_SLUG: config.mergerAppSlug, COMMUNITY_VALIDATION_WORKFLOW_ID: String(config.validationWorkflowId), COMMUNITY_VALIDATION_WORKFLOW_SHA256: config.validationWorkflowSha256, COMMUNITY_VALIDATION_BASE_SHA: config.validationAnchorSha, GAME_RULES_REVISION: config.trustedGameRevision, CONTENT_API_VERSION: '1', COMMUNITY_MERGE_ENABLED: 'false' }, d1_databases: [{ binding: 'GHOSTS_DB', database_name: config.d1DatabaseName, database_id: config.d1DatabaseId }] };
 }
 async function main(): Promise<void> {
   const option = (name: string): string | undefined => { const at = process.argv.indexOf(name); return at < 0 ? undefined : process.argv[at + 1]; };
@@ -96,6 +100,7 @@ async function main(): Promise<void> {
   if (!process.argv.includes('--apply') && !process.argv.includes('--write-config')) { if (!result.ready) process.exitCode = 1; return; }
   requireCommunity(config.repository === COMMUNITY_REPOSITORY && config.repositoryId === '1426486653' && config.workerName === 'wandering-hand-community-rounds', 'configured-target-mismatch');
   mkdirSync(output, { recursive: true }); writeFileSync(path, JSON.stringify(configuredWorker(config, root), null, 2));
+  writeFileSync(join(output, 'pages-private-reader-binding.patch.json'), JSON.stringify(privateReaderBindingPatch(config), null, 2));
   if (!process.argv.includes('--apply')) { if (!result.ready) process.exitCode = 1; return; }
   requireCommunity(result.setupReady && config.allowWorkerDeploy === true && wrangler && existsSync(resolve(wrangler)), 'actual-gates-or-explicit-worker-deploy-not-ready', 409);
   const command = (args: string[], input?: string): void => { try { execFileSync(process.execPath, [resolve(wrangler), ...args, '--config', path], { stdio: ['pipe', 'pipe', 'pipe'], input, env: { ...process.env, CI: 'true' }, timeout: 300_000 }); } catch { throw new Error(`scoped-Wrangler-${args[0]}-${args[1] ?? 'command'}-failed; private output suppressed`); } };

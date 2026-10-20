@@ -36,12 +36,12 @@ export function createGitHubMerger(config: MergerConfig): GitHubMergePort {
   const call = async (method: string, path: string, body?: unknown, acceptMissingOrConflict = false): Promise<any> => {
     if (!cachedToken || cachedToken.expiresAt <= Date.now() + 60_000) {
       const authorization = `Bearer ${await githubAppJwt(config.appId, config.privateKeyPem, Date.now())}`;
-      const response = await transport(`https://api.github.com/app/installations/${config.installationId}/access_tokens`, { method: 'POST', headers: { authorization, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }, body: JSON.stringify({ repository_ids: [Number(config.repositoryId)], permissions: { contents: 'write', pull_requests: 'write', checks: 'write', actions: 'read' } }), redirect: 'error' });
+      const response = await transport(`https://api.github.com/app/installations/${config.installationId}/access_tokens`, { method: 'POST', headers: { authorization, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'Wandering-Hand-Community-Merger', 'x-github-api-version': '2022-11-28' }, body: JSON.stringify({ repository_ids: [Number(config.repositoryId)], permissions: { contents: 'write', pull_requests: 'write', checks: 'write', actions: 'read' } }), redirect: 'manual', signal: AbortSignal.timeout(15_000) });
       requireCommunity(response.ok, 'merger-auth-unavailable', 503);
       const token = await response.json() as { token: string; expires_at: string }; requireCommunity(typeof token.token === 'string', 'merger-auth-unavailable', 503);
       cachedToken = { token: token.token, expiresAt: Date.parse(token.expires_at) };
     }
-    const response = await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/${path}`, { method, headers: { authorization: `Bearer ${cachedToken.token}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'x-github-api-version': '2022-11-28' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), redirect: 'error' });
+    const response = await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/${path}`, { method, headers: { authorization: `Bearer ${cachedToken.token}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'Wandering-Hand-Community-Merger', 'x-github-api-version': '2022-11-28' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), redirect: 'manual', signal: AbortSignal.timeout(15_000) });
     if (acceptMissingOrConflict && (response.status === 404 || response.status === 409 || response.status === 422)) return null;
     requireCommunity(response.ok, 'merger-github-unavailable', 503);
     return response.json();

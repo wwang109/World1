@@ -50,6 +50,7 @@
     "audit:community": "tsx scripts/community-store-audit.ts && tsx scripts/community-github-audit.ts && tsx scripts/community-reconcile-audit.ts && tsx scripts/community-implementation-audit.ts && tsx scripts/community-support-audit.ts && tsx scripts/community-rounds-audit.ts && tsx scripts/community-backup-audit.ts && tsx scripts/community-release-audit.ts && tsx scripts/community-points-audit.ts",
     "community:doctor": "tsx scripts/community-automation.ts",
     "audit:community-automation": "tsx scripts/community-automation-audit.ts",
+    "audit:community-private-reader": "tsx scripts/community-private-reader-audit.ts",
     "audit:community-github-setup": "tsx scripts/community-github-setup-audit.ts",
     "executors:archive:export": "tsx scripts/export-run-executor-archive.ts",
     "executors:approve-current": "tsx scripts/approve-current-executor.ts",

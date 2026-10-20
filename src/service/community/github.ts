@@ -25,7 +25,7 @@ export function createGitHubReadPort(config: GitHubReadConfig): GitHubReadPort {
   requireCommunity(/^\d+$/.test(config.repositoryId), 'github-repository-id-unconfigured', 503);
   const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'Wandering-Hand-Community-Reader' };
   if (config.token) headers.authorization = `Bearer ${config.token}`;
-  const getAt = async (repository: string, path: string, max?: number): Promise<any> => boundedJson(await transport(`https://api.github.com/repos/${repository}/${path}`, { headers, redirect: 'error' }), max);
+  const getAt = async (repository: string, path: string, max?: number): Promise<any> => boundedJson(await transport(`https://api.github.com/repos/${repository}/${path}`, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) }), max);
   const get = async (path: string, max?: number): Promise<any> => getAt(COMMUNITY_REPOSITORY, path, max);
   const verifiedHeadRepositories = new Map<string, string>();
   const validatedManifestPaths = new Map<string, string>();

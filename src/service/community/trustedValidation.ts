@@ -75,8 +75,8 @@ export function proposalImplemented(report: CandidateValidationReport, proposal:
 }
 export function createTrustedValidationReader(config: TrustedValidationConfig) {
   const transport = config.fetch ?? fetch;
-  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }; if (config.readerToken) headers.authorization = `Bearer ${config.readerToken}`;
-  const get = async (path: string): Promise<any> => JSON.parse(new TextDecoder().decode(await bytesBounded(await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/${path}`, { headers, redirect: 'error' }), 2_000_000)));
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'Wandering-Hand-Community-Reader', 'x-github-api-version': '2022-11-28' }; if (config.readerToken) headers.authorization = `Bearer ${config.readerToken}`;
+  const get = async (path: string): Promise<any> => JSON.parse(new TextDecoder().decode(await bytesBounded(await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/${path}`, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) }), 2_000_000)));
   return async function readValidation(proposal: ProposalSnapshot): Promise<VerifiedCandidateValidation> {
     requireCommunity(Number.isSafeInteger(config.workflowId) && config.workflowId > 0 && config.workflowPath === '.github/workflows/validate-content.yml' && /^[a-f0-9]{64}$/.test(config.workflowSha256) && /^[a-f0-9]{40}$/.test(config.gameRulesRevision), 'trusted-workflow-unconfigured', 503);
     validateSha(config.approvedBaseSha);
@@ -100,12 +100,12 @@ export function createTrustedValidationReader(config: TrustedValidationConfig) {
       if (!matches || matches.length !== 1) continue;
       const artifact = matches[0];
       requireCommunity(Number.isSafeInteger(artifact.id) && artifact.size_in_bytes <= MAX_ARTIFACT && /^sha256:[a-f0-9]{64}$/.test(artifact.digest), 'validation-artifact-unverifiable', 503);
-      const response = await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/actions/artifacts/${artifact.id}/zip`, { headers, redirect: 'manual' });
+      const response = await transport(`https://api.github.com/repos/${COMMUNITY_REPOSITORY}/actions/artifacts/${artifact.id}/zip`, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
       let download = response;
       if (response.status === 302) {
         const location = response.headers.get('location'); requireCommunity(location, 'validation-artifact-unavailable', 503); const url = new URL(location);
-        requireCommunity(url.protocol === 'https:' && !url.username && !url.password && (url.hostname.endsWith('.blob.core.windows.net') || url.hostname.endsWith('.actions.githubusercontent.com')), 'invalid-artifact-host', 503);
-        download = await transport(url.toString(), { redirect: 'error' });
+        requireCommunity(url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname.endsWith('.blob.core.windows.net') || url.hostname.endsWith('.actions.githubusercontent.com')), 'invalid-artifact-host', 503);
+        download = await transport(url.toString(), { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
       }
       const bytes = await bytesBounded(download, MAX_ARTIFACT);
       const artifactSha256 = await sha256(bytes); requireCommunity(`sha256:${artifactSha256}` === artifact.digest, 'validation-artifact-digest-mismatch', 503);
