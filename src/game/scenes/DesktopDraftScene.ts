@@ -13,6 +13,7 @@ import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '..
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import { OnlineDraft } from '../onlineDraft';
+import { renderRunCodexButton } from '../codexVisit';
 import {
   applyRunDraft, currentStartDraftHand, currentStartDraftPicks, getActiveRun, isRunDrafting,
   pickCurrentStartDraftCard, rerollCurrentStartDraft,
@@ -118,6 +119,7 @@ export class DesktopDraftScene extends Phaser.Scene {
       // (the run is still 'drafting': there's no board to manage and RETIRE
       // only applies to an 'active' run).
       renderRunHud(this, { screen: 'DRAFT', compact: false, snapshot: this.online?this.online.progress:snapshotRunProgress(getActiveRun()!) });
+      if (this.online) renderRunCodexButton(this, false, () => this.rerender());
     } else {
       renderDesktopHeader(this, 'DRAFT', 'draft');
     }

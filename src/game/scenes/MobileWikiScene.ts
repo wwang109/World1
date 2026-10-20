@@ -21,6 +21,7 @@ import type { CardInfoBoxHandle } from '../ui/cardInfoBox';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { currentRunGemInventory, isRunInProgress } from '../runStore';
 import { renderGemText } from '../../engine/keywords/gemText';
+import { returnFromCodex, type CodexVisit } from '../codexVisit';
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
@@ -74,6 +75,8 @@ interface GemGrid {
 }
 
 export class MobileWikiScene extends Phaser.Scene {
+  private reference = false;
+  private visit: CodexVisit = {};
   private W = SCREEN.width;
   private H = SCREEN.height;
   private viewport = { top: 0, height: 0 };
@@ -116,7 +119,10 @@ export class MobileWikiScene extends Phaser.Scene {
   /** Fresh entry (scene.start) always reopens on CARDS / ALL / bronze —
    * matching DesktopWikiScene.init(); rebuilds within a visit keep the
    * current tab, filter, and tier (rebuildScene re-runs create() only). */
-  init(): void {
+  init(data?: CodexVisit): void {
+    this.visit = data ?? {};
+    this.reference = data?.reference === true;
+    this.data.set('reference', this.reference);
     this.page = 0;
     this.view = 'cards';
     this.cardFilter = 'all';
@@ -146,7 +152,10 @@ export class MobileWikiScene extends Phaser.Scene {
   }
 
   private renderTabs(): void {
-    const tabs: Array<[string, boolean, () => void]> = [
+    const tabs: Array<[string, boolean, () => void]> = this.reference ? [
+      [this.visit.returnTo ? 'BACK TO RUN' : 'HOME', false, () => {}],
+      ['CODEX', true, () => {}],
+    ] : [
       ['MENU', false, () => this.scene.start('Start')],
       ['PREP', false, () => this.scene.start('MobilePrep')],
       ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
@@ -159,8 +168,11 @@ export class MobileWikiScene extends Phaser.Scene {
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
-      this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      const text = this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      r.on('pointerdown', () => { playSfx('uiClick');
+        if (this.reference && i === 0) void returnFromCodex(this, this.visit, value => text.setText(value));
+        else fn();
+      });
     });
   }
 
@@ -204,7 +216,7 @@ export class MobileWikiScene extends Phaser.Scene {
     // live. See `wikiPouch` / `isRunInProgress`.
     const countLabel = this.view === 'cards'
       ? `${this.filteredSkills().length}/${Object.keys(skillBook).length} CARDS`
-      : `${Object.keys(gemBook).length} GEMS · ${this.wikiPouch().length} IN POUCH`;
+      : `${Object.keys(gemBook).length} GEMS${this.reference ? '' : ` · ${this.wikiPouch().length} IN POUCH`}`;
     this.add.text(this.W - 22, y + 12, countLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
     this.add.rectangle(22, y + 31, this.W - 44, 1, 0x2a3a52).setOrigin(0, 0);
 
@@ -230,7 +242,7 @@ export class MobileWikiScene extends Phaser.Scene {
       }
     } else {
       this.add.text(22, y + 43, 'GEM CATALOG', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
-      this.add.text(22, y + 58, 'Tap a gem for details · ADD TO POUCH', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
+      this.add.text(22, y + 58, this.reference ? 'Tap a gem for details' : 'Tap a gem for details · ADD TO POUCH', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
     }
   }
 
@@ -463,6 +475,7 @@ export class MobileWikiScene extends Phaser.Scene {
   }
 
   private addToBag(skill: SkillDef, tier: SkillTier): { ok: true; used: number } | { ok: false } {
+    if (this.reference) return { ok: false };
     const size = Math.max(1, skill.size);
     const fit = this.nearestFit(this.bagOccupied(), size, 0);
     if (fit < 0) return { ok: false };
@@ -586,6 +599,7 @@ export class MobileWikiScene extends Phaser.Scene {
     this.detailInfoBox = renderCardInfoBox(this, centerX - paneWidth / 2, infoTop, paneWidth, infoH, shown, { depth: 3002 });
     y = infoTop + infoH + 10;
 
+    if (this.reference) { this.detailObjects = objs; return; }
     const btnW = paneWidth;
     const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
     const btnText = this.add.text(centerX, y + btnH / 2, `ADD TO BAG · ${this.detailTier.toUpperCase()}`, {
@@ -663,10 +677,10 @@ export class MobileWikiScene extends Phaser.Scene {
 
     // Context-routed (a66eca4) — the RUN pouch while a run is in progress,
     // the Sandbox pouch otherwise; see `wikiPouch`.
-    const owned = this.wikiPouch().filter((id) => id === gem.id).length;
+    const owned = this.reference ? 0 : this.wikiPouch().filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textDim,
-    }).setOrigin(0.5, 0).setDepth(3002);
+    }).setOrigin(0.5, 0).setDepth(3002).setVisible(!this.reference);
     objs.push(ownedText);
     y += ownedText.height + 16;
 
@@ -696,7 +710,7 @@ export class MobileWikiScene extends Phaser.Scene {
     // pouch, which this button cannot feed — pressing it would toast success
     // and move nothing on screen, the exact "my gems vanished" shape the
     // routing exists to kill. So it is suppressed until no run is live.
-    if (!isRunInProgress()) {
+    if (!this.reference && !isRunInProgress()) {
       const btnW = paneWidth;
       const btnH = 40;
       const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });

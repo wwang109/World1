@@ -16,6 +16,7 @@ import { auditControlLabel } from '../ui/controlLayoutAudit';
 import { attachButtonFeel, pressedFill } from '../ui/motion';
 import { roundRect } from '../ui/roundedRect';
 import { OnlineDraft } from '../onlineDraft';
+import { renderRunCodexButton } from '../codexVisit';
 import { whenRetainedArtReady } from '../ui/retainedCardPresentation';
 import {
   mobileDraftActionRects, mobileDraftActions, mobileDraftLayout, mobileDraftSetHeaderLabel,
@@ -151,6 +152,7 @@ export class MobileDraftScene extends Phaser.Scene {
     this.draft = this.currentHand();
     if (this.runContext) {
       renderRunHud(this, { screen: 'DRAFT', compact: true, showDivider: false, snapshot: this.online?this.online.progress:snapshotRunProgress(getActiveRun()!) });
+      if (this.online) renderRunCodexButton(this, true, changed => { if (changed) this.detailSkillId = null; this.rerender(true); });
     } else {
       this.renderTabs();
     }

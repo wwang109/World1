@@ -95,6 +95,7 @@ export class StartScene extends Phaser.Scene {
     this.creditsButton();
     this.communityButton();
     this.sandboxLink();
+    this.codexLink();
     addAccountChip(this);
 
     this.renderLifetimeLine(layout.centerX, layout.lifetimeY, mobile);
@@ -209,6 +210,18 @@ export class StartScene extends Phaser.Scene {
     const target = this.add.rectangle(x, y, mobile ? 112 : 140, 44, UI.bg, .25).setInteractive({ useHandCursor: true });
     const label = this.add.text(x, y, 'SANDBOX ›', { ...startSceneTextRole('sandboxDetail'), letterSpacing: 1 }).setOrigin(.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
     attachButtonFeel(this, target, { fill: UI.bg, hover: 0x1d3950, alpha: .25, follow: [label], lift: 1, onPress: () => this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep') });
+  }
+
+  private codexLink(): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const x = SCREEN.width / 2;
+    const y = mobile ? 82 : 88;
+    const target = this.add.rectangle(x, y, mobile ? 112 : 140, 44, UI.bg, .25)
+      .setInteractive({ useHandCursor: true }).setData('auditControlLabel', 'CODEX');
+    const label = this.add.text(x, y, 'CODEX ›', { ...startSceneTextRole('sandboxDetail'), letterSpacing: 1 })
+      .setOrigin(.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
+    attachButtonFeel(this, target, { fill: UI.bg, hover: 0x1d3950, alpha: .25, follow: [label], lift: 1,
+      onPress: () => this.scene.start(mobile ? 'MobileWiki' : 'DesktopWiki', { reference: true }) });
   }
 
   private renderLifetimeLine(cx: number, y: number, mobile: boolean): void {

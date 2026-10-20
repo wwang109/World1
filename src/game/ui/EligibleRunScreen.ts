@@ -12,6 +12,7 @@ import { renderRunHud } from './RunProgressStrip';
 import { runScreenLayout } from './runScreenLayout';
 import { FONT, UI } from '../theme';
 import { promptForLine } from './textPrompt';
+import { openRunCodex } from '../codexVisit';
 
 const STAT_NAMES = { maxHp: 'Health', attack: 'Attack', magicPower: 'Magic', armor: 'Armor', magicResist: 'Resistance', speed: 'Speed' } as const;
 type Tab = 'journey' | 'deck' | 'equipment';
@@ -42,7 +43,9 @@ export class EligibleRunScreen extends Phaser.Scene {
     const s = view?.state;
     renderRunHud(this, { screen: s?.status === 'drafting' ? 'DRAFT · ONLINE' : this.tab === 'deck' ? 'DECK · ONLINE' : this.tab === 'equipment' ? 'EQUIPMENT · ONLINE' : 'JOURNEY · ONLINE', compact: this.mobile,
       snapshot: { day: s?.depth ?? 0, wave: s?.map.depths.flat().find(n => n.id === s.currentNodeId)?.wave ?? s?.map.depths[s.depth + (s.status === 'active' ? 1 : 0)]?.[0]?.wave ?? 1, gold: s?.gold ?? 0, heroLevel: s?.heroLevel ?? 1, lives: s?.lives ?? 3, bossesCleared: s?.bossesCleared ?? 0, wins: s?.wins ?? 0, losses: s?.losses ?? 0 },
-      actions: { back: { label: 'HOME', onPress: () => this.scene.start('Start') }, tertiary: { label: this.retireConfirmation ? 'CONFIRM RETIRE' : 'RETIRE', danger: true, disabled: !view || state.busy || !!state.pending, onPress: () => { if (!this.retireConfirmation) { this.retireConfirmation = true; this.render(); } else this.send({ kind: 'retire' }); } } } });
+      actions: { back: { label: 'HOME', onPress: () => this.scene.start('Start') }, secondary: view ? { label: 'CODEX', disabled: state.busy,
+        onPress: () => openRunCodex(this, this.mobile, changed => { if (changed) this.selected = null; this.render(); }) } : undefined,
+        tertiary: { label: this.retireConfirmation ? 'CONFIRM RETIRE' : 'RETIRE', danger: true, disabled: !view || state.busy || !!state.pending, onPress: () => { if (!this.retireConfirmation) { this.retireConfirmation = true; this.render(); } else this.send({ kind: 'retire' }); } } } });
     const content = runScreenLayout(this.mobile ? 'mobile' : 'desktop').regions.content;
     const nav = node('nav'); nav.append(this.button('JOURNEY', () => this.switchTab('journey'), false, this.tab === 'journey'), this.button('DECK / BAG', () => this.switchTab('deck'), false, this.tab === 'deck'), this.button('EQUIPMENT', () => this.switchTab('equipment'), false, this.tab === 'equipment'));
     this.flow.draw(this.flow.rows(nav, content.width), content.x, content.y);
