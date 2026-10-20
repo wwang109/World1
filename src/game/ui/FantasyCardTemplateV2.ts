@@ -29,8 +29,10 @@ import { driftCardArt } from './cardArtDrift';
 import { whenFantasyCardChromeReady } from './fantasyCardChromeLoader';
 import { isAoeSkill } from './skillPresentation';
 import type { TierProgress } from '../../run/shop';
+import {whenRetainedArtReady,type RetainedCardPresentation} from './retainedCardPresentation';
 
 export interface FantasyCardTemplateV2Options {
+  retainedPresentation?: RetainedCardPresentation;
   width?: number;
   height?: number;
   tier?: SkillTier;
@@ -106,7 +108,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     // weapon badge frame, not the entire card border.
     const silhouetteTrim = model.skin.trimColor;
     this.add(this.makeFrame(scene, width, height, silhouetteTrim));
-    this.add(this.makeArt(scene, model, halfW, halfH, options.artwork !== false));
+    this.add(this.makeArt(scene, model, halfW, halfH, options.artwork !== false, options.retainedPresentation));
     if (spec.printed) {
       this.add(this.makePrintedChrome(scene, model, halfW, halfH));
     } else {
@@ -305,6 +307,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfW: number,
     halfH: number,
     artwork: boolean,
+    retained?: RetainedCardPresentation,
   ): Phaser.GameObjects.Container {
     const group = scene.add.container(0, 0);
     const spec = this.spec;
@@ -336,7 +339,7 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     placeholder.setMask(mask);
     group.add(placeholder);
 
-    if (artwork) whenCardArtReady(scene, model.skill.id, (artKey) => {
+    const installArt = (artKey: string) => {
       // The card may have been destroyed while its art was in flight.
       if (!this.scene || !group.scene) return;
       const image = scene.add.image(0, 0, artKey);
@@ -356,7 +359,8 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       group.add(image);
       const travel = Math.min(anchorY - (y + artRegion.h - image.displayHeight / 2), y + image.displayHeight / 2 - anchorY);
       driftCardArt(image, anchorY, travel, model.skill.id);
-    });
+    };
+    if(artwork){if(retained)whenRetainedArtReady(scene,retained.artUrl,installArt);else whenCardArtReady(scene,model.skill.id,installArt);}
 
     return group;
   }

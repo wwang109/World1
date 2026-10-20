@@ -64,6 +64,7 @@ export interface RunProgressSnapshot {
   bankedPL?: number;
   /** Current display totals from the same allocation + hero-gem fold as prep. */
   heroStats?: import('../../engine/types').CombatantStats;
+  heroStatRun?: ReturnType<typeof playerHudStatRun>;
   /** Socketed hero-gem contribution, shown as the shared `◆+N` attribution. */
   heroGemAdds?: Partial<import('../../engine/types').CombatantStats>;
 }
@@ -290,14 +291,14 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
   // capabilities the left side of one shared middle row. LV itself carries
   // the banked-PL cue/action, so Run and Bag use identical cell geometry.
   // Mobile remains on its unchanged compact composition.
-  if (!opts.compact && opts.snapshot.heroStats) {
+  if (!opts.compact && (opts.snapshot.heroStats||opts.snapshot.heroStatRun)) {
     const band = t.regions.badge;
     const bandPlate = scene.add.rectangle(
       band.x, band.y - 4, band.width, band.height + 8, UI.panelAlt, 0.38,
     ).setOrigin(0, 0);
     track(opts.track, bandPlate);
     const banked = opts.snapshot.bankedPL ?? 0;
-    const statRun = playerHudStatRun(opts.snapshot.heroStats, opts.snapshot.heroGemAdds, opts.snapshot.heroLevel, banked);
+    const statRun = opts.snapshot.heroStatRun??playerHudStatRun(opts.snapshot.heroStats!, opts.snapshot.heroGemAdds, opts.snapshot.heroLevel, banked);
     const statAreaX = band.x + 16;
     const statAreaWidth = band.width - 32;
     // LV is short; HP/current-max is the widest fact. Weighted cells keep the

@@ -12,6 +12,7 @@ import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
+import { OnlineDraft } from '../onlineDraft';
 import {
   applyRunDraft, currentStartDraftHand, currentStartDraftPicks, getActiveRun, isRunDrafting,
   pickCurrentStartDraftCard, rerollCurrentStartDraft,
@@ -40,17 +41,19 @@ export class DesktopDraftScene extends Phaser.Scene {
    * (writes the active run via `applyRunDraft`). No separate context flag/
    * param needed: the active run's own status IS the context. */
   private runContext = false;
+  private online: OnlineDraft | null = null;
 
   constructor() { super('DesktopDraft'); }
 
-  init(): void {
+  init(data?: {online?: boolean}): void {
     // NOTHING DRAFT-RELATED IS RESET HERE. `init()` runs again on every
     // `scene.start` — including the Run Map's bounce back into the draft after
     // a page reload — and clearing the reroll count and the picks here is
     // exactly how the player's work was thrown away. Both now live where they
     // survive that: the run (`RunState.draft`), or a scene field the Sandbox
     // keeps for its unsaved session.
-    this.runContext = isRunDrafting();
+    this.online = data?.online ? new OnlineDraft(this,false,()=>this.rerender()) : null;
+    this.runContext = !!this.online || isRunDrafting();
   }
 
   // ---------- draft state (RUN: persisted · SANDBOX: this scene) ----------
@@ -74,19 +77,20 @@ export class DesktopDraftScene extends Phaser.Scene {
    *  again. The stride that turns a reroll count into a seed lives in
    *  `src/run/draft.ts`, once, not in a literal on each platform. */
   private currentHand(): StartDraft {
-    return this.runContext ? currentStartDraftHand()! : rollStartDraftAt(demoState.seed, this.sandboxRerolls);
+    return this.online ? this.online.hand : this.runContext ? currentStartDraftHand()! : rollStartDraftAt(demoState.seed, this.sandboxRerolls);
   }
 
   /** The pick made in each set so far. Run context reads the run's own record,
    *  already filtered to cards the current hand actually offers. */
   private get picks(): Partial<Record<DraftSetKey, string>> {
-    return this.runContext ? currentStartDraftPicks() : this.sandboxPicks;
+    return this.online ? this.online.picks : this.runContext ? currentStartDraftPicks() : this.sandboxPicks;
   }
 
   /** Pick (or re-pick) one set. The run layer refuses a card the current roll
    *  does not offer, so the screen cannot install one. */
   private pick(key: DraftSetKey, skillId: string): void {
-    if (this.runContext) pickCurrentStartDraftCard(key, skillId);
+    if(this.online)this.online.pick(key,skillId);
+    else if (this.runContext) pickCurrentStartDraftCard(key, skillId);
     else this.sandboxPicks[key] = skillId;
   }
 
@@ -96,7 +100,8 @@ export class DesktopDraftScene extends Phaser.Scene {
    *  pick left over from the previous roll would silently hand the player a
    *  card this hand never showed. */
   private reroll(): void {
-    if (this.runContext) rerollCurrentStartDraft();
+    if(this.online)this.online.reroll();
+    else if (this.runContext) rerollCurrentStartDraft();
     else { this.sandboxRerolls += 1; this.sandboxPicks = {}; }
   }
 
@@ -105,26 +110,28 @@ export class DesktopDraftScene extends Phaser.Scene {
   private rerender(): void { rebuildScene(this); }
 
   create(): void {
+    if(this.online&&!this.online.prepare())return;
     this.draft = this.currentHand();
     renderDesktopBackground(this);
     if (this.runContext) {
       // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
       // (the run is still 'drafting': there's no board to manage and RETIRE
       // only applies to an 'active' run).
-      const run = getActiveRun()!;
-      renderRunHud(this, { screen: 'DRAFT', compact: false, snapshot: snapshotRunProgress(run) });
+      renderRunHud(this, { screen: 'DRAFT', compact: false, snapshot: this.online?this.online.progress:snapshotRunProgress(getActiveRun()!) });
     } else {
       renderDesktopHeader(this, 'DRAFT', 'draft');
     }
     this.renderIntro();
     this.renderSets();
     this.renderStart();
+    this.online?.annotate();
   }
 
   private renderIntro(): void {
     const gx = DESKTOP_LAYOUT.gutter;
     const top = DESKTOP_LAYOUT.contentTop;
     const picked = Object.keys(this.picks).length;
+    if(this.online?.notice)this.add.text(gx,top,this.online.notice,{fontFamily:FONT.body,fontSize:F.label,color:UI.textAccent});
     this.add.text(SCREEN.width - gx, top, `PICK ONE PER ROW · ${picked}/${DRAFT_SET_KEYS.length}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
     }).setOrigin(1, 0);
@@ -152,7 +159,7 @@ export class DesktopDraftScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
       });
       cards.forEach((card, i) => {
-        const skill = skillBook[card.skillId];
+        const skill = this.online ? this.online.skill(card.skillId) : skillBook[card.skillId];
         if (!skill) return;
         const cx = gx + i * (cardW + cardGap);
         const cy = rowTop + labelH;
@@ -160,11 +167,12 @@ export class DesktopDraftScene extends Phaser.Scene {
         if (isPicked) {
           this.add.rectangle(cx - 3, cy - 3, cardW + 6, cardH + 6, 0, 0).setOrigin(0, 0).setStrokeStyle(3, UI.chip, 1);
         }
-        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left', rulesBody: true });
+        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left', rulesBody: true,retainedPresentation:this.online?.presentation(skill) });
         const hit = this.add.rectangle(cx + cardW / 2, cy + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+        hit.setData('onlineDraftPick',{set:key,skillId:card.skillId});if(this.online?.locked)hit.disableInteractive();
         // Hover-tip explains what the card does (name/tier/PL/text + every
         // abbreviation/keyword it prints) before the player commits a pick.
-        attachHoverTip(this, hit, { x: cx, y: cy, w: cardW, h: cardH }, cardHoverEntries(skill));
+        attachHoverTip(this, hit, { x: cx, y: cy, w: cardW, h: cardH }, this.online ? [{title:skill.name,body:`RANK ${skill.tier.toUpperCase()}`},...this.online.details(skill).rules.filter(rule=>this.online!.presentation(skill).body.toLowerCase().includes(rule.title.toLowerCase()))] : cardHoverEntries(skill));
         hit.on('pointerdown', () => { playSfx('uiClick'); this.pick(key, card.skillId); this.rerender(); });
         if (isPicked) {
           this.add.text(cx + cardW - 6, cy + 6, '✓', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent }).setOrigin(1, 0);
@@ -180,23 +188,27 @@ export class DesktopDraftScene extends Phaser.Scene {
     const h = 56;
     const x = SCREEN.width - gx - w;
     const y = SCREEN.height - DESKTOP_PROFILE.safe.bottom - h;
-    const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
+    const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length&&!this.online?.locked;
     // REROLL sits beside START: a fresh 4×5 offer off a deterministic seed
     // stride, with the picks cleared in the same write (`reroll()` above).
     const rw = 150;
     const rx = x - rw - 12;
     const reroll = this.add.rectangle(rx, y, rw, h, UI.panelAlt, 1)
       .setOrigin(0, 0).setStrokeStyle(2, UI.border, 0.8).setInteractive({ useHandCursor: true });
-    this.add.text(rx + rw / 2, y + h / 2, 'REROLL', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textBright }).setOrigin(0.5);
-    reroll.on('pointerdown', () => { playSfx('uiClick'); this.reroll(); this.rerender(); });
+    const rerollLabel=this.online?.recoveryLabel??'REROLL';
+    reroll.setData('onlineDraftControl',rerollLabel);if(this.online&&(this.online.busy||this.online.locked&&!this.online.recoveryLabel))reroll.disableInteractive();
+    this.add.text(rx + rw / 2, y + h / 2, rerollLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textBright }).setOrigin(0.5);
+    reroll.on('pointerdown', () => { playSfx('uiClick');if(this.online?.recoveryLabel){this.online.recover();return;} this.reroll(); this.rerender(); });
     const btn = this.add.rectangle(x, y, w, h, ready ? UI.chip : UI.panelMuted, ready ? 1 : 0.5)
       .setOrigin(0, 0).setStrokeStyle(2, UI.border, ready ? 1 : 0.4);
+    btn.setData('onlineDraftControl','START');
     this.add.text(x + w / 2, y + h / 2, 'START', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: ready ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);
     if (ready) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', () => {
         playSfx('uiClick');
-        if (this.runContext) {
+        if(this.online){this.online.apply();}
+        else if (this.runContext) {
           applyRunDraft();
           this.scene.start('DesktopRunMap');
         } else {

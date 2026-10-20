@@ -7,7 +7,7 @@ import type { MarketStat } from '../../data/eventTypes';
 import type { EventRerollStepV3 } from '../eventReshape';
 import type { GhostRecord } from '../ghost';
 import type { GhostSubmissionInput, GhostValidationResult } from '../ghostValidate';
-import type { SkillBook } from '../../engine/types';
+import type { SkillBook, SkillDef } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import type { EquipmentDocument } from '../../engine/equipment/types';
 import type { LoadedEventDef } from '../../data/eventsContent';
@@ -65,6 +65,9 @@ export interface EligibleRun {
   state: RunState; encounters: readonly EncounterRecord[];
 }
 export interface RunContentView {
+  draftHud?: {heroStats:import('../../engine/types').CombatantStats;heroGemAdds:Partial<import('../../engine/types').CombatantStats>;day:number;wave:number;bankedPL:number};
+  cardTiers?: Record<string, SkillDef>;
+  cardFaces?: Record<string,{rows:import('../cardRulesRows').FantasyCardRulesRow[];desktop:import('../skillPresentation').EffectSegment[];mobile:import('../skillPresentation').EffectSegment[]}>;
   economy?: {
     bankedPL: number;
     statCosts: Record<import('../leveling').LevelStat, { pl: number; gain: number }>;

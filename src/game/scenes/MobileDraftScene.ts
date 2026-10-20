@@ -15,6 +15,8 @@ import { whenCardArtReady } from '../ui/cardArtLoader';
 import { auditControlLabel } from '../ui/controlLayoutAudit';
 import { attachButtonFeel, pressedFill } from '../ui/motion';
 import { roundRect } from '../ui/roundedRect';
+import { OnlineDraft } from '../onlineDraft';
+import { whenRetainedArtReady } from '../ui/retainedCardPresentation';
 import {
   mobileDraftActionRects, mobileDraftActions, mobileDraftLayout, mobileDraftSetHeaderLabel,
   MOBILE_DRAFT_SELECTED_LABEL, type MobileDraftActionId,
@@ -52,6 +54,7 @@ export class MobileDraftScene extends Phaser.Scene {
    * discriminator between the sandbox draft (writes demoState) and the
    * run-start draft (writes the active run via `applyRunDraft`). */
   private runContext = false;
+  private online: OnlineDraft | null = null;
   /** skillId whose read-only detail overlay is open (the ⓘ corner badge on a
    * draft card — separate hit-zone from the card's own one-tap PICK). */
   private readonly detailActivation = new CardDetailActivation();
@@ -59,7 +62,7 @@ export class MobileDraftScene extends Phaser.Scene {
 
   constructor() { super('MobileDraft'); }
 
-  init(): void {
+  init(data?: {online?: boolean}): void {
     this.detailActivation.reset();
     // NOTHING DRAFT-RELATED IS RESET HERE. `init()` runs again on every
     // `scene.start` — including the Run Map's bounce back into the draft after
@@ -69,7 +72,8 @@ export class MobileDraftScene extends Phaser.Scene {
     // keeps for its unsaved session. `setIndex`/`detailSkillId` DO reset: they
     // are where the player is looking, not what they decided.
     this.setIndex = 0;
-    this.runContext = isRunDrafting();
+    this.online = data?.online ? new OnlineDraft(this,true,()=>this.rerender(true)) : null;
+    this.runContext = !!this.online || isRunDrafting();
     this.detailSkillId = null;
   }
 
@@ -94,19 +98,20 @@ export class MobileDraftScene extends Phaser.Scene {
    *  again. The stride that turns a reroll count into a seed lives in
    *  `src/run/draft.ts`, once, not in a literal on each platform. */
   private currentHand(): StartDraft {
-    return this.runContext ? currentStartDraftHand()! : rollStartDraftAt(demoState.seed, this.sandboxRerolls);
+    return this.online ? this.online.hand : this.runContext ? currentStartDraftHand()! : rollStartDraftAt(demoState.seed, this.sandboxRerolls);
   }
 
   /** The pick made in each set so far. Run context reads the run's own record,
    *  already filtered to cards the current hand actually offers. */
   private get picks(): Partial<Record<DraftSetKey, string>> {
-    return this.runContext ? currentStartDraftPicks() : this.sandboxPicks;
+    return this.online ? this.online.picks : this.runContext ? currentStartDraftPicks() : this.sandboxPicks;
   }
 
   /** Pick (or re-pick) one set. The run layer refuses a card the current roll
    *  does not offer, so the screen cannot install one. */
   private pick(key: DraftSetKey, skillId: string): void {
-    if (this.runContext) pickCurrentStartDraftCard(key, skillId);
+    if(this.online)this.online.pick(key,skillId);
+    else if (this.runContext) pickCurrentStartDraftCard(key, skillId);
     else this.sandboxPicks[key] = skillId;
   }
 
@@ -116,7 +121,8 @@ export class MobileDraftScene extends Phaser.Scene {
    *  pick left over from the previous roll would silently hand the player a
    *  card this hand never showed. */
   private reroll(): void {
-    if (this.runContext) rerollCurrentStartDraft();
+    if(this.online)this.online.reroll();
+    else if (this.runContext) rerollCurrentStartDraft();
     else { this.sandboxRerolls += 1; this.sandboxPicks = {}; }
   }
 
@@ -128,6 +134,7 @@ export class MobileDraftScene extends Phaser.Scene {
   }
 
   private selectOrInspect(key: DraftSetKey, skillId: string, time: number): void {
+    if(this.online?.locked)return;
     if (this.detailActivation.release(`draft:${key}:${skillId}`, time)) {
       this.detailSkillId = skillId;
       this.renderDetail();
@@ -138,11 +145,12 @@ export class MobileDraftScene extends Phaser.Scene {
   }
 
   create(): void {
+    if(this.online&&!this.online.prepare())return;
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(UI.bg);
     this.draft = this.currentHand();
     if (this.runContext) {
-      renderRunHud(this, { screen: 'DRAFT', compact: true, showDivider: false, snapshot: snapshotRunProgress(getActiveRun()!) });
+      renderRunHud(this, { screen: 'DRAFT', compact: true, showDivider: false, snapshot: this.online?this.online.progress:snapshotRunProgress(getActiveRun()!) });
     } else {
       this.renderTabs();
     }
@@ -151,6 +159,7 @@ export class MobileDraftScene extends Phaser.Scene {
     this.renderPicks();
     this.renderFooter();
     if (this.detailSkillId) this.renderDetail();
+    this.online?.annotate(this.setIndex);
   }
 
   private renderTabs(): void {
@@ -209,7 +218,7 @@ export class MobileDraftScene extends Phaser.Scene {
     this.add.text(16, layout.header.instructionY, final ? 'FINAL PICK' : 'CHOOSE ONE', {
       ...textRole('section'),
     });
-    this.add.text(16, layout.header.descriptionY, final ? 'Choose your final card to complete your deck.' : 'Pick one card from this set.', {
+    this.add.text(16, layout.header.descriptionY, this.online?.notice||(final ? 'Choose your final card to complete your deck.' : 'Pick one card from this set.'), {
       ...textRole('body', { ink: 'faint' }),
     });
   }
@@ -221,7 +230,7 @@ export class MobileDraftScene extends Phaser.Scene {
     const layout = mobileDraftLayout(this.W, this.H, this.runContext);
     for (const [index, card] of cards.entries()) {
       const box = layout.cards[index]!;
-      const skill = skillBook[card.skillId];
+      const skill = this.online ? this.online.skill(card.skillId) : skillBook[card.skillId];
       if (!skill) continue;
       const isPicked = picked === card.skillId;
       if (isPicked) {
@@ -231,6 +240,7 @@ export class MobileDraftScene extends Phaser.Scene {
       // the topmost hit target. Every other inert token pixel falls through
       // to this full-row surface (the same ordering RunRewardPanel uses).
       const hit = this.add.rectangle(box.x + box.w / 2, box.y + box.h / 2, box.w, box.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      hit.setData('onlineDraftPick',{set:key,skillId:card.skillId});if(this.online?.locked)hit.disableInteractive();
       let pressed: { x: number; y: number } | null = null;
       hit.on('pointerdown', (p: Phaser.Input.Pointer) => { pressed = { x: p.worldX, y: p.worldY }; });
       hit.on('pointerout', () => { if (pressed) this.detailActivation.reset(); pressed = null; });
@@ -245,6 +255,7 @@ export class MobileDraftScene extends Phaser.Scene {
         width: box.w,
         height: box.h,
         side: 'left',
+        retainedPresentation:this.online?.presentation(skill),
         onInspect: () => {
           playSfx('uiClick');
           this.detailSkillId = card.skillId;
@@ -278,7 +289,7 @@ export class MobileDraftScene extends Phaser.Scene {
         ...textRole('kicker', { ink: 'label' }),
       }).setOrigin(0.5, 0);
       const skillId = this.picks[key];
-      const skill = skillId ? skillBook[skillId] : undefined;
+      const skill = skillId ? this.online?this.online.skill(skillId):skillBook[skillId] : undefined;
       if (skill) {
         const maskShape = this.make.graphics({}, false);
         maskShape.fillStyle(0xffffff);
@@ -289,13 +300,15 @@ export class MobileDraftScene extends Phaser.Scene {
         placeholder.setMask(mask);
         artHost.add(placeholder);
         placeholder.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
-        whenCardArtReady(this, skill.id, (artKey) => {
+        const installArt = (artKey: string) => {
           if (!artHost.scene) return;
           const image = this.add.image(box.art.x + box.art.w / 2, box.art.y + box.art.h / 2, artKey);
           image.setScale(Math.max(box.art.w / image.width, box.art.h / image.height));
           image.setMask(mask);
           artHost.add(image);
-        });
+        };
+        if(this.online)whenRetainedArtReady(this,this.online.presentation(skill).artUrl,installArt);
+        else whenCardArtReady(this,skill.id,installArt);
         roundRect(this.add.rectangle(box.art.x, box.art.y, box.art.w, box.art.h, 0, 0), 8)
           .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
         this.add.text(box.name.x + box.name.w / 2, box.name.y, skill.name, {
@@ -336,18 +349,20 @@ export class MobileDraftScene extends Phaser.Scene {
    * text + a glossary entry for every abbreviation/keyword the card uses;
    * no PICK button here — picking stays the card's own one-tap action. */
   private renderDetail(): void {
-    const skill = this.detailSkillId ? skillBook[this.detailSkillId] : undefined;
+    const skill = this.detailSkillId ? this.online?this.online.skill(this.detailSkillId):skillBook[this.detailSkillId] : undefined;
     if (!skill) { this.detailSkillId = null; return; }
     renderCardDetailsDrawer(this, skill, {
       compact: true,
+      retained:this.online?.details(skill),
       onClose: () => { this.detailSkillId = null; },
     });
   }
 
   private renderFooter(): void {
-    const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
+    const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length&&!this.online?.locked;
     const layout = mobileDraftLayout(this.W, this.H, this.runContext);
     const actions = mobileDraftActions(this.setIndex, ready);
+    if(this.online?.recoveryLabel&&this.setIndex<3){const next=actions.find(action=>action.id==='next')!;next.id='reroll';next.label=this.online.recoveryLabel;}
     const rects = mobileDraftActionRects(layout.footer, actions);
     const press = (id: MobileDraftActionId): void => {
       if (id === 'back') {
@@ -357,11 +372,13 @@ export class MobileDraftScene extends Phaser.Scene {
         this.setIndex += 1;
         this.rerender();
       } else if (id === 'reroll') {
+        if(this.online?.recoveryLabel){this.online.recover();return;}
         this.reroll();
         this.setIndex = 0;
         this.rerender();
       } else {
-        if (this.runContext) {
+        if(this.online){this.online.apply();}
+        else if (this.runContext) {
           applyRunDraft();
           this.scene.start('MobileRunMap');
         } else {
@@ -372,11 +389,13 @@ export class MobileDraftScene extends Phaser.Scene {
     };
 
     actions.forEach((action, index) => {
+      if(this.online){if(action.id==='reroll'){action.label=this.online.recoveryLabel??action.label;action.enabled=!this.online.busy&&(!this.online.locked||!!this.online.recoveryLabel);}else if(action.id==='start')action.enabled&&=!this.online.locked;}
       const box = rects[index]!;
       const fill = action.enabled ? action.primary ? 0xe8b446 : 0x26394f : UI.panelMuted;
       const border = action.primary && action.enabled ? 0xffd66b : UI.border;
       const plate = roundRect(this.add.rectangle(box.x, box.y, box.w, box.h, fill, action.enabled ? 1 : 0.7), 12)
         .setOrigin(0, 0).setStrokeStyle(action.primary && action.enabled ? 2 : 1, border, action.enabled ? 0.95 : 0.45);
+      plate.setData('onlineDraftControl',action.id==='start'?'START':action.label);
       const label = this.add.text(box.x + box.w / 2, box.y + box.h / 2, action.label, {
         ...textRole('statValue', { ink: action.enabled && action.primary ? 'onAccent' : action.enabled ? 'primary' : 'disabled' }),
       }).setOrigin(0.5);

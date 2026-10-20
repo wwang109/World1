@@ -33,6 +33,7 @@ export class EligibleRunScreen extends Phaser.Scene {
   constructor(key: string, private readonly mobile: boolean) { super(key); }
   init(): void { selectRunMode('online'); this.flow = undefined; this.started = false; this.loaded = false; this.pageIndex = 0; this.tab = 'journey'; this.notice = ''; this.selected = null; this.replaceConfirmation = false; this.retireConfirmation = false; }
   create(): void {
+    if(eligibleRunSession.state.view?.state.status==='drafting'&&!eligibleRunSession.state.busy){this.scene.start(this.mobile?'MobileDraft':'DesktopDraft',{online:true});return;}
     this.cameras.main.setBackgroundColor(UI.bg);
     this.flow ??= new EligibleFlow(this, this.mobile, () => this.render());
     const state = eligibleRunSession.state, view = state.view as EligibleRunView | null;

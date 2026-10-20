@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { roundRect } from './roundedRect';
-import { hasNothingToCast, TIER_ORDER, type SkillDef, type SkillTier } from '../../engine/types';
+import { hasNothingToCast, TIER_ORDER, weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import type { GemDef } from '../../data/gems';
 import type { TierProgress } from '../../run/shop';
 import { FONT, UI, textRoleFor, type TextRole } from '../theme';
@@ -10,11 +10,13 @@ import { buildCardDetailsContent, cardDetailsPreviewTiers, resolveCardDetailsPre
 import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { renderDetailText } from './detailText';
 import { openRunModal, type RunModalLayout } from './RunModal';
+import type {RetainedCardPresentation} from './retainedCardPresentation';
 
 export interface CardDetailsAction { label: string; enabled: boolean; onPress(): void }
 
 /** Shared inspector. Real card art stays fixed; long information scrolls independently. */
 export interface CardDetailsOptions {
+  retained?: {tiers:Partial<Record<SkillTier,SkillDef>>;presentation(skill:SkillDef):RetainedCardPresentation;rules:readonly CardDetailsEntry[]};
   compact: boolean;
   onClose(): void;
   view?: DetailsRect;
@@ -48,7 +50,8 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
   const { card, identity, info, preview, rankButtons, footer } = cardDetailsLayout(view, opts.compact, presentation, layout);
   let shown = skill;
   const progressFor = (tier: SkillTier): TierProgress | undefined => (tier === skill.tier ? opts.progress : undefined);
-  let content = buildCardDetailsContent(shown, { gem: opts.gem, progress: progressFor(shown.tier) });
+  const contentFor=(value:SkillDef)=>opts.retained?{weight:weightOf(value),roles:value.archetypes.map(role=>role.toUpperCase()),entries:[{title:'Ability',body:opts.retained.presentation(value).body},...opts.retained.rules.filter(rule=>opts.retained!.presentation(value).body.toLowerCase().includes(rule.title.toLowerCase()))],progressLine:null}:buildCardDetailsContent(value,{gem:opts.gem,progress:progressFor(value.tier)});
+  let content:ReturnType<typeof buildCardDetailsContent> = contentFor(shown);
   const depth = 2400;
   const text = (x: number, y: number, value: string, role: TextRole, color = UI.textBright, display = false, width?: number) => scene.add.text(x, y, value, {
     ...textRoleFor(opts.compact ? 'mobile' : 'desktop', role),
@@ -67,7 +70,7 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
   };
   const makeCard = () => {
     const token = new FantasyCardTemplateV2(scene, card.x + card.width / 2, card.y + card.height / 2, { ...shown, speedWeight: content.weight },
-      { width: card.width, height: card.height, tier: shown.tier, glossary: false, progress: progressFor(shown.tier) });
+      { width: card.width, height: card.height, tier: shown.tier, glossary: false, progress: progressFor(shown.tier),retainedPresentation:opts.retained?.presentation(shown) });
     panel.add(token);
     return token;
   };
@@ -179,7 +182,7 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
     .setOrigin(0).setDepth(depth + 2).setStrokeStyle(1, UI.chip, 1);
   if (opts.compact) roundRect(previewPanel, 12);
   const status = text(preview.x + 8, preview.y + 5, '', 'label', UI.textSoft);
-  const available = cardDetailsPreviewTiers(skill);
+  const available = opts.retained ? TIER_ORDER.filter(tier=>opts.retained!.tiers[tier]) : cardDetailsPreviewTiers(skill);
   const tabs: Phaser.GameObjects.Rectangle[] = [];
   const refreshTabs = () => {
     status.setText(`VIEWING ${shown.tier.toUpperCase()} · CURRENT ${skill.tier.toUpperCase()}`);
@@ -188,8 +191,8 @@ function renderCardDetailsBody(scene: Phaser.Scene, skill: SkillDef, opts: CardD
   };
   const select = (tier: SkillTier) => {
     if (tier === shown.tier) return;
-    shown = resolveCardDetailsPreview(skill, tier, opts.gem);
-    content = buildCardDetailsContent(shown, { gem: opts.gem, progress: progressFor(shown.tier) });
+    shown = opts.retained ? opts.retained.tiers[tier]??shown : resolveCardDetailsPreview(skill, tier, opts.gem);
+    content = contentFor(shown);
     cardView.destroy(); cardView = makeCard();
     redrawInfo(); refreshTabs();
   };
