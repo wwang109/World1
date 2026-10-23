@@ -13,8 +13,12 @@ export interface StatusIconChip {
   width: number;
   height: number;
   label: string;
-  place(x: number, y: number): void;
+  place(x: number, y: number, opts?: { followTarget?: boolean }): Phaser.GameObjects.Rectangle | undefined;
   destroy(): void;
+}
+
+export function statusIconTileSize(fontSize: number): number {
+  return Math.max(16, Math.round(fontSize * 1.55));
 }
 
 const hexToNumber = (hex: string): number => Phaser.Display.Color.HexStringToColor(hex).color;
@@ -116,7 +120,7 @@ function drawGlyph(g: Phaser.GameObjects.Graphics, kind: string, cx: number, cy:
 
 /** One status chip as an icon tile + value; hover previews its info, click/tap pins it. */
 export function createStatusIconChip(scene: Phaser.Scene, chip: StatusChip, fontSize: number): StatusIconChip {
-  const tile = Math.max(16, Math.round(fontSize * 1.55));
+  const tile = statusIconTileSize(fontSize);
   const color = hexToNumber(STATUS_CHIP_COLOR[chip.kind] ?? UI.textDim);
   const edge = chip.polarity === 'buff' ? BUFF_EDGE : DEBUFF_EDGE;
   const bg = scene.add.graphics();
@@ -140,9 +144,10 @@ export function createStatusIconChip(scene: Phaser.Scene, chip: StatusChip, font
   let zone: Phaser.GameObjects.Rectangle | undefined;
   return {
     container, width, height: tile, label: chip.text,
-    place(x, y) {
+    place(x, y, opts = {}) {
       container.setPosition(x, y);
-      zone = addHoverTipZone(scene, { x, y, w: width, h: tile }, entries, 0, { pinOnClick: true });
+      zone = addHoverTipZone(scene, { x, y, w: width, h: tile }, entries, 0, { pinOnClick: true, followTarget: opts.followTarget });
+      return zone;
     },
     destroy() { zone?.destroy(); container.destroy(); },
   };

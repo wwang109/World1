@@ -1865,12 +1865,12 @@ export class DesktopShopScene extends Phaser.Scene {
 
     const buttons: ConfirmButton[] = [
       { label: 'CANCEL', fill: UI.panelMuted, color: UI.text, fn: () => { playSfx('uiBack'); this.pendingBuy = null; this.mergePreviewOpen = false; this.mergeChosenInstanceId = null; this.rerender(); } },
-      { label: 'ADD TO BAG', fill: UI.chip, color: UI.textOnChip, fn: doBuy },
+      { label: 'BUY', fill: UI.chip, color: UI.textOnChip, fn: doBuy },
     ];
     if (mergeTarget) {
       const needsChooser = duplicates.length > 1 && !this.mergeChosenInstanceId;
       buttons.push({
-        label: needsChooser ? 'CHOOSE COPY' : 'MERGE',
+        label: needsChooser ? 'CHOOSE' : 'MERGE',
         fill: UI.good,
         color: UI.textOnChip,
         fn: needsChooser ? () => { playSfx('uiClick'); this.mergeChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); } : doMerge,
@@ -1890,7 +1890,8 @@ export class DesktopShopScene extends Phaser.Scene {
       // once `b.fn()`'s `rerender()` closes it — `wasPointerConsumedByRebuild`
       // (sceneRebuild.ts) is what stops that; see `wireDrag`'s pointerdown.
       r.on('pointerdown', () => { b.fn(); });
-      this.add.text(dx + btnW / 2, btnY + 22, b.label, { fontSize: `${F.body}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      const label = this.add.text(dx + btnW / 2, btnY + 22, b.label, { fontSize: `${F.body}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      auditControlLabel(r, label, { name: `Desktop shop confirm ${b.label}` });
     });
   }
 

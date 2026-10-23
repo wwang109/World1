@@ -1,4 +1,5 @@
 import { renderInventorySlot } from '../ui/inventorySlot';
+import { renderPaintedChrome } from '../ui/paintedChrome';
 import Phaser from 'phaser';
 import { applyEquipmentStats } from '../../engine/equipment/resolve';
 import { currentEquipmentResolution } from '../runStore';
@@ -503,6 +504,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.holdingTop = y; this.holdingH = h;
     this.add.rectangle(gx, y, w, h, UI.panelAlt, 0.4).setOrigin(0, 0);
     this.dashedRect(gx, y, w, h, UI.chip, this.hold ? 1 : 0.7);
+    renderPaintedChrome(this, gx, y, w, h, { borderOnly: true, corner: 12, shadow: false });
     this.add.rectangle(gx + 12, y + 8, 40, h - 16, UI.slot).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
     if (this.hold) {
       const base = skillBook[this.hold.skillId];
@@ -692,6 +694,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.trashTop = y; this.trashH = h;
     this.add.rectangle(gx, y, w, h, UI.badSoft, 0.4).setOrigin(0, 0);
     this.dashedRect(gx, y, w, h, UI.bad, 0.9);
+    renderPaintedChrome(this, gx, y, w, h, { borderOnly: true, corner: 12, shadow: false });
     this.add.rectangle(gx + 12, y + 8, 40, h - 16, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.7);
     const badHex = `#${UI.bad.toString(16).padStart(6, '0')}`;
     const label = this.add.text(gx + 64, y + h / 2 - 8, 'TRASH', { fontSize: `${F.label}px`, color: badHex, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
@@ -893,10 +896,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
     const bw = 460; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
     this.add.rectangle(bx, by, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.bad);
+    renderPaintedChrome(this, bx, by, bw, 180, { borderOnly: true });
     this.add.text(SCREEN.width / 2, by + 34, `Delete ${skill?.name ?? 'card'}?`, { fontSize: `${F.name}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(SCREEN.width / 2, by + 66, 'This removes it from your collection.', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = this.add.rectangle(dx, by + 116, w, 44, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderPaintedChrome(this, dx, by + 116, w, 44, { button: true, borderOnly: true, shadow: false });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
@@ -917,12 +922,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
     const bw = 520; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
     this.add.rectangle(bx, by, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    renderPaintedChrome(this, bx, by, bw, 180, { borderOnly: true });
     this.add.text(SCREEN.width / 2, by + 30, 'MERGE?', { fontSize: `${F.name}px`, color: ACCENT_TEXT, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(SCREEN.width / 2, by + 62, `${skill?.name ?? 'card'}: ${tierProgressMergeLine(from, to)}`, {
       fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, align: 'center', wordWrap: { width: bw - 40 },
     }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = this.add.rectangle(dx, by + 116, w, 44, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderPaintedChrome(this, dx, by + 116, w, 44, { button: true, borderOnly: true, shadow: false });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
@@ -955,12 +962,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const bw = 520; const bh = 110 + options.length * (rowH + 8) + 60;
     const bx = SCREEN.width / 2 - bw / 2; const by = Math.max(20, SCREEN.height / 2 - bh / 2);
     this.add.rectangle(bx, by, bw, bh, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    renderPaintedChrome(this, bx, by, bw, bh, { borderOnly: true });
     this.add.text(SCREEN.width / 2, by + 30, 'MERGE WHICH COPY?', { fontSize: `${F.name}px`, color: ACCENT_TEXT, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(SCREEN.width / 2, by + 62, `Into ${skill?.name ?? 'card'}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5);
     options.forEach((o, i) => {
       const ry = by + 90 + i * (rowH + 8);
       const to = previewCardMerge(from, { tier: o.tier, points: o.points });
       const r = this.add.rectangle(bx + 20, ry, bw - 40, rowH, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderPaintedChrome(this, bx + 20, ry, bw - 40, rowH, { button: true, borderOnly: true, shadow: false });
       r.on('pointerdown', () => {
         playSfx('uiClick');
         const dragged = this.mergeSourceOf(o);
@@ -973,6 +982,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     });
     const cy = by + bh - 52;
     const c = this.add.rectangle(bx + bw / 2 - 90, cy, 180, 40, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    renderPaintedChrome(this, bx + bw / 2 - 90, cy, 180, 40, { button: true, borderOnly: true, shadow: false });
     c.on('pointerdown', () => { playSfx('uiBack'); this.pendingMergeChoice = null; this.rerender(); });
     this.add.text(bx + bw / 2, cy + 20, 'CANCEL', { fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
   }

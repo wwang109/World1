@@ -88,46 +88,32 @@ function renderDetailAttempt(
   return { container, height: cy };
 }
 
+export interface CardDesignerPreview {
+  content: Phaser.GameObjects.Container;
+  viewport: { x: number; y: number; w: number; h: number };
+  contentHeight: number;
+}
+
 export function renderCardDesignerPreview(
   scene: Phaser.Scene,
   skill: SkillDef,
   options: CardDesignerPreviewOptions,
-): void {
+): CardDesignerPreview {
   const pad = 12;
+  const scrollbar = 8;
   scene.add.rectangle(options.x, options.y, options.width, options.height, UI.panelMuted, 0.78)
     .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
 
   const innerHeight = options.height - pad * 2;
-  const infoX = options.x + pad;
-  const infoY = options.y + pad;
-  const infoWidth = options.width - pad * 2;
-  const infoHeight = innerHeight;
   let attempt: DetailAttempt | undefined;
-  for (const bodySize of [14, 13, 12, 11]) {
+  for (const bodySize of [14, 13, 12]) {
     attempt?.container.destroy(true);
-    attempt = renderDetailAttempt(scene, skill, infoX, infoY, infoWidth, bodySize);
-    if (attempt.height <= infoHeight) break;
+    attempt = renderDetailAttempt(scene, skill, options.x + pad, options.y + pad, options.width - pad * 2 - scrollbar, bodySize);
+    if (attempt.height <= innerHeight) break;
   }
-  if (!attempt || attempt.height <= infoHeight) return;
-
-  const warningHeight = 30;
-  const maskShape = scene.make.graphics({}, false)
-    .fillStyle(0xffffff)
-    .fillRect(infoX, infoY, infoWidth, Math.max(1, infoHeight - warningHeight));
-  const mask = maskShape.createGeometryMask();
-  attempt.container.setMask(mask);
-  attempt.container.once('destroy', () => {
-    attempt?.container.clearMask();
-    mask.destroy();
-    maskShape.destroy();
-  });
-  scene.add.rectangle(infoX, infoY + infoHeight - warningHeight, infoWidth, warningHeight, UI.panel, 0.96)
-    .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
-  scene.add.text(infoX + 8, infoY + infoHeight - warningHeight + 6, 'Preview limit reached — shorten this draft to inspect every rule.', {
-    fontFamily: FONT.body,
-    fontStyle: 'bold',
-    fontSize: '10px',
-    color: '#e8907a',
-    wordWrap: { width: infoWidth - 16, useAdvancedWrap: true },
-  }).setOrigin(0, 0);
+  return {
+    content: attempt!.container,
+    viewport: { x: options.x + 2, y: options.y + 2, w: options.width - 4, h: options.height - 4 },
+    contentHeight: attempt!.height + pad * 2 - 4,
+  };
 }

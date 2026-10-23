@@ -3,6 +3,7 @@ import { FONT, UI } from '../theme';
 import { runScreenLayoutRef } from './runScreenLayout';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { attachButtonFeel } from './motion';
+import { renderPaintedChrome } from './paintedChrome';
 
 export function renderRunBagTabs(scene: Phaser.Scene, compact: boolean, active: 'cards' | 'equipment'): void {
   const template = runScreenLayoutRef(compact ? 'mobile' : 'desktop');
@@ -16,6 +17,7 @@ export function renderRunBagTabs(scene: Phaser.Scene, compact: boolean, active: 
     const x = slot.x + index * (width + gap);
     const plate = scene.add.rectangle(x, slot.y, width, slot.height, fill).setOrigin(0)
       .setStrokeStyle(1, UI.chip).setData('bagTab', tab);
+    renderPaintedChrome(scene, x, slot.y, width, slot.height, { button: true, borderOnly: true, corner: compact ? 8 : 10 });
     const caption = scene.add.text(x + width / 2, slot.y + slot.height / 2, tab.toUpperCase(), {
       fontFamily: FONT.body, fontSize: compact ? '8px' : '12px', fontStyle: 'bold', color: selected ? UI.textOnChip : UI.textAccent,
     }).setOrigin(0.5);

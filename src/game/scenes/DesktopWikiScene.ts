@@ -21,6 +21,7 @@ import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { currentRunGemInventory, isRunInProgress } from '../runStore';
 import { renderGemText } from '../../engine/keywords/gemText';
+import { returnFromCodex, type CodexVisit } from '../codexVisit';
 
 const F = DESKTOP_PROFILE.font;
 const SLOTS = 10;
@@ -54,6 +55,8 @@ interface GalleryCard {
  * mirrors the mobile wiki's slot-fit insertion.
  */
 export class DesktopWikiScene extends Phaser.Scene {
+  private reference = false;
+  private visit: CodexVisit = {};
   private filter: CardFilter = 'all';
   private view: 'cards' | 'gems' = 'cards';
   private selected?: SkillDef;
@@ -107,7 +110,10 @@ export class DesktopWikiScene extends Phaser.Scene {
     return isRunInProgress() ? currentRunGemInventory() : demoState.gemInventory;
   }
 
-  init(): void {
+  init(data?: CodexVisit): void {
+    this.visit = data ?? {};
+    this.reference = data?.reference === true;
+    this.data.set('reference', this.reference);
     this.filter = 'all';
     this.view = 'cards';
     this.selected = undefined;
@@ -131,7 +137,9 @@ export class DesktopWikiScene extends Phaser.Scene {
 
   create(): void {
     renderDesktopBackground(this);
-    renderDesktopHeader(this, 'WIKI', 'wiki');
+    renderDesktopHeader(this, this.reference ? 'CODEX' : 'WIKI', 'wiki', { reference: this.reference,
+      ...(this.reference ? { back: { label: this.visit.returnTo ? 'BACK TO RUN' : 'HOME',
+        onPress: (label: Phaser.GameObjects.Text) => { void returnFromCodex(this, this.visit, text => label.setText(text)); } } } : {}) });
     if (this.view === 'cards') {
       this.selected = this.selected ?? this.filteredSkills()[0];
       this.tier = this.defaultTierFor(this.selected);
@@ -224,7 +232,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     // live. See `wikiPouch` / `isRunInProgress`.
     const countLabel = this.view === 'cards'
       ? `${this.filteredSkills().length}/${Object.keys(skillBook).length} AUTHORED ENTRIES`
-      : `${Object.keys(gemBook).length} GEMS · ${this.wikiPouch().length} IN POUCH`;
+      : `${Object.keys(gemBook).length} GEMS${this.reference ? '' : ` · ${this.wikiPouch().length} IN POUCH`}`;
     const count = this.add.text(this.gridBounds().right, top, countLabel, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
     }).setOrigin(1, 0);
@@ -613,6 +621,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.detailObjects.push(infoPlate);
     this.detailInfoBox = renderCardInfoBox(this, centerX - paneWidth / 2 + 16, infoTop, paneWidth - 32, infoH, shown);
 
+    if (this.reference) return;
     const button = this.add.rectangle(centerX, buttonY, 220, 40, UI.chip)
       .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
     this.detailObjects.push(button);
@@ -654,6 +663,7 @@ export class DesktopWikiScene extends Phaser.Scene {
   }
 
   private addToBag(skill: SkillDef, tier: SkillTier): { ok: true; used: number } | { ok: false } {
+    if (this.reference) return { ok: false };
     const size = Math.max(1, skill.size);
     const fit = this.nearestFit(this.bagOccupied(), size, 0);
     if (fit < 0) return { ok: false };
@@ -789,10 +799,10 @@ export class DesktopWikiScene extends Phaser.Scene {
     y += body.height + 12;
     // Context-routed (a66eca4) — the RUN pouch while a run is in progress,
     // the Sandbox pouch otherwise; see `wikiPouch`.
-    const owned = this.wikiPouch().filter((id) => id === gem.id).length;
+    const owned = this.reference ? 0 : this.wikiPouch().filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setVisible(!this.reference);
     this.detailObjects.push(ownedText);
     y += ownedText.height + 14;
     // WHAT ITS KEYWORDS MEAN — the definitions half of the `GEM EFFECT` block
@@ -817,7 +827,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     // pouch, which this button cannot feed — pressing it would toast success
     // and move nothing on screen, the exact "my gems vanished" shape the
     // routing exists to kill. So it is suppressed until no run is live.
-    if (isRunInProgress()) return;
+    if (this.reference || isRunInProgress()) return;
     const buttonY = bottom - 60;
     const button = this.add.rectangle(centerX, buttonY, 220, 40, UI.chip)
       .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });

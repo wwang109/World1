@@ -1,0 +1,1946 @@
+{
+  "schemaVersion": 1,
+  "gameContentApiVersion": 1,
+  "files": [
+    {
+      "path": "art-manifest.v1.json",
+      "sha256": "b177933e0b517f21a858ab03b633c20abcfcff9eddf808d89b52b69e7c6f53ae",
+      "bytes": 132702
+    },
+    {
+      "path": "public/game-art/card-template-parts-transparent.png",
+      "sha256": "1e56522ec4832282cef705af1120ac167e3f1e3f7171be8533803b702be8cd53",
+      "bytes": 189229
+    },
+    {
+      "path": "public/game-art/cards/aegis-charge-anime.webp",
+      "sha256": "ff014323743b8dc6d86f980050c3c6d56592b29f6e554de0c3a777acfbb8993f",
+      "bytes": 88186
+    },
+    {
+      "path": "public/game-art/cards/aegis-of-the-unbroken-anime.webp",
+      "sha256": "37bf04eb5f081c045d0e3bc51da2c50dcc883d27f7dae5c4e6ee9bcedf82408f",
+      "bytes": 47098
+    },
+    {
+      "path": "public/game-art/cards/aegis-wall-anime.webp",
+      "sha256": "b841e1006aa2d783c526b13e38f074180508988fbe748324ac87a98afa445915",
+      "bytes": 95206
+    },
+    {
+      "path": "public/game-art/cards/annihilation-strike-anime.webp",
+      "sha256": "9f133d42d174276e1c3ee003c8d1155447ec96e72257fd9ce1d489d7258fd5e4",
+      "bytes": 41194
+    },
+    {
+      "path": "public/game-art/cards/arc-cascade-anime.webp",
+      "sha256": "659b6a421ebd03a554f6e49cadee1ed7e9e1754e55ee5cf22a09d7ff1bf17866",
+      "bytes": 71554
+    },
+    {
+      "path": "public/game-art/cards/arcane-bolt-anime.webp",
+      "sha256": "2d8014db7b9b41a0c36e6c6888e6b6260e20b603aa5273e42dcc50461158e4e6",
+      "bytes": 42820
+    },
+    {
+      "path": "public/game-art/cards/armor-break-anime.webp",
+      "sha256": "1bcb66cebcadc33c8fce8f50feb24643e5275c4b69363fc67f17ecc4a2dca142",
+      "bytes": 67416
+    },
+    {
+      "path": "public/game-art/cards/barbed-rampart-anime.webp",
+      "sha256": "6e09fa5eefbb2ce49b29de3c9affc679c2e5fb0df4dbed6997d2cd5e73468627",
+      "bytes": 66170
+    },
+    {
+      "path": "public/game-art/cards/barrage-anime.webp",
+      "sha256": "898158416ba98f800794013430b1625f7a8968cae9bb2e6ee0c1aaf49531136f",
+      "bytes": 82724
+    },
+    {
+      "path": "public/game-art/cards/bastion-stance-anime.webp",
+      "sha256": "ef4f8a6b487444b5fc0b7e6e3d0bb020a420a1270046c9c5def824e952ba1184",
+      "bytes": 66002
+    },
+    {
+      "path": "public/game-art/cards/battle-howl-anime.webp",
+      "sha256": "3823712dc09c0cc511bb991aea1c532347f79e3b240eff6abf551ee15ecac159",
+      "bytes": 94138
+    },
+    {
+      "path": "public/game-art/cards/bleed-executioner-anime.webp",
+      "sha256": "7b8b1de5d9e559605072ee2bfed0bc33e68cc51f523762ffbb730699d6477200",
+      "bytes": 92484
+    },
+    {
+      "path": "public/game-art/cards/blight-feast-anime.webp",
+      "sha256": "21dec7d4d77a790be854f595b5fb37f5a0e08a84e77e04167d1c3459c93551f9",
+      "bytes": 93478
+    },
+    {
+      "path": "public/game-art/cards/blightstep_dirge.webp",
+      "sha256": "436269b39e769df1a939c947b1daadcf8ca7da3966f598f0fe163127ed18ed54",
+      "bytes": 31232
+    },
+    {
+      "path": "public/game-art/cards/blooded-fang-anime.webp",
+      "sha256": "b9bb575bb10f68e4140d4ddd4fd6fe937d2e8960a2471094587319b0d85f699d",
+      "bytes": 87752
+    },
+    {
+      "path": "public/game-art/cards/blooming-vine-anime.webp",
+      "sha256": "174f7d46d8e5bf692e40d887cb50f772a0d3da9bc5d943811621723d7b22012a",
+      "bytes": 80766
+    },
+    {
+      "path": "public/game-art/cards/braced-pike-anime.webp",
+      "sha256": "b9668fe1c3037709d2c7e1c90bb8d65c1acd8e8d810a0126bc5ba0ab7a537e2a",
+      "bytes": 75170
+    },
+    {
+      "path": "public/game-art/cards/bramble-covenant-anime.webp",
+      "sha256": "dcf8b3468015d5619f49a920e73de63eeaaf0b4fab0eec31f960067f0b2d80b2",
+      "bytes": 74132
+    },
+    {
+      "path": "public/game-art/cards/bramble-ward-anime.webp",
+      "sha256": "84a7ea7633739f542412ba28396702759b242a421bb4eb44c2c2374ff906af1e",
+      "bytes": 55594
+    },
+    {
+      "path": "public/game-art/cards/bramblemend-anime.webp",
+      "sha256": "f030d233cf0c454f841cf8cf37e6fcc65de6c12c801b9ce0e70e7e825beff715",
+      "bytes": 17686
+    },
+    {
+      "path": "public/game-art/cards/bramblewrath-anime.webp",
+      "sha256": "4eea406986b7c83835706b55e24af743ef2011a043324ef96ecf30efbb6691f8",
+      "bytes": 28844
+    },
+    {
+      "path": "public/game-art/cards/breach-strike-anime.webp",
+      "sha256": "d9cce3675ae88abd6090013500f3ea32696125d1fbe0ddd039dbc6ff43715742",
+      "bytes": 84466
+    },
+    {
+      "path": "public/game-art/cards/bulwark-of-the-line-anime.webp",
+      "sha256": "2d9060e226b1d6424401dbbe2f7f76f688204f1c6d84fb92fecf311614d3dc2e",
+      "bytes": 84202
+    },
+    {
+      "path": "public/game-art/cards/bulwark-thicket-anime.webp",
+      "sha256": "e88b6fab869f6e38ffe401cd26258e16765b82078c15ee0a38a01243664016ff",
+      "bytes": 108858
+    },
+    {
+      "path": "public/game-art/cards/burn-detonator-anime.webp",
+      "sha256": "036404879ab6c8a6ebd4acf1c7d04e2c2acefed14a25c8d1673d0178614e21ac",
+      "bytes": 63136
+    },
+    {
+      "path": "public/game-art/cards/chain-spark-anime.webp",
+      "sha256": "fc88ce60851b16e4e213496392f6d0c9bf749b30a9af8802199ca81f81f20044",
+      "bytes": 27958
+    },
+    {
+      "path": "public/game-art/cards/champions_challenge.webp",
+      "sha256": "3b720b8507e217442e7e3eaa4bd427ed2153376ab14c16686da4bd4ed6db452a",
+      "bytes": 52738
+    },
+    {
+      "path": "public/game-art/cards/cinder-dart-anime.webp",
+      "sha256": "5a1a2f8e8b52816a591176961a31c7428255c10ab561c66e5f230701497c41d1",
+      "bytes": 30458
+    },
+    {
+      "path": "public/game-art/cards/cinder-skin-anime.webp",
+      "sha256": "8e4993bf6bab628e99ef9668f1f501bcff8227a51e56669d663f28a0bbf8260c",
+      "bytes": 36352
+    },
+    {
+      "path": "public/game-art/cards/cleaving-creed-anime.webp",
+      "sha256": "be631a6134ecb3213ca10d1072ba81e6c0d9ac33f028c1f2cc370dfd6a489999",
+      "bytes": 92672
+    },
+    {
+      "path": "public/game-art/cards/communion-light-anime.webp",
+      "sha256": "8c32724ca9da5ac67fc30049a431a58c96e72c31453bb0ac9740f491776615c4",
+      "bytes": 39774
+    },
+    {
+      "path": "public/game-art/cards/concussive-shot-anime.webp",
+      "sha256": "615b4916cebeeb49ea86fb7f5a5c6460a508cbda12cfcb91a8ce0ec9855917ee",
+      "bytes": 75058
+    },
+    {
+      "path": "public/game-art/cards/control-opportunist-anime.webp",
+      "sha256": "06a30a7faa1cf963f646f1ee169ee3407d3d3240a8568003e3178b29099baeee",
+      "bytes": 96134
+    },
+    {
+      "path": "public/game-art/cards/cornered-beast-anime.webp",
+      "sha256": "b8f9e9631544190d81ae8d3e9e71860686bfab7f714835e5a2552d65ace5c02a",
+      "bytes": 95886
+    },
+    {
+      "path": "public/game-art/cards/crippling-gore-anime.webp",
+      "sha256": "65f73025af899dfc9f968a5eb9ec4dae26bd054f7d2c64b271ae961d2ab12278",
+      "bytes": 65960
+    },
+    {
+      "path": "public/game-art/cards/crippling-strike-anime.webp",
+      "sha256": "b0f58acfd9e1be3261ae9fb510e2d4c0ae02e705d666e52ed9bc850130e7a761",
+      "bytes": 77604
+    },
+    {
+      "path": "public/game-art/cards/crushing-blow-anime.webp",
+      "sha256": "c3f86d1f83a2d701f787fc00e48ada61c7a4ecc9979e8105911f7a3d4f4480df",
+      "bytes": 105268
+    },
+    {
+      "path": "public/game-art/cards/deadweight-toll-anime.webp",
+      "sha256": "df1621bbefb42c81bb46cf56046d52e2928c9a9afb596b863b6c23ebf3e94a72",
+      "bytes": 73844
+    },
+    {
+      "path": "public/game-art/cards/debuff-crusher-anime.webp",
+      "sha256": "bcdbed0db7a9e74162a1a601272efb0f417b2427782bf7cb273a18065e72f714",
+      "bytes": 53166
+    },
+    {
+      "path": "public/game-art/cards/deep-freeze-anime.webp",
+      "sha256": "d62241eedc186a97fbfe63544d8723e6bf7e75dd994a3c23aaa0e1e2635914ac",
+      "bytes": 55526
+    },
+    {
+      "path": "public/game-art/cards/deepening-frost-anime.webp",
+      "sha256": "856957e1478549da06eac8335af732becfd8b469d9aaeb197f127fe94dee61d6",
+      "bytes": 55034
+    },
+    {
+      "path": "public/game-art/cards/disarming-blow-anime.webp",
+      "sha256": "8e170f2cdc5cc362415722a9dbcfe09d9bc886e9dc60255264dcfd2414c73cb5",
+      "bytes": 75898
+    },
+    {
+      "path": "public/game-art/cards/dulling-hex-anime.webp",
+      "sha256": "db0315b6962fc8c2c99050b843defe1a2756957f8c239ffceac6696b867d385e",
+      "bytes": 32934
+    },
+    {
+      "path": "public/game-art/cards/ember-lash-anime.webp",
+      "sha256": "0d2bdbac1ca2628f1b0740ddf86211c8b92b61adf496c54ecec910c44ac01478",
+      "bytes": 35002
+    },
+    {
+      "path": "public/game-art/cards/emberchant_rite.webp",
+      "sha256": "999c9165e093ec2a995aa1123cae921ac7b1a169eba8a75593cd3647a3c4b98c",
+      "bytes": 51830
+    },
+    {
+      "path": "public/game-art/cards/emberguard-anime.webp",
+      "sha256": "bc9e5616df45e6e9eac33c4711f91f4eb09874df1390670da50cc13ccc7e082c",
+      "bytes": 55582
+    },
+    {
+      "path": "public/game-art/cards/enfilade-volley-anime.webp",
+      "sha256": "465de3212739b5f40914d400c90143178ddc276382f5d24ab856dad9189e581c",
+      "bytes": 119762
+    },
+    {
+      "path": "public/game-art/cards/evasive-cordon-anime.webp",
+      "sha256": "20cd6164743e2bec5d9176ae79fc40886a8b375ea87cfc91cdf4e13ebe756f5f",
+      "bytes": 74496
+    },
+    {
+      "path": "public/game-art/cards/finishing-cleave-anime.webp",
+      "sha256": "c8a3c93f2869db91a1a2ec12390f5974d0c5df0f0b033e6fe195aea18aa80bde",
+      "bytes": 122862
+    },
+    {
+      "path": "public/game-art/cards/fireball-anime.webp",
+      "sha256": "df7b90c6300a0a0fc9b2156292cae2e3b4a3c70e1c105cf51e9ebce56c1f1431",
+      "bytes": 82218
+    },
+    {
+      "path": "public/game-art/cards/follow-through-anime.webp",
+      "sha256": "72ead7c4489aba62d7369b903768f0aff5cd02e82d2be0828679ec8818857829",
+      "bytes": 83038
+    },
+    {
+      "path": "public/game-art/cards/forgeheart_bastion.webp",
+      "sha256": "4ea6ac926fcbb6f10e44730937ca48382c87f673bff774cfe78dc4e1740c5cf3",
+      "bytes": 36880
+    },
+    {
+      "path": "public/game-art/cards/fortress-bastion-anime.webp",
+      "sha256": "32b384b3fb71754e98e7b8d9c411194b79f1892ce6e5e8d291a886b6c6a01f76",
+      "bytes": 88844
+    },
+    {
+      "path": "public/game-art/cards/frost-shackle-anime.webp",
+      "sha256": "f591759823363e76c793e7f60934d823194f92265d608a8c693fa81d67385bf5",
+      "bytes": 52786
+    },
+    {
+      "path": "public/game-art/cards/frost-ward-anime.webp",
+      "sha256": "3f1487579bc44ed845a825ce43d1b92513d0d4393836b8150e655b50c93e64b2",
+      "bytes": 98066
+    },
+    {
+      "path": "public/game-art/cards/frostbind_litany.webp",
+      "sha256": "366ff83a378207e30b78d2686d66c688151421822d10c882e9abbc7a31ea4b6a",
+      "bytes": 72918
+    },
+    {
+      "path": "public/game-art/cards/gathering-storm-anime.webp",
+      "sha256": "8a029ece332e8f034f9bb20c2145c5369bf51dce575e7f6fdc1bd72d69e053fc",
+      "bytes": 74104
+    },
+    {
+      "path": "public/game-art/cards/glacial-spike-anime.webp",
+      "sha256": "43dc64f342ddafce220037d5193f45bfdf876c012ec4ae4700bd540f997f07b6",
+      "bytes": 39348
+    },
+    {
+      "path": "public/game-art/cards/gravelight-choir-anime.webp",
+      "sha256": "dce60629dec4a1d0b34626384390242945bcdfbb49e93326e9780c83cdbb5be1",
+      "bytes": 63122
+    },
+    {
+      "path": "public/game-art/cards/graveside-rite-anime.webp",
+      "sha256": "4d38eb29033521f301d0c6eae83991569c507455eb3cefd535581aace20efd44",
+      "bytes": 76514
+    },
+    {
+      "path": "public/game-art/cards/grove-communion-anime.webp",
+      "sha256": "3aed284a11576487729aef2f5e418b610be0756cdc0131c176bb4e366409193d",
+      "bytes": 87336
+    },
+    {
+      "path": "public/game-art/cards/grove-lash-anime.webp",
+      "sha256": "a9a29502d876b057cc5da366a784407771a4cd4ffec688b1bdde35eed47dc7b8",
+      "bytes": 50442
+    },
+    {
+      "path": "public/game-art/cards/gutting-cleave-anime.webp",
+      "sha256": "14452686e54a5716693355f545602686dada76fabf6e567b6abd5d9f2bfa9b31",
+      "bytes": 54942
+    },
+    {
+      "path": "public/game-art/cards/hallowed-toll-anime.webp",
+      "sha256": "f340656727423268f0413b139682a179985bc75fa0629de68e8844871a7f5620",
+      "bytes": 59022
+    },
+    {
+      "path": "public/game-art/cards/hamstring-anime.webp",
+      "sha256": "a76d76b695863fd4e58616c74d8d64956b4922a7dd2cb3f4029ee9156774e375",
+      "bytes": 41010
+    },
+    {
+      "path": "public/game-art/cards/heartwood_sanctum.webp",
+      "sha256": "dcc534590e5ee5b3a745b1d497b710da2e038102c8f02ea7711e188345598d30",
+      "bytes": 31024
+    },
+    {
+      "path": "public/game-art/cards/hemorrhage-anime.webp",
+      "sha256": "c5ed07ba18bdba59f4b3d00dd9cbbe6f63bbd25b0b80949b9e25458de9103dbd",
+      "bytes": 67826
+    },
+    {
+      "path": "public/game-art/cards/hex-of-frailty-anime.webp",
+      "sha256": "eab257f914410a0dc026d3ddb168027c68f5b72521251784afb8f887067e3142",
+      "bytes": 34298
+    },
+    {
+      "path": "public/game-art/cards/hibernation.webp",
+      "sha256": "5d374aaca14c37be22bf5ea5cfc79a67aa089bc8c7ae04bbac87459289688308",
+      "bytes": 41306
+    },
+    {
+      "path": "public/game-art/cards/hoarfrost-creed-anime.webp",
+      "sha256": "7868069d202338ee6a8f3ab85bce45cde2b7769bbb140e74dda3fbbd59abed82",
+      "bytes": 28780
+    },
+    {
+      "path": "public/game-art/cards/honed-edge-anime.webp",
+      "sha256": "8a8646c7a0f5ff43275d4fe5a9aaa585d85750ac8a1d3045bd3bd5bba027de2d",
+      "bytes": 86658
+    },
+    {
+      "path": "public/game-art/cards/hunter-shot-anime.webp",
+      "sha256": "6d8c9360e78ca9af3f3bf82d09c300aa071173a914ab48f756163d7b28bf853f",
+      "bytes": 107442
+    },
+    {
+      "path": "public/game-art/cards/impaling-charge-anime.webp",
+      "sha256": "bb9c86e799a5521dd71e39377cf483342195db8e66ed1aa25d743744d00df611",
+      "bytes": 86144
+    },
+    {
+      "path": "public/game-art/cards/inferno-eruption-anime.webp",
+      "sha256": "447a2532cea7afd1b40cf4d74b6f26441e62ff18209eae8626d8ed9ba96edacb",
+      "bytes": 32554
+    },
+    {
+      "path": "public/game-art/cards/iron-bulwark-anime.webp",
+      "sha256": "8d1a9ca1cab053dbbf6a29d9b07cf71798c4795c98ebbbe97c8dea3e90707cb2",
+      "bytes": 25224
+    },
+    {
+      "path": "public/game-art/cards/iron-maiden-anime.webp",
+      "sha256": "bae9561f7e422ccf03e840fc654ae143445b51c6daa32a20457e1bcf9c8f02af",
+      "bytes": 71280
+    },
+    {
+      "path": "public/game-art/cards/iron-riposte-anime.webp",
+      "sha256": "2207ca58749e67acf43aca1ea544665ffab5ab531567722cbdfa18dc2390586d",
+      "bytes": 31574
+    },
+    {
+      "path": "public/game-art/cards/ironhide.webp",
+      "sha256": "30d37d0b247c6b126cf083f9488729156dc3692eb072b2cd06c8ef5422887ebe",
+      "bytes": 36312
+    },
+    {
+      "path": "public/game-art/cards/ironmarch_tithe.webp",
+      "sha256": "e126664f02932b7e2d777ac9bbef7b03cccf2a174367630d9ec2c14c7a83c03b",
+      "bytes": 61130
+    },
+    {
+      "path": "public/game-art/cards/judgment-light-anime.webp",
+      "sha256": "5fc1f5cf0bfdafe140c08f5fa9e72e00c7cf60b10c887c4a2d79c1a7bab8a15e",
+      "bytes": 66564
+    },
+    {
+      "path": "public/game-art/cards/kindling-rite-anime.webp",
+      "sha256": "55ab8cb61474345438acd7631622343516a16d026b97d80d6babb36cf5326939",
+      "bytes": 61976
+    },
+    {
+      "path": "public/game-art/cards/kindred-flame-anime.webp",
+      "sha256": "26068996ecaf3d85ec89892ea113b23550fc5ff88e639b05ac886d9c331d1bec",
+      "bytes": 46462
+    },
+    {
+      "path": "public/game-art/cards/lance-thrust-anime.webp",
+      "sha256": "3cb21513f6e39267c93317bf25e61e533bb842b0038e8f7bb504a441b7c5ae54",
+      "bytes": 76776
+    },
+    {
+      "path": "public/game-art/cards/leaden-bite-anime.webp",
+      "sha256": "6a1116d8f9ccaa1e0237e5c9da7e51c33111a97bdc816902b5ae9d84c800b2bb",
+      "bytes": 81050
+    },
+    {
+      "path": "public/game-art/cards/leeching-fang-anime.webp",
+      "sha256": "842677b4c9dee128cfa3066afb54fd4b4e495da56dfe7560cd8a8e7466d09859",
+      "bytes": 35102
+    },
+    {
+      "path": "public/game-art/cards/line-breaker-anime.webp",
+      "sha256": "9f338b6c9447f4771c7da345349e8a8e90ef642b3d617ea2afb22246d265e7f0",
+      "bytes": 84106
+    },
+    {
+      "path": "public/game-art/cards/mana-ward-anime.webp",
+      "sha256": "8092bf5b6615b7f468c577fee09fe0409aa73221c7f4ae8b5a0b0f399847f6e4",
+      "bytes": 54588
+    },
+    {
+      "path": "public/game-art/cards/marksman-shot-anime.webp",
+      "sha256": "82e14e3bfd80d48de1a6f84e66ee4039b077eeb87e4f85adf38addc51b7c21a6",
+      "bytes": 43888
+    },
+    {
+      "path": "public/game-art/cards/marksmans-creed-anime.webp",
+      "sha256": "42e76eee43666d2d3750a1d853672b27dc0b657e5c3a98fd9bda462f7d4b2dca",
+      "bytes": 97082
+    },
+    {
+      "path": "public/game-art/cards/massed-volley-anime.webp",
+      "sha256": "df832e469a984d8e75df8d696805ec9d2f1aa6da900fe838e29919a0051dd24e",
+      "bytes": 84334
+    },
+    {
+      "path": "public/game-art/cards/mending-aura-anime.webp",
+      "sha256": "cbf63cd4596e4d0effcaad9dbb03d6c094608a3c4b00bc662d7f8d9498c2f507",
+      "bytes": 55466
+    },
+    {
+      "path": "public/game-art/cards/mending-light-anime.webp",
+      "sha256": "2ac347b7d6c7f9dc247cb24ee7c949b3c06892bd35cc1f5e70b1f88209630248",
+      "bytes": 65354
+    },
+    {
+      "path": "public/game-art/cards/mind-frost-anime.webp",
+      "sha256": "676f520820e5c5013c88cd0aecf9d160d3341a8760de4a73a1ce24e8d3aa1043",
+      "bytes": 45376
+    },
+    {
+      "path": "public/game-art/cards/mortal-wound-anime.webp",
+      "sha256": "faa5eef22b0b36b55225e7e937a3853ae15957452d1161923e9bc5d78121b97e",
+      "bytes": 34114
+    },
+    {
+      "path": "public/game-art/cards/nettle-lash-anime.webp",
+      "sha256": "7945dc6e7e7030dcf259f7a179f76bda7083747dc4ecf50411a3a6838fbf45dd",
+      "bytes": 94050
+    },
+    {
+      "path": "public/game-art/cards/nettle-ward-anime.webp",
+      "sha256": "ce42b27edc98dfedc83cb2bf07f7a90d38c024f0e3ccaf7e49dab19dcccedcc5",
+      "bytes": 56836
+    },
+    {
+      "path": "public/game-art/cards/nullshroud.webp",
+      "sha256": "b96d4c9dc59f0d3dd099946275bbadf813e1ad7fb8cdc9445d26fb954d7f9bb2",
+      "bytes": 46572
+    },
+    {
+      "path": "public/game-art/cards/oathplate-anime.webp",
+      "sha256": "23f01c7027a7392a3056d4cac7290706fc5478f22225f0264ec8f8ed412ad8c6",
+      "bytes": 110356
+    },
+    {
+      "path": "public/game-art/cards/overcharge-anime.webp",
+      "sha256": "9d279d632b72a3b9515bad020b46c1bf9372e96d6d7e49e86cc96ab9c37aa356",
+      "bytes": 34546
+    },
+    {
+      "path": "public/game-art/cards/overgrowth-anime.webp",
+      "sha256": "b4d213ca50414b7c5301b394caf20f40320a815df1ee554210227192907113c4",
+      "bytes": 87982
+    },
+    {
+      "path": "public/game-art/cards/pack-instinct-anime.webp",
+      "sha256": "f8f4633c82fef5d331cb61b4bc774c3bcfe0b88c7df5cc326eedd8dd30817225",
+      "bytes": 69170
+    },
+    {
+      "path": "public/game-art/cards/packline-flank-anime.webp",
+      "sha256": "1ffab568e0c6e04f9f342495107aaab5d18a0fc4a81f7bb463ca3b9bff0e6f3a",
+      "bytes": 94818
+    },
+    {
+      "path": "public/game-art/cards/penitent-mending-anime.webp",
+      "sha256": "e046d5ac54705e6d1f2b31e8c8b56d60fc974a340fd7589913b5c9ba070889ff",
+      "bytes": 34814
+    },
+    {
+      "path": "public/game-art/cards/phalanx-thrust-anime.webp",
+      "sha256": "32df97109ff1111501ce1d96bd22a550e49397b82aa7dd5917b94fa0a770bf86",
+      "bytes": 63398
+    },
+    {
+      "path": "public/game-art/cards/piercing-arrow-anime.webp",
+      "sha256": "7cf6e23e3fdb7375aaa27135aa6751309eb4698f1297f6ead4764fede0b9c3e6",
+      "bytes": 86810
+    },
+    {
+      "path": "public/game-art/cards/piercing-reach-anime.webp",
+      "sha256": "174c769c95f4dc99b809ef9e4f5b95d6656f2555d70f4346424b1cfc89bfc325",
+      "bytes": 89724
+    },
+    {
+      "path": "public/game-art/cards/pikewall-oath-anime.webp",
+      "sha256": "32559e2de028b90928cef96e0cac540cfb8b7b9cbcb54c32044b2cd5f3a1bad3",
+      "bytes": 85438
+    },
+    {
+      "path": "public/game-art/cards/poison-bloom-anime.webp",
+      "sha256": "d43615feabc99fc1200eceb36e791b5e1c656dbccdeb0721ecbc5e7348589596",
+      "bytes": 96988
+    },
+    {
+      "path": "public/game-art/cards/poison-ritual-anime.webp",
+      "sha256": "cfd9284b4f4fdbb6d74b6fb51d79f056bdc09b970876fcbeec513fd17bbf2bf3",
+      "bytes": 60814
+    },
+    {
+      "path": "public/game-art/cards/prism-barrier-anime.webp",
+      "sha256": "bfd7592c5cb9043b13aca232fc405075e8622d4a52eabd9c9fa8808ce3524645",
+      "bytes": 77404
+    },
+    {
+      "path": "public/game-art/cards/purge-the-rot-anime.webp",
+      "sha256": "7d1df1ca5e6d03480e8a4a3e68f5cae8af9f63b0bcc23a9da5200a0f369e3f07",
+      "bytes": 145774
+    },
+    {
+      "path": "public/game-art/cards/purging-strike-anime.webp",
+      "sha256": "34e42f52e8a611fe3d6aa4a83bd7b060c37ce2bc4585f99abc9b7687135a289e",
+      "bytes": 83006
+    },
+    {
+      "path": "public/game-art/cards/purify-anime.webp",
+      "sha256": "4fa99e73ab82e428e146435226c1fb13e10a574434f24d9b8d7bd184fa828487",
+      "bytes": 79118
+    },
+    {
+      "path": "public/game-art/cards/quickmend.webp",
+      "sha256": "14eccf8684439a15ad5361d964373b34f48be4a360e3e3a95779de605336a785",
+      "bytes": 38912
+    },
+    {
+      "path": "public/game-art/cards/quiverwardens_call.webp",
+      "sha256": "d7d745309a728537144ad5837f9942ce7d55b4d69370bece3957b9382b9a4fc8",
+      "bytes": 64458
+    },
+    {
+      "path": "public/game-art/cards/rapid-volley-anime.webp",
+      "sha256": "634888f8b820244f0874135e862029bb2dcbc9c661e53fe71b0b63c1e272bbcd",
+      "bytes": 62180
+    },
+    {
+      "path": "public/game-art/cards/rearguard-pike-anime.webp",
+      "sha256": "b1a95ceb6dd1d757e1a6913a93d1bf2531004aeab9053912dbfe9cbdee9e8926",
+      "bytes": 105274
+    },
+    {
+      "path": "public/game-art/cards/rending-claws-anime.webp",
+      "sha256": "cc602c809a96d9c29c2396abc3988176a41bda2194709654c8d7fb3618cac68b",
+      "bytes": 75060
+    },
+    {
+      "path": "public/game-art/cards/renewing-wave-anime.webp",
+      "sha256": "dc07c7c734f2d3fe8641fb84e14a7e272b8a4eb555e7fc3a0fa2857a7eb251ed",
+      "bytes": 85460
+    },
+    {
+      "path": "public/game-art/cards/retaliation-stance-anime.webp",
+      "sha256": "71cf761fb8862bc6f2817197e6e123995ee7db345ebd47b25ee81306c260a3e9",
+      "bytes": 72580
+    },
+    {
+      "path": "public/game-art/cards/rimebarb-vigil-anime.webp",
+      "sha256": "596e7a9f26d4aa3011334d8cc1788b4f41c2e19c7e37a8876659fd7d18d7e7ac",
+      "bytes": 74822
+    },
+    {
+      "path": "public/game-art/cards/rimebound-pact-anime.webp",
+      "sha256": "2b21125a933db30579c1056afa6ded948e2b8fb10cfe361662badcacc678f38a",
+      "bytes": 56070
+    },
+    {
+      "path": "public/game-art/cards/riposte-guard-anime.webp",
+      "sha256": "d1eafa533b7c4c05d23532d539451deaaf068d02f1258594b675cc6253f89f62",
+      "bytes": 110426
+    },
+    {
+      "path": "public/game-art/cards/ruinous-hex-anime.webp",
+      "sha256": "865c24c70707e66d2128b6031d3cb5e66ef2969699dcd555de5ffb426da74dd8",
+      "bytes": 62442
+    },
+    {
+      "path": "public/game-art/cards/rupturing-strike-anime.webp",
+      "sha256": "0c3ef3f6fe37970f61551e08a315533875034d20a47817926d1430f1a6465ea5",
+      "bytes": 63622
+    },
+    {
+      "path": "public/game-art/cards/rustbind-hex-anime.webp",
+      "sha256": "fcfe68ef3b55ab6a915ee93fcaaedfb4f89d4811fd07c62f02453bc555e550a4",
+      "bytes": 92684
+    },
+    {
+      "path": "public/game-art/cards/sanctified-bulwark-anime.webp",
+      "sha256": "d623a0367af73d8620211d9f042fae3ded9c5357092090d19332318903e51b1e",
+      "bytes": 71756
+    },
+    {
+      "path": "public/game-art/cards/sanctified-vigil-anime.webp",
+      "sha256": "eec592f0608f62ddb0a4e1d60cf5fa89620c54b677051a08a52640299e6f697c",
+      "bytes": 22092
+    },
+    {
+      "path": "public/game-art/cards/sanctuary-overflow-anime.webp",
+      "sha256": "a56533ea232ba83ef626cbc01eb4ebdfb3a51e4891bceb4aaed19699729fd28f",
+      "bytes": 46970
+    },
+    {
+      "path": "public/game-art/cards/sanctum-thorn-anime.webp",
+      "sha256": "ff3918c30f37402cf10f56c3e041cdd168a88839b3c5fe31ce6a1580f3227411",
+      "bytes": 45100
+    },
+    {
+      "path": "public/game-art/cards/sapping-arc-anime.webp",
+      "sha256": "00f6515907d805a5de3a4d220c074127132ebc24b527488ae5ad29b6f5cdb8fc",
+      "bytes": 100328
+    },
+    {
+      "path": "public/game-art/cards/savage-bite-anime.webp",
+      "sha256": "9d03b008ebfe979f2213cecb652dbee59b38a3644cc342d94413d4c3eef20c9a",
+      "bytes": 40374
+    },
+    {
+      "path": "public/game-art/cards/scorching-brand-anime.webp",
+      "sha256": "78887a333c233e7403fd62709192d8249c64f8562e58f4890298085361e124f7",
+      "bytes": 19302
+    },
+    {
+      "path": "public/game-art/cards/second-bite-anime.webp",
+      "sha256": "76a4d31897219bd8471ac0e12f38d64400b1037d026dae52bf2823581de9e979",
+      "bytes": 80398
+    },
+    {
+      "path": "public/game-art/cards/second-wind-anime.webp",
+      "sha256": "b437279825339e89074568f5e60f619cf0e8c8c1c5970e41c46a2358eaf13a9b",
+      "bytes": 22314
+    },
+    {
+      "path": "public/game-art/cards/shadow-bolt-anime.webp",
+      "sha256": "39cbe574f84b5ac279c684545bef5cdc38e4941fcaa85dcb98db296ed4076337",
+      "bytes": 56564
+    },
+    {
+      "path": "public/game-art/cards/shield-splitter-anime.webp",
+      "sha256": "f3e60a4e3900c8b1d23d58606db5588599987089fc0ac1140b80ca352931b7ef",
+      "bytes": 65052
+    },
+    {
+      "path": "public/game-art/cards/shockwave-slam-anime.webp",
+      "sha256": "ed6e5055ae1e637ff2e57b950c3570386ff5ed3a178ca2e692ea4bba44e91dd7",
+      "bytes": 142214
+    },
+    {
+      "path": "public/game-art/cards/silencing-slash-anime.webp",
+      "sha256": "7a503d0d51466be26f95291deef254e218762027f2c35e70dea706bfb54c406a",
+      "bytes": 88018
+    },
+    {
+      "path": "public/game-art/cards/siphon-life-anime.webp",
+      "sha256": "6ac84d5a329102300802e44ccf363c48a214039d26e9d80a9943031361fb27fa",
+      "bytes": 81850
+    },
+    {
+      "path": "public/game-art/cards/slow-hex-anime.webp",
+      "sha256": "10dc4a8fea84e44d3da6edb71808750669822e434201c6b58a887906dd231387",
+      "bytes": 26170
+    },
+    {
+      "path": "public/game-art/cards/soul-rend-anime.webp",
+      "sha256": "e892a2c9112f735392d16535c7261dd50efe2f6f06764792fa3d347ef72cd16f",
+      "bytes": 44884
+    },
+    {
+      "path": "public/game-art/cards/spotters-mark-anime.webp",
+      "sha256": "b748304efe9f56bed1974b2061253f8f109d70dd48f35537e6a018aeb5ccc147",
+      "bytes": 18188
+    },
+    {
+      "path": "public/game-art/cards/standard_of_the_ninth.webp",
+      "sha256": "49fae4864961e2a1c54690c78a0cfeab0238b103379b0d806dac8b7a8f58c53d",
+      "bytes": 49936
+    },
+    {
+      "path": "public/game-art/cards/static-jolt-anime.webp",
+      "sha256": "1a608b7bce42d79e5a79b7cacce728f01c5865346b02ab34b12e0342819a309f",
+      "bytes": 43944
+    },
+    {
+      "path": "public/game-art/cards/steady_draw.webp",
+      "sha256": "9f54eaff54688b39dabe403c69bf0e88bceaf92b237b88e4d13eaa4f748034d1",
+      "bytes": 28852
+    },
+    {
+      "path": "public/game-art/cards/storm-guard-anime.webp",
+      "sha256": "6544d56587a448bb8e5ea4136eb7d8754b761726c1cb1780a14aed267480fb23",
+      "bytes": 50590
+    },
+    {
+      "path": "public/game-art/cards/storm-surge-anime.webp",
+      "sha256": "5278384bb96e89e4611f31925c92cbd9d0895d49e106581b97d28165ab0a4cd2",
+      "bytes": 85662
+    },
+    {
+      "path": "public/game-art/cards/storm_tithe.webp",
+      "sha256": "11cdc66035b011e2a77e9b3a821da9c4973a4fa735174097e775527cb84a25fc",
+      "bytes": 58156
+    },
+    {
+      "path": "public/game-art/cards/stormrank-relay-anime.webp",
+      "sha256": "ee4f20019b3d2bb21e93b1a3f3d74f638b12cbd5dc3905a9d9a320b4cd10a371",
+      "bytes": 54500
+    },
+    {
+      "path": "public/game-art/cards/stunning-smash-anime.webp",
+      "sha256": "3af5005c31f5fb99029fbe89567d031ee8335aea0714149e36e713186f0548f8",
+      "bytes": 64262
+    },
+    {
+      "path": "public/game-art/cards/sundering-roar-anime.webp",
+      "sha256": "9a5966b283d7e4fb0864bcddb2be61a814f33a6be969165387cd631becc06ef3",
+      "bytes": 77314
+    },
+    {
+      "path": "public/game-art/cards/swift-march-anime.webp",
+      "sha256": "0433d9510cdc9de95126ff523a2cc8becb37cce315fa21985cd0e44b7f577834",
+      "bytes": 55026
+    },
+    {
+      "path": "public/game-art/cards/sword-slash-anime.webp",
+      "sha256": "3dafbed221da536a97d997673ef5dcdb501330597a14ebebc511426aae63ce20",
+      "bytes": 65416
+    },
+    {
+      "path": "public/game-art/cards/sworn-edge-anime.webp",
+      "sha256": "0ab7a035a79f50f282a8971f974d5097ca7b1d842fa0bf28558b0fbd95c37476",
+      "bytes": 57164
+    },
+    {
+      "path": "public/game-art/cards/the_long_watch.webp",
+      "sha256": "d87c330f2a7b219f06de2e0c3e5c4f3788c34efa6de1fb55ef82ac8d4cdfd817",
+      "bytes": 63232
+    },
+    {
+      "path": "public/game-art/cards/thermal-shock-anime.webp",
+      "sha256": "2495350100fea7011303d390f334692f36d52bcbf4bffe126c3a083505805f65",
+      "bytes": 57044
+    },
+    {
+      "path": "public/game-art/cards/thorn-bite-anime.webp",
+      "sha256": "3fe0095ee56e9d004bcd55210edf7e5d74c59789167b56725faa82c902bec3dd",
+      "bytes": 90146
+    },
+    {
+      "path": "public/game-art/cards/thorn-reckoning-anime.webp",
+      "sha256": "fb0561dd4fcc922b4b3e7663cf6ca64e287e5a7746181406b7ee4299b989ec6f",
+      "bytes": 104958
+    },
+    {
+      "path": "public/game-art/cards/thorn-shackle-anime.webp",
+      "sha256": "c072184635b9d8257a2893efe08bd4abec15f8b03da9a5cd8608957005f24a99",
+      "bytes": 33370
+    },
+    {
+      "path": "public/game-art/cards/thunder-step-anime.webp",
+      "sha256": "f30284aa6126076ceab0fdf0520829a6feec0e08a064109b937e4b981efda5b0",
+      "bytes": 72716
+    },
+    {
+      "path": "public/game-art/cards/thunderhead-anime.webp",
+      "sha256": "ee8802f9b1e52cd175ce7600bc260cdee4d1b517afe7ffc6c494f194126e5fa3",
+      "bytes": 52732
+    },
+    {
+      "path": "public/game-art/cards/time-crystal-anime.webp",
+      "sha256": "ef4aa26e50b60da31df88c83d58611b697752ffc10f003f06fba224da73d4b15",
+      "bytes": 79278
+    },
+    {
+      "path": "public/game-art/cards/toxic-bulwark-anime.webp",
+      "sha256": "cb8517f02671cdbd0de03638bccd5ee3589b9fadd0d04e521d1c3ff7f4816743",
+      "bytes": 81150
+    },
+    {
+      "path": "public/game-art/cards/twin-slash-anime.webp",
+      "sha256": "7a9d821f0a1b17a9ef2f82030b01e8632fdfcd0f72e34d12510b149e5b9983cd",
+      "bytes": 46140
+    },
+    {
+      "path": "public/game-art/cards/umbral-choir-anime.webp",
+      "sha256": "985b70bbdfa7ef149d05ee71e914261bc235d3d904c1199341c172a002cdf47d",
+      "bytes": 74768
+    },
+    {
+      "path": "public/game-art/cards/umbral-ward-anime.webp",
+      "sha256": "ec3afe399ee0be5b0869ac5e1b734fd81bb34ec58eccdccc7c55f6800fd3f5aa",
+      "bytes": 68684
+    },
+    {
+      "path": "public/game-art/cards/unbreakable-stance-anime.webp",
+      "sha256": "e984e074abaa313e94557b8c016613591c5a4e1f28e6139860f16cc00d7fc514",
+      "bytes": 26396
+    },
+    {
+      "path": "public/game-art/cards/venom-fang-anime.webp",
+      "sha256": "2166bd56071817df7dfe2115d64f2327149a2ec20e34b319cf80da182a041863",
+      "bytes": 78478
+    },
+    {
+      "path": "public/game-art/cards/verdant-rebuke-anime.webp",
+      "sha256": "e0f1f704f5089903030359915a58ee5f8d844e10b6270ee711ae48ee986dab0e",
+      "bytes": 86606
+    },
+    {
+      "path": "public/game-art/cards/verdant-touch-anime.webp",
+      "sha256": "481654b521ab800411cac1ab656e552e2ad88a112aba26aed90e5087c07cd89d",
+      "bytes": 100106
+    },
+    {
+      "path": "public/game-art/cards/vital-surge-anime.webp",
+      "sha256": "29c585be2be9e9b626a8e1dc54334268c09e04f4cabd1b981c48aedb050198b9",
+      "bytes": 48008
+    },
+    {
+      "path": "public/game-art/cards/void-pierce-anime.webp",
+      "sha256": "fc6a3b89de7baa22dc8dda3048eaa9e177332db91284c0dab0df742f8a4065b0",
+      "bytes": 52122
+    },
+    {
+      "path": "public/game-art/cards/vow-broken-anime.webp",
+      "sha256": "0a9636c0117d7c1b54f5d326058fa7683fbffbaccbf370376f099d12e9b0b2ad",
+      "bytes": 49214
+    },
+    {
+      "path": "public/game-art/cards/waking-blade-anime.webp",
+      "sha256": "68bae9f3e3a26aa972be93cb5a638d2eb34a5bb677b17322516bb77632b1b766",
+      "bytes": 89462
+    },
+    {
+      "path": "public/game-art/cards/war-banner-anime.webp",
+      "sha256": "bfa9c16e585f18f542ad63a138368e195424b8cfafb9e0a366015a4d8386b2e8",
+      "bytes": 62590
+    },
+    {
+      "path": "public/game-art/cards/warband-cleave-anime.webp",
+      "sha256": "57faafbc1cbb795b85433ad024ecfa106b3bfab11765bb3ea29b069b2ffc2018",
+      "bytes": 61078
+    },
+    {
+      "path": "public/game-art/cards/ward-of-silence-anime.webp",
+      "sha256": "c58858830c70f071d6eaa80d233d79ebc521c5bb1a6575eece8e2d71835d706f",
+      "bytes": 59722
+    },
+    {
+      "path": "public/game-art/cards/warded-reprisal-anime.webp",
+      "sha256": "59bccc57635d75ae7cea4744b41e8c2739b0d146cb83e42d3fe14cc43f6ae5d2",
+      "bytes": 73874
+    },
+    {
+      "path": "public/game-art/cards/warding-prayer-anime.webp",
+      "sha256": "98d4406c72144e4f630cb49430cba252679c837c54a3a9728781bb58a2e3438c",
+      "bytes": 72256
+    },
+    {
+      "path": "public/game-art/cards/warlord-banner-anime.webp",
+      "sha256": "27ef06cfbeebc28ef61dd3718b79a17f7d61cf7d84a91110a0fef555ec080840",
+      "bytes": 60242
+    },
+    {
+      "path": "public/game-art/cards/whetstone-vow-anime.webp",
+      "sha256": "6bd2dbe79dd3935f74d5e82243bcdddea6c3b7e42be9acef9feadaa9f8ebb2a1",
+      "bytes": 42280
+    },
+    {
+      "path": "public/game-art/cards/wildfire-rite-anime.webp",
+      "sha256": "f793a0c1ce2280542aebfe5b43acd23294294bc5d09b4ac9b0465b9fdb5e88fd",
+      "bytes": 29604
+    },
+    {
+      "path": "public/game-art/cards/wildfire-surge-anime.webp",
+      "sha256": "45b5b8a219b58e5acefb81006c91939ac541ab9c9e609fa3009b682ec78c163e",
+      "bytes": 56498
+    },
+    {
+      "path": "public/game-art/cards/writ_of_sanction.webp",
+      "sha256": "13f0dd6cf87ba54d8cd25dc7b9ae6ed7d54344026ff062ffa29bcd009ad6d80d",
+      "bytes": 49712
+    },
+    {
+      "path": "public/game-art/enemies/bandit-duelist-v2.webp",
+      "sha256": "821149fde4e3390b20f8b516cfeb92ce1fcdd5fe96c44bdc998b1d9ca31fb704",
+      "bytes": 60340
+    },
+    {
+      "path": "public/game-art/enemies/cleric-v1.webp",
+      "sha256": "fa6aefd43d9185df878a52bb49b31cd75ea24d2b40bc1ac63e449a71a21c0907",
+      "bytes": 98872
+    },
+    {
+      "path": "public/game-art/enemies/ember-imp-v1.webp",
+      "sha256": "256a9f3b26d9ca0abcacc65130cd8a99becc3659a5228812d7bb846d4a0768d6",
+      "bytes": 82982
+    },
+    {
+      "path": "public/game-art/enemies/giant-rat-v1.webp",
+      "sha256": "e79f3adddf75b4aa03cedfc5845a8cd79ce08bd3e2cbf0ddf4c970a217679d37",
+      "bytes": 88392
+    },
+    {
+      "path": "public/game-art/enemies/greenwood-sovereign-v1.webp",
+      "sha256": "514fa0b4ec145764d237d0e36c54644254b3af26ad4a845fc0587fad70edc296",
+      "bytes": 141122
+    },
+    {
+      "path": "public/game-art/enemies/pike-conscript-v1.webp",
+      "sha256": "31a962410a4382b0772fc1158abc8a739e9a028a4d1feaf282e90a0eee09f540",
+      "bytes": 60704
+    },
+    {
+      "path": "public/game-art/enemies/rime-wisp-v1.webp",
+      "sha256": "acb1c6fe3ee2b6e7a02a1c064bfd37849d54899f085a41eb960a9be4ac120ccd",
+      "bytes": 71596
+    },
+    {
+      "path": "public/game-art/enemies/rotwood-ancient-v2.webp",
+      "sha256": "78fbb06173ae4e65720dbc68a000157d2931114e4d4e2fdfe8e7198587136e6f",
+      "bytes": 95816
+    },
+    {
+      "path": "public/game-art/enemies/stone-beetle-v1.webp",
+      "sha256": "97222aee059036a0e5406d7ca8aaf8b2d87a6b2845d0a69d5962ae0b1ab71eaa",
+      "bytes": 76246
+    },
+    {
+      "path": "public/game-art/enemies/toxic-druid-v1.webp",
+      "sha256": "cd293d680f9b958e777ffe691eb56e886d26a013aa46ae633ab1f25d2a40b0ab",
+      "bytes": 126304
+    },
+    {
+      "path": "public/game-art/enemies/wolf-king-v1.webp",
+      "sha256": "ae76c30582da6804731f6677053ae3092996768baab66ee24fc60238008e6839",
+      "bytes": 99204
+    },
+    {
+      "path": "public/game-art/equipment/arcanist_pendant.webp",
+      "sha256": "7f02c75822a7ab865a18323973ff6426daa70f77c033f3373a8b5425f54a2906",
+      "bytes": 26848
+    },
+    {
+      "path": "public/game-art/equipment/arcanist_robe.webp",
+      "sha256": "e8386043cc77b2ee36ce6a25437dd5637ee91147eb61add2b8b34c903a24055f",
+      "bytes": 36910
+    },
+    {
+      "path": "public/game-art/equipment/arcanist_seal.webp",
+      "sha256": "fdab1de45f37c961eaabbf669f1a02a90416be00f73905d62a6add3ac65c8787",
+      "bytes": 23982
+    },
+    {
+      "path": "public/game-art/equipment/bastion_charm.webp",
+      "sha256": "cccf9b5d47ce91dfb72e30486e7ca60867f4affd99e3e2d3dd3653e9ebadb5e7",
+      "bytes": 25152
+    },
+    {
+      "path": "public/game-art/equipment/bastion_emblem.webp",
+      "sha256": "01c8ef132b15ef8d99544d7fc177637ba25c3b440533d4d95665f8acee587b4c",
+      "bytes": 27842
+    },
+    {
+      "path": "public/game-art/equipment/bastion_plate.webp",
+      "sha256": "e211693acb66f06e3c07a6639bfd934c2f0e39f096b66a842e94d3caee3b81ca",
+      "bytes": 35586
+    },
+    {
+      "path": "public/game-art/equipment/duelist_coat.webp",
+      "sha256": "af55d2c4df3d3fdd15b9240ae69a05864b6665f7423b65e970e6de023ada95b2",
+      "bytes": 30400
+    },
+    {
+      "path": "public/game-art/equipment/duelist_crest.webp",
+      "sha256": "203c2fcacebb300d95d2568cd1845aae78f58c2b24818d89b001770640c231f3",
+      "bytes": 25954
+    },
+    {
+      "path": "public/game-art/equipment/duelist_knot.webp",
+      "sha256": "1992497b98e99be13750892f8ea19d8c1d46537fb53a90cf2a890f60d7507cb0",
+      "bytes": 38160
+    },
+    {
+      "path": "public/game-art/equipment/ironwall_buckle.webp",
+      "sha256": "332d4b0f6cc690c9a55e2aa0028a8f85c8cb25bb6b1af9f679d37b483262aa01",
+      "bytes": 15210
+    },
+    {
+      "path": "public/game-art/equipment/ironwall_plate.webp",
+      "sha256": "c5aa287bef81690f9dedb17e4ba2c82487e32be43535f4304163b5f0aae7f099",
+      "bytes": 30348
+    },
+    {
+      "path": "public/game-art/equipment/ironwall_seal.webp",
+      "sha256": "f5979a2239834ff8dec548d29418f08363ddd1e0acc323198675f18b451d6b5f",
+      "bytes": 23514
+    },
+    {
+      "path": "public/game-art/equipment/ravager_coat.webp",
+      "sha256": "1e5e7f8e64da388cc53a7a4a7ef9ba4b48fec7ca3404b0180bac23bd7f4eb676",
+      "bytes": 30434
+    },
+    {
+      "path": "public/game-art/equipment/ravager_crest.webp",
+      "sha256": "2102f45aa47b75795087c6bf8386e7850d105e2a6fd04fe84a32dbb1779e2ed8",
+      "bytes": 21724
+    },
+    {
+      "path": "public/game-art/equipment/ravager_fang.webp",
+      "sha256": "ea7355ce5d165cbe7c66dfd751a9f2d155a1a961ef46fb5d984eaeea44f2b5ee",
+      "bytes": 19324
+    },
+    {
+      "path": "public/game-art/equipment/restorer_pendant.webp",
+      "sha256": "abdc611bd23afd1c06a19ea4cbabf63810d5c1e2a86611ed9198a3242084f42b",
+      "bytes": 23844
+    },
+    {
+      "path": "public/game-art/equipment/restorer_seal.webp",
+      "sha256": "e1a96e829bccad4024584d29d73e113611ce72de388f54f9d3b801e860f77ee4",
+      "bytes": 31974
+    },
+    {
+      "path": "public/game-art/equipment/restorer_vestments.webp",
+      "sha256": "a2672e7ebf2fe8d35f16fa80619a2272e8a17980652b43b8c9df6550362759c1",
+      "bytes": 44744
+    },
+    {
+      "path": "public/game-art/equipment/spellguard_pendant.webp",
+      "sha256": "24687554638a6e831d30abdf89bc455f5b48b18ab158ffad82b79368a5020478",
+      "bytes": 23332
+    },
+    {
+      "path": "public/game-art/equipment/spellguard_robe.webp",
+      "sha256": "93357c7ab51168adeb46dfa9d88c3dfacca416db4c12c8feb9b2022eb6b7952a",
+      "bytes": 32720
+    },
+    {
+      "path": "public/game-art/equipment/spellguard_seal.webp",
+      "sha256": "10c2839d24d863e618b5d94e93305bf85176fee42fcedae8a4454507b4d03f8e",
+      "bytes": 29622
+    },
+    {
+      "path": "public/game-art/equipment/stormcaller_focus.webp",
+      "sha256": "6769da0d61ce594b71e7751bc616f4b55de190d7b89d8a1850716770e961f847",
+      "bytes": 17586
+    },
+    {
+      "path": "public/game-art/equipment/stormcaller_pendant.webp",
+      "sha256": "d3317ccdc86a6943d96e5aaff5e7c8eb4b68b9dfaf9478ad37579283cb8f7bf7",
+      "bytes": 20506
+    },
+    {
+      "path": "public/game-art/equipment/stormcaller_robe.webp",
+      "sha256": "d7e4894c0e7dc18371e2fd231d1bbd3b8ee2edcf151cc68b7d0e520029a79e62",
+      "bytes": 35654
+    },
+    {
+      "path": "public/game-art/equipment/wind_charm.webp",
+      "sha256": "5d7bb899e60f7b717b4b3d8942185d7c52e7ca2335a30634dd9872fb25837866",
+      "bytes": 27832
+    },
+    {
+      "path": "public/game-art/placeholders/area-cinderworks.webp",
+      "sha256": "abe3c3daf6c6ffccbf28bc900d416de94026c6e2232e40fb22fa5d31db73ed73",
+      "bytes": 151772
+    },
+    {
+      "path": "public/game-art/placeholders/area-crossroads-unquiet.webp",
+      "sha256": "58ec8d36b3c4211be06f62b371cfdac2ad389213bfd875d1b6794a9820436c65",
+      "bytes": 67244
+    },
+    {
+      "path": "public/game-art/placeholders/area-hollow-yard.webp",
+      "sha256": "0741ed4b3e9ea073dd6550926809d271af9540d7cab0469c644715eeae0e39f1",
+      "bytes": 77340
+    },
+    {
+      "path": "public/game-art/placeholders/area-muster-road.webp",
+      "sha256": "c676c0b630cdb981a1e92f3a9b52785e222aa34e5178d3e3e6b34bb17f4923c8",
+      "bytes": 110754
+    },
+    {
+      "path": "public/game-art/placeholders/area-silt-hollows.webp",
+      "sha256": "6945a8d09577873dcfab41aeb0ece6025976c306e0a75315b638da7dc8d3b8d0",
+      "bytes": 145734
+    },
+    {
+      "path": "public/game-art/placeholders/area-tolling-road.webp",
+      "sha256": "479555156627f8a87dfe63fc127af8d58e49e282fe775caaaa5fb143cb089630",
+      "bytes": 125244
+    },
+    {
+      "path": "public/game-art/placeholders/biome-arrowfell-desktop-vertical-v2.webp",
+      "sha256": "4108e4d7293d0bc32b20d2a783edf0231d53f24893903ab87578f89a8fe69080",
+      "bytes": 369612
+    },
+    {
+      "path": "public/game-art/placeholders/biome-arrowfell.webp",
+      "sha256": "a7105e8802f900e12f83848ce0bde3bb2835d055cfb36e507f200c4107660af6",
+      "bytes": 39526
+    },
+    {
+      "path": "public/game-art/placeholders/biome-duskbarrow-desktop-vertical-v2.webp",
+      "sha256": "5fd2428a00848dff4e08757615573c8cb2ebbecd33661f58ba74e3237f3c410a",
+      "bytes": 292502
+    },
+    {
+      "path": "public/game-art/placeholders/biome-duskbarrow.webp",
+      "sha256": "52412bfbba6bf97fc9b43a5f0789817b33ea284d09dc95a39c5815fcecd1f8d8",
+      "bytes": 25824
+    },
+    {
+      "path": "public/game-art/placeholders/biome-emberwaste-desktop-vertical-v2.webp",
+      "sha256": "3f772d9fefcbf88d19dfcfec77120d65833129e2e61fe9858607de59ca2a2b1a",
+      "bytes": 282308
+    },
+    {
+      "path": "public/game-art/placeholders/biome-emberwaste.webp",
+      "sha256": "033d78eedebdf4b1a67e1e0cf93d6a7ab66ca7d7c1fc374be071792e324daf3d",
+      "bytes": 28568
+    },
+    {
+      "path": "public/game-art/placeholders/biome-frostmarch-desktop-vertical-v2.webp",
+      "sha256": "31b9536314d18ca8afe9f90eefda01a8f0cf1e10739f8c8efc212685661727c6",
+      "bytes": 300892
+    },
+    {
+      "path": "public/game-art/placeholders/biome-frostmarch.webp",
+      "sha256": "e6335535b2cbb20263ec3e2589f7f5d637b7ba8e8d9230d129aa2aeba249b307",
+      "bytes": 33328
+    },
+    {
+      "path": "public/game-art/placeholders/biome-hallowfield-desktop-vertical-v2.webp",
+      "sha256": "07ea2350125123bb1f64a122717119fa05eb30d839a47defb75713beb2dd2e6e",
+      "bytes": 397742
+    },
+    {
+      "path": "public/game-art/placeholders/biome-hallowfield.webp",
+      "sha256": "8b54c97505cf12cbfaadaa3b22757aa6b28ccfed296faadcf022fa73ac08414f",
+      "bytes": 41334
+    },
+    {
+      "path": "public/game-art/placeholders/biome-howlmoor-desktop-vertical-v2.webp",
+      "sha256": "8ea3911f6ad45aafd57488afbb4f4debb75aaa09f4d58ecb1dbe7baa0d400e9c",
+      "bytes": 356788
+    },
+    {
+      "path": "public/game-art/placeholders/biome-howlmoor.webp",
+      "sha256": "c93bfe39066f8c5dee2d40b8178d9f1159f08ee2b11dd2167de73bec6ea01866",
+      "bytes": 29154
+    },
+    {
+      "path": "public/game-art/placeholders/biome-ironmoot-desktop-vertical-v2.webp",
+      "sha256": "bc800c93d1af36c677e0b5566ab34307254c5aa064986865da96184d6f973851",
+      "bytes": 415858
+    },
+    {
+      "path": "public/game-art/placeholders/biome-ironmoot.webp",
+      "sha256": "11304db81a172750f2dac9391831a91de86a1d15d1cec9de0691247242445344",
+      "bytes": 41174
+    },
+    {
+      "path": "public/game-art/placeholders/biome-pikewold-desktop-vertical-v2.webp",
+      "sha256": "6613f67324ff97936bd067badb6850cca8a48e034616235433059d5b4044ba9b",
+      "bytes": 440368
+    },
+    {
+      "path": "public/game-art/placeholders/biome-pikewold.webp",
+      "sha256": "fdd4c8e2433521ef8c0a1392c31f1014d515591da6334b2ba0d1d18636d7f6c1",
+      "bytes": 48624
+    },
+    {
+      "path": "public/game-art/placeholders/biome-stormreach-desktop-vertical-v2.webp",
+      "sha256": "68e9295437f3744af7cd184af9d1e24fd316ab0cccb79fbfbc6c86d275ba2546",
+      "bytes": 458736
+    },
+    {
+      "path": "public/game-art/placeholders/biome-stormreach.webp",
+      "sha256": "1ff6966c3b1a53550c65fcdef6e69e2ce43876522e86637de775080a24eaeac2",
+      "bytes": 42620
+    },
+    {
+      "path": "public/game-art/placeholders/biome-swornhold-desktop-vertical-v2.webp",
+      "sha256": "333dc0eed999f1915bb2bcfd47c1fe281fc793e77367bf607f01e782ff52f274",
+      "bytes": 423088
+    },
+    {
+      "path": "public/game-art/placeholders/biome-swornhold.webp",
+      "sha256": "5fa37ac4cb080d402069540efa0fbfceacb859cd65b7355db58eb2c36d0c9a85",
+      "bytes": 47350
+    },
+    {
+      "path": "public/game-art/placeholders/biome-thornwild-desktop-vertical-v2.webp",
+      "sha256": "19ab827ebfea31c896f33667ab02928b9470399c678ee5fe7ce0563afe1e1696",
+      "bytes": 569002
+    },
+    {
+      "path": "public/game-art/placeholders/biome-thornwild.webp",
+      "sha256": "2f728d50204ac16b90a517222ac0c18d13e9357a1fe82c3c51d8b887e23c053f",
+      "bytes": 59302
+    },
+    {
+      "path": "public/game-art/placeholders/event-bell-beneath-ice.webp",
+      "sha256": "1190403e06e0663a41b523239a2cea240bf60ebd8c8042db925e5e605b33bf68",
+      "bytes": 149940
+    },
+    {
+      "path": "public/game-art/placeholders/event-bell-unbound.webp",
+      "sha256": "58ae1d116367736270d3de4f2109f2a407b0614cbceccf5d383b8170d8fae180",
+      "bytes": 187786
+    },
+    {
+      "path": "public/game-art/placeholders/event-second-toll.webp",
+      "sha256": "6e58b7fc964f92b64c6c41140e2624452a7020207842c62a2b520e542250d102",
+      "bytes": 150062
+    },
+    {
+      "path": "public/game-art/placeholders/icon-boss-skull.webp",
+      "sha256": "51bb25f3df1f7b639bc8afd71b6c784bade74c961972c44c27d1edce6d44705e",
+      "bytes": 4044
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-card.webp",
+      "sha256": "84e72bdb6385d06f4654561952b6936c6042b75ad040ce83f97557fa30b77af1",
+      "bytes": 4712
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-gamble.webp",
+      "sha256": "69bc0029a215a52bbb80c3834124ad64f97f37d02e725b22ad2c766626d90fc1",
+      "bytes": 5918
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-gem.webp",
+      "sha256": "c57fca451e20453216298dd53427a4b224efb6fee25436c4eddd9b4370798702",
+      "bytes": 3334
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-gold.webp",
+      "sha256": "13c4b97387acd8c73a68a648c9593b7f3f524e8b3acbac32f7385332a25b8002",
+      "bytes": 3066
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-level.webp",
+      "sha256": "2febc0a2e1a902661e5598ec18152f1bc1f5d91e8fccd34b332fc1a7b2e3a6f8",
+      "bytes": 3216
+    },
+    {
+      "path": "public/game-art/placeholders/icon-choice-nothing.webp",
+      "sha256": "9cdb362f8b97e4d137596a0817ffa7cc41c6433b761ad8d3def173f65e2c6ea8",
+      "bytes": 1984
+    },
+    {
+      "path": "public/game-art/placeholders/icon-coin.webp",
+      "sha256": "60fd3aa7869f095c748750cb5e3b48fef8c600fa908c97236a2bb1b88b3a0a52",
+      "bytes": 3438
+    },
+    {
+      "path": "public/game-art/placeholders/icon-life-heart.webp",
+      "sha256": "7650f9a7082c90b33fbe22e54bb83020bcd212e5683897930db1febb1d68e3ac",
+      "bytes": 3716
+    },
+    {
+      "path": "public/game-art/placeholders/icon-route-lantern.webp",
+      "sha256": "c27faa6b4d8f685ae4e3e4309d406f749b5286e20e95cac441315d12ad9dee4d",
+      "bytes": 140858
+    },
+    {
+      "path": "public/game-art/placeholders/icon-storefront.webp",
+      "sha256": "5f18a74265f19091fc3d5c377fdc792d054ed838ce51e19fd00520e465d35847",
+      "bytes": 3892
+    },
+    {
+      "path": "public/game-art/placeholders/run-map.webp",
+      "sha256": "30ed2dfe968fe8b8df937ae6ab05b2452f72edd5da96e423c099b8e45ebca0f6",
+      "bytes": 480498
+    },
+    {
+      "path": "public/game-art/placeholders/shop-banner.webp",
+      "sha256": "9518238deb2af2d06772e814e8fcf1a3a72832826b102fd3ca7d5efd097f2c4a",
+      "bytes": 31548
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-alchemist.webp",
+      "sha256": "3e169ae9aaf359255765b7a57b21ce597c99467c20ad00a8884f0bf1003ff5e5",
+      "bytes": 45150
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-arcanum.webp",
+      "sha256": "986336780512a53f94b6ebbd351b221678e74da74a741882a9eafe8402b8fe24",
+      "bytes": 45372
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-armory.webp",
+      "sha256": "90625c86093b161f6eb1708ff28b8ae207010da24c89d640053c500ba447318d",
+      "bytes": 45862
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-assassins_den.webp",
+      "sha256": "45b092b6714ed468a1f4d1905a607a347c409f1ff3199d6c53d556bd250490a0",
+      "bytes": 29856
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-beastmoot.webp",
+      "sha256": "4b305b3536770ef166bfbeae7023f3f026c53eda901bb9421a747342973f0f21",
+      "bytes": 50516
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-bulwark.webp",
+      "sha256": "4210a0946807ed0b07e3c6db8fb9d510e2b51405ef0a03d65bb4202f28f6bae3",
+      "bytes": 45412
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-caravan.webp",
+      "sha256": "df2a65ee62be47b207e44f7f1a1dda4955e690c6cbf551cc745e3668e1634dc8",
+      "bytes": 50726
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-cleaving_yard.webp",
+      "sha256": "e32a837d5b4a8268a78f88745b3055a28daf5770fa76d124e55da5d44015faaa",
+      "bytes": 51446
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-emberworks.webp",
+      "sha256": "43f7261fb7bd815443cf5a358df0ced688421dbbf7c7e06534c9b7da23632e12",
+      "bytes": 43786
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-fletchers_loft.webp",
+      "sha256": "a6c614a47bc06ed8c774955c9c2f9ec31b9886b7236228f440453c18ff00da25",
+      "bytes": 49078
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-frosthold.webp",
+      "sha256": "b14485446aabca696281e30862bb594448cda7513ebc03ed0c0e10689e358428",
+      "bytes": 44358
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-gemcutter.webp",
+      "sha256": "a9ca7feff58452dc3ad68fd69c7bbbe5940ae1c803f500463c3e48dbe65ce2d4",
+      "bytes": 42750
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-grovekeep.webp",
+      "sha256": "e546f5a6390e0b55dce1a27c9d922d9587ddc3e801b3b2b0e87b9173c73fb985",
+      "bytes": 57678
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-lancers_rest.webp",
+      "sha256": "99acb562bd073e08bcaf5cb29f1384b3f0118ab0915b2d3ed9947c1f8bfab6c4",
+      "bytes": 47100
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-relic_vault.webp",
+      "sha256": "11c9e64e53ac9a433761ad651c30ff297cf7c063ce1b275141c91937f10fe680",
+      "bytes": 50552
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-reliquary.webp",
+      "sha256": "e21b367bdaca3771a0705a00d328778760c839a528a6de4382d2b112506b5501",
+      "bytes": 42128
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-sanctum.webp",
+      "sha256": "c2d1a499885f540d382da61555f16dcec8b16723bf180728277cdbc85f20ea47",
+      "bytes": 38728
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-stormspire.webp",
+      "sha256": "e82a4f5a6c9432c398ad56bc6715a40e055647ca22f7f2d5437503304c03ce58",
+      "bytes": 40564
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-swordwright.webp",
+      "sha256": "1c8e0777188b9212c123bb6b64334f731202d64c854321d10931affd22a642e2",
+      "bytes": 47442
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-umbral_stall.webp",
+      "sha256": "deb48aca843177b03b3587f0b0358d0704cb158349dc4ed3e2a9e7884bb1f9b0",
+      "bytes": 34514
+    },
+    {
+      "path": "public/game-art/placeholders/shop-front-wildworks.webp",
+      "sha256": "874577652013e8e404a339c01aacffb360c8f687b0bbdd7db3059a8f0858a3ec",
+      "bytes": 51746
+    },
+    {
+      "path": "public/game-art/placeholders/start-background-desktop.webp",
+      "sha256": "dc1bba5d309f901c6640f0145fd0aad67caaae8609a1092667d5fc9bef8cefe9",
+      "bytes": 756662
+    },
+    {
+      "path": "public/game-art/placeholders/start-background-mobile.webp",
+      "sha256": "ec452f9035d26ad316349e2b35b23806e58fcca8e2ef15f9096b414864cb6426",
+      "bytes": 620186
+    },
+    {
+      "path": "public/game-art/placeholders/start-cta-frame.webp",
+      "sha256": "a12f07ad108e6a10ba1596c26a029ed4f697bc004a8e0270ef6aeedb43e53a7b",
+      "bytes": 101094
+    },
+    {
+      "path": "public/game-art/placeholders/start-icons.webp",
+      "sha256": "07331e7415f24ed4f39066d47454716e426f18dc467eff1197fe0fc426a77993",
+      "bytes": 77714
+    },
+    {
+      "path": "public/game-art/template/anime-relic-chrome.webp",
+      "sha256": "73b6b6f800e7a1d00f906510612e5aa9b9d7141835339fa9d38c4d1d5d5bd454",
+      "bytes": 83266
+    },
+    {
+      "path": "public/game-art/template/badge-axe.png",
+      "sha256": "2fccb5ebae84adaff070981d1e14695be3fe868304e9335734fbbccd190ba017",
+      "bytes": 7262
+    },
+    {
+      "path": "public/game-art/template/badge-bow.png",
+      "sha256": "4e5d2d5bd545d35045c863a9a4ca030f078f44a3646a75e999fade6cc6d4d1f4",
+      "bytes": 7194
+    },
+    {
+      "path": "public/game-art/template/badge-dark.png",
+      "sha256": "e671c33801b2847237303f55b38706ab4a7b37afffcae6abb2a6fe5e8c9ff3cc",
+      "bytes": 95579
+    },
+    {
+      "path": "public/game-art/template/badge-debuff.png",
+      "sha256": "d4b3f85ce14504f439c186ac289b8ad6f5613875bcb82241bbb9543d0e30e8c9",
+      "bytes": 7290
+    },
+    {
+      "path": "public/game-art/template/badge-defensive.png",
+      "sha256": "6e92f5833c92d6b557525043b186fdc61d9d4ca662ada99ec0e19b219c182819",
+      "bytes": 6985
+    },
+    {
+      "path": "public/game-art/template/badge-fangs.png",
+      "sha256": "bb5d8a9abec004360b0054d3c128f3c98bcfe3e5d63f5861963f14bedb9096e9",
+      "bytes": 7213
+    },
+    {
+      "path": "public/game-art/template/badge-fire.png",
+      "sha256": "7172bc7b2c1348cd83a7110388cccd5e7f583061850023ec71fb3d1d3969a404",
+      "bytes": 79571
+    },
+    {
+      "path": "public/game-art/template/badge-frost.png",
+      "sha256": "10d5a7ba1c7eb7a8a5de971d6c510782a122e3e9d157f2b371b5edfbc886e68f",
+      "bytes": 85999
+    },
+    {
+      "path": "public/game-art/template/badge-healing.png",
+      "sha256": "7b80855de9f1c66de5080dd33c32a7c219439c5bf5caa571b9e136671848e4ca",
+      "bytes": 7896
+    },
+    {
+      "path": "public/game-art/template/badge-holy.png",
+      "sha256": "03b860c01a27e356cab6afac1cde7b518586d0ed56c8a5b001da1283b2b50b49",
+      "bytes": 103219
+    },
+    {
+      "path": "public/game-art/template/badge-lance.png",
+      "sha256": "55739dfaecd4f741c78e9c3e98e81d77c12fb1a289be17dc4ffcd2121fd2362f",
+      "bytes": 5158
+    },
+    {
+      "path": "public/game-art/template/badge-lightning.png",
+      "sha256": "049c759d264c0faf5efce2eeb7a020189dbf4bf56f96f70c0d626242f94d2495",
+      "bytes": 90511
+    },
+    {
+      "path": "public/game-art/template/badge-nature.png",
+      "sha256": "cd4ca4d6af67f68a12ec93e349755c394b077f45b296fc418fd4252d8358b6ed",
+      "bytes": 87357
+    },
+    {
+      "path": "public/game-art/template/badge-offense.png",
+      "sha256": "1f83dc658914b0ebd5459ffbecd6c1a5607d02867191bb7786cff49989605414",
+      "bytes": 6592
+    },
+    {
+      "path": "public/game-art/template/badge-support.png",
+      "sha256": "ffe415396f6071159f4d79a5d9605f28c9663a362505dce954c7ec9e4e7514aa",
+      "bytes": 6841
+    },
+    {
+      "path": "public/game-art/template/badge-sword.png",
+      "sha256": "775e034c410e22a1bcdad96825464f90600717a6aca3134343c165041803d369",
+      "bytes": 5244
+    },
+    {
+      "path": "public/game-art/ui/card-badges/axe.webp",
+      "sha256": "72b00b9cac0fa7660651406895c51442a01deeaea34848814fdd6ba4ee027d08",
+      "bytes": 17184
+    },
+    {
+      "path": "public/game-art/ui/card-badges/bow.webp",
+      "sha256": "fa304f1cd9567cec7d13e319c21acccb3ff1c3db1d1fecfb92ec2ce84f0a6932",
+      "bytes": 17566
+    },
+    {
+      "path": "public/game-art/ui/card-badges/dark.webp",
+      "sha256": "04d342a253503560ea7179e0648bce4fe248af782140ca6c7312bdbfeaf33173",
+      "bytes": 15920
+    },
+    {
+      "path": "public/game-art/ui/card-badges/debuff.webp",
+      "sha256": "6bebaf0117e0c296be3d70daf626ed09acc112c71cd09c4d5f3c0a6234d1ae88",
+      "bytes": 14436
+    },
+    {
+      "path": "public/game-art/ui/card-badges/defensive.webp",
+      "sha256": "0b8febda3054bcdec415fa0424c3589d1007bc86350590062d32b32ad2f703c1",
+      "bytes": 14336
+    },
+    {
+      "path": "public/game-art/ui/card-badges/fangs.webp",
+      "sha256": "e083be091e955f5ab64a719bffb2ee6f4522843e5b798e385e17f0a1d1c8fb84",
+      "bytes": 15710
+    },
+    {
+      "path": "public/game-art/ui/card-badges/fire.webp",
+      "sha256": "0e575e4ba928470ff0d213f7f53b410e8e00e39e01c9ea331d87cf922cf9ca9c",
+      "bytes": 16636
+    },
+    {
+      "path": "public/game-art/ui/card-badges/frost.webp",
+      "sha256": "b5b70039d364a9ab1790a8297bd267270cb2770a03aa49553daae1f02f20acec",
+      "bytes": 18966
+    },
+    {
+      "path": "public/game-art/ui/card-badges/healing.webp",
+      "sha256": "65be17de3af6d313bdc03fd49eaa21f46da9c9da341a956649811b56d5507657",
+      "bytes": 13166
+    },
+    {
+      "path": "public/game-art/ui/card-badges/holy.webp",
+      "sha256": "6118b6656770d4a53d2313ed248551e563fcbfa5bc816cca182a31ce45f95a19",
+      "bytes": 17978
+    },
+    {
+      "path": "public/game-art/ui/card-badges/lance.webp",
+      "sha256": "1786a378b7f9b511a2ae078f628131a502b679eb3330d92c2e3c72dde0ec46f4",
+      "bytes": 17080
+    },
+    {
+      "path": "public/game-art/ui/card-badges/lightning.webp",
+      "sha256": "3ccd2907f668853beddbb3ffc93ebbd8d48b4bd5a4137b2b27a6c483eb3d2eca",
+      "bytes": 16528
+    },
+    {
+      "path": "public/game-art/ui/card-badges/nature.webp",
+      "sha256": "1332e624a007e0179bd00e23f18449b465959806287aba52f5553bad88de16c5",
+      "bytes": 16968
+    },
+    {
+      "path": "public/game-art/ui/card-badges/offense.webp",
+      "sha256": "45d829702eeb87fdf2411c0ca61561eda47425c2bec9fae97305193dfdb1fd31",
+      "bytes": 16278
+    },
+    {
+      "path": "public/game-art/ui/card-badges/support.webp",
+      "sha256": "31f4ae15dbfe97b3e1c8a2295dbd28b8b5364e2b8afb4921e42cf8745deda500",
+      "bytes": 16956
+    },
+    {
+      "path": "public/game-art/ui/card-badges/sword.webp",
+      "sha256": "2e4e777100fada455bb83b86daeb9de4d8ca10dfeadb2b4cc9f05cff6ef85156",
+      "bytes": 16492
+    },
+    {
+      "path": "public/game-art/ui/event-icons/card.webp",
+      "sha256": "2375246d08ada940b4f2c19522aa5f825f654ca9f502712f0ac6c852a1a8f8f3",
+      "bytes": 23508
+    },
+    {
+      "path": "public/game-art/ui/event-icons/gamble.webp",
+      "sha256": "86e03c82e5b8dd5a86199ea1b25e45777bef67d895f02deac4f1cb71b3a15fb1",
+      "bytes": 24664
+    },
+    {
+      "path": "public/game-art/ui/event-icons/gem.webp",
+      "sha256": "e09ae4dc33a49db4ad4b5253676fdafe261f8c771bff7b6a012bc24e9ae2babe",
+      "bytes": 22046
+    },
+    {
+      "path": "public/game-art/ui/event-icons/gold.webp",
+      "sha256": "b6972d8ae1bc8133eaa1a0243e5584e52d67776d334583d18ec3b583490bb7eb",
+      "bytes": 23290
+    },
+    {
+      "path": "public/game-art/ui/event-icons/level.webp",
+      "sha256": "f98dfd81298d2dfed831186e54d9d0d09a6dee081f6c182ca88ae7499b0ae9ff",
+      "bytes": 24646
+    },
+    {
+      "path": "public/game-art/ui/event-icons/nothing.webp",
+      "sha256": "da9746341efd245ffdf6f1f0d8bfa5248998bd74620c90870e450ed0486ec038",
+      "bytes": 22932
+    },
+    {
+      "path": "public/game-art/ui/gems/common.webp",
+      "sha256": "2bb5d38ffaee0bccc82a4739267bb932e47ccae772323609295b278b5171c055",
+      "bytes": 8494
+    },
+    {
+      "path": "public/game-art/ui/gems/epic.webp",
+      "sha256": "51a5a3d425fb0d773e969dc362e531efc54f0eb0b16416d1fd0df6fb79206b0d",
+      "bytes": 7960
+    },
+    {
+      "path": "public/game-art/ui/gems/legendary.webp",
+      "sha256": "33881a4f0a973b2c29c39dee612669c9c573d49a3b35c85a96a70d3b553bfbb6",
+      "bytes": 10894
+    },
+    {
+      "path": "public/game-art/ui/gems/rare.webp",
+      "sha256": "28128d4d8a83f2fdd0653f196e4ea9e11bde30725ab29bb2e8b9a5f0f8fd8610",
+      "bytes": 8606
+    },
+    {
+      "path": "public/game-art/ui/painted-fantasy-border-transparent.webp",
+      "sha256": "eb48d238a82906878a10d254d344ecdae78b65eabbd7fd027550023270a8f56c",
+      "bytes": 49080
+    },
+    {
+      "path": "public/game-art/ui/painted-fantasy-frame.webp",
+      "sha256": "81255cc868f11fd5c8931949bfd170a830b14a73e1d2f7121e22ff35c342c7f4",
+      "bytes": 17404
+    },
+    {
+      "path": "public/game-art/ui/route-icons/battle.webp",
+      "sha256": "1626cddf7078fb0b9a8d291df512956024a18eb5fef2d238e264ae4028f08f91",
+      "bytes": 22388
+    },
+    {
+      "path": "public/game-art/ui/route-icons/boss.webp",
+      "sha256": "a58558acf319579ec2f47008ec4d48885b5d7015bf854a118d6bdd8b48dc7359",
+      "bytes": 15154
+    },
+    {
+      "path": "public/game-art/ui/route-icons/equipment.webp",
+      "sha256": "a99d311adbc91c0559c09ba0d2c149b89b9f6f75d6367a3ddd4645514b53f486",
+      "bytes": 12048
+    },
+    {
+      "path": "public/game-art/ui/route-icons/event.webp",
+      "sha256": "cab2c5eb2a7f3573fc496a530a1339917ce8b636cfb029f069c6af2ec09d5c0b",
+      "bytes": 11908
+    },
+    {
+      "path": "public/game-art/ui/route-icons/shop.webp",
+      "sha256": "803f8f1df8cfa1279eb906e6f60fe7637355021bc33d5d2220fc5850afbadefb",
+      "bytes": 15076
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/axe.webp",
+      "sha256": "65b0107d48ad6012cf737331c253feb900b399487454cec35ef18507e9f42cf4",
+      "bytes": 65522
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/beast.webp",
+      "sha256": "2ce7df079856f35c803117d8190818de52cd24c62b87d6b4ee87de2fa00c561f",
+      "bytes": 76028
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/bow.webp",
+      "sha256": "ea52717a0de19f6259116786922f1d4dee7898ab070ce779700aecfcd8e0f549",
+      "bytes": 61492
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/dark.webp",
+      "sha256": "b32c444b2fbfa5927d28cad3ec6874012b2258541f5751bcf498a7978e29eda9",
+      "bytes": 65452
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/fire.webp",
+      "sha256": "c37e8a60c158b683f18f1317e78046ba9bf83be76c7c0582e5777074fb7c807b",
+      "bytes": 74244
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/frost.webp",
+      "sha256": "9dd69c49d7ff7e17aa2a736196ba0461a689a0847ac46ae4965c1ea7db1c7ed7",
+      "bytes": 92454
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/holy.webp",
+      "sha256": "d8396bb47db7809ad7431f827a82b434aaa2dec9eb75ac00cf91352a9f456ef8",
+      "bytes": 83994
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/jointed-shop-frame-v3.webp",
+      "sha256": "b7c28a382d7a03ea3af8d93570f80d702d42e3c974c37fc256faa2e639c0ba9b",
+      "bytes": 56730
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/lance.webp",
+      "sha256": "05f0941f99545f8961045a8dd927e96cd75cbd6a41a4e3a00f1a722bfc1a4209",
+      "bytes": 65176
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/lightning.webp",
+      "sha256": "082aff26f544230f7878feefae568dc90855e69a87e0a1bddb948e522319d916",
+      "bytes": 80340
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/nature.webp",
+      "sha256": "fa1c7cbb6b965e46f84912be7f6dcbbbc5dce6d91dea3cb24bec96117931f278",
+      "bytes": 79896
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/neutral.webp",
+      "sha256": "c7e514476482ff312f749b2836b47c4f8a223f24d3f814241edbf5bd7ef39f6e",
+      "bytes": 68640
+    },
+    {
+      "path": "public/game-art/ui/shop-borders/sword.webp",
+      "sha256": "95ff90522aac4a042f8a61197d28d29c7f6413268bee4583afe024335a761add",
+      "bytes": 67026
+    },
+    {
+      "path": "src/data/content/enemies.v1.json",
+      "sha256": "c7959bc5aa97cb597edeec395bd3cb929fe073e6a1fd2ee77786dd380514eaf2",
+      "bytes": 337345
+    },
+    {
+      "path": "src/data/content/equipment-loot.v1.json",
+      "sha256": "ee431d5831622dba2f42798c098371404f4bed04e5aeae80df708345394d5331",
+      "bytes": 8429
+    },
+    {
+      "path": "src/data/content/equipment.v1.json",
+      "sha256": "0f29934bbe469e21bfc625a8d391809829d5d1d25a6fb49f4a972ff25e2fe9d7",
+      "bytes": 35521
+    },
+    {
+      "path": "src/data/content/event-discoveries.v1.json",
+      "sha256": "3147729cd1e02925e5ea3ce779c7884a11730d69b715315deb19a0033ffda310",
+      "bytes": 2387
+    },
+    {
+      "path": "src/data/content/event-packs/00-core.json",
+      "sha256": "b6efc019b53c2555657c81186e65942ae615044e1f49ab566435e02520d01076",
+      "bytes": 109383
+    },
+    {
+      "path": "src/data/content/event-packs/05-wayside.json",
+      "sha256": "ad4d5d3cef1244856a4d73e9f95f1a61d4e502ed646a024b6d0101e553660fd2",
+      "bytes": 62952
+    },
+    {
+      "path": "src/data/content/event-packs/06-challenges.json",
+      "sha256": "798477b2d69a303c177a98dc0e70c58649f8021ae4f8278c54ab540314372edd",
+      "bytes": 13569
+    },
+    {
+      "path": "src/data/content/event-packs/10-arrowfell.json",
+      "sha256": "728721de2ecf9b1314a60c7996877b026e04f64423ee505ba8539ee397eeeaef",
+      "bytes": 16931
+    },
+    {
+      "path": "src/data/content/event-packs/100-global-payoffs.json",
+      "sha256": "dd9b9c399c7645eccf4f419ebbcfe8b9b0dc358b0b3333b0d59db74c988205d9",
+      "bytes": 7354
+    },
+    {
+      "path": "src/data/content/event-packs/110-global-chains.json",
+      "sha256": "8c290c229e258dec0a682f9ec25e35a99fe97540777d3b1bfbc74ca34c26047f",
+      "bytes": 55118
+    },
+    {
+      "path": "src/data/content/event-packs/120-gold-market.json",
+      "sha256": "de6899df74f8388f899f53c67c5e34721b6393df317b836a22815d8ac22c6bdb",
+      "bytes": 2042
+    },
+    {
+      "path": "src/data/content/event-packs/121-rare-boons.json",
+      "sha256": "2b87b214277cd2a528c919db653287355ddae2ea3917b2515971ca44264df332",
+      "bytes": 16279
+    },
+    {
+      "path": "src/data/content/event-packs/130-patron-chains.json",
+      "sha256": "b0ce26ecc5a445f07dde841dd52adb5ab47859f57fe1011681d919d64397b775",
+      "bytes": 70947
+    },
+    {
+      "path": "src/data/content/event-packs/140-biome-chains.json",
+      "sha256": "bc6be1b14834c884113d3f0e9814dbcabebdc5d04761da068f2db68af369d4ca",
+      "bytes": 28169
+    },
+    {
+      "path": "src/data/content/event-packs/150-biome-traders.json",
+      "sha256": "cf9f07878950b98f4a06c37560e6162dabb5df754f5dc99c49524ba34701c322",
+      "bytes": 30117
+    },
+    {
+      "path": "src/data/content/event-packs/160-new-mechanics.json",
+      "sha256": "21d75e0bd14a6a2bdee8394df7f4f3e543792ccf6d49cf82e6aa014beff74a04",
+      "bytes": 33301
+    },
+    {
+      "path": "src/data/content/event-packs/170-equipment.json",
+      "sha256": "5cfee9da1df052bdd4d726d5d738c947e69a72eb49e03c108de931ea8906e3aa",
+      "bytes": 49137
+    },
+    {
+      "path": "src/data/content/event-packs/20-duskbarrow.json",
+      "sha256": "504b1807552a6408137a38d1c51110a4f5bdb7c025882dd7fd7b5499247a1418",
+      "bytes": 19015
+    },
+    {
+      "path": "src/data/content/event-packs/30-emberwaste.json",
+      "sha256": "525b954d4176f53652074d2e3d888526c5fccce2fb064a05d161336a6501350a",
+      "bytes": 13147
+    },
+    {
+      "path": "src/data/content/event-packs/40-frostmarch.json",
+      "sha256": "5ef531851114131300c528dd871cb42c81aee59457bf35641e64fd4fb7737f69",
+      "bytes": 17448
+    },
+    {
+      "path": "src/data/content/event-packs/45-hallowfield.json",
+      "sha256": "8ff01a70baba42f7f8188b2586966ffbfd4d0097dedbe6b655863ac01cb00df5",
+      "bytes": 15255
+    },
+    {
+      "path": "src/data/content/event-packs/50-howlmoor.json",
+      "sha256": "4313ad89dfbccbabd44ce38ba84ae8c969bc8605b4af10f27e262980be43e049",
+      "bytes": 16740
+    },
+    {
+      "path": "src/data/content/event-packs/60-ironmoot.json",
+      "sha256": "a6cc76f1f663dccee2979cb8e58a3c640980e899e25b2099a81de33828412d20",
+      "bytes": 12596
+    },
+    {
+      "path": "src/data/content/event-packs/70-pikewold.json",
+      "sha256": "1f2905beb8b6e5e3f05b0f68452e5dfc598cb7127c637ddf543b24825de27411",
+      "bytes": 12447
+    },
+    {
+      "path": "src/data/content/event-packs/80-stormreach.json",
+      "sha256": "66cc30c2611b08409b1101076df54bbc2d770cd6ab5856e2a2edc809b465829c",
+      "bytes": 15536
+    },
+    {
+      "path": "src/data/content/event-packs/85-swornhold.json",
+      "sha256": "5bec5c02ebfab64e16375a7b50dc0056b64f99a04cbcf51709a4195eb2c16e55",
+      "bytes": 15344
+    },
+    {
+      "path": "src/data/content/event-packs/90-thornwild.json",
+      "sha256": "636695553af83d94e9820b646a4466dd0ff42a0f36a7388ed9ea13d8ece99fca",
+      "bytes": 16715
+    },
+    {
+      "path": "src/data/content/events.v1.json",
+      "sha256": "095d5d471e4e16915f77799f8869ad0dee24c78f219f7ba27f4898302bb81991",
+      "bytes": 65205
+    },
+    {
+      "path": "src/data/content/events.v2.json",
+      "sha256": "5d6e14f0edead7f18606116af5d5800edb1590bbf5b2b3a6db3905fb9e9cbd7a",
+      "bytes": 70037
+    },
+    {
+      "path": "src/data/content/events.v3.json",
+      "sha256": "13d90bc9afd95467514e0066dd3f328d6d446fe989c782fbeea43b6cf8c39b0d",
+      "bytes": 671307
+    },
+    {
+      "path": "src/data/content/gems.v1.json",
+      "sha256": "2f42ada7cbe51e1fabc84ed93644d5e0addc73f7477c87f6a5457390e633c787",
+      "bytes": 53113
+    },
+    {
+      "path": "src/data/content/modifiers.v1.json",
+      "sha256": "f8d669f39c3e63c730140c690c176aafd162f8b6b9e9227b9f957e650664dd0a",
+      "bytes": 9108
+    },
+    {
+      "path": "src/data/content/skills.v1.json",
+      "sha256": "7f58da178d8b50c615b49f63d76fe527f97aa5386bf9a4afee134a58296ebffe",
+      "bytes": 375987
+    }
+  ]
+}

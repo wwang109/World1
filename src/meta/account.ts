@@ -1,8 +1,9 @@
 import { GHOST_NAME_MAX } from '../run/ghost';
 import { normalizeGhostName } from '../run/ghostValidate';
+import type { GitHubOAuth } from './githubIdentity';
 
-export type AccountProvider = 'steam' | 'email';
-export type AuthCodePurpose = 'steam-state' | 'email' | 'handoff';
+export type AccountProvider = 'google' | 'steam' | 'email' | 'github';
+export type AuthCodePurpose = 'google-nonce' | 'steam-state' | 'email' | 'steam-handoff' | 'github-state' | 'github-handoff';
 
 export interface AccountRecord {
   id: string;
@@ -33,9 +34,10 @@ export interface AccountStore {
   renameAccount(id: string, displayName: string): Promise<void>;
   addSession(tokenHash: string, accountId: string, createdAt: number): Promise<void>;
   accountIdForSession(tokenHash: string): Promise<string | null>;
+  revokeSession(tokenHash: string): Promise<void>;
   linksFor(accountId: string): Promise<AccountLink[]>;
   findLink(provider: AccountProvider, subject: string): Promise<AccountLink | null>;
-  addLink(link: AccountLink): Promise<void>;
+  addLink(link: AccountLink): Promise<AccountLink>;
   putCode(code: AuthCode): Promise<void>;
   takeCode(codeHash: string): Promise<AuthCode | null>;
   latestCodeFor(purpose: AuthCodePurpose, subject: string): Promise<AuthCode | null>;
@@ -54,6 +56,8 @@ export interface AccountView {
 
 export interface AccountFeatures {
   email: boolean;
+  google: boolean;
+  github: boolean;
 }
 
 export interface AccountSessionPayload {
@@ -64,6 +68,14 @@ export interface AccountSessionPayload {
 }
 
 export type AccountNotice =
+  | 'github-linked'
+  | 'github-signed-in'
+  | 'github-failed'
+  | 'github-expired'
+  | 'github-cancelled'
+  | 'google-linked'
+  | 'google-signed-in'
+  | 'signed-out'
   | 'steam-linked'
   | 'steam-signed-in'
   | 'email-linked'
@@ -86,6 +98,8 @@ export interface AccountServiceDeps {
   sha256Hex: (value: string) => Promise<string>;
   fetch: (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{ text(): Promise<string> }>;
   sendEmail: ((message: EmailMessage) => Promise<void>) | null;
+  google?: { clientId: string; verifyCredential: (credential: string, nonce: string) => Promise<string> } | null;
+  github?: GitHubOAuth | null;
   allowReturnTo: (returnTo: URL, apiOrigin: string) => boolean;
 }
 
@@ -107,8 +121,10 @@ export const STEAM_STATE_TTL_MS = 10 * 60 * 1000;
 export const EMAIL_CODE_TTL_MS = 15 * 60 * 1000;
 export const HANDOFF_TTL_MS = 2 * 60 * 1000;
 export const EMAIL_COOLDOWN_MS = 60 * 1000;
+export const GOOGLE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+export const GITHUB_STATE_TTL_MS = 10 * 60 * 1000;
 export const EMAIL_MAX_LENGTH = 254;
-export const ACCOUNT_BODY_MAX_BYTES = 2048;
+export const ACCOUNT_BODY_MAX_BYTES = 16384;
 export const HASH_EMAIL_PREFIX = 'account-email=';
 export const HASH_HANDOFF_PREFIX = 'account-handoff=';
 export const HASH_NOTICE_PREFIX = 'account=';
@@ -202,9 +218,13 @@ function withHash(base: URL, hash: string): string {
   return target.toString();
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+}
+
 export function createAccountService(deps: AccountServiceDeps) {
   const { store } = deps;
-  const features: AccountFeatures = { email: deps.sendEmail !== null };
+  const features: AccountFeatures = { email: deps.sendEmail !== null, google: Boolean(deps.google?.clientId), github: Boolean(deps.github) };
 
   async function view(account: AccountRecord): Promise<AccountView> {
     const links = await store.linksFor(account.id);
@@ -213,7 +233,7 @@ export function createAccountService(deps: AccountServiceDeps) {
       displayName: account.displayName,
       links: links.map((link) => ({
         provider: link.provider,
-        label: link.provider === 'email' ? maskEmail(link.subject) : 'Steam',
+        label: link.provider === 'email' ? maskEmail(link.subject) : link.provider === 'google' ? 'Google' : link.provider === 'github' ? 'GitHub' : 'Steam',
       })),
     };
   }
@@ -250,7 +270,7 @@ export function createAccountService(deps: AccountServiceDeps) {
   async function takeLiveCode(raw: unknown, purposes: AuthCodePurpose[]): Promise<AuthCode | null> {
     if (typeof raw !== 'string' || !/^[0-9a-f]{64}$/.test(raw)) return null;
     const code = await store.takeCode(await deps.sha256Hex(raw));
-    if (code === null || !purposes.includes(code.purpose) || code.expiresAt < deps.now()) return null;
+    if (code === null || !purposes.includes(code.purpose) || code.expiresAt <= deps.now()) return null;
     return code;
   }
 
@@ -274,12 +294,17 @@ export function createAccountService(deps: AccountServiceDeps) {
     const existing = await store.findLink(provider, subject);
     if (existing) {
       const account = await store.getAccount(existing.accountId);
-      if (account) return { account, notice: provider === 'steam' ? 'steam-signed-in' : 'email-signed-in' };
+      if (account) return { account, notice: `${provider}-signed-in` };
     }
     const requester = requesterId === null ? null : await store.getAccount(requesterId);
     const account = requester ?? await createAccount(null);
-    await store.addLink({ provider, subject, accountId: account.id, createdAt: deps.now() });
-    return { account, notice: provider === 'steam' ? 'steam-linked' : 'email-linked' };
+    const claimed = await store.addLink({ provider, subject, accountId: account.id, createdAt: deps.now() });
+    if (claimed.accountId !== account.id) {
+      const winner = await store.getAccount(claimed.accountId);
+      if (!winner) throw new Error('account-unavailable');
+      return { account: winner, notice: `${provider}-signed-in` };
+    }
+    return { account, notice: `${provider}-linked` };
   }
 
   async function verifySteam(url: URL): Promise<string | null> {
@@ -287,7 +312,11 @@ export function createAccountService(deps: AccountServiceDeps) {
     if (params.get('openid.mode') !== 'id_res') return null;
     if (params.get('openid.op_endpoint') !== STEAM_OPENID_ENDPOINT) return null;
     const returnTo = params.get('openid.return_to');
-    if (returnTo === null || new URL(returnTo).origin + new URL(returnTo).pathname !== url.origin + url.pathname) return null;
+    const expectedReturnTo = `${url.origin}${url.pathname}?state=${url.searchParams.get('state') ?? ''}`;
+    if (returnTo !== expectedReturnTo) return null;
+    const signed = (params.get('openid.signed') ?? '').split(',');
+    if (['op_endpoint', 'claimed_id', 'identity', 'return_to', 'response_nonce'].some(key => !signed.includes(key))) return null;
+    if (params.get('openid.identity') !== params.get('openid.claimed_id')) return null;
     const steamId = steamIdFromClaimedId(params.get('openid.claimed_id'));
     if (steamId === null) return null;
     const check = new URLSearchParams();
@@ -308,6 +337,28 @@ export function createAccountService(deps: AccountServiceDeps) {
     const apiOrigin = req.url.origin;
     const route = `${req.method} ${req.path}`;
 
+    if (route === 'GET /account/github/callback') {
+      const code = await takeLiveCode(req.url.searchParams.get('state'), ['github-state']);
+      if (code === null || code.returnTo === null) return json(400, { error: 'github-expired' });
+      const back = new URL(code.returnTo);
+      const failed = (notice: AccountNotice = 'github-failed'): AccountServiceResult => ({ kind: 'redirect', location: withHash(back, `${HASH_NOTICE_PREFIX}${notice}`) });
+      if (!deps.github) return failed();
+      if (req.url.searchParams.has('error')) return failed(req.url.searchParams.get('error') === 'access_denied' ? 'github-cancelled' : 'github-failed');
+      const oauthCode = req.url.searchParams.get('code');
+      if (!oauthCode || req.url.searchParams.getAll('state').length !== 1 || req.url.searchParams.getAll('code').length !== 1) return failed();
+      let subject: string;
+      try {
+        const metadata = JSON.parse(code.subject ?? '') as { verifier?: unknown; callback?: unknown };
+        const expectedCallback = `${apiOrigin}/account/github/callback`;
+        if (typeof metadata.verifier !== 'string' || !/^[0-9a-f]{64}$/.test(metadata.verifier) || metadata.callback !== expectedCallback) return failed();
+        subject = await deps.github.verifyCode(oauthCode, expectedCallback, metadata.verifier);
+      } catch {
+        return failed();
+      }
+      const handoff = await issueCode({ purpose: 'github-handoff', accountId: code.accountId, subject, returnTo: null, expiresAt: deps.now() + HANDOFF_TTL_MS });
+      return { kind: 'redirect', location: withHash(back, `${HASH_HANDOFF_PREFIX}${handoff}`) };
+    }
+
     if (route === 'GET /account/steam/callback') {
       const code = await takeLiveCode(req.url.searchParams.get('state'), ['steam-state']);
       if (code === null || code.returnTo === null) {
@@ -321,9 +372,8 @@ export function createAccountService(deps: AccountServiceDeps) {
         steamId = null;
       }
       if (steamId === null) return { kind: 'redirect', location: withHash(back, `${HASH_NOTICE_PREFIX}steam-failed`) };
-      const { account, notice } = await resolveProvider('steam', steamId, code.accountId);
       const handoff = await issueCode({
-        purpose: 'handoff', accountId: account.id, subject: notice, returnTo: null,
+        purpose: 'steam-handoff', accountId: code.accountId, subject: steamId, returnTo: null,
         expiresAt: deps.now() + HANDOFF_TTL_MS,
       });
       return { kind: 'redirect', location: withHash(back, `${HASH_HANDOFF_PREFIX}${handoff}`) };
@@ -339,19 +389,58 @@ export function createAccountService(deps: AccountServiceDeps) {
     }
 
     if (route === 'POST /account/redeem') {
-      const code = await takeLiveCode(body.code, ['email', 'handoff']);
+      const code = await takeLiveCode(body.code, ['email', 'steam-handoff', 'github-handoff']);
       if (code === null) return json(400, { error: 'link-expired' });
-      if (code.purpose === 'handoff') {
-        const account = code.accountId === null ? null : await store.getAccount(code.accountId);
-        if (account === null) return json(400, { error: 'link-expired' });
-        return json(200, await issueSession(account, (code.subject ?? undefined) as AccountNotice | undefined));
-      }
       if (code.subject === null) return json(400, { error: 'link-expired' });
-      const { account, notice } = await resolveProvider('email', code.subject, code.accountId);
+      const redeemer = await authenticate(req.authorization);
+      const linkTarget = redeemer?.id === code.accountId ? redeemer.id : null;
+      const provider: AccountProvider = code.purpose === 'email' ? 'email' : code.purpose === 'github-handoff' ? 'github' : 'steam';
+      const { account, notice } = await resolveProvider(provider, code.subject, linkTarget);
+      const oldToken = bearerToken(req.authorization);
+      if (oldToken) await store.revokeSession(await deps.sha256Hex(oldToken));
       return json(200, await issueSession(account, notice));
     }
 
     const requester = await authenticate(req.authorization);
+
+    if (route === 'POST /account/github/start') {
+      if (requester === null) return json(401, { error: 'missing-account' });
+      if (!deps.github) return json(503, { error: 'github-unavailable' });
+      const returnTo = parseReturnTo(body.returnTo, apiOrigin);
+      if (returnTo === null) return json(400, { error: 'invalid-return' });
+      const verifier = deps.randomHex(32);
+      const callback = `${apiOrigin}/account/github/callback`;
+      const state = await issueCode({ purpose: 'github-state', accountId: requester.id, subject: JSON.stringify({ verifier, callback }),
+        returnTo: returnTo.toString(), expiresAt: deps.now() + GITHUB_STATE_TTL_MS });
+      return json(200, { url: await deps.github.authorizationUrl(state, callback, verifier) });
+    }
+
+    if (route === 'POST /account/google/start') {
+      if (requester === null) return json(401, { error: 'missing-account' });
+      if (!deps.google?.clientId) return json(503, { error: 'google-unavailable' });
+      const challenge = await issueCode({
+        purpose: 'google-nonce', accountId: requester.id, subject: null, returnTo: null,
+        expiresAt: deps.now() + GOOGLE_CHALLENGE_TTL_MS,
+      });
+      return json(200, { challenge, nonce: challenge, clientId: deps.google.clientId });
+    }
+
+    if (route === 'POST /account/google/redeem') {
+      if (requester === null) return json(401, { error: 'missing-account' });
+      if (!deps.google?.clientId) return json(503, { error: 'google-unavailable' });
+      const challenge = await takeLiveCode(body.challenge, ['google-nonce']);
+      if (challenge === null || challenge.accountId !== requester.id) return json(400, { error: 'google-expired' });
+      if (typeof body.credential !== 'string' || body.credential.length > 12000) return json(400, { error: 'google-failed' });
+      let subject: string;
+      try {
+        subject = await deps.google.verifyCredential(body.credential, body.challenge as string);
+      } catch {
+        return json(400, { error: 'google-failed' });
+      }
+      const { account, notice } = await resolveProvider('google', subject, requester.id);
+      await store.revokeSession(await deps.sha256Hex(bearerToken(req.authorization)!));
+      return json(200, await issueSession(account, notice));
+    }
 
     if (route === 'POST /account/steam/start') {
       const returnTo = parseReturnTo(body.returnTo, apiOrigin);
@@ -377,16 +466,24 @@ export function createAccountService(deps: AccountServiceDeps) {
         expiresAt: deps.now() + EMAIL_CODE_TTL_MS,
       });
       const link = withHash(returnTo, `${HASH_EMAIL_PREFIX}${code}`);
-      await deps.sendEmail({
+      try { await deps.sendEmail({
         to: email,
-        subject: 'Your World1 sign-in link',
-        text: `Open this link to sign in to World1:\n\n${link}\n\nIt works once and expires in 15 minutes. If you did not ask for it, ignore this email.`,
-        html: `<p>Open this link to sign in to World1:</p><p><a href="${link}">Sign in to World1</a></p><p>It works once and expires in 15 minutes. If you did not ask for it, ignore this email.</p>`,
-      });
+        subject: 'Your Wandering Hand sign-in link',
+        text: `Open this link to sign in to Wandering Hand:\n\n${link}\n\nIt works once and expires in 15 minutes. If you did not ask for it, ignore this email.`,
+        html: `<p>Open this link to sign in to Wandering Hand:</p><p><a href="${escapeHtml(link)}">Sign in to Wandering Hand</a></p><p>It works once and expires in 15 minutes. If you did not ask for it, ignore this email.</p>`,
+      }); } catch {
+        await store.takeCode(await deps.sha256Hex(code));
+        return json(503, { error: 'email-send-failed' });
+      }
       return json(202, { ok: true });
     }
 
     if (requester === null) return json(401, { error: 'missing-account' });
+
+    if (route === 'POST /account/signout') {
+      await store.revokeSession(await deps.sha256Hex(bearerToken(req.authorization)!));
+      return json(200, await issueSession(await createAccount(null), 'signed-out'));
+    }
 
     if (route === 'GET /account/me') {
       return json(200, { account: await view(requester), features });

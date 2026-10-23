@@ -11,6 +11,7 @@ import type { SkillDef, SkillTier } from '../../engine/types';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import type { MarketStat } from '../../data/eventTypes';
 import type { MarketStatPickOption } from '../../run/market';
+import { STAT_TOKEN } from '../../engine/keywords/text';
 import type { EquipmentPicker } from './runEventScenePresenter';
 import { MARKET_STAT_LABEL } from './eventOutcomeText';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from './RunChoicePanel';
@@ -428,6 +429,56 @@ function renderRewardText(scene: Phaser.Scene, platform: RunTemplatePlatform, re
   if (detailText) detailText.setY(top + headlineText.height + gap);
 }
 
+export interface RunFooterAction { label: string; onPress: () => void; enabled?: boolean }
+
+/** The event pane's one action bar: secondary (back / skip) on the left half, primary on the right half. */
+export function renderRunFooterBar(
+  scene: Phaser.Scene,
+  bar: Rect,
+  actions: { secondary?: RunFooterAction; primary?: RunFooterAction },
+  font: LayoutProfile['font'],
+  colors: RewardColors = UI,
+): void {
+  if (bar.height <= 0 || bar.width <= 0) return;
+  const gap = 12;
+  const half = (bar.width - gap) / 2;
+  if (actions.secondary) renderFooterButton(scene, { x: bar.x, y: bar.y, w: half, h: bar.height }, actions.secondary, 'secondary', font, colors);
+  if (actions.primary) renderFooterButton(scene, { x: bar.x + half + gap, y: bar.y, w: half, h: bar.height }, actions.primary, 'primary', font, colors);
+}
+
+function renderFooterButton(
+  scene: Phaser.Scene,
+  box: Box,
+  action: RunFooterAction,
+  role: 'primary' | 'secondary',
+  font: LayoutProfile['font'],
+  colors: RewardColors,
+): void {
+  const enabled = action.enabled ?? true;
+  const primary = role === 'primary';
+  const fill = primary ? (enabled ? colors.chip : colors.panelMuted) : FOOTER_OUTLINE_FILL;
+  const btn = scene.add.rectangle(box.x, box.y, box.w, box.h, fill, primary ? (enabled ? 1 : 0.6) : 0.92)
+    .setOrigin(0, 0)
+    .setStrokeStyle(2, primary ? colors.border : Phaser.Display.Color.HexStringToColor(colors.text).color, primary ? (enabled ? 0.9 : 0.45) : (enabled ? 0.8 : 0.35))
+    .setName(`run-footer-${role}`);
+  const label = scene.add.text(box.x + box.w / 2, box.y + box.h / 2, action.label, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.name}px`,
+    color: !enabled ? colors.textSoft : primary ? UI.textOnChip : colors.text,
+  }).setOrigin(0.5);
+  auditControlLabel(btn, label, { name: `Run footer ${action.label}`, horizontalPadding: 10, verticalPadding: 6, minFontSize: 9 });
+  if (!enabled) return;
+  btn.setInteractive({ useHandCursor: true });
+  attachButtonFeel(scene, btn, {
+    fill,
+    hover: primary ? (colors === UI ? UI.chipDark : 0xe4bd72) : colors.panelAlt,
+    follow: [label],
+    sfx: primary ? 'uiClick' : 'uiBack',
+    onPress: () => { if (!wasPointerConsumedByRebuild(scene, scene.input.activePointer)) action.onPress(); },
+  });
+}
+
+const FOOTER_OUTLINE_FILL = 0x0d1b26;
+
 function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfile['font'], onContinue: () => void, colors: RewardColors = UI): void {
   const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, colors.chip, 1)
     .setOrigin(0, 0)
@@ -491,7 +542,7 @@ export function renderRunRewardPanel(
     const continueRect = renderRunGemReward(scene, template, model.feature.gem, {
       headline: model.headline, detail: model.detail, colors: rewardColors(template),
     });
-    renderContinueButton(scene, continueRect, opts.font, opts.onContinue, rewardColors(template));
+    renderRunFooterBar(scene, continueRect, { primary: { label: 'CONTINUE ›', onPress: opts.onContinue } }, opts.font, rewardColors(template));
     const art = layoutRunGemReward(panel, template.platform === 'mobile').art;
     const details = scene.add.rectangle(art.x, art.y + art.height - 28, art.width, 28, UI.chipDark, 0.96).setOrigin(0).setInteractive({ useHandCursor: true }).setName('run-gem-reward-expand');
     const label = scene.add.text(art.x + art.width / 2, details.y + 14, 'DETAILS', textRoleFor(template.platform, 'label')).setOrigin(0.5);
@@ -506,7 +557,7 @@ export function renderRunRewardPanel(
       headline: model.headline, detail: model.detail, eventTitle: opts.eventTitle,
       colors: rewardColors(template), onInspect: () => renderCardDetailsDrawer(scene, skill, { compact: template.platform === 'mobile', onClose: () => {} }), inspected: false,
     });
-    renderContinueButton(scene, continueRect, opts.font, opts.onContinue, rewardColors(template));
+    renderRunFooterBar(scene, continueRect, { primary: { label: 'CONTINUE ›', onPress: opts.onContinue } }, opts.font, rewardColors(template));
     if (opts.inspected && opts.onCloseInspect) {
       renderCardDetailsDrawer(scene, model.feature.skill, {
         compact: template.platform === 'mobile', onClose: opts.onCloseInspect,
@@ -523,7 +574,13 @@ export function renderRunRewardPanel(
   renderRewardText(scene, template.platform, text, model, opts.font, rewardColors(template));
   renderBigFeature(scene, template.platform, model.feature, model.iconKey, feature, rewardColors(template));
   // Events always own their exit here, never in a second HUD action.
-  if (template.eventOutcomePane || template.platform === 'desktop') {
+  if (template.eventOutcomePane) {
+    const feature = model.feature;
+    const secondary = feature.kind === 'equipment'
+      ? { label: 'DETAILS', onPress: () => renderEquipmentDetailsDrawer(scene, template.platform === 'mobile', feature.item, { run: getActiveRun() ?? undefined }) }
+      : undefined;
+    renderRunFooterBar(scene, buttons, { secondary, primary: { label: 'CONTINUE ›', onPress: opts.onContinue } }, opts.font, rewardColors(template));
+  } else if (template.platform === 'desktop') {
     if (model.feature.kind === 'equipment') {
       const width = (buttons.width - 12) / 2;
       const details = scene.add.rectangle(buttons.x, buttons.y, width, buttons.height, UI.chipDark).setOrigin(0).setInteractive({ useHandCursor: true }).setName('run-equipment-reward-expand');
@@ -1186,38 +1243,31 @@ export function renderRunRerollPicker(
 export function renderRunStatPickPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
-  options: readonly MarketStatPickOption[],
+  options: readonly (MarketStatPickOption & { current?: number })[],
   opts: {
     font: LayoutProfile['font'];
     eventTitle: string;
     onPick: (stat: MarketStat) => void;
-    onCancel: () => void;
   } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('buyStatPick'), 'PICK A STAT TO BUY', opts.eventTitle, opts.font, 'Run reward stat pick title');
 
   const { feature } = template.contentSlots.reward;
   const rowH = runChoicePanelMinHeight(opts.font);
-  const ideal = rowIdeal(feature, rowH);
-  const rowCount = options.length + 1;
-  const pickerWindow = layoutRewardPickerWindow('buyStatPick', template.platform, feature, rowCount, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  const columns = template.platform === 'desktop' ? 2 : 1;
+  const gap = GRID_GAP[template.platform];
+  const ideal = { w: (feature.width - gap * (columns - 1)) / columns, h: rowH };
+  const pickerWindow = layoutRewardPickerWindow('buyStatPick', template.platform, feature, options.length, ideal.w, ideal.h, gap, opts.page);
   renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
   pickerWindow.cells.forEach((cell, localIndex) => {
     const index = pickerWindow.startIndex + localIndex;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    if (index === options.length) {
-      const model: RunChoiceViewModel = {
-        nodeId: 'market-stat-pick-cancel', kind: 'event', title: 'CANCEL',
-        detail: 'Back to the event', footer: '', accent: UI.bad, enabled: true,
-      };
-      renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'uiClick', onSelect: opts.onCancel });
-      return;
-    }
     const option = options[index];
     if (!option) return;
     const model: RunChoiceViewModel = {
       nodeId: `market-stat-${option.stat}`, kind: 'event', title: MARKET_STAT_LABEL[option.stat],
-      detail: '', footer: `COST ${option.price} GOLD`, accent: UI.chip, enabled: option.affordable,
+      detail: option.current === undefined ? '' : `${STAT_TOKEN[option.stat]} ${option.current} → ${option.current + option.gain}`,
+      footer: `COST ${option.price} GOLD`, accent: UI.chip, enabled: option.affordable,
     };
     renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'purchase', onSelect: () => opts.onPick(option.stat) });
   });
@@ -1231,7 +1281,6 @@ export function renderRunEquipmentPicker(
     font: LayoutProfile['font'];
     eventTitle: string;
     onPick: (id: string) => void;
-    onCancel: () => void;
   } & RewardPickerPagingOptions,
 ): void {
   const title = picker.kind === 'forgeEquipment' ? 'PICK AN ITEM TO FORGE' : 'PICK AN ITEM TO UPGRADE';
@@ -1239,19 +1288,11 @@ export function renderRunEquipmentPicker(
   const { feature } = template.contentSlots.reward;
   const rowH = runChoicePanelMinHeight(opts.font);
   const ideal = rowIdeal(feature, rowH);
-  const pickerWindow = layoutRewardPickerWindow('equipmentPick', template.platform, feature, picker.options.length + 1, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
+  const pickerWindow = layoutRewardPickerWindow('equipmentPick', template.platform, feature, picker.options.length, ideal.w, ideal.h, GRID_GAP[template.platform], opts.page);
   renderPickerPager(scene, pickerWindow, template.platform, opts.onPageChange, rewardColors(template));
   pickerWindow.cells.forEach((cell, localIndex) => {
     const index = pickerWindow.startIndex + localIndex;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    if (index === picker.options.length) {
-      const model: RunChoiceViewModel = {
-        nodeId: 'equipment-pick-cancel', kind: 'event', title: 'CANCEL',
-        detail: 'Back to the event', footer: '', accent: UI.bad, enabled: true,
-      };
-      renderRunChoicePanel(scene, box, model, { font: opts.font, sfx: 'uiClick', onSelect: opts.onCancel });
-      return;
-    }
     const option = picker.options[index];
     if (!option) return;
     const model: RunChoiceViewModel = {
@@ -1264,41 +1305,6 @@ export function renderRunEquipmentPicker(
 
 const MERGE_BAR_H: Record<RunTemplatePlatform, number> = { desktop: 40, mobile: 44 };
 const MERGE_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 18, mobile: 16 };
-
-export function renderPickerSkipButton(scene: Phaser.Scene, template: RunScreenTemplate, font: LayoutProfile['font'], onSkip: () => void): void {
-  const { buttons } = template.contentSlots.reward;
-  if (buttons.height <= 0) return;
-  renderPaneButton(scene, { x: buttons.x, y: buttons.y, w: buttons.width, h: buttons.height }, 'SKIP ›', true, false, font, onSkip, rewardColors(template));
-}
-
-function renderPaneButton(
-  scene: Phaser.Scene,
-  box: Box,
-  text: string,
-  enabled: boolean,
-  primary: boolean,
-  font: LayoutProfile['font'],
-  onPress: () => void,
-  colors: RewardColors = UI,
-): void {
-  const fill = !enabled ? colors.panelMuted : primary ? colors.chip : colors.panelAlt;
-  const btn = scene.add.rectangle(box.x, box.y, box.w, box.h, fill, enabled ? 1 : 0.6)
-    .setOrigin(0, 0)
-    .setStrokeStyle(2, enabled ? colors.chip : colors.border, enabled ? 0.9 : 0.45);
-  const label = scene.add.text(box.x + box.w / 2, box.y + box.h / 2, text, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.name}px`,
-    color: !enabled ? colors.textSoft : primary ? UI.textOnChip : colors.text,
-  }).setOrigin(0.5);
-  auditControlLabel(btn, label, { name: `Run merge ${text}`, horizontalPadding: 10, verticalPadding: 6, minFontSize: 9 });
-  if (!enabled) return;
-  btn.setInteractive({ useHandCursor: true });
-  attachButtonFeel(scene, btn, {
-    fill,
-    hover: primary ? (colors === UI ? UI.chipDark : 0xe4bd72) : colors.panelMuted,
-    follow: [label],
-    onPress: () => { if (!wasPointerConsumedByRebuild(scene, scene.input.activePointer)) onPress(); },
-  });
-}
 
 function renderMergeCaption(
   scene: Phaser.Scene,
@@ -1351,15 +1357,17 @@ function mergeBodyRects(
   captionLines: number,
   font: LayoutProfile['font'],
 ): { caption: Rect; grid: Rect; bar: Rect } {
-  const { detail, feature } = template.contentSlots.reward;
+  const { detail, feature, buttons } = template.contentSlots.reward;
   const gap = GRID_GAP[template.platform];
   const barH = MERGE_BAR_H[template.platform];
   const captionH = captionLines * (font.tiny + 6);
   const top = detail.y;
   const bottom = feature.y + feature.height;
-  const bar: Rect = { x: feature.x, y: bottom - barH, width: feature.width, height: barH };
+  const footer = buttons.height > 0;
+  const bar: Rect = footer ? buttons : { x: feature.x, y: bottom - barH, width: feature.width, height: barH };
+  const gridBottom = footer ? bottom : bar.y - gap;
   const caption: Rect = { x: detail.x, y: top, width: detail.width, height: captionH };
-  const grid: Rect = { x: feature.x, y: top + captionH + gap, width: feature.width, height: Math.max(0, bar.y - gap - (top + captionH + gap)) };
+  const grid: Rect = { x: feature.x, y: top + captionH + gap, width: feature.width, height: Math.max(0, gridBottom - (top + captionH + gap)) };
   return { caption, grid, bar };
 }
 
@@ -1374,6 +1382,7 @@ export function renderRunMergeSelectPicker(
     onDetail: (index: number | null) => void;
     onToggle: (instanceId: string) => void;
     onNext: () => void;
+    skip?: RunFooterAction;
   } & RewardPickerPagingOptions,
 ): void {
   renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), view.title, opts.eventTitle, opts.font, 'Run reward merge select title');
@@ -1399,9 +1408,10 @@ export function renderRunMergeSelectPicker(
   });
 
   const remaining = 3 - view.cards.filter((card) => card.selected).length;
-  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: rects.bar.width, h: rects.bar.height },
-    view.ready ? 'SEE REWARDS ›' : view.blocked ? 'NO REWARD FITS' : `PICK ${remaining} MORE`,
-    view.ready, true, opts.font, opts.onNext, colors);
+  renderRunFooterBar(scene, rects.bar, {
+    secondary: opts.skip,
+    primary: { label: view.ready ? 'SEE REWARDS ›' : view.blocked ? 'NO REWARD FITS' : `PICK ${remaining} MORE`, enabled: view.ready, onPress: opts.onNext },
+  }, opts.font, colors);
 
 
 }
@@ -1456,11 +1466,10 @@ export function renderRunMergeConfirmPicker(
     }
   });
 
-  const backW = Math.round(rects.bar.width * 0.38);
-  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: backW, h: rects.bar.height },
-    '‹ CHANGE CARDS', true, false, opts.font, opts.onBack, colors);
-  renderPaneButton(scene, { x: rects.bar.x + backW + gap, y: rects.bar.y, w: rects.bar.width - backW - gap, h: rects.bar.height },
-    view.ready ? 'MERGE' : 'PICK A REWARD', view.ready, true, opts.font, opts.onMerge, colors);
+  renderRunFooterBar(scene, rects.bar, {
+    secondary: { label: '‹ CHANGE CARDS', onPress: opts.onBack },
+    primary: { label: view.ready ? 'MERGE' : 'PICK A REWARD', enabled: view.ready, onPress: opts.onMerge },
+  }, opts.font, colors);
 
 
 }
@@ -1587,11 +1596,10 @@ export function renderRunReshapeConfirm(
     tile(rightX, gain.big, gain.line, UI.chip);
   }
 
-  const backW = Math.round(rects.bar.width * 0.38);
-  renderPaneButton(scene, { x: rects.bar.x, y: rects.bar.y, w: backW, h: rects.bar.height },
-    '‹ PICK ANOTHER', true, false, opts.font, opts.onBack, colors);
-  renderPaneButton(scene, { x: rects.bar.x + backW + gap, y: rects.bar.y, w: rects.bar.width - backW - gap, h: rects.bar.height },
-    view.confirmLabel, true, true, opts.font, opts.onConfirm, colors);
+  renderRunFooterBar(scene, rects.bar, {
+    secondary: { label: '‹ PICK ANOTHER', onPress: opts.onBack },
+    primary: { label: view.confirmLabel, onPress: opts.onConfirm },
+  }, opts.font, colors);
 
 
 }

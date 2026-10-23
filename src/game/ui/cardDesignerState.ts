@@ -4,14 +4,18 @@ import {
   isOnBudget,
   powerLevelBreakdown,
   powerLevelDeci,
+  resourceSuppliedBy,
+  riderFeedsKind,
+  riderReadsResource,
   TIER_BUDGET_DECI,
   type PlBreakdownPart,
 } from '../../engine/balance';
-import { actionExistsAtTier, TIER_ORDER, type Action, type Property, type SkillDef, type SkillSize, type SkillTier } from '../../engine/types';
+import { actionExistsAtTier, BASELINE_COOLDOWN, TIER_ORDER, weightOf, type Action, type Property, type SkillDef, type SkillSize, type SkillTier } from '../../engine/types';
 import { KEYWORD_TEXT } from '../../engine/keywords/text';
 import { editableFieldsFor, ELEMENT_OPTIONS, selectorsFor, WEAPON_OPTIONS, type EditableField, type EditorContext } from '../../engine/keywords/editor';
-import { validateSkillDocument, type ContentProblem } from '../../data/validateSkillContent';
+import { SILVER_PLUS_KINDS, validateSkillDocument, type ContentProblem } from '../../data/validateSkillContent';
 import skillDocument from '../../data/content/skills.v1.json';
+import { skillBook } from '../../data/skills';
 
 /**
  * CARD DESIGNER — pure state/pricing/validation for the desktop Card Designer
@@ -150,9 +154,28 @@ export const cardDesignerTemplates: readonly CardDesignerTemplate[] = rawSkillCa
 export function draftFromTemplate(templateId: string): CardDesignerDraft {
   const card = rawSkillCards.find((entry) => entry.id === templateId);
   if (!card) throw new Error(`unknown card template "${templateId}"`);
+  const def = cloneJson(latestVersion(card).def);
+  const source = skillBook[templateId]!;
+  const upgrades: Partial<Record<NonBronzeTier, RawTierUpgrade>> = {};
+  for (const tier of TIER_ORDER.slice(TIER_ORDER.indexOf(def.tier) + 1)) {
+    if (tier === 'bronze') continue;
+    const resolved = applyTier(source, tier);
+    const upgrade: RawTierUpgrade = {};
+    if (resolved.aura === undefined) {
+      upgrade.effects = cloneJson(resolved.effects) as unknown as RawEffect[];
+      upgrade.speedWeight = weightOf(resolved);
+      upgrade.cooldownTurns = resolved.cooldownTurns ?? BASELINE_COOLDOWN;
+      upgrade.scope = resolved.scope ?? 'one';
+    } else {
+      upgrade.aura = cloneJson(resolved.aura) as unknown as Record<string, unknown>;
+    }
+    upgrades[tier] = upgrade;
+  }
+  if (Object.keys(upgrades).length > 0) def.tierUpgrades = upgrades;
+  else delete def.tierUpgrades;
   return {
     id: distinctDraftId(`${card.id}_draft`),
-    def: cloneJson(latestVersion(card).def),
+    def,
   };
 }
 
@@ -284,6 +307,7 @@ function materializedDef(draft: CardDesignerDraft): CardDesignerDef {
     if (tier === 'bronze') continue;
     const configuration = cloneJson(configurations[tier]!);
     configuration.effects = activeEffects(configuration.effects ?? [], tier, true);
+    if (def.aura !== undefined && configuration.effects.length === 0) delete configuration.effects;
     upgrades[tier] = configuration;
   }
   if (Object.keys(upgrades).length === 0) delete def.tierUpgrades;
@@ -410,15 +434,68 @@ function withLayerEffects(draft: CardDesignerDraft, tier: SkillTier, effects: Ra
   };
 }
 
+function asAction(effect: RawEffect): Action {
+  return effect as unknown as Action;
+}
+
+function placementIndex(effects: readonly RawEffect[], effect: RawEffect): number {
+  const feeds = riderFeedsKind(asAction(effect));
+  if (feeds === null) {
+    const convert = effect.kind === 'cleanse' ? effects.findIndex((other) => other.kind === 'cleanseConvert') : -1;
+    return convert === -1 ? effects.length : convert;
+  }
+  const from = effect.kind === 'cleanseConvert' ? effects.map((other) => other.kind).lastIndexOf('cleanse') + 1 : 0;
+  const fed = effects.findIndex((other, index) => index >= from && other.kind === feeds);
+  return fed === -1 ? effects.length : fed;
+}
+
+function suppliersAfterFedActions(effects: readonly RawEffect[]): RawEffect[] {
+  let list = effects.slice();
+  for (let r = 0; r < list.length; r += 1) {
+    const rider = list[r]!;
+    const reads = riderReadsResource(asAction(rider));
+    const feeds = riderFeedsKind(asAction(rider));
+    if (reads === null || feeds === null) continue;
+    const fed = list.findIndex((other, index) => index > r && other.kind === feeds);
+    if (fed === -1) continue;
+    const moved: RawEffect[] = [];
+    const kept: RawEffect[] = [];
+    list.forEach((other, index) => {
+      const supplied = index !== r && index < fed ? resourceSuppliedBy(asAction(other)) : null;
+      if (supplied !== null && supplied.resource === reads.resource && supplied.on === reads.on) moved.push(other);
+      else kept.push(other);
+    });
+    if (moved.length === 0) continue;
+    kept.splice(kept.indexOf(list[fed]!) + 1, 0, ...moved);
+    list = kept;
+    r = list.indexOf(rider);
+  }
+  return list;
+}
+
+/** Silver+ keywords (`SILVER_PLUS_KINDS`) picked on Bronze land on SILVER. */
+export function effectTierFor(tier: SkillTier, kind: string): SkillTier {
+  return tier === 'bronze' && SILVER_PLUS_KINDS.includes(kind) ? 'silver' : tier;
+}
+
 export function withEffectAdded(draft: CardDesignerDraft, tier: SkillTier, kind: string): CardDesignerDraft {
   const effect: RawEffect = { kind };
   if (kind in KEYWORD_TEXT) {
     const actionKind = kind as Action['kind'];
     const ctx = editorContextFor(draft, tier);
-    for (const field of editableFieldsFor(actionKind, ctx)) effect[field.key] = field.default;
-    for (const selector of selectorsFor(actionKind, ctx)) effect[selector.key] = selector.default;
+    for (const field of editableFieldsFor(actionKind, ctx)) {
+      effect[field.key] = field.default > 0 ? field.default : Math.min(field.max, field.min + field.step);
+    }
+    const ownType = draft.def.element ?? draft.def.weapon;
+    for (const selector of selectorsFor(actionKind, ctx)) {
+      effect[selector.key] = selector.key === 'after' && selector.default === ownType
+        ? selector.options.find((option) => option !== ownType) ?? selector.default
+        : selector.default;
+    }
   }
-  return withLayerEffects(draft, tier, [...layerEffects(draft, tier), effect]);
+  const effects = layerEffects(draft, tier).slice();
+  effects.splice(placementIndex(effects, effect), 0, effect);
+  return withLayerEffects(draft, tier, suppliersAfterFedActions(effects));
 }
 
 export function hasEffectKind(draft: CardDesignerDraft, tier: SkillTier, kind: string): boolean {
@@ -446,16 +523,20 @@ export function withStatDebuffAdded(draft: CardDesignerDraft, tier: SkillTier): 
   return unused === undefined ? next : setEffectSelector(next, tier, index, 'stat', unused);
 }
 
-export function withEffectRemoved(draft: CardDesignerDraft, tier: SkillTier, index: number): CardDesignerDraft {
+export function withEffectRemoved(draft: CardDesignerDraft, tier: SkillTier, index: number, includeLocked = false): CardDesignerDraft {
   const next = layerEffects(draft, tier).slice();
-  const rawIndex = visibleEffectEntries(draft, tier)[index]?.rawIndex;
-  if (rawIndex === undefined) return draft;
+  const rawIndex = includeLocked ? index : visibleEffectEntries(draft, tier)[index]?.rawIndex;
+  if (rawIndex === undefined || rawIndex < 0 || rawIndex >= next.length) return draft;
   next.splice(rawIndex, 1);
   return withLayerEffects(draft, tier, next);
 }
 
 export function effectsAt(draft: CardDesignerDraft, tier: SkillTier): readonly RawEffect[] {
   return visibleEffectEntries(draft, tier).map(({ effect }) => effect);
+}
+
+export function effectsForEditing(draft: CardDesignerDraft, tier: SkillTier): readonly RawEffect[] {
+  return layerEffects(draft, tier);
 }
 
 /** This tier's sequentially inherited `scope` for pricing/editor bounds. */
@@ -519,9 +600,9 @@ export function editableFieldsForEffect(
   });
 }
 
-function updateEffectAt(draft: CardDesignerDraft, tier: SkillTier, index: number, patch: (effect: RawEffect) => RawEffect): CardDesignerDraft {
+function updateEffectAt(draft: CardDesignerDraft, tier: SkillTier, index: number, patch: (effect: RawEffect) => RawEffect, includeLocked = false): CardDesignerDraft {
   const effects = layerEffects(draft, tier).slice();
-  const rawIndex = visibleEffectEntries(draft, tier)[index]?.rawIndex;
+  const rawIndex = includeLocked ? index : visibleEffectEntries(draft, tier)[index]?.rawIndex;
   if (rawIndex === undefined) return draft;
   const current = effects[rawIndex];
   if (!current) return draft;
@@ -529,20 +610,29 @@ function updateEffectAt(draft: CardDesignerDraft, tier: SkillTier, index: number
   return withLayerEffects(draft, tier, effects);
 }
 
-export function setEffectField(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string, value: number): CardDesignerDraft {
-  return updateEffectAt(draft, tier, index, (effect) => ({ ...effect, [key]: value }));
+export function setEffectField(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string, value: number, includeLocked = false): CardDesignerDraft {
+  return updateEffectAt(draft, tier, index, (effect) => ({ ...effect, [key]: value }), includeLocked);
 }
 
-export function setEffectSelector(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string, value: string): CardDesignerDraft {
-  return updateEffectAt(draft, tier, index, (effect) => ({ ...effect, [key]: value }));
+export function setEffectSelector(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string, value: string, includeLocked = false): CardDesignerDraft {
+  return updateEffectAt(draft, tier, index, (effect) => ({ ...effect, [key]: value }), includeLocked);
 }
 
-export function toggleEffectFlag(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string): CardDesignerDraft {
+export function toggleEffectFlag(draft: CardDesignerDraft, tier: SkillTier, index: number, key: string, includeLocked = false): CardDesignerDraft {
   return updateEffectAt(draft, tier, index, (effect) => {
     const next = { ...effect };
     if (next[key] === true) delete next[key]; else next[key] = true;
     return next;
-  });
+  }, includeLocked);
+}
+
+export function setEffectMinTier(draft: CardDesignerDraft, tier: SkillTier, index: number, minTier: SkillTier | undefined): CardDesignerDraft {
+  return updateEffectAt(draft, tier, index, (effect) => {
+    const next = { ...effect };
+    if (minTier === undefined || TIER_ORDER.indexOf(minTier) <= TIER_ORDER.indexOf(draft.def.tier)) delete next.minTier;
+    else next.minTier = minTier;
+    return next;
+  }, true);
 }
 
 // ---------------------------------------------------------------------------

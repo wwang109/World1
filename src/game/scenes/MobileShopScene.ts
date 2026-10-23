@@ -1695,7 +1695,7 @@ export class MobileShopScene extends Phaser.Scene {
 
     const buttons: ConfirmButton[] = [
       { label: 'CANCEL', fill: 0x1b2940, color: UI.textBright, fn: () => { playSfx('uiBack'); this.pendingBuy = null; this.mergePreviewOpen = false; this.mergeChosenInstanceId = null; this.rerender(); } },
-      { label: 'ADD TO BAG', fill: 0xe8b446, color: UI.textOnChip, fn: doBuy },
+      { label: 'BUY', fill: 0xe8b446, color: UI.textOnChip, fn: doBuy },
     ];
     if (mergeTarget) {
       const duplicates = offeredSkillId ? shopMergeableDuplicatesForSkill(runMode, offeredSkillId) : [];
@@ -1719,7 +1719,8 @@ export class MobileShopScene extends Phaser.Scene {
       // once `b.fn()`'s `rerender()` closes it — `wasPointerConsumedByRebuild`
       // (sceneRebuild.ts) is what stops that; see `wireDrag`'s pointerdown.
       r.on('pointerdown', () => { b.fn(); });
-      this.add.text(box.x + box.width / 2, buttonLayout.labelY, b.label, { fontSize: `${F.name}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      const label = this.add.text(box.x + box.width / 2, buttonLayout.labelY, b.label, { fontSize: `${F.name}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      auditControlLabel(r, label, { name: `Mobile shop confirm ${b.label}` });
     });
   }
 

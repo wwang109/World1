@@ -1,4 +1,5 @@
 import type { SkillTier } from '../engine/types';
+import { assertPracticeRun } from './runMode';
 import { equipEquipment, salvageEquipment, unequipEquipment } from '../run/equipmentInventory';
 import { awardBattleEquipment, awardCompletedEventEquipment } from '../run/equipmentLoot';
 import type { EquipmentSlot } from '../engine/equipment/types';
@@ -190,6 +191,7 @@ let activeRunIsEphemeralDevFixture = false;
  * `saveRunSave`, which only ever accepts a real `RunState`. A failed save is
  * logged, not thrown — gameplay must never block on a storage write. */
 function setActiveRun(next: RunState | null): void {
+  assertPracticeRun();
   if (next !== null) next = awardCompletedEventEquipment(activeRun, next);
   activeRun = next === null ? null : recordRunHistoryTransition(activeRun, next);
   if (activeRunIsEphemeralDevFixture) return;
@@ -211,6 +213,7 @@ export function currentEquipmentResolution() {
   return resolveEquipment(currentEquippedEquipment(), (activeRun?.pieces ?? []).map(piece => skillBook[piece.skillId]!), equipmentCatalog);
 }
 export function equipRunEquipment(instanceId: string): boolean {
+  assertPracticeRun();
   if (!activeRun) return false;
   const next = equipEquipment(activeRun, instanceId);
   if (next === activeRun) return false;
@@ -219,6 +222,7 @@ export function equipRunEquipment(instanceId: string): boolean {
 }
 export function currentBrokenEquipment(): number { return activeRun?.brokenEquipment ?? 0; }
 export function salvageRunEquipment(instanceId: string): boolean {
+  assertPracticeRun();
   if (!activeRun) return false;
   const next = salvageEquipment(activeRun, instanceId);
   if (next === activeRun) return false;
@@ -226,6 +230,7 @@ export function salvageRunEquipment(instanceId: string): boolean {
   return true;
 }
 export function unequipRunEquipment(slot: EquipmentSlot): boolean {
+  assertPracticeRun();
   if (!activeRun) return false;
   setActiveRun(unequipEquipment(activeRun, slot));
   return true;
@@ -248,6 +253,7 @@ export function currentMapIntel() {
  * The Vite production build compiles this guard false; player-facing scenes
  * never construct fixture state or choose event content themselves. */
 export function installDevRunFixture(state: RunState): void {
+  assertPracticeRun();
   if (!import.meta.env.DEV) return;
   activeRunIsEphemeralDevFixture = true;
   activeRun = state;
@@ -294,6 +300,7 @@ export function rerollPendingSeed(): void {
  * surfacing any node choices until `applyRunDraft` installs the real picks.
  */
 export function startRun(seed: number): void {
+  assertPracticeRun();
   activeRunIsEphemeralDevFixture = false;
   setActiveRun(createRun(seed));
   noteRunStarted();
@@ -324,6 +331,7 @@ export function currentStartDraftPicks(): Partial<Record<DraftSetKey, string>> {
 /** REROLL: next offer, picks cleared, ONE persisted write (`rerollStartDraft`
  * owns that rule). No-op unless a run is actually drafting. */
 export function rerollCurrentStartDraft(): void {
+  assertPracticeRun();
   if (!activeRun || activeRun.status !== 'drafting') return;
   setActiveRun(rerollStartDraft(activeRun));
 }
@@ -332,6 +340,7 @@ export function rerollCurrentStartDraft(): void {
  * the run layer throws on a skill the current roll does not offer, so a
  * stale/duplicate tap cannot install an unoffered card. */
 export function pickCurrentStartDraftCard(key: DraftSetKey, skillId: string): void {
+  assertPracticeRun();
   if (!activeRun || activeRun.status !== 'drafting') return;
   setActiveRun(pickStartDraftCard(activeRun, key, skillId));
 }
@@ -343,6 +352,7 @@ export function pickCurrentStartDraftCard(key: DraftSetKey, skillId: string): vo
  * purpose: the picks are run state, so a scene passing its own would be the
  * scene-field bug all over again. */
 export function applyRunDraft(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(applyStartDraft(activeRun));
 }
@@ -356,6 +366,7 @@ export function isRunDrafting(): boolean {
 
 /** Abandon the active run entirely (returns to the START RUN panel). */
 export function clearRun(): void {
+  assertPracticeRun();
   setActiveRun(null);
 }
 
@@ -365,6 +376,7 @@ export function clearRun(): void {
  * to the Run Map after calling this so the map's end-summary banner (status
  * `'retired'`) takes over. */
 export function retireActiveRun(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const before = activeRun;
   setActiveRun(retireRun(activeRun));
@@ -396,6 +408,7 @@ export function currentNode(): RunNode | undefined {
  * chosen node's `kind` right after calling this.
  */
 export function pickNode(nodeId: string): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(chooseNodeWithEventOpportunities(activeRun, nodeId));
   const node = currentNode();
@@ -432,6 +445,7 @@ export function pendingBiomePick(): BiomePickViewModel | null {
 }
 
 export function chooseRunBiome(biomeId: string): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const band = pendingBiomeBand(activeRun);
   if (band === null) return;
@@ -528,6 +542,7 @@ function bossRewardInfoOf(reward: BossReward | null): BossRewardInfo | null {
  * "exactly once per fetched response" guard (same idiom as
  * `creditBattleGold`). No-op (returns 0) if there's no active run. */
 export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLog): number {
+  assertPracticeRun();
   if (!activeRun) return 0;
   const state = activeRun;
   const node = currentNode();
@@ -599,11 +614,13 @@ export function extraGhostFightOffer(): GhostExtraFightOffer | null {
 }
 
 export function acceptExtraGhostFightOffer(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(acceptExtraGhostFight(activeRun));
 }
 
 export function declineExtraGhostFightOffer(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(declineExtraGhostFight(activeRun));
 }
@@ -621,6 +638,7 @@ export function activeChallengeFight(): ActiveChallengeFight | null {
 /** Settle the run's active challenge fight — the challenge-fight twin of
  * `resolveExtraGhostFightResult`. No battle gold/level; those are fight-column-only. */
 export function resolveChallengeFightResult(log: BattleLog): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const fight = activeRun.activeChallengeFight;
   const won = log.result === 'win';
@@ -630,6 +648,7 @@ export function resolveChallengeFightResult(log: BattleLog): void {
 }
 
 export function resolveExtraGhostFightResult(log: BattleLog): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const active = activeRun.activeGhostFight;
   const won = log.result === 'win';
@@ -660,6 +679,7 @@ export function offerGhostSave(): GhostSaveOfferViewModel | null {
 }
 
 export async function saveGhost(name: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  assertPracticeRun();
   if (!activeRun) return { ok: false, reason: 'no active run' };
   const prompt = ghostSavePromptOf(activeRun);
   if (!prompt) return { ok: false, reason: 'no save prompt pending' };
@@ -674,6 +694,7 @@ export async function saveGhost(name: string): Promise<{ ok: true } | { ok: fals
 }
 
 export function skipGhostSave(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(clearGhostSavePrompt(activeRun));
 }
@@ -687,6 +708,7 @@ export function skipGhostSave(): void {
 /** Rolls the current shop node's shelf into the run the first time it's
  * browsed (idempotent). No-op if there's no active shop node. */
 export function ensureCurrentShopShelf(): void {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return;
   setActiveRun(ensureRunShopShelf(activeRun, node.id));
@@ -702,6 +724,7 @@ export function currentShopShelf(): RunShopShelf | undefined {
  * (escalating 1, 2, 3, 4… per reroll at THIS node — see `rerollCostForNode`),
  * no-ops if unaffordable. */
 export function rerollCurrentShop(): void {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return;
   setActiveRun(rerollRunShop(activeRun, node.id));
@@ -723,6 +746,7 @@ export type ShopBuyResult = { ok: true } | { ok: false; reason: 'gold' | 'bag' |
 
 /** Buys the card offer at `index` on the current shop node's shelf. */
 export function buyCurrentShopCard(index: number): ShopBuyResult {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunCard(activeRun, node.id, index);
@@ -753,6 +777,7 @@ export function currentShopMergeableDuplicates(skillId: string): OwnedDuplicate[
  * picks which owned copy receives it; omitted falls back to the default
  * (lowest owned tier first, board before bag). */
 export function mergeCurrentShopCard(index: number, targetInstanceId?: string): ShopMergeResult {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = mergeRunCard(activeRun, node.id, index, targetInstanceId);
@@ -797,6 +822,7 @@ export function currentShopMergeSlotTargets(): OwnedDuplicate[] {
 
 /** Spends the shop visit's merge slot, feeding +1 point into `targetInstanceId`. */
 export function buyCurrentShopMergeSlotPoint(targetInstanceId: string): ShopMergeSlotResult {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = runBuyMergeSlotPoint(activeRun, node.id, targetInstanceId);
@@ -806,6 +832,7 @@ export function buyCurrentShopMergeSlotPoint(targetInstanceId: string): ShopMerg
 
 /** Buys the gem offer at `index` on the current shop node's shelf. */
 export function buyCurrentShopGem(index: number): ShopBuyResult {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunGem(activeRun, node.id, index);
@@ -821,6 +848,7 @@ export type ShopBuyToSlotResult = { ok: true } | { ok: false; reason: 'gold' | '
  * nearest-fit auto-placement. `buyCurrentShopCard` remains the plain-tap
  * path — this is purely additive alongside it. */
 export function buyCurrentShopCardTo(index: number, dest: BuyDestination): ShopBuyToSlotResult {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunCardTo(activeRun, node.id, index, dest);
@@ -836,6 +864,7 @@ export function currentRunBagHasRoomFor(skillId: string): boolean {
 /** Leave the current shop node with no win/loss to resolve — the shop
  * scene's LEAVE SHOP button. */
 export function leaveCurrentShop(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(leaveShop(activeRun));
 }
@@ -937,6 +966,7 @@ function rollCurrentEvent(
 export function currentRunEventViewModel(
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): RunEventViewModel | undefined {
+  assertPracticeRun();
   const rolled = rollCurrentEvent(lookup);
   if (!rolled || !activeRun) return undefined;
   return buildRunEventViewModel(activeRun, rolled.node, rolled.event, lookup);
@@ -949,6 +979,7 @@ export function resolveCurrentRunEventChoice(
   choiceId: string,
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): RunEventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   const priorResolution = eventResolutionOf(activeRun);
   if (priorResolution !== undefined) {
@@ -975,6 +1006,7 @@ export function resolveCurrentRunEventChoice(
 export function reopenCurrentRunEventOffer(
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): RunEventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   const committed = currentCommittedEvent(lookup);
   if (!committed) return undefined;
@@ -1106,6 +1138,7 @@ export function finalizeCurrentRunEventOffer(
   selection: RunEventOfferSelection,
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): RunEventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   const committed = currentCommittedEvent(lookup);
   if (!committed) return undefined;
@@ -1118,6 +1151,7 @@ export function finalizeCurrentRunEventOffer(
 export function cancelCurrentBuyStatPick(
   lookup: RunEventDefinitionLookup = eventDefAtVersion,
 ): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const committed = currentCommittedEvent(lookup);
   if (!committed || !isEventDefV3(committed.event)) return;
@@ -1129,6 +1163,7 @@ export function cancelCurrentBuyStatPick(
  * Drawing remains lazy and idempotent; current schema-v3 definitions are
  * exposed through the materialized transaction view instead. */
 export function currentEventDef(): EventDef | undefined {
+  assertPracticeRun();
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'event') return undefined;
   if (currentTransactionIsV3()) return undefined;
@@ -1152,6 +1187,7 @@ export function currentEventResolution(): EventResolution | undefined {
  * stale/duplicate tap is a no-op instead of an exception, which is what the
  * scenes' existing `if (!outcome) return;` already handles). */
 export function resolveCurrentEventChoice(eventId: string, choiceId: string): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   if (eventResolutionOf(activeRun)) return undefined;
@@ -1167,6 +1203,7 @@ export function resolveCurrentEventChoice(eventId: string, choiceId: string): Ev
  * rule; this is the usual one-line store wrapper. Undefined when there is
  * nothing pending. */
 export function reopenCurrentEventPick(): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const reopened = reopenEventChoice(activeRun);
@@ -1177,6 +1214,7 @@ export function reopenCurrentEventPick(): EventOutcome | undefined {
 
 /** Finalizes a `bonusDraft` outcome's deferred pick (the picker overlay). */
 export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyBonusDraftPick(activeRun, pick);
@@ -1187,6 +1225,7 @@ export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | unde
 /** Finalizes an `upgradeCard` outcome's deferred pick (the picker overlay) —
  * bumps the tapped `instanceId` +1 tier. */
 export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyUpgradeCardPick(activeRun, instanceId);
@@ -1197,6 +1236,7 @@ export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | 
 /** Finalizes a `gemChoice` outcome's deferred pick (the picker overlay) —
  * pushes the tapped gem id into the run's gem pouch. */
 export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applyGemChoicePick(activeRun, gemId);
@@ -1232,6 +1272,7 @@ export interface MergeCardsPickResult {
  * consumes the three same-tier inputs the offer named and inserts the tapped
  * card at tier+1. See `MergeCardsPickResult` for why this returns a pair. */
 export function applyCurrentMergeCardsPick(skillId: string): MergeCardsPickResult | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const { state, outcome, merged } = applyMergeCardsPick(activeRun, skillId);
@@ -1253,6 +1294,7 @@ export function applyCurrentMergeCardsPick(skillId: string): MergeCardsPickResul
  * for: the Deck/Bag SELL button, which is not an event outcome and builds no
  * outcome at all. */
 export function applyCurrentSellGemPick(pouchIndex: number): EventOutcome | undefined {
+  assertPracticeRun();
   if (!activeRun) return undefined;
   if (currentTransactionIsV3()) return undefined;
   const { state, outcome } = applySellGemPick(activeRun, pouchIndex);
@@ -1263,6 +1305,7 @@ export function applyCurrentSellGemPick(pouchIndex: number): EventOutcome | unde
 /** Leave the current event node with its choice already resolved — the
  * event scene's CONTINUE › button. */
 export function leaveCurrentEvent(): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(leaveEvent(activeRun));
 }
@@ -1286,6 +1329,7 @@ export function currentRunPieces(): RunBoardPiece[] {
 
 /** Replaces the run's board pieces wholesale. No-op with no active run. */
 export function setCurrentRunPieces(pieces: RunBoardPiece[]): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun({ ...activeRun, pieces });
 }
@@ -1297,6 +1341,7 @@ export function currentRunBagSlots(): RunBagSlot[] {
 
 /** Replaces the run's bag slots wholesale. No-op with no active run. */
 export function setCurrentRunBagSlots(bagSlots: RunBagSlot[]): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun({ ...activeRun, bagSlots });
 }
@@ -1310,6 +1355,7 @@ export function currentRunHeld(): RunCard | null {
 
 /** Replaces the held card (null empties the strip). No-op with no active run. */
 export function setCurrentRunHeld(held: RunCard | null): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun({ ...activeRun, held });
 }
@@ -1337,6 +1383,7 @@ export interface RunDeckEdit {
  * strip (it is a real value, not "unchanged").
  */
 export function commitRunDeckEdit(edit: RunDeckEdit): void {
+  assertPracticeRun();
   if (!activeRun) return;
   const next: RunState = { ...activeRun };
   if (edit.pieces) next.pieces = edit.pieces;
@@ -1363,6 +1410,7 @@ export function currentRunGemInventory(): string[] {
 
 /** Replaces the run's gem pouch wholesale. No-op with no active run. */
 export function setCurrentRunGemInventory(gemInventory: string[]): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun({ ...activeRun, gemInventory });
 }
@@ -1380,6 +1428,7 @@ export type RunSellResult = { ok: true; goldReceived: number } | { ok: false; re
  * Deck/Bag build screens' SELL action. No-op (`'empty'`) if there's no
  * active run or the slot is already empty. */
 export function sellCurrentRunCard(location: 'board' | 'bag', index: number): RunSellResult {
+  assertPracticeRun();
   if (!activeRun) return { ok: false, reason: 'empty' };
   const result = sellRunCard(activeRun, location, index);
   if (!result.ok) return { ok: false, reason: result.reason };
@@ -1389,6 +1438,7 @@ export function sellCurrentRunCard(location: 'board' | 'bag', index: number): Ru
 
 /** SELL the pouch gem at `pouchIndex` from the active run. */
 export function sellCurrentRunGem(pouchIndex: number): RunSellResult {
+  assertPracticeRun();
   if (!activeRun) return { ok: false, reason: 'empty' };
   const result = sellRunGem(activeRun, pouchIndex);
   if (!result.ok) return { ok: false, reason: result.reason };
@@ -1438,6 +1488,7 @@ export function heroAllocationScratchCost(alloc: Allocation): number {
  * mirroring `setHeroAllocation`) if it overspends the run's banked PL or if
  * there's no active run. */
 export function commitHeroAllocation(next: Allocation): void {
+  assertPracticeRun();
   if (!activeRun) return;
   setActiveRun(setHeroAllocation(activeRun, next));
 }

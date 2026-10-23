@@ -20,9 +20,12 @@ export const DESKTOP_LAYOUT = {
   tabH: DESKTOP_PROFILE.minTap,
 } as const;
 
-export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: DesktopPage): void {
+export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: DesktopPage, options: {
+  reference?: boolean;
+  back?: { label: string; onPress: (label: Phaser.GameObjects.Text) => void };
+} = {}): void {
   const gx = DESKTOP_LAYOUT.gutter;
-  scene.add.text(gx, 24, 'WORLD1 / ARCANE LOADOUT', {
+  scene.add.text(gx, 24, options.reference ? 'WANDERING HAND / CODEX' : 'WANDERING HAND / ARCANE LOADOUT', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
   });
   scene.add.text(gx, 44, title, {
@@ -31,10 +34,10 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
 
   // ‹ MENU home door back to the Start scene — the sandbox predates the
   // start screen and had no way back (user report 2026-08-04).
-  const menuW = 96;
+  const menuW = options.reference ? 140 : 96;
   const menu = scene.add.rectangle(SCREEN.width - gx - menuW, 24, menuW, 34, UI.panelAlt)
     .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-  const menuLabel = scene.add.text(SCREEN.width - gx - menuW / 2, 41, 'MENU', {
+  const menuLabel = scene.add.text(SCREEN.width - gx - menuW / 2, 41, options.back?.label ?? (options.reference ? 'HOME' : 'MENU'), {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textDim,
   }).setOrigin(0.5);
   // Shared feel (./motion) — the desktop twin of ActionBar's mobile footer, so
@@ -44,10 +47,10 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
     hover: UI.slotHover,
     follow: [menuLabel],
     sfx: 'uiBack',
-    onPress: () => { scene.scene.start('Start'); },
+    onPress: () => { if (options.back) options.back.onPress(menuLabel); else scene.scene.start('Start'); },
   });
 
-  const tabs: Array<[string, DesktopPage]> = [
+  const tabs: Array<[string, DesktopPage]> = options.reference ? [['CODEX', 'wiki']] : [
     ['PREP', 'prep'], ['DECK BUILD', 'deck'], ['WIKI', 'wiki'], ['SHOP', 'shop'], ['DRAFT', 'draft'],
   ];
   const tabY = 102;

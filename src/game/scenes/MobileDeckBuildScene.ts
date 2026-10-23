@@ -1,4 +1,5 @@
 import { renderInventorySlot } from '../ui/inventorySlot';
+import { renderPaintedChrome } from '../ui/paintedChrome';
 import Phaser from 'phaser';
 import { applyEquipmentStats } from '../../engine/equipment/resolve';
 import { currentEquipmentResolution } from '../runStore';
@@ -471,6 +472,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // the visible strip did nothing. Same idiom as the desktop scene.
     this.holdingTop = y; this.holdingH = h;
     roundRect(this.add.rectangle(10, y, w, h, 0x122033, 0.4)).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, this.hold ? 1 : 0.7);
+    renderPaintedChrome(this, 10, y, w, h, { borderOnly: true, compact: true, corner: 8, shadow: false });
     roundRect(this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a), 6).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
     if (this.hold) {
       const base = skillBook[this.hold.skillId];
@@ -649,6 +651,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   private renderTrash(): void {
     const y = this.H - 44; const h = 34; const w = this.W - 20;
     roundRect(this.add.rectangle(10, y, w, h, 0x2a1412, 0.4)).setOrigin(0, 0).setStrokeStyle(1, 0xb0483c, 0.9);
+    renderPaintedChrome(this, 10, y, w, h, { borderOnly: true, compact: true, corner: 8, shadow: false });
     const label = this.add.text(52, y + h / 2, 'TRASH', { fontSize: `${F.label}px`, color: '#d05c4e', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
     roundRect(this.add.rectangle(18, y + 4, 24, h - 8, 0x1c0f0d), 6).setOrigin(0, 0).setStrokeStyle(1, 0x7a4a42, 0.9);
     this.add.text(label.x + label.width + 6, y + h / 2, '— drop to destroy (asks to confirm)', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
@@ -781,10 +784,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
     roundRect(this.add.rectangle(bx, by, bw, 140, 0x141d2c)).setOrigin(0, 0).setStrokeStyle(2, 0xd05c4e);
+    renderPaintedChrome(this, bx, by, bw, 140, { borderOnly: true, compact: true });
     this.add.text(this.W / 2, by + 24, `Delete ${skill?.name ?? 'card'}?`, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(this.W / 2, by + 50, 'This removes it from your collection.', { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = roundRect(this.add.rectangle(dx, by + 88, w, 36, fill)).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderPaintedChrome(this, dx, by + 88, w, 36, { button: true, borderOnly: true, compact: true, shadow: false });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
@@ -804,12 +809,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
     roundRect(this.add.rectangle(bx, by, bw, 140, 0x141d2c)).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46);
+    renderPaintedChrome(this, bx, by, bw, 140, { borderOnly: true, compact: true });
     this.add.text(this.W / 2, by + 16, 'MERGE?', { fontSize: `${F.heading}px`, color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(this.W / 2, by + 42, `2× ${skill?.name ?? 'card'} ${fromTier.toUpperCase()} → ${(toTier ?? fromTier).toUpperCase()}`, {
       fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body, align: 'center', wordWrap: { width: bw - 24 },
     }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = roundRect(this.add.rectangle(dx, by + 88, w, 36, fill)).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      renderPaintedChrome(this, dx, by + 88, w, 36, { button: true, borderOnly: true, compact: true, shadow: false });
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };

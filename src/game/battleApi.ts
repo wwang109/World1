@@ -1,8 +1,10 @@
 import type { BattleLog, BattleRequest, BattleFoeConfig } from '../run/resolveBattle';
+import type { DesignBattleRequest } from '../run/designProbe';
 import type { DamageBand } from '../run/analysis';
 import type { CombatantSetup } from '../engine/types';
 import type { BattleTimelineInput } from './battleTimeline';
 import { devBattleExampleId } from './devLaunch';
+import { assertPracticeRun } from './runMode';
 
 /**
  * The client's only route to a battle result.
@@ -71,23 +73,36 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
   };
 }
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function post<T>(route: string, payload: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${route}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    throw new Error(`battle service ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${BASE_URL}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`battle service ${res.status}`);
+    return await res.json() as T;
+  } finally {
+    clearTimeout(timeout);
   }
-  return await res.json() as T;
 }
 
 /** POSTs the prep info to the battle service. Throws on a non-2xx or transport error. */
 export async function fetchBattleLog(input: BattleTimelineInput): Promise<BattleLog> {
+  assertPracticeRun();
   const exampleId = devBattleExampleId();
   if (exampleId) return await post<BattleLog>('/battle-example', { exampleId, seed: input.seed });
   return await post<BattleLog>('/battle', battleRequestOf(input));
+}
+
+/** The Card Designer's practice fight for a draft card (`src/run/designProbe.ts`). */
+export async function fetchDesignBattle(request: DesignBattleRequest): Promise<BattleLog> {
+  return await post<BattleLog>('/design-battle', request);
 }
 
 /** A combatant's sustained damage-per-turn band — needs a sim, so it is served. */

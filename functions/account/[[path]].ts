@@ -25,10 +25,10 @@ export const onRequest = async ({ request, env }: { request: Request; env: Accou
       return new Response(null, { status: 302, headers: { location: result.location, 'cache-control': 'no-store' } });
     }
     return Response.json(result.body, { status: result.status, headers: { ...ACCOUNT_CORS_HEADERS, 'cache-control': 'no-store' } });
-  } catch (err) {
+  } catch {
     return Response.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500, headers: ACCOUNT_CORS_HEADERS },
+      { error: 'account-unavailable' },
+      { status: 503, headers: { ...ACCOUNT_CORS_HEADERS, 'cache-control': 'no-store' } },
     );
   }
 };

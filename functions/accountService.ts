@@ -1,15 +1,13 @@
-import { createAccountService, webCryptoRandomHex, webCryptoSha256Hex, type AccountService, type EmailMessage } from '../src/meta/account';
+import { createAccountService, webCryptoRandomHex, webCryptoSha256Hex, type AccountService } from '../src/meta/account';
 import { createD1AccountStore } from './accountStoreD1';
 import type { D1Database } from './d1';
+import { createGoogleIdentityVerifier } from '../src/meta/googleIdentity';
+import { accountEmailSender, type AccountEmailEnv } from './accountEmail';
+import { githubOAuthFor, type GitHubOAuthEnv } from '../src/meta/githubIdentity';
 
-interface SendEmailBinding {
-  send(message: EmailMessage & { from: string }): Promise<unknown>;
-}
-
-export interface AccountEnv {
+export interface AccountEnv extends AccountEmailEnv, GitHubOAuthEnv {
   GHOSTS_DB?: D1Database;
-  EMAIL?: SendEmailBinding;
-  EMAIL_FROM?: string;
+  GOOGLE_CLIENT_ID?: string;
 }
 
 export const ACCOUNT_CORS_HEADERS: Record<string, string> = {
@@ -20,15 +18,15 @@ export const ACCOUNT_CORS_HEADERS: Record<string, string> = {
 
 export function accountServiceFor(env: AccountEnv): AccountService | null {
   if (!env.GHOSTS_DB) return null;
-  const binding = env.EMAIL;
-  const from = env.EMAIL_FROM;
   return createAccountService({
     store: createD1AccountStore(env.GHOSTS_DB),
     now: () => Date.now(),
     randomHex: webCryptoRandomHex,
     sha256Hex: webCryptoSha256Hex,
     fetch: (url, init) => fetch(url, init),
-    sendEmail: binding && from ? async (message) => { await binding.send({ ...message, from }); } : null,
+    sendEmail: accountEmailSender(env),
+    google: env.GOOGLE_CLIENT_ID ? { clientId: env.GOOGLE_CLIENT_ID, verifyCredential: createGoogleIdentityVerifier(env.GOOGLE_CLIENT_ID) } : null,
+    github: githubOAuthFor(env),
     allowReturnTo: (returnTo, apiOrigin) => returnTo.origin === apiOrigin,
   });
 }

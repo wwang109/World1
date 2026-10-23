@@ -4,8 +4,8 @@
  * JSON remains the authority, while V2 stays frozen for historical compatibility.
  */
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
-import { writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import discoveryDocument from '../src/data/content/event-discoveries.v1.json';
 import currentEvents from '../src/data/content/events.v3.json';
 import {
@@ -574,14 +574,13 @@ export function renderEventCatalogWiki(
   return `${lines.join('\n')}\n`;
 }
 
-export function writeEventCatalogWiki(): void {
-  writeFileSync(
-    OUTPUT_PATH,
-    renderEventCatalogWiki(loadEventContent(currentEvents)),
-    'utf8',
-  );
+export function writeEventCatalogWiki(root?: string): void {
+  const events = root ? JSON.parse(readFileSync(join(root, 'src/data/content/events.v3.json'), 'utf8')) : currentEvents;
+  const discoveries = root ? JSON.parse(readFileSync(join(root, 'src/data/content/event-discoveries.v1.json'), 'utf8')) : discoveryDocument;
+  const labels = root ? Object.fromEntries(compileEventPacks(join(root, 'src/data/content/event-packs')).sourceFiles.flatMap(source => source.document.events.map(event => [event.id, `src/data/content/event-packs/${source.name}`]))) : sourceLabelsByEvent();
+  writeFileSync(root ? join(root, 'docs/generated/event-catalog.md') : OUTPUT_PATH, renderEventCatalogWiki(loadEventContent(events), discoveries, labels), 'utf8');
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  writeEventCatalogWiki();
+  writeEventCatalogWiki(process.argv.includes('--root') ? resolve(process.argv[process.argv.indexOf('--root') + 1]!) : undefined);
 }

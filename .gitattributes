@@ -38,3 +38,11 @@
 # whole-file diff hides the handful of hashes that actually moved behind
 # 2000 lines that only changed their line endings.
 /tests/engine/fixtures/*.json text eol=lf
+
+# Immutable community snapshot bookkeeping must survive checkout byte-for-byte.
+/art-manifest.v1.json -text
+/content-manifest.v1.json -text
+/src/data/content-build.v1.json -text
+/src/data/content/**/*.json -text
+/docs/templates/equipment.v1.template.json text eol=lf
+/docs/generated/event-catalog.md text eol=lf

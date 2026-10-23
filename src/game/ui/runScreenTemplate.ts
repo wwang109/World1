@@ -9,7 +9,7 @@
  * reads these rects.
  *
  * Regions:
- *   kicker  — "WORLD1 / RUN MODE" eyebrow line.
+ *   kicker  — "WANDERING HAND / RUN MODE" eyebrow line.
  *   title   — the screen name (RUN / PREP · FIGHT / EVENT / SHOP / DECK /
  *             BATTLE (stats-only chrome — no badge/actions)).
  *   stats   — the one always-on stat strip (DAY · WAVE · GOLD · LV · LIVES · BOSSES).

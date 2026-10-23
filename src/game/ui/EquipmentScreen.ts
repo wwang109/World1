@@ -6,7 +6,7 @@ import { EQUIPMENT_SLOTS, type EquipmentSlot } from '../../engine/equipment/type
 import type { OwnedEquipmentItem } from '../../run/equipmentInventory';
 import { FONT, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
-import { renderRunHud, snapshotRunProgress } from './RunProgressStrip';
+import { renderConfirmDialog, renderRunHud, snapshotRunProgress } from './RunProgressStrip';
 import { runScreenLayoutRef } from './runScreenLayout';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { currentBrokenEquipment, currentEquipmentInventory, currentEquippedEquipment, currentEquipmentResolution, equipRunEquipment, salvageRunEquipment, unequipRunEquipment, getActiveRun } from '../runStore';
@@ -132,37 +132,39 @@ export abstract class EquipmentScreen extends Phaser.Scene {
       button(x + bagW - 56, py, 44, '\u203a', () => { this.page++; this.rerender(); }, this.page < maxPage);
     }
     if (!inventory.length) text(x + 12, gridY, 'No equipment yet.', bagW - 24);
-    const dx = m ? x : x + bagW + gap, dy = m ? bodyY + bagH + gap : bodyY, dw = m ? w : w - bagW - gap, dh = m ? Math.max(364, y + h - dy) : bodyH;
-    panel(dx, dy, dw, dh, UI.chip);
+    const dx = m ? x : x + bagW + gap, dy = m ? bodyY + bagH + gap : bodyY, dw = m ? w : w - bagW - gap, dh = m ? Math.max(460, y + h - dy) : bodyH;
+    let detailHeight = dh;
+    const detailPanel = panel(dx, dy, dw, detailHeight, UI.chip);
     if (selected) {
       const model = equipmentItemPresentation(selected, resolution), preview = equipmentSelectionPreview(run, selected), bw = m ? 72 : 96;
-      const titleW = dw - bw * 3 - 56, title = this.add.text(dx + 12, dy + 12, `${model.name}${selected.level ? ` +${selected.level}` : ''}`, { fontFamily: FONT.display, fontSize: `${m ? 18 : 28}px`, color: UI.textBright });
+      const titleW = m ? dw - 24 : dw - bw * 3 - 56, title = this.add.text(dx + 12, dy + 12, `${model.name}${selected.level ? ` +${selected.level}` : ''}`, { fontFamily: FONT.display, fontSize: `${m ? 18 : 28}px`, color: UI.textBright });
       while (title.width > titleW && Number(title.style.fontSize.toString().replace('px', '')) > (m ? 11 : 16)) title.setFontSize(Number(title.style.fontSize.toString().replace('px', '')) - 1);
-      button(dx + dw - bw * 3 - 28, dy + 10, bw, 'LOOT FROM', () => this.openLoot(selected));
-      const armed = this.salvageArmed === selected.instanceId;
-      button(dx + dw - bw * 2 - 20, dy + 10, bw, armed ? 'CONFIRM?' : 'SALVAGE', () => {
-        if (!armed) { this.salvageArmed = selected.instanceId; this.rerender(); return; }
-        salvageRunEquipment(selected.instanceId); this.salvageArmed = null; this.selected = null; this.rerender();
+      const actionY = dy + (m ? 42 : 10);
+      button(dx + dw - bw * 3 - 28, actionY, bw, 'LOOT FROM', () => this.openLoot(selected));
+      button(dx + dw - bw * 2 - 20, actionY, bw, 'SALVAGE', () => {
+        this.salvageArmed = selected.instanceId; this.rerender();
       }, !preview.isEquipped);
-      button(dx + dw - bw - 12, dy + 10, bw, preview.isEquipped ? 'UNEQUIP' : 'EQUIP', () => { if (preview.isEquipped) unequipRunEquipment(model.slot); else equipRunEquipment(selected.instanceId); this.rerender(); });
+      button(dx + dw - bw - 12, actionY, bw, preview.isEquipped ? 'UNEQUIP' : 'EQUIP', () => { if (preview.isEquipped) unequipRunEquipment(model.slot); else equipRunEquipment(selected.instanceId); this.rerender(); });
       const inset = m ? 12 : 20, innerW = dw - inset * 2;
-      const imageSize = m ? 80 : 144, imageY = dy + (m ? 64 : 88);
+      const base = text(dx + inset, dy + (m ? 98 : 56), m ? model.baseText : model.slot.toUpperCase(), innerW, m ? 12 : 13, UI.textAccent);
+      const detailShift = m ? Math.max(76, base.height + 48) : 0;
+      if (m) { detailHeight = Math.max(dh, 384 + detailShift); detailPanel.setSize(dw, detailHeight); }
+      const imageSize = m ? 80 : 144, imageY = dy + (m ? 64 + detailShift : 88);
       panel(dx + inset, imageY, imageSize, imageSize);
       art(selected.itemId, dx + inset + 4, imageY + 4, imageSize - 8, imageSize - 8);
       const itemDef = equipmentCatalog.item(selected.itemId, selected.itemVersion);
-      text(dx + inset, dy + (m ? 40 : 56), m ? model.baseText : model.slot.toUpperCase(), innerW, m ? 12 : 13, UI.textAccent);
       if (!m) {
         const statsX = dx + inset + imageSize + 24, statsW = innerW - imageSize - 24;
         text(statsX, imageY + 4, 'ITEM STATS', statsW, 13, UI.textMuted);
         equipmentModifierClauses(leveledStatMods(itemDef, selected.level ?? 0)).forEach((clause, i) => modifierLine(statsX, imageY + 32 + i * 34, clause, statsW, 23, UI.textBright));
       }
-      const setX = m ? dx + 112 : dx + inset, setY = dy + (m ? 64 : 250), setW = m ? dw - 124 : innerW;
+      const setX = m ? dx + 112 : dx + inset, setY = dy + (m ? 64 + detailShift : 250), setW = m ? dw - 124 : innerW;
       if (model.set) {
         const pieces = equipmentDocument.items.flatMap(entry => {
           const version = entry.versions.at(-1)!;
           return version.def.setId === model.set!.id ? [{ itemId: entry.id, itemVersion: version.version, setVersion: model.set!.version }] : [];
         }).sort((a, b) => EQUIPMENT_SLOTS.indexOf(equipmentCatalog.item(a.itemId, a.itemVersion).slot) - EQUIPMENT_SLOTS.indexOf(equipmentCatalog.item(b.itemId, b.itemVersion).slot));
-        const pieceX = m ? dx + inset : dx + inset + imageSize + 24, pieceY = dy + (m ? 150 : 188), pieceW = (m ? innerW : innerW - imageSize - 24) / 3;
+        const pieceX = m ? dx + inset : dx + inset + imageSize + 24, pieceY = dy + (m ? 150 + detailShift : 188), pieceW = (m ? innerW : innerW - imageSize - 24) / 3;
         pieces.forEach((ref, index) => {
           const px = pieceX + index * pieceW, owned = inventory.some(item => equipmentItemPinKey(item) === equipmentItemPinKey(ref));
           const wearing = equipped.some(item => equipmentItemPinKey(item) === equipmentItemPinKey(ref));
@@ -188,7 +190,7 @@ export abstract class EquipmentScreen extends Phaser.Scene {
         const reqX = m ? setX : setX + needed * (badgeSize + 6) + 12;
         const reqY = m ? badgeY + badgeSize + 5 : badgeY + 2;
         text(reqX, reqY, `${model.set.requirement} \u00b7 ${matching}/${needed}`, m ? setW : innerW - (reqX - setX), m ? 11 : 14, matching >= needed ? '#9adb9e' : UI.textMuted);
-        const bonusY = dy + (m ? 218 : 330), rowH = m ? 30 : 56, rowGap = m ? 6 : 10;
+        const bonusY = dy + (m ? 218 + detailShift : 330), rowH = m ? 30 : 56, rowGap = m ? 6 : 10;
         definition.bonuses.forEach((bonus, i) => {
           const by = bonusY + i * (rowH + rowGap), active = model.progress?.activeThresholds.includes(bonus.pieces) ?? false;
           const frame = panel(dx + inset, by, innerW, rowH, active ? UI.chip : UI.border).setFillStyle(UI.panelAlt, 0.7);
@@ -202,7 +204,7 @@ export abstract class EquipmentScreen extends Phaser.Scene {
         text(setX, setY, 'NO SET', setW, m ? 14 : 22, UI.textAccent, true);
         text(setX, setY + 30, 'Base stats apply while equipped.', setW, m ? 12 : 16, UI.textMuted);
       }
-      const statsY = dy + (m && model.set ? 294 : m ? 226 : 472);
+      const statsY = dy + (m && model.set ? 294 + detailShift : m ? 226 + detailShift : 472);
       this.add.rectangle(dx + inset, statsY - 8, innerW, 1, UI.border, 0.7).setOrigin(0);
       text(dx + inset, statsY, preview.isEquipped ? 'AFTER UNEQUIP' : 'AFTER EQUIP', innerW, m ? 10 : 13, UI.textAccent);
       if (model.set) text(dx + dw - inset - 108, statsY, 'Bonuses stack', 108, m ? 10 : 12, UI.textMuted).setAlign('right');
@@ -228,9 +230,20 @@ export abstract class EquipmentScreen extends Phaser.Scene {
     if (m) {
       const objects = this.children.list.filter(object => !beforeBody.has(object) && !object.getData('equipmentLootOverlay'));
       this.children.remove(objects);
-      renderRunMapChoiceViewport(this, { x, y: bodyY, width: w, height: bodyH }, bagH + gap + dh,
+      renderRunMapChoiceViewport(this, { x, y: bodyY, width: w, height: bodyH }, bagH + gap + detailHeight,
         () => objects.forEach(object => this.add.existing(object)),
-        { scroll: this.bodyScroll, enabled: !this.lootOpen, onScroll: value => { this.bodyScroll = value; } });
+        { scroll: this.bodyScroll, enabled: !this.lootOpen && !this.salvageArmed, onScroll: value => { this.bodyScroll = value; } });
+    }
+    const salvageItem = inventory.find(item => item.instanceId === this.salvageArmed);
+    if (salvageItem && !equipped.some(item => item.instanceId === salvageItem.instanceId)) {
+      const name = equipmentCatalog.item(salvageItem.itemId, salvageItem.itemVersion).name;
+      renderConfirmDialog(this, {
+        compact: m, title: 'SALVAGE THIS ITEM?',
+        body: name + '\nPermanently remove this item.\nGain 1 Broken Equipment.',
+        cancelLabel: 'CANCEL', confirmLabel: 'SALVAGE', tone: 'danger',
+        onCancel: () => { this.salvageArmed = null; this.rerender(); },
+        onConfirm: () => { salvageRunEquipment(salvageItem.instanceId); this.salvageArmed = null; this.selected = null; this.rerender(); },
+      });
     }
     this.registry.set('equipmentUiResolution', resolution); this.registry.set('equipmentUiTemplate', template); this.data.set('equipmentUiRun', run);
   }

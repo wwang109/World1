@@ -8,10 +8,10 @@ function eventPaneSpacing(platform: RunTemplatePlatform): { pad: number; gap: nu
   return platform === 'mobile' ? { pad: 12, gap: 8 } : { pad: 18, gap: 12 };
 }
 
-export function eventPickerBodyHeight(platform: RunTemplatePlatform, rows: number, rowH: number, skip: boolean): number {
+export function eventPickerBodyHeight(platform: RunTemplatePlatform, rows: number, rowH: number): number {
   const { pad, gap } = eventPaneSpacing(platform);
   const gridGap = platform === 'mobile' ? MOBILE_PROFILE.gap : DESKTOP_PROFILE.gap;
-  return gap + PICKER_HEADLINE_BAND + rows * rowH + Math.max(0, rows - 1) * gridGap + (skip ? PICKER_SKIP_H + gap : 0) + pad;
+  return gap + PICKER_HEADLINE_BAND + rows * rowH + Math.max(0, rows - 1) * gridGap + PICKER_SKIP_H + gap + pad;
 }
 
 /** Fit every event state inside the existing EVENT OUTCOME pane. The story
@@ -21,7 +21,6 @@ export function eventOutcomePaneTemplate(
   kind: 'icon' | 'gem' | 'card' | 'picker' | 'equipment',
   panel: Rect,
   header: Rect,
-  skip = false,
 ): RunScreenTemplate & { eventOutcomePane: { header: Rect } } {
   const { pad, gap } = eventPaneSpacing(template.platform);
   const compact = template.platform === 'mobile';
@@ -32,9 +31,9 @@ export function eventOutcomePaneTemplate(
   const terminal = kind !== 'picker';
   const bodyH = terminal ? Math.min(availableH - 52, kind === 'icon' ? 160 : kind === 'gem' ? 190 : 350) : availableH;
   const body = { x: innerX, y: bodyY, width: innerW, height: Math.max(0, bodyH) };
-  const skipH = !terminal && skip ? PICKER_SKIP_H : 0;
+  const skipH = terminal ? 0 : PICKER_SKIP_H;
   const buttons = terminal
-    ? { x: innerX, y: bodyY + body.height + 12, width: innerW, height: 40 }
+    ? { x: innerX, y: panel.y + panel.height - pad - PICKER_SKIP_H, width: innerW, height: PICKER_SKIP_H }
     : { x: innerX, y: bodyY + body.height - skipH, width: innerW, height: skipH };
   const headline = { ...body, height: Math.min(36, body.height) };
   const detail = { ...body, y: bodyY + PICKER_HEADLINE_BAND, height: 0 };

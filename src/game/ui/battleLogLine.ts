@@ -27,6 +27,12 @@ export const BATTLE_LOG_COLOR: Record<Exclude<BattleLogTextRole, 'neutral'>, str
   note: INK.faint,
 };
 
+export const BATTLE_LOG_TAG_COLOR: Record<string, string> = {
+  START: '#e8b446', READY: '#5fa8d3', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
+  DEBUFF: '#d8578f', EFFECT: '#3fb6c4', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
+  PHASE: '#e8b446',
+};
+
 export const LOG_GROUP_BAND: Record<'player' | 'enemy', number> = { player: 0x1f395d, enemy: 0x4d2734 };
 export const LOG_GROUP_STRIPE: Record<'player' | 'enemy', number> = { player: 0x5b9bd8, enemy: 0xd0605a };
 

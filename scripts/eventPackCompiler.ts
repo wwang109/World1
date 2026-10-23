@@ -220,5 +220,6 @@ const PACK_DIRECTORY = new URL('../src/data/content/event-packs/', import.meta.u
 const CONTENT_DIRECTORY = new URL('../src/data/content/', import.meta.url);
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  writeVersionedEventPackAggregate(PACK_DIRECTORY, CONTENT_DIRECTORY);
+  const root = process.argv.includes('--root') ? resolve(process.argv[process.argv.indexOf('--root') + 1]!) : undefined;
+  writeVersionedEventPackAggregate(root ? join(root, 'src/data/content/event-packs') : PACK_DIRECTORY, root ? join(root, 'src/data/content') : CONTENT_DIRECTORY);
 }

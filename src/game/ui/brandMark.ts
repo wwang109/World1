@@ -31,8 +31,8 @@ export interface BrandMarkMetrics {
 }
 
 export const BRAND_MARK: Record<'mobile' | 'desktop', BrandMarkMetrics> = {
-  mobile: { eyebrowGap: 34, wordmarkSize: 44, ruleGap: 34, ruleWidth: 180, ruleHeight: 2 },
-  desktop: { eyebrowGap: 44, wordmarkSize: 64, ruleGap: 46, ruleWidth: 260, ruleHeight: 2 },
+  mobile: { eyebrowGap: 34, wordmarkSize: 30, ruleGap: 34, ruleWidth: 180, ruleHeight: 2 },
+  desktop: { eyebrowGap: 44, wordmarkSize: 54, ruleGap: 46, ruleWidth: 260, ruleHeight: 2 },
 };
 
 export function brandMarkMetrics(): BrandMarkMetrics {
@@ -59,7 +59,7 @@ export function renderBrandMark(
   const eyebrow = scene.add.text(cx, y - m.eyebrowGap, 'A ROGUELITE SKILL-BOARD BATTLER', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textMuted, letterSpacing: 2,
   }).setOrigin(0.5);
-  const wordmark = scene.add.text(cx, y, 'WORLD1', {
+  const wordmark = scene.add.text(cx, y, 'WANDERING HAND', {
     fontFamily: FONT.display ?? FONT.body, fontStyle: 'bold', fontSize: `${m.wordmarkSize}px`, color: UI.textBright,
   }).setOrigin(0.5);
   const rule = opts.rule

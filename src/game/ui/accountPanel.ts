@@ -9,6 +9,9 @@ import {
   onAccountChange,
   renameAccount,
   sendEmailSignIn,
+  signOutAccount,
+  startGoogleSignIn,
+  startGitHubSignIn,
   startSteamSignIn,
   type AccountState,
 } from '../accountSession';
@@ -16,6 +19,8 @@ import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, START_SCENE_INK, startSceneTextRole, UI } from '../theme';
 import { attachButtonFeel } from './motion';
 import { promptForLine } from './textPrompt';
+import { fetchCommunityMe } from '../communityApi';
+import { closeGoogleSignIn } from './googleSignIn';
 
 const PANEL_DEPTH = 1000;
 
@@ -42,19 +47,21 @@ interface PanelMetrics {
 
 function panelMetrics(mobile: boolean): PanelMetrics {
   return mobile
-    ? { width: Math.min(SCREEN.width - 28, 440), pad: 16, rowH: 52, labelW: 64, buttonW: 120, buttonH: 44, title: 16, body: 12, small: 11 }
-    : { width: 540, pad: 24, rowH: 54, labelW: 90, buttonW: 150, buttonH: 38, title: 18, body: 14, small: 12 };
+    ? { width: Math.min(SCREEN.width - 28, 440), pad: 16, rowH: 64, labelW: 64, buttonW: 146, buttonH: 44, title: 16, body: 12, small: 11 }
+    : { width: 560, pad: 24, rowH: 58, labelW: 90, buttonW: 170, buttonH: 42, title: 18, body: 14, small: 12 };
 }
 
-function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => void): Phaser.GameObjects.Container {
+function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => void, points: string): Phaser.GameObjects.Container {
   const mobile = ACTIVE_PROFILE.id === 'mobile';
   const m = panelMetrics(mobile);
   const container = scene.add.container(0, 0).setDepth(PANEL_DEPTH);
+  container.setData('accountPanel', true);
   const scrim = scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
   scrim.on('pointerdown', onClose);
   container.add(scrim);
 
   const ready = state.status === 'ready' && state.account !== null;
+  const linked = Boolean(state.account?.links.length);
   const textStyle = (size: number, color: string, bold = false): Phaser.Types.GameObjects.Text.TextStyle => ({
     fontFamily: FONT.body, fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal',
   });
@@ -65,57 +72,73 @@ function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => voi
   items.push(heading);
   let y = m.pad + heading.height + 12;
 
-  const addButton = (label: string, rowY: number, onPress: () => void): void => {
-    const x = left + m.width - m.pad - m.buttonW / 2;
+  const addButton = (label: string, rowY: number, onPress: () => void, enabled = true, alignLeft = false): void => {
+    const x = alignLeft ? left + m.pad + m.buttonW / 2 : left + m.width - m.pad - m.buttonW / 2;
     const plate = scene.add.rectangle(x, rowY, m.buttonW, m.buttonH, UI.chip, 1)
-      .setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
+      .setStrokeStyle(1, UI.border, 1).setAlpha(enabled ? 1 : 0.45);
+    plate.setData('accountControl', label);
+    if (enabled) plate.setInteractive({ useHandCursor: true });
     const text = scene.add.text(x, rowY, label, { ...textStyle(m.small, UI.textOnChip, true), letterSpacing: 1 }).setOrigin(0.5);
-    attachButtonFeel(scene, plate, { fill: UI.chip, hover: 0xd8ad5e, follow: [text], lift: 1, onPress });
+    if (enabled) attachButtonFeel(scene, plate, { fill: UI.chip, hover: 0xd8ad5e, follow: [text], lift: 1, onPress });
     items.push(plate, text);
   };
 
   const addRow = (label: string, value: string, button: { label: string; onPress: () => void } | null): void => {
     const rowY = y + m.rowH / 2;
-    items.push(scene.add.text(left + m.pad, rowY, label, { ...textStyle(m.small, UI.textMuted, true), letterSpacing: 1 }).setOrigin(0, 0.5));
-    const valueMax = m.width - m.pad * 2 - m.labelW - (button ? m.buttonW + 8 : 0);
-    items.push(scene.add.text(left + m.pad + m.labelW, rowY, value, {
-      ...textStyle(m.body, UI.text), fixedWidth: valueMax,
-    }).setOrigin(0, 0.5));
-    if (button) addButton(button.label, rowY, button.onPress);
+    items.push(scene.add.text(left + m.pad, rowY - 12, label, { ...textStyle(m.small, UI.textMuted, true), letterSpacing: 1 }).setOrigin(0, 0.5));
+    const valueMax = m.width - m.pad * 2 - (button ? m.buttonW + 16 : 0);
+    const detail = scene.add.text(left + m.pad, rowY + 9, value, textStyle(m.body, UI.text)).setOrigin(0, 0.5);
+    while (detail.width > valueMax && detail.text.length > 2) detail.setText(detail.text.replace(/…$/, '').slice(0, -1) + '…');
+    items.push(detail);
+    if (button) addButton(button.label, rowY, button.onPress, !state.pending);
     items.push(scene.add.rectangle(left + m.pad, y + m.rowH, m.width - m.pad * 2, 1, UI.border, 0.35).setOrigin(0, 0.5));
     y += m.rowH;
   };
 
   if (ready) {
     const account = state.account!;
+    const status = scene.add.text(left + m.pad, y, linked ? 'SAVED ACCOUNT' : 'GUEST ACCOUNT', textStyle(m.small, UI.textAccent, true));
+    items.push(status);
+    y += status.height + 8;
+    addRow('VOTES', points, null);
     addRow('NAME', account.displayName, {
-      label: 'RENAME',
+      label: state.pending === 'name' ? 'SAVING…' : 'RENAME',
       onPress: () => {
         void promptForLine({
           title: 'ACCOUNT NAME',
           initial: account.displayName,
           hint: `Shown to other players who face your builds. Max ${GHOST_NAME_MAX} characters.`,
           validate: (value) => (normalizeGhostName(value) === null ? 'name cannot be empty' : null),
-        }).then((value) => { if (value !== null) void renameAccount(value); });
+        }).then((value) => { if (value !== null && getAccountState().account?.id === account.id) void renameAccount(value); });
       },
     });
+    const google = linkLabel(state, 'google');
+    addRow('GOOGLE', google ? 'Linked' : state.features.google ? 'Not linked' : 'Not available yet', state.features.google && !google ? {
+      label: state.pending === 'google' ? 'OPENING…' : 'GOOGLE SIGN-IN',
+      onPress: () => { void startGoogleSignIn(); },
+    } : null);
+    const github = linkLabel(state, 'github');
+    addRow('GITHUB', github ? 'Linked' : state.features.github ? 'Not linked' : 'Not available yet', state.features.github && !github ? {
+      label: state.pending === 'github' ? 'OPENING…' : 'GITHUB SIGN-IN',
+      onPress: () => { void startGitHubSignIn(); },
+    } : null);
     const steam = linkLabel(state, 'steam');
     addRow('STEAM', steam ? 'Linked' : 'Not linked', steam ? null : {
-      label: 'LINK STEAM',
+      label: state.pending === 'steam' ? 'OPENING…' : 'STEAM SIGN-IN',
       onPress: () => { void startSteamSignIn(); },
     });
     const email = linkLabel(state, 'email');
     if (state.features.email) {
       addRow('EMAIL', email ?? 'Not linked', email ? null : {
-        label: 'LINK EMAIL',
+        label: state.pending === 'email' ? 'SENDING…' : 'EMAIL SIGN-IN',
         onPress: () => {
           void promptForLine({
             title: 'EMAIL SIGN-IN',
             initial: '',
-            hint: 'We send a one-time sign-in link. If this email is already linked, the link signs you in to that account.',
+            hint: 'Open the one-time link in this browser to keep this guest account. Once linked, you can sign in on other devices. An existing link switches to that account.',
             applyLabel: 'SEND LINK',
             validate: (value) => (normalizeEmail(value) === null ? 'enter a valid email address' : null),
-          }).then((value) => { if (value !== null) void sendEmailSignIn(value); });
+          }).then((value) => { if (value !== null && getAccountState().account?.id === account.id) void sendEmailSignIn(value); });
         },
       });
     } else {
@@ -127,7 +150,7 @@ function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => voi
 
   y += 12;
   const hint = scene.add.text(left + m.pad, y, ready
-    ? 'Link Steam or email to keep this account on other devices. If it is already linked to another account, you switch to that one.'
+    ? 'Play as a guest, or link an account for other devices. Existing links switch accounts; accounts are not merged.'
     : 'You can still play. Your builds upload once the account server is back.', {
     ...textStyle(m.small, UI.textMuted), wordWrap: { width: m.width - m.pad * 2 }, lineSpacing: 3,
   });
@@ -145,19 +168,18 @@ function buildPanel(scene: Phaser.Scene, state: AccountState, onClose: () => voi
 
   y += 16;
   const closeY = y + m.buttonH / 2;
-  addButton('CLOSE', closeY, onClose);
+  if (linked) addButton(state.pending === 'signout' ? 'SIGNING OUT…' : 'SIGN OUT', closeY, () => { void signOutAccount(); }, !state.pending, true);
+  addButton(linked ? 'CLOSE' : 'KEEP PLAYING', closeY, onClose);
   y += m.buttonH + m.pad;
 
   const height = y;
   const top = Math.max(SCREEN.safeTop + 12, (SCREEN.height - height) / 2);
-  const plate = scene.add.rectangle(left, top, m.width, height, UI.panelAlt, 1)
+  const content = scene.add.container(0, top);
+  const plate = scene.add.rectangle(left, 0, m.width, height, UI.panelAlt, 1)
     .setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
-  container.add(plate);
-  for (const item of items) {
-    const positioned = item as unknown as { y: number };
-    positioned.y += top;
-    container.add(item);
-  }
+  content.add(plate);
+  content.add(items);
+  container.add(content);
   return container;
 }
 
@@ -169,11 +191,16 @@ export function addAccountChip(scene: Phaser.Scene): void {
   const y = margin + height / 2;
   const target = scene.add.rectangle(margin, y, width, height, UI.bg, 0.001)
     .setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+  target.setData('accountControl', 'OPEN ACCOUNT');
   const label = scene.add.text(margin + 4, y, chipLabel(getAccountState()), {
     ...startSceneTextRole('sandboxDetail'), letterSpacing: 1,
   }).setOrigin(0, 0.5).setShadow(0, 1, START_SCENE_INK.shadow, 3, true, true);
 
   let panel: Phaser.GameObjects.Container | null = null;
+  let points = 'Checking…';
+  let pointsGeneration = 0;
+  let alive = true;
+  let shownAccount = getAccountState().account?.id;
   const close = (): void => {
     panel?.destroy();
     panel = null;
@@ -181,7 +208,22 @@ export function addAccountChip(scene: Phaser.Scene): void {
   };
   const open = (): void => {
     panel?.destroy();
-    panel = buildPanel(scene, getAccountState(), close);
+    panel = buildPanel(scene, getAccountState(), close, points);
+  };
+
+  const refreshPoints = (): void => {
+    const accountId = getAccountState().account?.id;
+    if (!accountId) return;
+    const expected = ++pointsGeneration;
+    points = 'Checking…';
+    void fetchCommunityMe().then(result => {
+      if (!alive || expected !== pointsGeneration || getAccountState().account?.id !== accountId) return;
+      points = `${result.wallet.balance} saved vote points${result.pointsEnabled ? '' : ' · voting soon'}`;
+      if (panel) open();
+    }).catch(() => {
+      if (!alive || expected !== pointsGeneration || getAccountState().account?.id !== accountId) return;
+      points = 'Unavailable'; if (panel) open();
+    });
   };
 
   attachButtonFeel(scene, target, {
@@ -189,14 +231,27 @@ export function addAccountChip(scene: Phaser.Scene): void {
     onPress: () => {
       if (getAccountState().status === 'offline') void initAccount();
       open();
+      refreshPoints();
     },
   });
 
   const unsubscribe = onAccountChange((next) => {
     label.setText(chipLabel(next));
+    if (shownAccount !== next.account?.id) {
+      shownAccount = next.account?.id;
+      points = 'Checking…';
+      pointsGeneration++;
+      if (panel) refreshPoints();
+    }
     if (panel || next.notice) open();
   });
+  const escape = (): void => { if (panel) close(); };
+  scene.input.keyboard?.on('keydown-ESC', escape);
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    alive = false;
+    pointsGeneration++;
+    closeGoogleSignIn();
+    scene.input.keyboard?.off('keydown-ESC', escape);
     unsubscribe();
     panel = null;
   });

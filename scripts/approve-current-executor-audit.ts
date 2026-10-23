@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { approveCurrentExecutor } from './approve-current-executor';
+import { buildRunExecutors } from './build-run-executors';
+import { EXECUTOR_PAGES_ORIGIN, inspectLocalArchive, publishExecutorArchives } from './run-executor-archive';
+
+const root = resolve('tmp/community/executor-approval', randomUUID());
+const sha = 'a'.repeat(40), content = 'b'.repeat(40);
+const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const put = (path: string, bytes: string | Uint8Array): void => { const absolute = join(root, path); mkdirSync(dirname(absolute), { recursive: true }); writeFileSync(absolute, bytes); };
+put('src/run/online/executor.ts', "import '../ghostValidate'; export const createRunExecutor = () => ({});");
+put('src/run/ghostValidate.ts', 'export const validateGhostSubmission = () => true;');
+put('art-manifest.v1.json', JSON.stringify({ assets: [{ path: 'public/game-art/a.png' }] })); put('public/game-art/a.png', Uint8Array.of(137, 80, 78, 71));
+const contentManifest = JSON.stringify({ files: [{ path: 'art-manifest.v1.json', sha256: hash(readFileSync(join(root, 'art-manifest.v1.json'))) }] });
+put('content-manifest.v1.json', contentManifest); put('src/data/content-build.v1.json', JSON.stringify({ contentSha: content, rulesRevision: sha, manifestSha256: hash(contentManifest) }));
+const built = buildRunExecutors({ root }); const current = built.archives[0]!;
+const envelope = inspectLocalArchive(join(root, '.run-executor-archive', current.archiveId));
+publishExecutorArchives(root, built.archives); publishExecutorArchives(root, built.archives);
+assert.equal(JSON.parse(readFileSync(join(root, 'public/executor-archives', current.archiveId, 'archive.json'), 'utf8')).archive.sourceDigest, current.sourceDigest);
+const unexpectedStatic = `public/executor-archives/${current.archiveId}/files/unexpected.env`; put(unexpectedStatic, 'must not publish');
+assert.throws(() => publishExecutorArchives(root, built.archives), /unexpected static member/); unlinkSync(join(root, unexpectedStatic));
+const db = new DatabaseSync(':memory:'); db.exec(readFileSync('migrations/0004_eligible_runs.sql', 'utf8'));
+const database = '12345678-1234-1234-1234-123456789abc'; const env = { CLOUDFLARE_ACCOUNT_ID: 'c'.repeat(32), D1_DATABASE_ID: database, CLOUDFLARE_API_TOKEN: 'fixture-secret-never-print' };
+let mode = '', writes = 0, runtimeRequests = 0, waits = 0;
+const transport: typeof fetch = async (input, init) => {
+  const url = new URL(String(input)); assert.equal(init?.redirect, 'error');
+  if (url.hostname === 'api.github.com' && url.pathname.includes('/commits/')) return mode === 'unpublished' ? new Response('', { status: 404 }) : Response.json({ sha });
+  if (url.hostname === 'api.github.com' && url.pathname.includes('/contents/')) return Response.json({ encoding: 'base64', content: Buffer.from(mode === 'wrong-content' ? '{}' : contentManifest).toString('base64') });
+  if (url.origin === EXECUTOR_PAGES_ORIGIN && url.pathname === '/community/runtime') { runtimeRequests++; return Response.json({ rulesRevision: mode === 'runtime-mismatch' || mode === 'waiting' && runtimeRequests < 3 ? 'd'.repeat(40) : sha, contentSha: content, contentApiVersion: 1, executor: built.current, runtimeFiles: Object.fromEntries(JSON.parse(contentManifest).files.map((file: { path: string; sha256: string }) => [file.path, file.sha256])) }); }
+  if (url.origin === EXECUTOR_PAGES_ORIGIN && url.pathname.endsWith('/archive.json')) return Response.json(mode === 'archive-mismatch' ? { ...envelope, totalBytes: 1 } : envelope);
+  assert.equal(url.hostname, 'api.cloudflare.com');
+  if (url.pathname.endsWith('/pages/projects/proof-of-concept-ab-deckbuilder')) return Response.json({ success: true, result: { name: 'proof-of-concept-ab-deckbuilder', deployment_configs: { production: { d1_databases: { GHOSTS_DB: { id: mode === 'wrong-binding' ? 'wrong' : database } } } } } });
+  if (!url.pathname.endsWith('/query')) return Response.json({ success: true, result: { uuid: mode === 'wrong-D1' ? 'other' : database } });
+  const body = JSON.parse(String(init?.body)); const mutating = body.sql.startsWith('INSERT');
+  if (mutating) { writes++; if (mode === 'raced-conflict') db.prepare('UPDATE eligible_executor_revisions SET source_digest=?').run('f'.repeat(64)); }
+  const results = db.prepare(body.sql).all(...body.params); return Response.json({ success: true, result: [{ success: true, results }] });
+};
+const ports = { root, env, fetch: transport, currentRules: () => sha, wait: async () => { waits++; } };
+const dry = await approveCurrentExecutor({}, ports); assert.equal(dry.mode, 'dry-run'); assert.equal(dry.approved, false); assert.equal(writes, 0);
+const applied = await approveCurrentExecutor({ apply: true }, ports); assert.equal(applied.approved, true); assert.equal(applied.activeReferences, 0);
+db.prepare('UPDATE eligible_executor_revisions SET active_references=3,approved=0,source_digest=NULL').run();
+assert.equal((await approveCurrentExecutor({ apply: true }, ports)).activeReferences, 3);
+assert.equal((await approveCurrentExecutor({ apply: true }, ports)).activeReferences, 3);
+for (const failure of ['unpublished', 'wrong-content', 'runtime-mismatch', 'archive-mismatch', 'wrong-D1', 'wrong-binding']) { mode = failure; const count: number = writes; await assert.rejects(approveCurrentExecutor({ apply: true }, ports)); assert.equal(writes, count); }
+mode = ''; const beforeDirty = writes; await assert.rejects(approveCurrentExecutor({ apply: true }, { ...ports, currentRules: () => `development-${sha}` })); assert.equal(writes, beforeDirty);
+db.prepare('UPDATE eligible_executor_revisions SET source_digest=?').run('f'.repeat(64));
+await assert.rejects(approveCurrentExecutor({ apply: true }, ports), /immutable-source-digest-conflict/);
+db.prepare('UPDATE eligible_executor_revisions SET source_digest=NULL,approved=0').run(); mode = 'raced-conflict';
+await assert.rejects(approveCurrentExecutor({ apply: true }, ports), /raced-or-unconfirmed/);
+const conflict = db.prepare('SELECT source_digest,active_references,approved FROM eligible_executor_revisions').get() as { source_digest: string; active_references: number; approved: number };
+assert.equal(conflict.source_digest, 'f'.repeat(64)); assert.equal(conflict.active_references, 3); assert.equal(conflict.approved, 0);
+db.prepare('UPDATE eligible_executor_revisions SET source_digest=NULL,approved=0').run(); mode = 'waiting'; runtimeRequests = 0;
+assert.equal((await approveCurrentExecutor({ apply: true, waitForRuntime: true }, ports)).approved, true); assert.equal(waits, 2);
+mode = 'runtime-mismatch'; waits = 0; runtimeRequests = 0; const beforeTimeout = writes;
+await assert.rejects(approveCurrentExecutor({ apply: true, waitForRuntime: true }, ports)); assert.equal(waits, 29); assert.equal(runtimeRequests, 30); assert.equal(writes, beforeTimeout);
+mode = ''; put('src/run/ghostValidate.ts', 'tampered'); await assert.rejects(approveCurrentExecutor({ apply: true }, ports), /source-changed/);
+console.log('executor approval OK: read-only default; real SQLite guarded insert/null-to-approved/idempotent replay preserves active counts; immutable and raced conflicts refuse; dirty/unpublished/wrong-content/runtime/archive/D1 failures write nothing; bounded actual-runtime polling; existing Pages immutable archive publication verified; no external writes');

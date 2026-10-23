@@ -58,7 +58,7 @@ import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { runScreenTemplate } from '../src/game/ui/runScreenTemplate';
 import { escapesCanvas, overlapArea } from '../src/game/ui/maskedTextBounds';
-import { startScenePrimaryPresentation } from '../src/game/ui/startSceneLayout';
+import { startScenePracticePresentation } from '../src/game/ui/startSceneLayout';
 import { runTravelChoiceCardCopy } from '../src/game/ui/runTravelChoiceCardCopy';
 import type { RunTravelChoiceViewModel } from '../src/game/ui/runTravelChoiceViewModel';
 import { mobileDraftActions, mobileDraftSetHeaderLabel, MOBILE_DRAFT_SELECTED_LABEL } from '../src/game/ui/mobileDraftLayout';
@@ -72,9 +72,9 @@ const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
 
 // Front-door label, sourced from `startSceneLayout.ts` rather than retyped —
-// see that file's `startScenePrimaryPresentation`.
-const BEGIN_LABEL = startScenePrimaryPresentation(false, 'desktop').label;
-const RESUME_LABEL = startScenePrimaryPresentation(true, 'desktop').label;
+// see that file's `startScenePracticePresentation`.
+const BEGIN_LABEL = startScenePracticePresentation(false).label;
+const RESUME_LABEL = startScenePracticePresentation(true).label;
 
 /** Minimal stand-in for the fields `runTravelChoiceCardCopy` actually reads. */
 function travelModelStub(kind: RunTravelChoiceViewModel['kind'], event?: RunTravelChoiceViewModel['event']): RunTravelChoiceViewModel {
@@ -557,7 +557,7 @@ async function clickMatchingText(
   describe: string,
 ): Promise<string | null> {
   const texts = await collectTexts(page);
-  const match = texts.find((t) => predicate(t.text));
+  const match = texts.filter((t) => !t.clipped && predicate(t.text)).sort((a, b) => a.y - b.y || a.x - b.x)[0];
   if (!match) {
     hardFailures.push(`[${platform}] step "${step}": no visible text matching ${describe} — the walkthrough could not advance`);
     return null;
@@ -723,6 +723,11 @@ async function activeEmbeddedDestination(page: Page, platform: Platform): Promis
 const shotHashes: Record<Platform, Map<string, string>> = { desktop: new Map(), mobile: new Map() };
 
 async function shot(page: Page, name: string, platform: Platform): Promise<void> {
+  await page.waitForFunction(() => {
+    const game = (window as unknown as { __game?: { scene: { getScenes(active: boolean): { cameras: { main: { fadeEffect: { isRunning: boolean } } } }[] } } }).__game;
+    return game?.scene.getScenes(true).every(scene => !scene.cameras.main.fadeEffect.isRunning);
+  });
+  await page.waitForTimeout(500);
   const path = `${OUT_DIR}/${name}.png`;
   const buf = await page.screenshot({ path });
   const hash = createHash('md5').update(buf).digest('hex');
@@ -890,7 +895,8 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   const transitioned = await activeSceneKey(page);
   const landedOn = transitioned !== MAP_SCENE_KEY ? transitioned : (await activeEmbeddedDestination(page, platform)) ?? transitioned;
   await shot(page, `${platform}-04-node-${landedOn}`, platform);
-  await auditScreen(page, `node-${landedOn}`, platform, REQUIRED_STATS.filter(Boolean));
+  const nodeStats = landedOn === 'MobileShop' ? ['\\bSHOP\\b', '\\bDAY\\s*\\d+\\b', '\\d+\\s*G\\b'] : REQUIRED_STATS.filter(Boolean);
+  await auditScreen(page, `node-${landedOn}`, platform, nodeStats);
   console.log(`[${platform}] picked "${picked}" -> landed on scene "${landedOn}"`);
 
   // Close the active destination before clicking the retained map's BAG.

@@ -70,34 +70,57 @@ export function shakeBar(
   });
 }
 
-export function pulseTokenAt(
-  scene: Phaser.Scene, col: BoardColumn, pieces: ColumnPiece[], slot: number,
-  cast: TurnFx | undefined, nameFontSize: number, speedMult: number, slotCount = 10,
-): FxRecipe | undefined {
+export function tokenAtSlot(
+  col: BoardColumn, pieces: readonly ColumnPiece[], slot: number, slotCount = 10,
+): Phaser.GameObjects.Container | undefined {
   const bySlot = new Map<number, ColumnPiece>();
   for (const p of pieces) bySlot.set(p.slot, p);
   let row = 0; let tokenIdx = 0;
   while (row < slotCount) {
     const piece = bySlot.get(row);
     const span = piece ? Math.max(1, piece.skill.size) : 1;
-    if (piece && row === slot) {
-      const token = col.tokens[tokenIdx];
-      if (token) {
-        const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
-        if (recipe) {
-          castTokenFx(scene, token, recipe, cast?.cardName ?? piece.skill.name, nameFontSize, speedMult);
-        } else {
-          token.setScale(1);
-          scene.tweens.add({ targets: token, scale: 1.04, duration: 125 / speedMult, yoyo: true, ease: 'Sine.InOut' });
-        }
-        return recipe;
-      }
-      return undefined;
-    }
+    if (piece && row === slot) return col.tokens[tokenIdx];
     tokenIdx += 1;
     row += span;
   }
   return undefined;
+}
+
+export function pulseTokenAt(
+  scene: Phaser.Scene, col: BoardColumn, pieces: ColumnPiece[], slot: number,
+  cast: TurnFx | undefined, nameFontSize: number, speedMult: number, slotCount = 10,
+): FxRecipe | undefined {
+  const piece = pieces.find((p) => p.slot === slot);
+  const token = piece ? tokenAtSlot(col, pieces, slot, slotCount) : undefined;
+  if (!piece || !token) return undefined;
+  const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
+  if (recipe) {
+    castTokenFx(scene, token, recipe, cast?.cardName ?? piece.skill.name, nameFontSize, speedMult);
+  } else {
+    token.setScale(1);
+    scene.tweens.add({ targets: token, scale: 1.04, duration: 125 / speedMult, yoyo: true, ease: 'Sine.InOut' });
+  }
+  return recipe;
+}
+
+const LOG_FOCUS_GOLD = 0xf2c14e;
+const LOG_FOCUS_LIGHT = 0xfff2c2;
+
+export function outlineBoardToken(
+  scene: Phaser.Scene, token: Phaser.GameObjects.Container, pulseSpeed?: number,
+): Phaser.GameObjects.Graphics {
+  const w = token.width > 0 ? token.width : token.getBounds().width;
+  const h = token.height > 0 ? token.height : token.getBounds().height;
+  const outline = scene.add.graphics();
+  outline.lineStyle(8, LOG_FOCUS_GOLD, 0.35);
+  outline.strokeRoundedRect(token.x - w / 2 - 5, token.y - h / 2 - 5, w + 10, h + 10, 8);
+  outline.lineStyle(3, LOG_FOCUS_LIGHT, 1);
+  outline.strokeRoundedRect(token.x - w / 2 - 3, token.y - h / 2 - 3, w + 6, h + 6, 6);
+  if (pulseSpeed !== undefined) {
+    token.setScale(1);
+    scene.tweens.add({ targets: token, scale: 1.04, duration: 140 / pulseSpeed, yoyo: true, repeat: 1, ease: 'Sine.InOut' });
+  }
+  return outline;
 }
 
 export function castTokenFx(

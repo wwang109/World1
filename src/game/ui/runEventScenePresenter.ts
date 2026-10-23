@@ -23,6 +23,7 @@ import { runScreenTemplate, type RunTemplatePlatform } from './runScreenTemplate
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
 import { marketStatPickOptions, type MarketStatPickOption } from '../../run/market';
+import { snapshotRunProgress } from './RunProgressStrip';
 import type { EventReshapeGemModeV3, EventReshapeModeV3 } from '../../data/eventContentV3';
 import type { EventReshapeGemOptionV3 } from '../../run/eventV3Materialization';
 import type { SkillTier } from '../../engine/types';
@@ -300,7 +301,8 @@ function mergePicker(state: RunState, candidateSkillIds: readonly string[]): Mer
     optionCount: candidateSkillIds.length,
   };
 }
-export type StatPicker = { kind: 'buyStatPick'; options: readonly MarketStatPickOption[]; optionCount: number };
+export type StatPickOption = MarketStatPickOption & { current?: number };
+export type StatPicker = { kind: 'buyStatPick'; options: readonly StatPickOption[]; optionCount: number };
 
 export type ReshapePicker = {
   kind: 'reshapeCard';
@@ -467,7 +469,8 @@ export function presentRunEventOutcome(
     case 'awardCardPointPick':
       return { kind: 'result', outcome };
     case 'buyStatPick': {
-      const options = marketStatPickOptions(state);
+      const heroStats = snapshotRunProgress(state).heroStats;
+      const options = marketStatPickOptions(state).map((option) => (heroStats ? { ...option, current: heroStats[option.stat] } : option));
       return { kind: 'picker', picker: { kind: 'buyStatPick', options, optionCount: options.length } };
     }
     // The scene intercepts `challengeFight` before it ever reaches

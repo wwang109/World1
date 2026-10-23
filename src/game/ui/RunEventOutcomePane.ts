@@ -26,8 +26,10 @@ import {
 } from './runMergeViewModel';
 import { buildReshapeConfirmView, INITIAL_RESHAPE_UI, reshapePickCards, type ReshapeUiState } from './reshapePickerView';
 import {
+  EVENT_REWARD_COLORS,
   FEATURE_GEM_CHIP_H,
-  renderPickerSkipButton,
+  renderRunFooterBar,
+  type RunFooterAction,
   renderRunBonusDraftPicker, renderRunEquipmentPicker, renderRunGemChoicePicker, renderRunMergeConfirmPicker, renderRunMergeSelectPicker, renderRunReshapeGemPicker, renderRunRerollPicker,
   renderRunReshapeConfirm, renderRunReshapeSelectPicker,
   renderRunRewardPanel, renderRunSellGemPicker, renderRunStatPickPicker, renderRunTradePicker, renderRunUpgradeCardPicker,
@@ -39,14 +41,10 @@ export function fittedPickerModalHeight(picker: RunEventPickerPresentation, plat
     : picker.kind === 'gemChoice' ? { count: picker.options.length, height: FEATURE_GEM_CHIP_H[platform] } : undefined;
   if (!rows) return undefined;
   const modal = runModalLayout({ x: 0, y: 0, width: SCREEN.width, height: SCREEN.height }, { compact: platform === 'mobile' });
-  return modal.header.y + modal.header.height - modal.panel.y + eventPickerBodyHeight(platform, rows.count, rows.height, pickerSkippable(picker.kind));
+  return modal.header.y + modal.header.height - modal.panel.y + eventPickerBodyHeight(platform, rows.count, rows.height);
 }
 
-const PICKERS_WITH_OWN_BACK: readonly RunEventPickerPresentation['kind'][] = ['buyStatPick', 'forgeEquipment', 'upgradeEquipment'];
-
-function pickerSkippable(kind: RunEventPickerPresentation['kind']): boolean {
-  return !PICKERS_WITH_OWN_BACK.includes(kind);
-}
+const PICKERS_THAT_GO_BACK: readonly RunEventPickerPresentation['kind'][] = ['buyStatPick', 'forgeEquipment', 'upgradeEquipment'];
 
 /** Scene-independent UI state. A null receipt is a committed/re-entered choice,
  * whose authored presentation supplies the receipt without replaying rewards. */
@@ -86,6 +84,7 @@ interface PickerContext extends RunEventOutcomePaneContext {
   inspect: (kind: InspectionKind) => { inspectedIndex?: number | null; onInspect?: (index: number | null) => void };
   merge: { ui: MergeUiState; update: (next: MergeUiState) => void };
   reshape: { ui: ReshapeUiState; update: (next: ReshapeUiState) => void };
+  footer: { claimed: boolean; skip: RunFooterAction };
 }
 type PickerRegistry = { [K in PickerKind]: (picker: PickerFor<K>, context: PickerContext) => void };
 type StateRegistry = {
@@ -116,6 +115,7 @@ const renderReshape: PickerRegistry['reshapeCard'] = (picker, ctx) => {
   const option = ui.pick === null ? undefined : picker.options.find(candidate => candidate.instanceId === ui.pick);
   const view = option === undefined ? null : buildReshapeConfirmView(picker.mode, option, picker.reward);
   if (ui.step === 'confirm' && option !== undefined && view !== null) {
+    ctx.footer.claimed = true;
     renderRunReshapeConfirm(ctx.scene, ctx.rewardTemplate, view, {
       ...base,
       detail: ui.detail === 0 ? 'lose' : ui.detail === 1 ? 'gain' : null,
@@ -192,6 +192,7 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
     const { ui, update } = ctx.merge;
     const rewards = ui.ids.length === 3 ? picker.rewardsFor(ui.ids) : null;
     const base = { ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title };
+    ctx.footer.claimed = true;
     if (ui.step === 'reward' && rewards !== null && rewards.rewards.length > 0) {
       renderRunMergeConfirmPicker(ctx.scene, ctx.rewardTemplate, buildMergeConfirmView(picker.owned, rewards, ui.reward), {
         ...base,
@@ -212,12 +213,12 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
       onDetail: index => update({ ...ui, detail: index === null ? null : { list: 'cards', index } }),
       onToggle: instanceId => update(toggleMergeCard(ui, instanceId)),
       onNext: () => update({ ...ui, step: 'reward', reward: null, detail: null }),
+      skip: ctx.footer.skip,
     });
   },
   buyStatPick: (picker, ctx) => renderRunStatPickPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     onPick: stat => ctx.onFinalize({ kind: 'statPick', stat }),
-    onCancel: ctx.onCancel,
   }),
   reshapeCard: (picker, ctx) => picker.mode === 'trade'
     ? renderRunTradePicker(ctx.scene, ctx.rewardTemplate, picker.options, {
@@ -233,12 +234,10 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
   forgeEquipment: (picker, ctx) => renderRunEquipmentPicker(ctx.scene, ctx.rewardTemplate, picker, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     onPick: itemId => ctx.onFinalize({ kind: 'forgeEquipment', itemId }),
-    onCancel: ctx.onCancel,
   }),
   upgradeEquipment: (picker, ctx) => renderRunEquipmentPicker(ctx.scene, ctx.rewardTemplate, picker, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
     onPick: instanceId => ctx.onFinalize({ kind: 'upgradeEquipment', instanceId }),
-    onCancel: ctx.onCancel,
   }),
   reshapeGem: (picker, ctx) => renderRunReshapeGemPicker(ctx.scene, ctx.rewardTemplate, picker.options, {
     ...ctx.paging, font: ctx.font, eventTitle: ctx.presentation.title,
@@ -352,12 +351,12 @@ export class RunEventOutcomePaneController {
         // checks each concrete strategy's input, with this sole dispatch cast.
         const render = RUN_EVENT_OUTCOME_RENDERERS[state.picker.kind] as
           (picker: RunEventPickerPresentation, context: PickerContext) => void;
-        const skip = pickerSkippable(state.picker.kind);
-        const rewardTemplate = eventOutcomePaneTemplate(ctx.template, 'picker', ctx.panel, ctx.header, skip);
-        if (skip) renderPickerSkipButton(ctx.scene, rewardTemplate, ctx.font, ctx.onContinue);
-        return render(state.picker, {
+        const rewardTemplate = eventOutcomePaneTemplate(ctx.template, 'picker', ctx.panel, ctx.header);
+        const footer = { claimed: false, skip: { label: 'SKIP', onPress: ctx.onContinue } };
+        render(state.picker, {
           ...ctx,
           rewardTemplate,
+          footer,
           paging: { page: this.page, onPageChange: page => { this.page = page; ctx.onChange(); } },
           // Desktop otherwise relies on `attachCellHoverTip`'s mouse-hover tip
           // for a picker's detail, but the upgrade picker's before/after diff
@@ -385,6 +384,11 @@ export class RunEventOutcomePaneController {
             },
           },
         });
+        if (!footer.claimed) {
+          const secondary = PICKERS_THAT_GO_BACK.includes(state.picker.kind) ? { label: '‹ BACK', onPress: ctx.onCancel } : footer.skip;
+          renderRunFooterBar(ctx.scene, rewardTemplate.contentSlots.reward.buttons, { secondary }, ctx.font, EVENT_REWARD_COLORS);
+        }
+        return;
       }
       default: {
         const exhaustive: never = state;

@@ -31,6 +31,10 @@ dist/
 /design-qa.md
 /*.png
 .wrangler/
+.run-executor-archive/
+src/service/runs/generated/
+public/content/
+public/executor-archives/
 scratchpad/
 .tmp/
 # Agent scratch dirs — probe fixtures, audit dumps. Same role as .tmp/.
@@ -44,3 +48,7 @@ tmp/
 
 # Downloaded sound packs — only curated audio-src/<key>.* masters are committed.
 /audio-src/_packs/
+
+# Journaled community activation and retained executor artifacts.
+/.content-sync/
+/.content-sync.lock

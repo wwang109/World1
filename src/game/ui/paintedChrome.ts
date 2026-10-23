@@ -26,7 +26,7 @@ function prepareFrames(scene: Phaser.Scene): boolean {
 
 export function renderPaintedChrome(
   scene: Phaser.Scene, x: number, y: number, width: number, height: number,
-  options: { button?: boolean; compact?: boolean; borderOnly?: boolean; corner?: number; shadow?: boolean } = {},
+  options: { button?: boolean; compact?: boolean; borderOnly?: boolean; corner?: number; shadow?: boolean; tint?: number } = {},
 ): Phaser.GameObjects.Container | undefined {
   if (!prepareFrames(scene)) return undefined;
   const corner = options.corner ?? (options.button ? Math.min(12, height / 3) : options.compact ? 20 : 24);
@@ -42,6 +42,7 @@ export function renderPaintedChrome(
   const part = (name: string, px: number, py: number, w: number, h: number, alpha = 1) => {
     const key = name === 'center' ? PAINTED_CHROME_ASSET.key : PAINTED_CHROME_BORDER_ASSET.key;
     const image = scene.add.image(px, py, key, `chrome-${name}`).setOrigin(0).setDisplaySize(w, h).setAlpha(alpha);
+    if (options.tint !== undefined) image.setTint(options.tint);
     group.add(image);
   };
   if (!options.borderOnly) part('center', edge, edge, width - edge * 2, height - edge * 2, options.button ? 0.13 : 1);

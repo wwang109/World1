@@ -32,6 +32,8 @@
  *      shop (the exact regression this script exists to guard).
  *
  * Usage: `npx tsx scripts/shop-smoke.ts [outDir]`
+ * `WORLD1_SHOP_FIXTURE=1` starts a controlled practice shop with 40G;
+ * the wallet is fixture data, not evidence of naturally earned currency.
  * Requires the Vite dev server (`npm run dev`) and the battle API
  * (`npm run api`) — neither is started by this script.
  */
@@ -42,8 +44,7 @@ import { collectSceneTexts as collectTexts, type TextBound } from './sceneText';
 import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { gemBook } from '../src/data/gems';
-import { eventCatalog } from '../src/data/events';
-import { startScenePrimaryPresentation } from '../src/game/ui/startSceneLayout';
+import { startScenePracticePresentation } from '../src/game/ui/startSceneLayout';
 import { mobileDraftActions, mobileDraftSetHeaderLabel, MOBILE_DRAFT_SELECTED_LABEL } from '../src/game/ui/mobileDraftLayout';
 import { runTravelChoiceCardCopy } from '../src/game/ui/runTravelChoiceCardCopy';
 import { FIGHT_TIER_LABEL, type RunTravelChoiceViewModel } from '../src/game/ui/runTravelChoiceViewModel';
@@ -52,9 +53,9 @@ const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
 
 // Front-door label, sourced from `startSceneLayout.ts` rather than retyped —
-// see that file's `startScenePrimaryPresentation`.
-const BEGIN_LABEL = startScenePrimaryPresentation(false, 'desktop').label;
-const RESUME_LABEL = startScenePrimaryPresentation(true, 'desktop').label;
+// see that file's `startScenePracticePresentation`.
+const BEGIN_LABEL = startScenePracticePresentation(false).label;
+const RESUME_LABEL = startScenePracticePresentation(true).label;
 
 // The draft's final-row START button, mobile spelling — sourced from
 // `mobileDraftLayout.ts`'s `mobileDraftActions` rather than retyped.
@@ -181,6 +182,15 @@ async function readPendingSeed(page: Page): Promise<number | null> {
   return null;
 }
 
+async function pressAt(page: Page, x: number, y: number): Promise<void> {
+  const frame = await page.evaluate(() => (window as any).__game.loop.frame as number);
+  await page.mouse.move(x, y); await page.mouse.down();
+  try { await page.waitForFunction(frame => (window as any).__game.loop.frame >= frame + 2, frame, { timeout: 20_000 }); }
+  finally { await page.mouse.up(); }
+  const released = await page.evaluate(() => (window as any).__game.loop.frame as number);
+  await page.waitForFunction(frame => (window as any).__game.loop.frame >= frame + 2, released, { timeout: 20_000 });
+}
+
 async function clickExactText(page: Page, label: string, platform: Platform, step: string): Promise<boolean> {
   const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
   const hit = await page.evaluate((label: string) => {
@@ -213,7 +223,7 @@ async function clickExactText(page: Page, label: string, platform: Platform, ste
   if (!box) { fail(platform, step, 'canvas has no bounding box — nothing was clickable'); return false; }
   const dw = width || box.width;
   const dh = height || box.height;
-  await page.mouse.click(box.x + (hit.x / dw) * box.width, box.y + (hit.y / dh) * box.height);
+  await pressAt(page, box.x + (hit.x / dw) * box.width, box.y + (hit.y / dh) * box.height);
   return true;
 }
 
@@ -247,7 +257,7 @@ async function clickNthText(page: Page, label: string, occurrence: number, platf
   const dh = height || box.height;
   const cx = target.x + target.width / 2;
   const cy = target.y + target.height / 2;
-  await page.mouse.click(box.x + (cx / dw) * box.width, box.y + (cy / dh) * box.height);
+  await pressAt(page, box.x + (cx / dw) * box.width, box.y + (cy / dh) * box.height);
   return true;
 }
 
@@ -494,99 +504,94 @@ async function handleFight(page: Page, platform: Platform, prefix: string): Prom
   return false;
 }
 
-/** Reads the story title straight off the screen and looks it up in the SAME
- * `eventCatalog` the scene renders from (the `run-smoke.ts` idiom) — clicking
- * "whatever uppercase text looks like a choice" is exactly the fragile guess
- * that misfired here on the first pass (it clicked event flavor-text, not a
- * real choice, and the walkthrough silently stalled with no CONTINUE ever
- * appearing). The catalog's own choice labels are the only reliable source
- * of "what is actually clickable here." */
-async function handleEvent(page: Page, platform: Platform, prefix: string): Promise<boolean> {
-  // A fixed sleep raced the embedded pane's own positioning/render pass on
-  // rare occasions (a title read as "none found" despite the event genuinely
-  // being open a moment later) — poll for a real catalog title instead, with
-  // the same 3-attempt/escalating-timeout shape every other click-and-settle
-  // step in this file uses under load.
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const found = await waitUntil(page, async () => (await collectTexts(page)).some((t) => Object.values(eventCatalog).some((e) => e.title === t.text)), attempt < 3 ? 2500 : 8000);
-    if (found) break;
-  }
-  const texts = await collectTexts(page);
-  const titleHit = texts.find((t) => Object.values(eventCatalog).some((e) => e.title === t.text));
-  const eventDef = titleHit ? Object.values(eventCatalog).find((e) => e.title === titleHit.text) : undefined;
-  if (!eventDef) { fail(platform, `${prefix} -> read event title`, `on-screen title "${titleHit?.text ?? '(none found)'}" does not match any catalog event`); return false; }
-  // Prefer the FREE choice — this detour exists only to ADVANCE the map
-  // toward a shop, and the shop assertions downstream need real gold left in
-  // the wallet (a paid choice here starved an earlier pass down to 1 gold,
-  // just enough to buy one gem and then fail the very first REROLL as
-  // unaffordable, which is a test-harness gap, not a product bug). Also
-  // avoid `sellGem`/`mergeCards` outcomes when another choice exists — both
-  // consume owned resources (a pouch gem, three same-tier cards) a freshly
-  // drafted board may not have, and the button reads as clicked-but-inert
-  // rather than a thrown error when it has nothing to offer.
-  const ownershipGated = new Set(['sellGem', 'mergeCards']);
-  const offerable = eventDef.choices.filter((c) => !ownershipGated.has(c.outcome.kind));
-  const pool = offerable.length > 0 ? offerable : eventDef.choices;
-  const free = pool.find((c) => (c.cost ?? 0) === 0);
-  const pickLabel = (free ?? pool[0])?.label;
-  if (!pickLabel) { fail(platform, `${prefix} -> pick a choice`, `event "${eventDef.title}" has no choices to pick`); return false; }
-  // Retried against a real POSTCONDITION, not a fixed sleep. Both run-event
-  // scenes only draw CONTINUE › once `phase === 'outcome' && outcome` (or
-  // 'resolved') — see `DesktopRunEventScene.renderHud` — so a choice click that
-  // silently misses (the harness flake documented on `handleFight`'s CONTINUE
-  // retry, task #62) leaves the scene in `choosing` with no CONTINUE at all,
-  // and the failure surfaces one step later as the inscrutable "no visible text
-  // matching CONTINUE ›". Observed repeatedly on DESKTOP on 2026-08-31 while
-  // mobile passed 6/6 in the same runs: this was the last un-retried click in
-  // the script. Re-clicking is safe — once the choice resolves its label is
-  // gone from the scene, so a retry can only ever land while still choosing.
-  const mark = hardFailures.length;
-  let resolved = false;
-  for (let attempt = 1; attempt <= 3 && !resolved; attempt++) {
-    await clickExactText(page, pickLabel, platform, `${prefix} -> choose "${pickLabel}" (attempt ${attempt})`);
-    resolved = await waitUntil(page, async () => (await collectTexts(page)).some((t) =>
-      t.text.startsWith('CONTINUE') || /CHOOSE A CARD|CHOOSE A GEM|UPGRADE A CARD|PICK ONE/i.test(t.text)),
-      attempt < 3 ? 2500 : 6000);
-  }
-  // Removes ONLY entries naming an attempt, so an unrelated `page error`
-  // pushed asynchronously during the retry window survives the rollback.
-  hardFailures.splice(mark, hardFailures.length - mark, ...hardFailures.slice(mark).filter((f) => !f.includes('(attempt ')));
-  if (!resolved) { fail(platform, `${prefix} -> choose "${pickLabel}"`, 'the choice never resolved (no CONTINUE and no reward picker) after 3 attempts'); return false; }
-  const after = await collectTexts(page);
-  const isPicker = after.some((t) => /CHOOSE A CARD|CHOOSE A GEM|UPGRADE A CARD|PICK ONE/i.test(t.text));
-  if (isPicker) {
-    const rewardPick = after.find((t) => Object.values(skillBook).some((s) => s.name === t.text)) ?? after.find((t) => Object.values(gemBook).some((g) => g.name === t.text));
-    if (rewardPick) {
-      // Same postcondition as the choice above — the reward pick is what moves
-      // the scene into `outcome`, and CONTINUE only exists after that.
-      const pickMark = hardFailures.length;
-      let picked = false;
-      for (let attempt = 1; attempt <= 3 && !picked; attempt++) {
-        await clickExactText(page, rewardPick.text, platform, `${prefix} -> pick reward "${rewardPick.text}" (attempt ${attempt})`);
-        picked = await waitUntil(page, async () => (await collectTexts(page)).some((t) => t.text.startsWith('CONTINUE')), attempt < 3 ? 2500 : 6000);
-      }
-      // Removes ONLY entries naming an attempt, so an unrelated `page error`
-      // pushed asynchronously during the retry window survives the rollback.
-      hardFailures.splice(pickMark, hardFailures.length - pickMark, ...hardFailures.slice(pickMark).filter((f) => !f.includes('(attempt ')));
-      if (!picked) { fail(platform, `${prefix} -> pick reward "${rewardPick.text}"`, 'CONTINUE never appeared after 3 attempts'); return false; }
-    }
-  }
-  // CONTINUE gets the retry every other scene-changing click in this script
-  // has (task #62) — its target text is confirmed present a moment earlier, so
-  // a single no-effect click here would fail a step that is not broken.
-  const contMark = hardFailures.length;
-  let left = false;
-  for (let attempt = 1; attempt <= 3 && !left; attempt++) {
-    await clickMatchingText(page, platform, `${prefix} -> CONTINUE (attempt ${attempt})`, (t) => t.startsWith('CONTINUE'), '"CONTINUE ›"');
-    left = await waitUntil(page, async () => !(await eventDestinationOpen(page, platform)), attempt < 3 ? 3000 : 8000);
-  }
-  // Removes ONLY entries naming an attempt, so an unrelated `page error`
-  // pushed asynchronously during the retry window survives the rollback.
-  hardFailures.splice(contMark, hardFailures.length - contMark, ...hardFailures.slice(contMark).filter((f) => !f.includes('(attempt ')));
-  if (!left) { fail(platform, `${prefix} -> CONTINUE`, 'the event scene never closed after 3 click attempts'); return false; }
-  return true;
+interface LiveEventChoice { title: string; enabled: boolean; cost: number; outcome: string }
+interface LiveEventView {
+  eventId: string; contentVersion: number; title: string; phase: string;
+  pane: string; picker: string | null; choices: LiveEventChoice[];
 }
 
+async function readLiveEvent(page: Page, platform: Platform): Promise<LiveEventView | null> {
+  return page.evaluate(`(async()=>{
+    const storeUrl=performance.getEntriesByType('resource').map(entry=>entry.name).find(name=>new URL(name).pathname==='/src/game/runStore.ts');
+    if(!storeUrl)throw new Error('Loaded runStore module URL unavailable');
+    const store=await import(storeUrl);
+    const presenter=await import('/src/game/ui/runEventScenePresenter.ts');
+    const run=store.getActiveRun(), view=store.currentRunEventViewModel();
+    if(!run||!view)return null;
+    const model=presenter.buildRunEventScenePresentation(view,run,'${platform}');
+    const scene=window.__game.scene.getScene('${platform === 'desktop' ? 'DesktopRunEvent' : 'MobileRunEvent'}');
+    const pane=scene.pane.current;
+    return {eventId:view.eventId,contentVersion:view.contentVersion,title:model.title,phase:view.phase.kind,
+      pane:pane.kind,picker:pane.kind==='picker'?pane.picker.kind:null,
+      choices:model.choices.map(choice=>({title:choice.title,enabled:choice.enabled,cost:choice.cost,
+        outcome:view.choices.find(source=>source.id===choice.id)?.outcomeHint.kind??'unknown'}))};
+  })()`);
+}
+
+async function handleEvent(page: Page, platform: Platform, prefix: string): Promise<boolean> {
+  let view: LiveEventView | null = null;
+  const opened = await waitUntil(page, async () => {
+    view = await readLiveEvent(page, platform);
+    if (!view) return false;
+    return (await collectTexts(page)).some(text => text.text === view!.title);
+  }, 15_000);
+  if (!opened || !view) { fail(platform, `${prefix} -> read event view`, 'the current materialized event title never appeared'); return false; }
+  const initial = view as LiveEventView;
+  console.log(`  [${platform}] ${prefix}: ${initial.title} (content v${initial.contentVersion})`);
+  const priority = ['grantGold', 'nothing', 'grantShopRerolls', 'grantStat', 'grantLevel', 'grantMapInfo', 'grantCard', 'grantGem', 'cardChoice', 'gemChoice', 'bonusDraft', 'upgradeCard', 'upgradeCardTargeted'];
+  for (let step = 0; step < 24; step++) {
+    if (!(await eventDestinationOpen(page, platform))) {
+      if ((await activeSceneKey(page)).includes('Battle')) {
+        await speedUpBattle(page, platform, prefix);
+        if (!(await waitForText(page, platform, `${prefix} -> challenge resolves`, text => text === 'VICTORY' || text === 'DEFEAT', 'challenge result', 90_000))) return false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          await clickMatchingText(page, platform, `${prefix} -> challenge CONTINUE`, text => text.startsWith('CONTINUE'), 'CONTINUE');
+          if (await waitUntil(page, async () => !(await activeSceneKey(page)).includes('Battle'), 5000)) return true;
+        }
+        fail(platform, `${prefix} -> challenge CONTINUE`, 'challenge playback did not return to the map'); return false;
+      }
+      return true;
+    }
+    const texts = (await collectTexts(page)).filter(text => !text.clipped);
+    const current = await readLiveEvent(page, platform);
+    const continuation = texts.find(text => text.text.startsWith('CONTINUE'));
+    if (continuation) {
+      await clickBound(page, continuation, platform, `${prefix} -> CONTINUE`);
+      if (await waitUntil(page, async () => !(await eventDestinationOpen(page, platform)), 5000)) {
+        pass(platform, `${prefix} -> resolved ${initial.title} (content v${initial.contentVersion})`);
+        return true;
+      }
+      continue;
+    }
+    const confirm = texts.find(text => text.text === 'CONFIRM');
+    if (confirm) { await clickBound(page, confirm, platform, `${prefix} -> confirm event cost`); await page.waitForTimeout(250); continue; }
+    if (current?.pane === 'choices') {
+      const choices = current.choices.filter(choice => choice.enabled && texts.some(text => text.text === choice.title));
+      choices.sort((a, b) => a.cost - b.cost || (priority.includes(a.outcome) ? priority.indexOf(a.outcome) : 100) - (priority.includes(b.outcome) ? priority.indexOf(b.outcome) : 100));
+      const choice = choices[0];
+      const target = choice ? texts.find(text => text.text === choice.title) : undefined;
+      if (!choice || !target) { await page.waitForTimeout(250); continue; }
+      console.log(`  [${platform}] ${prefix}: choose ${choice.title} (${choice.outcome}, ${choice.cost}G)`);
+      await clickBound(page, target, platform, `${prefix} -> ${choice.title}`);
+      await waitUntil(page, async () => (await readLiveEvent(page, platform))?.pane !== 'choices' || (await collectTexts(page)).some(text => text.text === 'CONFIRM'), 3000);
+      continue;
+    }
+    if (current?.pane === 'picker') {
+      const action = texts.find(text => ['KEEP THIS CARD', 'KEEP THIS GEM', 'TAKE THIS CARD', 'TAKE THIS GEM'].includes(text.text));
+      const namedReward = texts.find(text => Object.values(skillBook).some(skill => skill.name === text.text)) ?? texts.find(text => Object.values(gemBook).some(gem => gem.name === text.text));
+      const skip = texts.find(text => text.text === 'SKIP');
+      const target = action ?? (['upgradeCard', 'upgradeCardTargeted', 'cardChoice', 'bonusDraft', 'gemChoice'].includes(current.picker ?? '') ? namedReward : undefined) ?? skip;
+      if (!target) { await page.waitForTimeout(250); continue; }
+      await clickBound(page, target, platform, `${prefix} -> ${current.picker}: ${target.text}`);
+      await waitUntil(page, async () => !(await eventDestinationOpen(page, platform)) || (await readLiveEvent(page, platform))?.pane !== 'picker' || (await collectTexts(page)).some(text => text.text.startsWith('CONTINUE')), 3000);
+      continue;
+    }
+    await page.waitForTimeout(250);
+  }
+  await shot(page, `${prefix}-event-stalled`, platform);
+  fail(platform, `${prefix} -> settle current event`, `materialized choice/selector flow did not close within 24 actions: ${JSON.stringify(await readLiveEvent(page, platform))}`);
+  return false;
+}
 interface TravelOption { kind: TravelKind; label: string; action: TextBound; easy: boolean }
 
 /** Every clickable travel-card action currently on screen, by kind — reading
@@ -597,7 +602,7 @@ interface TravelOption { kind: TravelKind; label: string; action: TextBound; eas
  * screen — a stop can show more than one FIGHT option at once). */
 function findTravelOptions(texts: TextBound[]): TravelOption[] {
   const options: TravelOption[] = [];
-  for (const t of texts) {
+  for (const t of texts.filter(text => !text.clipped).sort((a, b) => a.y - b.y || a.x - b.x)) {
     for (const kind of Object.keys(KIND_ACTIONS) as TravelKind[]) {
       if (!KIND_ACTIONS[kind].includes(t.text)) continue;
       let easy = false;
@@ -624,7 +629,7 @@ async function clickBound(page: Page, target: TextBound, platform: Platform, ste
   if (!box) { fail(platform, step, 'canvas has no bounding box — nothing was clickable'); return false; }
   const dw = width || box.width;
   const dh = height || box.height;
-  await page.mouse.click(box.x + ((target.x + target.width / 2) / dw) * box.width, box.y + ((target.y + target.height / 2) / dh) * box.height);
+  await pressAt(page, box.x + ((target.x + target.width / 2) / dw) * box.width, box.y + ((target.y + target.height / 2) / dh) * box.height);
   return true;
 }
 
@@ -686,9 +691,24 @@ async function walkToShop(page: Page, platform: Platform): Promise<boolean> {
     const takeShop = shopChoice && (fightsCompleted >= MIN_FIGHTS_BEFORE_SHOP || nearlyOutOfStops);
     const choice = takeShop ? shopChoice! : easyFight ?? options.find((o) => o.kind === 'FIGHT') ?? options.find((o) => o.kind === 'EVENT') ?? shopChoice ?? options[0]!;
     console.log(`  [${platform}] stop ${stop}: options = [${options.map((o) => `${o.kind}${o.easy ? ' (easy)' : ''}`).join(', ')}] -> picking "${choice.kind}${choice.easy ? ' (easy)' : ''}" (fightsCompleted=${fightsCompleted})`);
-    await clickBound(page, choice.action, platform, `stop ${stop} -> pick "${choice.label}"`);
-    const landed = await waitForDestination(page, platform, `stop ${stop} -> node transition`, MAP_SCENE_KEY[platform]);
-    if (landed === SHOP_SCENE_KEY[platform]) return true; // reached — hand off to the shop assertions
+    let moved = false;
+    for (let attempt = 1; attempt <= 3 && !moved; attempt++) {
+      const fresh = findTravelOptions(await collectTexts(page)).find(option => option.kind === choice.kind && option.label === choice.label);
+      if (!fresh) break;
+      await clickBound(page, fresh.action, platform, `stop ${stop} -> pick "${choice.label}" (attempt ${attempt})`);
+      moved = await waitUntil(page, async () => (await activeSceneKey(page)) !== MAP_SCENE_KEY[platform] || (await activeEmbeddedDestination(page, platform)) !== null, attempt < 3 ? 3500 : 10_000);
+    }
+    if (!moved) { await shot(page, `stop-${stop}-node-stalled`, platform); fail(platform, `stop ${stop} -> node transition`, `visible ${choice.kind} action did not open a destination after three attempts`); return false; }
+    const active = await activeSceneKey(page);
+    const landed = active !== MAP_SCENE_KEY[platform] ? active : (await activeEmbeddedDestination(page, platform)) ?? active;
+    if (landed === SHOP_SCENE_KEY[platform]) {
+      const shopGold = readGold(await collectTexts(page));
+      if (shopGold !== null && shopGold >= 3) return true;
+      console.log(`  [${platform}] shop wallet ${shopGold ?? '?'}G cannot fund both rerolls; leave and keep playing`);
+      await clickExactText(page, 'LEAVE SHOP', platform, `stop ${stop} -> leave underfunded shop`);
+      if (!(await waitUntil(page, async () => (await activeEmbeddedDestination(page, platform)) !== SHOP_SCENE_KEY[platform], 8000))) return false;
+      continue;
+    }
     if (landed.includes('RunPrep')) {
       if (!(await handleFight(page, platform, `s${stop}-fight`))) return false;
       fightsCompleted += 1;
@@ -856,7 +876,7 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
   const RESERVE_FOR_REROLLS = 3;
   if (buyBtn) {
     const price = Number(/^BUY ·\s*(\d+)\s*GOLD$/.exec(buyBtn.text)![1]);
-    const goldBefore = readGold(dockTexts);
+    const goldBefore = readGold(dockTexts) ?? goldBeforeGemTap;
     if (goldBefore === null) { fail(platform, 'shop -> read gold before buy', 'GOLD label/value pair not found or unreadable'); return; }
     if (goldBefore - price < RESERVE_FOR_REROLLS) {
       console.log(`  [${platform}] skipping the buy — ${goldBefore}G minus this gem's ${price}G would leave less than the ${RESERVE_FOR_REROLLS}G the two REROLL assertions below need`);
@@ -864,7 +884,7 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
       await clickExactText(page, buyBtn.text, platform, `shop -> BUY gem (${buyBtn.text})`);
       await page.waitForTimeout(250);
       await shot(page, '03-gem-confirm', platform);
-      const confirmed = await clickMatchingText(page, platform, 'shop -> confirm BUY', (t) => t === 'BUY', '"BUY" confirm button');
+      const confirmed = await clickMatchingText(page, platform, 'shop -> confirm purchase', (t) => t === 'BUY', '"BUY" confirm button');
       if (!confirmed) return;
       await page.waitForTimeout(250);
       await shot(page, '04-after-buy', platform);
@@ -964,6 +984,7 @@ async function runShopAssertions(page: Page, platform: Platform): Promise<void> 
  * costs one navigation; a wedged one costs the whole attempt budget. */
 async function newPlatformPage(browser: Browser, platform: Platform): Promise<Page> {
   const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
+  await page.addInitScript('performance.setResourceTimingBufferSize(3000)');
   // Nothing but this script decides when the page navigates — see
   // `pinPageAgainstHmr`. Without it a concurrent `src/` edit reloads the
   // browser mid-walkthrough and the run reports nonsense.
@@ -973,6 +994,36 @@ async function newPlatformPage(browser: Browser, platform: Platform): Promise<Pa
 }
 
 async function runPlatform(browser: Browser, platform: Platform): Promise<void> {
+  if (process.env.WORLD1_SHOP_FIXTURE === '1') {
+    const page = await newPlatformPage(browser, platform);
+    await page.goto(`${BASE}/?ui=${platform}&layoutAudit=1`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => (window as any).__game?.scene.isActive('Start'), undefined, { timeout: 60_000 });
+    const fixture = await page.evaluate(`(async()=>{
+      const storeUrl=performance.getEntriesByType('resource').map(entry=>entry.name).find(name=>new URL(name).pathname==='/src/game/runStore.ts');
+      if(!storeUrl)throw new Error('Loaded runStore module URL unavailable');
+      const dev=await import('/src/game/devLaunch.ts'),state=await import('/src/run/runState.ts'),store=await import(storeUrl);
+      for(let seed=1103;seed<1203;seed++){
+        const base=dev.buildDevEquipmentFixture(seed);
+        const run=state.chooseBiome(base,0,state.biomeBandOffers(base,0)[0]);
+        const node=run.map.depths.flat().find(node=>node.kind==='shop'&&node.shopId);
+        if(!node)continue;
+        store.installDevRunFixture({...run,status:'active',draft:undefined,gold:40,depth:node.depth,currentNodeId:node.id});
+        window.__game.scene.getScene('Start').scene.start('${MAP_SCENE_KEY[platform]}');
+        return {seed,nodeId:node.id,gold:40,shopId:node.shopId};
+      }
+      throw new Error('No generated shop for controlled practice fixture');
+    })()`) as { seed: number; nodeId: string; gold: number; shopId: string };
+    console.log(`[${platform}] fixture installed: ${JSON.stringify(fixture)}`);
+    await page.waitForFunction(key => (window as any).__game.scene.isActive(key), MAP_SCENE_KEY[platform]).catch(async error => {
+      await shot(page, 'fixture-map-error', platform);
+      throw new Error(`${String(error)}; active scenes=${JSON.stringify(await page.evaluate(() => (window as any).__game.scene.getScenes(true).map((scene: any) => scene.sys.settings.key)))}`);
+    });
+    await page.evaluate(`(()=>{const scene=window.__game.scene.getScene('${MAP_SCENE_KEY[platform]}');scene.destination.open('${SHOP_SCENE_KEY[platform]}','${fixture.nodeId}',[]);})()`);
+    await page.waitForFunction(key => (window as any).__game.scene.isActive(key), SHOP_SCENE_KEY[platform]).catch(async error => { await shot(page, 'fixture-shop-error', platform); throw error; });
+    console.log(`[${platform}] CONTROLLED PRACTICE FIXTURE: ${JSON.stringify(fixture)}; finite gold is fixture data, not naturally earned currency`);
+    await page.waitForTimeout(700);
+    await runShopAssertions(page, platform); await page.close(); return;
+  }
   // Reaching a shop now plays every fight for real through the battle API —
   // an "always fight when offered, even EASY" bot has no self-preservation
   // strategy beyond tier preference, so a real DEFEAT (0 lives) before a shop

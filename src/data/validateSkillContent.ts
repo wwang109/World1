@@ -1156,8 +1156,7 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   }
 }
 
-/** Validates a whole skills document. Returns every problem found; never throws. */
-const SILVER_PLUS_KINDS: readonly string[] = ['haste', 'regen', 'execute'];
+export const SILVER_PLUS_KINDS: readonly string[] = ['haste', 'regen', 'execute'];
 
 function rejectSilverPlusKeywordsAtBronze(raw: Record<string, unknown>, where: string, problems: ContentProblem[]): void {
   if (typeof raw.tier === 'string' && raw.tier !== 'bronze') return;
@@ -1169,6 +1168,7 @@ function rejectSilverPlusKeywordsAtBronze(raw: Record<string, unknown>, where: s
   });
 }
 
+/** Validates a whole skills document. Returns every problem found; never throws. */
 export function validateSkillDocument(doc: unknown): ContentProblem[] {
   const problems: ContentProblem[] = [];
   if (!isObj(doc)) return [{ where: 'document', message: 'document must be an object' }];

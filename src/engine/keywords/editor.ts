@@ -179,8 +179,8 @@ const SPEC: { readonly [K in Action['kind']]: KeywordSpec } = {
   },
   splash: { fields: [] },
   disrupt: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
-  haste: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
-  regen: { fields: [{ key: 'stacks', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  haste: { fields: [{ key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
+  regen: { fields: [{ key: 'stacks', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
   lifesteal: { fields: [{ key: 'pct', floor: 0, hardMax: 1000, seed: 0 }] },
   shieldBreak: {
     fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }],
@@ -214,37 +214,37 @@ const SPEC: { readonly [K in Action['kind']]: KeywordSpec } = {
     ],
   },
   desperation: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
-  execute: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  execute: { fields: [{ key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
   dormant: {
     fields: [
+      { key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 },
       { key: 'turn', floor: 2, hardMax: 10, seed: 4, unbounded: true },
-      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
     ],
   },
   buildUp: {
     fields: [
+      { key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 },
       { key: 'casts', floor: 2, hardMax: 5, seed: 2, unbounded: true },
-      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
     ],
   },
-  opener: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  opener: { fields: [{ key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
   fleeting: {
     fields: [
+      { key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 },
       { key: 'turn', floor: 1, hardMax: 10, seed: 3, unbounded: true },
-      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
     ],
   },
   crescendo: {
     fields: [
       { key: 'per', floor: 1, hardMax: AUTHOR_CEILING, seed: 5, unbounded: true },
-      { key: 'cap', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+      { key: 'cap', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 },
     ],
   },
-  isolate: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
-  firstBlood: { fields: [{ key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 }] },
+  isolate: { fields: [{ key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
+  firstBlood: { fields: [{ key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 }] },
   fuse: {
     fields: [
-      { key: 'amount', floor: 0, hardMax: AUTHOR_CEILING, seed: 0 },
+      { key: 'amount', floor: 1, hardMax: AUTHOR_CEILING, seed: 1 },
       { key: 'turns', floor: 1, hardMax: 5, seed: 2, unbounded: true },
     ],
   },
@@ -358,11 +358,13 @@ function capClean(kind: Action['kind'], values: Record<string, number>, ctx: Edi
 const ANCHOR_SEARCH_LIMIT = 400;
 const STEP_SEARCH_LIMIT = 40;
 
-const anchorMemo = new Map<Action['kind'], Readonly<Record<string, number>>>();
+const anchorMemo = new Map<string, Readonly<Record<string, number>>>();
 
-function anchorValues(kind: Action['kind']): Readonly<Record<string, number>> {
-  const cached = anchorMemo.get(kind);
+function anchorValues(kind: Action['kind'], property: Property | undefined): Readonly<Record<string, number>> {
+  const memoKey = `${kind}:${property ?? '*'}`;
+  const cached = anchorMemo.get(memoKey);
   if (cached !== undefined) return cached;
+  const ctx: EditorContext = property === undefined ? {} : { property };
   const specs = SPEC[kind].fields;
   const values: Record<string, number> = {};
   for (let i = 0; i < specs.length; i += 1) {
@@ -370,17 +372,17 @@ function anchorValues(kind: Action['kind']): Readonly<Record<string, number>> {
     values[f.key] = Math.max(f.seed, f.floor);
   }
   for (let pass = 0; pass < 3; pass += 1) {
-    if (wholePl(kind, values, {})) break;
+    if (wholePl(kind, values, ctx)) break;
     for (let i = 0; i < specs.length; i += 1) {
       const f = specs[i]!;
       const start = values[f.key]!;
       const ceiling = Math.min(f.hardMax, start + ANCHOR_SEARCH_LIMIT);
       for (let v = start; v <= ceiling; v += 1) {
-        if (wholePl(kind, { ...values, [f.key]: v }, {})) { values[f.key] = v; break; }
+        if (wholePl(kind, { ...values, [f.key]: v }, ctx)) { values[f.key] = v; break; }
       }
     }
   }
-  anchorMemo.set(kind, values);
+  anchorMemo.set(memoKey, values);
   return values;
 }
 
@@ -423,7 +425,7 @@ function onLadder(anchor: number, step: number, value: number, max: number): num
 
 export function editableFieldsFor(kind: Action['kind'], ctx: EditorContext = {}): readonly EditableField[] {
   const specs = SPEC[kind].fields;
-  const base = anchorValues(kind);
+  const base = anchorValues(kind, ctx.property);
   const siblings: Record<string, number> = {};
   for (let i = 0; i < specs.length; i += 1) {
     const f = specs[i]!;

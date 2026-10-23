@@ -28,6 +28,7 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import {
   acceptExtraGhostFightOffer,
   activeChallengeFight,
+  activeExtraGhostFight,
   choices,
   chooseRunBiome,
   clearRun,
@@ -156,8 +157,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
       this.scene.start('DesktopDraft');
       return;
     }
-    // Resume-safety: a save loaded mid-`challengeFight` restarts that battle.
-    if (activeChallengeFight()) {
+    if (activeChallengeFight() || activeExtraGhostFight()) {
       setBattleContext('run');
       this.scene.start('DesktopBattle');
       return;
@@ -480,6 +480,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
     this.add.rectangle(px, py, panelW, panelH, retired ? UI.panelMuted : UI.badSoft, 0.98).setOrigin(0, 0)
       .setStrokeStyle(2, retired ? UI.border : UI.bad, 0.9).setInteractive().setDepth(6001);
+    renderPaintedChrome(this, px, py, panelW, panelH, { borderOnly: true, tint: retired ? undefined : UI.bad })?.setDepth(6001);
     // THE ONE FIRST THING on this panel — `display` is spent here and nowhere
     // else in the scene, and its 56px is the ladder rung that replaced this
     // line's old `F.big * 1.6` expression (see layoutProfile.ts#font.display).
@@ -491,6 +492,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, pairs, { compact: false, depth: 6002 });
     const btn = this.add.rectangle(cx, btnY, 220, btnH, UI.chip, 1).setOrigin(0.5, 0)
       .setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+    renderPaintedChrome(this, cx - 110, btnY, 220, btnH, { button: true, borderOnly: true })?.setDepth(6002);
     const btnLabel = this.add.text(cx, btnY + btnH / 2, 'MAIN MENU ›', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5).setDepth(6003);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.

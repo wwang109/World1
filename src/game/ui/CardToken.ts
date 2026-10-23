@@ -7,13 +7,15 @@ import { roundRect } from './roundedRect';
 import { buildCardArtPlaceholder } from './cardArtPlaceholder';
 import { whenCardArtReady } from './cardArtLoader';
 import { effectSegmentJoiner, summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
-import { keywordTextColor } from './cardTextMarkup';
+import { keywordTextColor, stripCardTextMarkup } from './cardTextMarkup';
 import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
 import { syncCardArtMask } from './cardTokenArtMask';
 import { driftCardArt } from './cardArtDrift';
 import { makeTokenCardBody } from './fantasyCardPrintedBody';
 import { fantasyCardRulesRows } from './fantasyCardRulesRows';
 import { getFantasyCardTierSkin } from './fantasyCardTierSkins';
+import { retainedRulesRows, whenRetainedArtReady, type RetainedCardPresentation } from './retainedCardPresentation';
+import { cardTypeBadge } from './cardArtPresentation';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -27,6 +29,8 @@ export interface TokenAccessory {
 }
 
 export interface CardTokenOptions {
+  retainedPresentation?: RetainedCardPresentation;
+  pinnedPresentation?: { body: string; artKey?: string };
   width: number;
   height: number;
   /** Left column (your deck) or right column (opponent). Mirrors number + text. */
@@ -218,6 +222,29 @@ export class CardToken extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.sourceSkill = skill;
     this.sourceOpts = opts;
+    if (opts.pinnedPresentation) {
+      const { width, height, pinnedPresentation: pinned } = opts;
+      this.setSize(width, height);
+      this.add(scene.add.rectangle(0, 0, width, height, UI.panelAlt).setStrokeStyle(2, TIER_COLOR[opts.tier ?? skill.tier]));
+      const artHeight = Math.round(height * .42);
+      if (pinned.artKey && scene.textures.exists(pinned.artKey)) {
+        const image = scene.add.image(0, -height / 2 + artHeight / 2 + 2, pinned.artKey);
+        image.setScale(Math.max((width - 4) / image.width, artHeight / image.height));
+        const mask = scene.make.graphics({}, false).fillStyle(0xffffff).fillRect(x - width / 2 + 2, y - height / 2 + 2, width - 4, artHeight);
+        image.setMask(mask.createGeometryMask());
+        this.once(Phaser.GameObjects.Events.DESTROY, () => mask.destroy());
+        this.add(image);
+      } else this.add(scene.add.rectangle(0, -height / 2 + artHeight / 2 + 2, width - 4, artHeight, UI.panelMuted));
+      const title = scene.add.text(-width / 2 + 10, -height / 2 + artHeight + 10, skill.name, { fontFamily: FONT.body, fontSize: 15, fontStyle: 'bold', color: UI.textAccent, wordWrap: { width: width - 20, useAdvancedWrap: true } });
+      this.add(title);
+      const bodyY = title.y + title.height + 7;
+      const body = scene.add.text(-width / 2 + 10, bodyY, stripCardTextMarkup(pinned.body), { fontFamily: FONT.body, fontSize: 12, color: UI.text, wordWrap: { width: width - 20, useAdvancedWrap: true }, lineSpacing: 2 });
+      let pinnedFontSize = 12;
+      while (body.height > height / 2 - bodyY - 27 && pinnedFontSize > 9) body.setFontSize(--pinnedFontSize);
+      this.add(body);
+      this.add(scene.add.text(-width / 2 + 10, height / 2 - 20, `${(opts.tier ?? skill.tier).toUpperCase()} · SIZE ${skill.size}`, { fontFamily: FONT.body, fontSize: 10, color: UI.textMuted }));
+      return;
+    }
     const { width: w, height: h } = opts;
     this.cornerRadius = ACTIVE_PROFILE.id === 'mobile' ? Math.min(12, h / 4) : 0;
     const side = opts.side ?? 'left';
@@ -254,7 +281,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     const placeholder = buildCardArtPlaceholder(scene, skill, -w / 2, -h / 2, w, h);
     if (this.cornerRadius) placeholder.setMask(artMask);
     artHost.add(placeholder);
-    whenCardArtReady(scene, skill.id, (artKey) => {
+    const installArt = (artKey: string) => {
       // The token may have been destroyed while its art was in flight.
       if (!this.scene || !artHost.scene) return;
       const img = scene.add.image(0, 0, artKey);
@@ -263,7 +290,9 @@ export class CardToken extends Phaser.GameObjects.Container {
       img.setMask(artMask);
       artHost.add(img);
       driftCardArt(img, 0, Math.min((img.displayHeight - h) / 2, h * ART_DRIFT_SPAN), skill.id);
-    });
+    };
+    if(opts.retainedPresentation)whenRetainedArtReady(scene,opts.retainedPresentation.artUrl,installArt);
+    else whenCardArtReady(scene,skill.id,installArt);
 
     // legibility gradient (dark on the text side, fading toward the art) —
     // OUTSIDE `artHost`, so it stays above anything that lands inside it.
@@ -309,7 +338,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     const rules = opts.rulesBody && spec.textOriginX === 0 ? spec.rules : null;
     if (rules) {
       line(rules.name, skill.name, UI.textBright, true);
-      this.add(makeTokenCardBody(scene, fantasyCardRulesRows(skill), rules.body, 'card-token-rules'));
+      this.add(makeTokenCardBody(scene, opts.retainedPresentation ? opts.retainedPresentation.rows??retainedRulesRows(opts.retainedPresentation.body) : fantasyCardRulesRows(skill), rules.body, 'card-token-rules'));
       line(
         rules.affinity,
         this.affinityLine(skill, type, opts.deck, opts.affinityOpen),
@@ -330,7 +359,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       // see `effectFaceSegments`'s doc comment for the exact precedence.
       this.segmentedLine(scene, spec, spec.effects, [
         ...curseSegments,
-        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive, opts.affinityOpen),
+        ...(opts.retainedPresentation ? this.retainedSegments(opts.retainedPresentation) : effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive, opts.affinityOpen)),
       ], '#e8d8b0');
       line(
         spec.affinity,
@@ -346,7 +375,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       this.segmentedLine(scene, spec, spec.compactLine, [
         { text: skill.name, color: UI.textBright },
         ...curseSegments,
-        ...effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive, opts.affinityOpen),
+        ...(opts.retainedPresentation ? this.retainedSegments(opts.retainedPresentation) : effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive, opts.affinityOpen)),
       ], UI.textBright);
     }
 
@@ -728,6 +757,10 @@ export class CardToken extends Phaser.GameObjects.Container {
    * `affinityOpen` omitted) does the deck-count progress fraction print,
    * unchanged from before.
    */
+  private retainedSegments(presentation:RetainedCardPresentation):{text:string;color:string;joinWithPrevious?:boolean}[]{
+    const typeInk=`#${cardTypeBadge(this.sourceSkill).color.toString(16).padStart(6,'0')}`;
+    return presentation.segments?.map(segment=>({text:segment.text,color:segment.color??(segment.keyword==='affinity'&&!segment.joinWithPrevious?typeInk:segment.keyword?keywordTextColor(segment.keyword):undefined)??UI.textBright,...segment.joinWithPrevious?{joinWithPrevious:true}:{}}))??[{text:stripCardTextMarkup(presentation.body),color:UI.textBright}];
+  }
   private affinityLine(skill: SkillDef, type: ReturnType<typeof cardType>, deck?: readonly SkillDef[], affinityOpen?: boolean): string {
     const label = skill.element
       ? skill.element.toUpperCase()

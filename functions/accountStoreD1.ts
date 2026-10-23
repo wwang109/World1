@@ -49,6 +49,9 @@ export function createD1AccountStore(db: D1Database): AccountStore {
     async accountIdForSession(tokenHash) {
       return db.prepare('SELECT account_id FROM account_sessions WHERE token_hash = ?').bind(tokenHash).first<string>('account_id');
     },
+    async revokeSession(tokenHash) {
+      await db.prepare('DELETE FROM account_sessions WHERE token_hash = ?').bind(tokenHash).run();
+    },
     async linksFor(accountId) {
       const rows = await db.prepare('SELECT * FROM account_links WHERE account_id = ? ORDER BY created_at ASC')
         .bind(accountId).all<LinkRow>();
@@ -60,8 +63,12 @@ export function createD1AccountStore(db: D1Database): AccountStore {
       return row === null ? null : toLink(row);
     },
     async addLink(link) {
-      await db.prepare('INSERT INTO account_links (provider, subject, account_id, created_at) VALUES (?, ?, ?, ?)')
+      await db.prepare('INSERT OR IGNORE INTO account_links (provider, subject, account_id, created_at) VALUES (?, ?, ?, ?)')
         .bind(link.provider, link.subject, link.accountId, link.createdAt).run();
+      const row = await db.prepare('SELECT * FROM account_links WHERE provider = ? AND subject = ?')
+        .bind(link.provider, link.subject).first<LinkRow>();
+      if (!row) throw new Error('account-unavailable');
+      return toLink(row);
     },
     async putCode(code) {
       await db.batch([

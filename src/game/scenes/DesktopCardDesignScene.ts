@@ -10,7 +10,10 @@ import { rebuildScene } from '../sceneRebuild';
 import { renderCardDesignerPreview } from '../ui/cardDesignerPreview';
 import { copyTextToClipboard } from '../ui/codePrompt';
 import { promptForLine } from '../ui/textPrompt';
+import { confirmCardDesignerAction } from '../ui/cardDesignerConfirm';
+import { clearCardDesignerDraft, recoverCardDesignerDraft, saveCardDesignerDraft } from '../ui/cardDesignerDraftStorage';
 import {
+  ACTION_MODIFIER_FIELDS,
   CARD_FIELDS,
   CARD_TYPE_OPTIONS,
   ELEMENT_OPTIONS,
@@ -30,7 +33,8 @@ import {
   draftFromTemplate,
   editableFieldsForEffect,
   editorContextForEffect,
-  effectsAt,
+  effectTierFor,
+  effectsForEditing,
   exportGate,
   exportJsonText,
   resolvedAt,
@@ -38,13 +42,14 @@ import {
   setCardType,
   setEffectField,
   setEffectSelector,
+  setEffectMinTier,
   setTierUpgradeField,
   tierMeter,
   tierConfigurationAt,
   tierIsCustomized,
   toggleArchetype,
   toggleEffectFlag,
-  validationProblems,
+  cardDesignerDocument,
   hasEffectKind,
   withEffectAdded,
   withEffectRemoved,
@@ -53,9 +58,76 @@ import {
   type CardDesignerDraft,
   type NonBronzeTier,
 } from '../ui/cardDesignerState';
+import type { ContentProblem } from '../../data/validateSkillContent';
+import { skillBook } from '../../data/skills';
+import type { BattleLog } from '../../run/resolveBattle';
+import {
+  DESIGN_PROBE_FOE_CARD,
+  DESIGN_PROBE_FOE_HP,
+  DESIGN_PROBE_HERO_ALLOCATION,
+  DESIGN_PROBE_HERO_LEVEL,
+  DESIGN_PROBE_SEED,
+  DESIGN_PROBE_TURNS,
+  designProbeFoeSetup,
+  designProbeHeroPieces,
+  designProbeSkill,
+  type DesignBattleRequest,
+} from '../../run/designProbe';
+import { fetchDesignBattle } from '../battleApi';
+import { buildBattleTimeline, type LogLine } from '../battleTimeline';
+import {
+  BATTLE_LOG_TAG_COLOR,
+  LOG_GROUP_BAND,
+  LOG_GROUP_STRIPE,
+  drawBattleLogLines,
+  wrapBattleLogSegments,
+} from '../ui/battleLogLine';
+import { createStatusIconChip, statusIconTileSize } from '../ui/statusIcon';
 
-const F = DESKTOP_PROFILE.font;
+const F = { ...DESKTOP_PROFILE.font, tiny: 12, small: 12 };
 const TIERS: readonly SkillTier[] = TIER_ORDER;
+
+type PreviewMode = 'card' | 'log';
+type ProbeLine = { turn: number; line: LogLine };
+type ProbeEntry =
+  | { status: 'pending' }
+  | { status: 'ready'; lines: ProbeLine[] }
+  | { status: 'error'; message: string };
+
+const PROBE_CACHE_LIMIT = 24;
+const probeCache = new Map<string, ProbeEntry>();
+
+function probeLines(request: DesignBattleRequest, log: BattleLog): ProbeLine[] {
+  const skill = designProbeSkill(request);
+  const pieces = designProbeHeroPieces(skill, request.tier)
+    .map((piece) => ({ ...piece, tier: request.tier, instanceId: 'design-probe' }));
+  const timeline = buildBattleTimeline({
+    pieces,
+    heroLevel: DESIGN_PROBE_HERO_LEVEL,
+    heroAllocation: DESIGN_PROBE_HERO_ALLOCATION,
+    enemyId: '',
+    enemyLevel: 1,
+    enemyTitle: 'normal',
+    enemyRank: 0,
+    seed: DESIGN_PROBE_SEED,
+  }, log, { skills: { [skill.id]: skill }, foeSetups: [designProbeFoeSetup()] });
+  const lines: ProbeLine[] = [];
+  for (const turn of timeline.turns) {
+    for (const line of timeline.linesByTurn.get(turn) ?? []) if (line.tag !== 'RESULT') lines.push({ turn, line });
+  }
+  return lines;
+}
+
+interface ScrollArea {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function keywordLabel(kind: string): string {
+  return (KEYWORD_EDITOR as Record<string, KeywordEditor>)[kind]?.label ?? kind;
+}
 
 function stringOptions(def: Pick<CardFieldDef, 'options'>): readonly string[] {
   return (def.options ?? []).map(String);
@@ -79,6 +151,16 @@ function effectFieldLabel(kind: string, key: string, fallback: string): string {
 
 function statOptionLabel(value: string): string {
   return STAT_TOKEN[value as keyof typeof STAT_TOKEN] ?? value;
+}
+
+// Phaser 3.90 re-emits every queued key event on each new DOM key until the next frame.
+function oncePerKeyEvent(handler: (event: KeyboardEvent) => void): (event: KeyboardEvent) => void {
+  const seen = new WeakSet<KeyboardEvent>();
+  return (event) => {
+    if (seen.has(event)) return;
+    seen.add(event);
+    handler(event);
+  };
 }
 
 function downloadJsonFile(filename: string, text: string): void {
@@ -123,7 +205,17 @@ export class DesktopCardDesignScene extends Phaser.Scene {
   private selectedTemplateId: string | undefined;
   private draftEdited = false;
   private formScroll = 0;
+  private paletteScroll = 0;
+  private previewScroll = 0;
+  private jsonScroll = 0;
+  private logScroll = 0;
+  private previewMode: PreviewMode = 'card';
+  private probeKey = '';
   private jsonExpanded = false;
+  private hasSavedDraft = false;
+  private recoveredDraft = false;
+  private storageStatus: 'new' | 'saved' | 'unavailable' | 'corrupt' = 'new';
+  private confirmation: AbortController | undefined;
 
   constructor() {
     super('DesktopCardDesign');
@@ -137,8 +229,26 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     this.selectedTemplateId = undefined;
     this.draftEdited = false;
     this.formScroll = 0;
+    this.paletteScroll = 0;
+    this.previewScroll = 0;
+    this.jsonScroll = 0;
+    this.logScroll = 0;
+    this.previewMode = 'card';
+    this.probeKey = '';
     this.jsonExpanded = false;
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.closeDropdown?.());
+    this.hasSavedDraft = false;
+    this.recoveredDraft = false;
+    const recovered = recoverCardDesignerDraft();
+    this.storageStatus = recovered.status === 'empty' ? 'new' : recovered.status === 'recovered' ? 'saved' : recovered.status;
+    if (recovered.status === 'recovered') {
+      this.draft = recovered.value.draft;
+      this.selectedTier = recovered.value.selectedTier;
+      this.selectedTemplateId = recovered.value.templateId;
+      this.draftEdited = recovered.value.edited;
+      this.hasSavedDraft = true;
+      this.recoveredDraft = true;
+    }
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.closeDropdown?.(); this.confirmation?.abort(); });
   }
 
   create(): void {
@@ -150,17 +260,100 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     this.renderForm();
     this.renderMeterAndFace();
     if (this.toastText) this.renderToast();
+    this.registry.set('cardDesignerUi', { draft: this.draft, selectedTier: this.selectedTier, templateId: this.selectedTemplateId,
+      edited: this.draftEdited, storageStatus: this.storageStatus, recovered: this.recoveredDraft, formScroll: this.formScroll });
   }
 
   private rerender(): void {
     this.closeDropdown?.();
+    if (this.hasSavedDraft) this.persistDraft();
     rebuildScene(this);
+  }
+
+  private persistDraft(): boolean {
+    const saved = saveCardDesignerDraft({ version: 1, draft: this.draft, selectedTier: this.selectedTier,
+      templateId: this.selectedTemplateId, edited: this.draftEdited });
+    this.storageStatus = saved ? 'saved' : 'unavailable';
+    return saved;
+  }
+
+  private async confirmDraft(title: string, body: string, confirmLabel: string, cancelLabel = 'CANCEL'): Promise<boolean> {
+    if (this.confirmation) return false;
+    const controller = new AbortController();
+    this.confirmation = controller;
+    const result = await confirmCardDesignerAction({ title, body, confirmLabel, cancelLabel, signal: controller.signal });
+    if (this.confirmation === controller) this.confirmation = undefined;
+    return result && this.scene.isActive();
+  }
+
+  private async leaveDesigner(): Promise<void> {
+    if (this.draftEdited) {
+      const saved = this.persistDraft();
+      const leave = await this.confirmDraft('LEAVE CARD DESIGNER?', saved
+        ? 'Your draft is saved on this device. You can continue it when you return.'
+        : 'This browser could not save your draft. Leaving will discard these edits. Stay to continue editing.',
+      saved ? 'LEAVE' : 'DISCARD AND LEAVE', 'STAY');
+      if (!leave) { this.rerender(); return; }
+    }
+    this.scene.start('Start');
+  }
+
+  private async discardDraft(): Promise<void> {
+    if (!await this.confirmDraft('DISCARD DRAFT?', 'Replace this draft with a new empty card? This cannot be undone.', 'DISCARD', 'KEEP DRAFT')) return;
+    const cleared = clearCardDesignerDraft();
+    this.draft = defaultCardDesignerDraft(); this.selectedTier = 'bronze'; this.selectedTemplateId = undefined;
+    this.draftEdited = false; this.hasSavedDraft = false; this.recoveredDraft = false;
+    this.formScroll = 0; this.previewScroll = 0; this.jsonScroll = 0; this.logScroll = 0;
+    this.storageStatus = cleared ? 'new' : 'unavailable';
+    this.toastText = cleared ? 'DRAFT DISCARDED' : 'Draft cleared here; browser storage could not be cleared. Old recovery data may remain.';
+    this.toastGood = cleared; this.rerender();
   }
 
   private toast(text: string, good: boolean): void {
     this.toastText = text;
     this.toastGood = good;
     this.rerender();
+  }
+
+  private wheelScroll(
+    area: ScrollArea,
+    content: Phaser.GameObjects.Container,
+    contentHeight: number,
+    scroll: number,
+    onScroll: (current: number) => void,
+  ): void {
+    content.setMask(this.make.graphics({}, false).fillStyle(0xffffff).fillRect(area.x, area.y, area.w, area.h).createGeometryMask());
+    const maxScroll = Math.max(0, Math.ceil(contentHeight - area.h));
+    const baseY = content.y;
+    const thumbH = maxScroll > 0 ? Math.max(28, area.h * (area.h / contentHeight)) : 0;
+    let current = Phaser.Math.Clamp(scroll, 0, maxScroll);
+    let thumb: Phaser.GameObjects.Rectangle | undefined;
+    if (maxScroll > 0) {
+      this.add.rectangle(area.x + area.w - 3, area.y, 2, area.h, UI.border, 0.5).setOrigin(0.5, 0);
+      thumb = this.add.rectangle(area.x + area.w - 3, area.y, 4, thumbH, UI.chip, 0.9).setOrigin(0.5, 0);
+    }
+    const apply = (): void => {
+      content.setY(baseY - current);
+      thumb?.setY(area.y + (area.h - thumbH) * (current / maxScroll));
+      onScroll(current);
+    };
+    apply();
+    if (maxScroll === 0) return;
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
+      if (this.closeDropdown) return;
+      if (pointer.worldX < area.x || pointer.worldX > area.x + area.w || pointer.worldY < area.y || pointer.worldY > area.y + area.h) return;
+      current = Phaser.Math.Clamp(current + dy, 0, maxScroll);
+      apply();
+    });
+  }
+
+  private gateToArea(objects: readonly Phaser.GameObjects.GameObject[], area: ScrollArea): void {
+    for (const child of objects) {
+      const object = child as Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle;
+      const bounds = object.getBounds();
+      object.setVisible(bounds.bottom > area.y && bounds.top < area.y + area.h);
+      if (object.input) object.input.enabled = bounds.top >= area.y && bounds.bottom <= area.y + area.h;
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -176,15 +369,28 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     });
     const menuW = 96;
     const menu = this.add.rectangle(SCREEN.width - GUTTER - menuW, 24, menuW, 34, UI.panelAlt)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', 'MENU');
     const menuLabel = this.add.text(SCREEN.width - GUTTER - menuW / 2, 41, '‹ MENU', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textDim,
     }).setOrigin(0.5);
     attachButtonFeel(this, menu, {
       fill: UI.panelAlt, hover: UI.slotHover, follow: [menuLabel],
       sfx: 'uiBack',
-      onPress: () => { this.scene.start('Start'); },
+      onPress: () => { void this.leaveDesigner(); },
     });
+    const discard = this.add.rectangle(SCREEN.width - GUTTER - menuW - 132, 24, 120, 34, UI.panelAlt)
+      .setOrigin(0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', 'DISCARD DRAFT');
+    const discardLabel = this.add.text(discard.x + 60, 41, 'DISCARD DRAFT', {
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
+    }).setOrigin(0.5);
+    attachButtonFeel(this, discard, { fill: UI.panelAlt, hover: UI.slotHover, follow: [discardLabel], onPress: () => { void this.discardDraft(); } });
+    const status = this.storageStatus === 'saved' ? `${this.recoveredDraft ? 'Recovered draft · ' : ''}Saved on this device`
+      : this.storageStatus === 'unavailable' ? 'Draft not saved · browser storage unavailable'
+        : this.storageStatus === 'corrupt' ? 'Saved draft could not be recovered · new draft opened'
+          : 'Drafts save automatically on this device';
+    this.add.text(450, 44, status, { fontFamily: FONT.body, fontSize: `${F.tiny}px`,
+      color: this.storageStatus === 'unavailable' || this.storageStatus === 'corrupt' ? '#e8907a' : UI.textMuted,
+      wordWrap: { width: Math.max(200, SCREEN.width - 450 - 300) } });
   }
 
   private renderTemplateRow(): void {
@@ -196,7 +402,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     });
     const template = cardDesignerTemplates.find((entry) => entry.id === this.selectedTemplateId);
     const templateField = this.add.rectangle(templateX, y + 14, templateW, 26, UI.panelMuted, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setData('designerControl', 'START FROM CARD');
     this.add.text(templateX + 10, y + 27, template ? `${template.name}  ·  ${template.id}` : 'Select a card to edit…', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: template ? UI.textBright : UI.textMuted,
     }).setOrigin(0, 0.5);
@@ -227,10 +433,10 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       } catch { /* transient invalid draft — shown as ERR */ }
       const customized = tierIsCustomized(this.draft, tier);
       const fill = active ? TIER_COLOR[tier] : UI.panelAlt;
-      const chip = this.add.rectangle(x, y, chipW, 30, fill, reachable ? (customized ? 1 : 0.72) : 0.3)
+      const chip = this.add.rectangle(x, y, chipW, 34, fill, reachable ? (customized ? 1 : 0.72) : 0.3)
         .setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, TIER_COLOR[tier], reachable ? (customized ? 1 : 0.65) : 0.25);
-      if (reachable) chip.setInteractive({ useHandCursor: true });
-      this.add.text(x + 10, y + 6, tier.toUpperCase(), {
+      if (reachable) chip.setInteractive({ useHandCursor: true }).setData('designerControl', tier.toUpperCase());
+      this.add.text(x + 10, y + 3, tier.toUpperCase(), {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`,
         color: active ? UI.textOnChip : UI.textDim,
       });
@@ -244,6 +450,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         playSfx('uiClick');
         this.selectedTier = tier;
         this.formScroll = 0;
+        this.previewScroll = 0;
         this.rerender();
       });
       x += chipW + 8;
@@ -264,11 +471,11 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
     });
     const field = this.add.rectangle(x, y + 14, width, 26, UI.panelMuted, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
-    this.add.text(x + 10, y + 27, this.draft.def.name, {
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setData('designerControl', 'NAME');
+    this.add.text(x + 10, y + 27, this.draft.def.name.length > 38 ? `${this.draft.def.name.slice(0, 35)}…` : this.draft.def.name, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textBright,
     }).setOrigin(0, 0.5);
-    this.add.text(x + width - 10, y + 27, `id: ${this.draft.id}`, {
+    this.add.text(x + width - 10, y + 44, `id: ${this.draft.id.length > 52 ? `${this.draft.id.slice(0, 49)}…` : this.draft.id}`, {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
     }).setOrigin(1, 0.5);
     field.on('pointerdown', () => {
@@ -281,12 +488,10 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       }).then((value) => {
         if (value === null) return;
         const name = value.trim();
-        this.draft = { ...this.draft, id: deriveDraftId(name), def: { ...this.draft.def, name } };
-        this.draftEdited = true;
-        this.rerender();
+        this.updateDraft({ ...this.draft, id: deriveDraftId(name), def: { ...this.draft.def, name } });
       });
     });
-    return 46;
+    return 64;
   }
 
   // ---------------------------------------------------------------------
@@ -303,63 +508,79 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     this.add.text(x + 10, top + 8, 'SPECIAL EFFECTS', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     });
-    this.add.text(x + 10, top + 22, `click to add/remove on ${this.selectedTier.toUpperCase()}`, {
+    this.add.text(x + 10, top + 22, `Add/remove on ${this.selectedTier.toUpperCase()}`, {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
     });
 
-    const listTop = top + 40;
-    const listHeight = height - 48;
-    const maskShape = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(x, listTop, width, listHeight);
-    const mask = maskShape.createGeometryMask();
-    const rowH = 24;
-    const list = this.add.container(x, listTop).setMask(mask);
-    let scroll = 0;
-    const paletteRows: Array<{ heading?: string; kind?: string }> = KEYWORD_KINDS
+    const area: ScrollArea = { x, y: top + 40, w: width, h: height - 48 };
+    const rowH = 32;
+    const list = this.add.container(x, area.y);
+    const kinds = KEYWORD_KINDS
       .filter((kind) => !COMMON_EFFECT_KINDS.includes(kind))
-      .map((kind) => ({ kind }));
-    const maxScroll = Math.max(0, paletteRows.length * rowH - listHeight);
+      .sort((a, b) => keywordLabel(a).localeCompare(keywordLabel(b)) || a.localeCompare(b));
+    const rows: Phaser.GameObjects.Rectangle[] = [];
+    const restFills: Array<() => void> = [];
 
-    paletteRows.forEach((entry, index) => {
+    kinds.forEach((kind, index) => {
       const rowY = index * rowH;
-      if (entry.heading) {
-        list.add(this.add.text(8, rowY + 10, entry.heading, {
-          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-        }).setOrigin(0, 0.5));
-        return;
-      }
-      const kind = entry.kind!;
+      const targetTier = effectTierFor(this.selectedTier, kind);
       const active = hasEffectKind(this.draft, this.selectedTier, kind);
-      const editor = (KEYWORD_EDITOR as Record<string, KeywordEditor>)[kind];
       const row = this.add.rectangle(6, rowY, width - 12, rowH - 4, active ? UI.chip : UI.panelAlt, active ? 1 : 0.9)
-        .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5).setInteractive({ useHandCursor: true });
-      const label = this.add.text(12, rowY + (rowH - 4) / 2, editor?.label ?? kind, {
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5).setInteractive({ useHandCursor: true }).setData('designerControl', `EFFECT ${kind}`);
+      const label = this.add.text(12, rowY + (rowH - 4) / 2, keywordLabel(kind), {
         fontFamily: FONT.body, fontStyle: active ? 'bold' : 'normal', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textBright,
       }).setOrigin(0, 0.5);
+      list.add([row, label]);
+      const sharesLabel = kinds.some((other) => other !== kind && keywordLabel(other) === keywordLabel(kind));
+      const note = targetTier !== this.selectedTier ? `${targetTier.toUpperCase()}+` : sharesLabel ? kind : '';
+      if (note !== '') {
+        list.add(this.add.text(width - 14, rowY + (rowH - 4) / 2, note, {
+          fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textMuted,
+        }).setOrigin(1, 0.5));
+      }
+      const rest = (): void => { row.setFillStyle(active ? UI.chip : UI.panelAlt, active ? 1 : 0.9); };
       row.on('pointerover', () => row.setFillStyle(UI.slotHover, 0.9));
-      row.on('pointerout', () => row.setFillStyle(active ? UI.chip : UI.panelAlt, active ? 1 : 0.9));
+      row.on('pointerout', rest);
+      restFills.push(rest);
       row.on('pointerdown', () => {
         playSfx('uiClick');
+        if (targetTier !== this.selectedTier) {
+          this.addOnTier(targetTier, kind);
+          return;
+        }
         if (!active) this.formScroll = Number.MAX_SAFE_INTEGER;
         this.updateDraft(withEffectToggled(this.draft, this.selectedTier, kind));
       });
-      list.add([row, label]);
+      rows.push(row);
     });
 
-    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-      if (this.closeDropdown) return;
-      if (pointer.worldX < x || pointer.worldX > x + width || pointer.worldY < listTop || pointer.worldY > listTop + listHeight) return;
-      scroll = Phaser.Math.Clamp(scroll + dy, 0, maxScroll);
-      list.setY(listTop - scroll);
+    this.wheelScroll(area, list, kinds.length * rowH, this.paletteScroll, (current) => {
+      this.paletteScroll = current;
+      for (const rest of restFills) rest();
+      this.gateToArea(rows, area);
     });
   }
 
+  private addOnTier(tier: SkillTier, kind: string): void {
+    const present = hasEffectKind(this.draft, tier, kind);
+    this.selectedTier = tier;
+    this.formScroll = Number.MAX_SAFE_INTEGER;
+    this.previewScroll = 0;
+    this.toastText = `${keywordLabel(kind).toUpperCase()} IS ${tier.toUpperCase()}+ · ${present ? 'ALREADY' : 'ADDED'} ON ${tier.toUpperCase()}`;
+    this.toastGood = true;
+    if (present) this.rerender();
+    else this.updateDraft(withEffectAdded(this.draft, tier, kind));
+  }
+
   // ---------------------------------------------------------------------
-  // FORM — current tier's effects + validation messages
+  // FORM — current tier's effects
   // ---------------------------------------------------------------------
 
   private updateDraft(next: CardDesignerDraft): void {
     this.draft = next;
     this.draftEdited = true;
+    this.hasSavedDraft = true;
+    this.recoveredDraft = false;
     this.rerender();
   }
 
@@ -420,10 +641,10 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent,
       });
       y += 18;
-      y += this.renderStepper(innerX, y, innerW, 'speedWeight', this.draft.def.speedWeight ?? this.draft.def.size * 10,
+      y += this.renderStepper(innerX, y, innerW, 'Weight', this.draft.def.speedWeight ?? this.draft.def.size * 10,
         CARD_FIELDS.speedWeight.min!, CARD_FIELDS.speedWeight.max!, CARD_FIELDS.speedWeight.step!,
         (v) => this.updateDraft(setCardField(this.draft, 'speedWeight', v)));
-      y += this.renderStepper(innerX, y, innerW, 'cooldownTurns', this.draft.def.cooldownTurns ?? CARD_FIELDS.cooldownTurns.default!,
+      y += this.renderStepper(innerX, y, innerW, 'Cooldown (turns)', this.draft.def.cooldownTurns ?? CARD_FIELDS.cooldownTurns.default!,
         CARD_FIELDS.cooldownTurns.min!, CARD_FIELDS.cooldownTurns.max!, CARD_FIELDS.cooldownTurns.step!,
         (v) => this.updateDraft(setCardField(this.draft, 'cooldownTurns', v)));
     } else {
@@ -442,11 +663,11 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       y += this.renderCycle(innerX, y, innerW, `scope${override?.scope === undefined ? ' (inherited)' : ''}`, scopeVal, stringOptions(TIER_UPGRADE_FIELDS.scope),
         (v) => this.updateDraft(setTierUpgradeField(this.draft, tier, 'scope', v)));
       const cdVal = configuration.cooldownTurns ?? CARD_FIELDS.cooldownTurns.default!;
-      y += this.renderStepper(innerX, y, innerW, `cooldownTurns${override?.cooldownTurns === undefined ? ' (inherited)' : ''}`, cdVal,
+      y += this.renderStepper(innerX, y, innerW, `Cooldown${override?.cooldownTurns === undefined ? ' (inherited)' : ''}`, cdVal,
         TIER_UPGRADE_FIELDS.cooldownTurns.min!, TIER_UPGRADE_FIELDS.cooldownTurns.max!, TIER_UPGRADE_FIELDS.cooldownTurns.step!,
         (v) => this.updateDraft(setTierUpgradeField(this.draft, tier, 'cooldownTurns', v)));
       const swVal = configuration.speedWeight ?? this.draft.def.size * 10;
-      y += this.renderStepper(innerX, y, innerW, `speedWeight${override?.speedWeight === undefined ? ' (inherited)' : ''}`, swVal,
+      y += this.renderStepper(innerX, y, innerW, `Weight${override?.speedWeight === undefined ? ' (inherited)' : ''}`, swVal,
         TIER_UPGRADE_FIELDS.speedWeight.min!, TIER_UPGRADE_FIELDS.speedWeight.max!, TIER_UPGRADE_FIELDS.speedWeight.step!,
         (v) => this.updateDraft(setTierUpgradeField(this.draft, tier, 'speedWeight', v)));
     }
@@ -458,7 +679,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     });
     y += 18;
 
-    const effects = effectsAt(this.draft, this.selectedTier);
+    const effects = effectsForEditing(this.draft, this.selectedTier);
     const additionalStatCost = (kind: Action['kind']): number => {
       const actions = effects as readonly Action[];
       return (additionalStatCount([...actions, { kind } as Action]) - additionalStatCount(actions))
@@ -477,7 +698,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       }).setOrigin(0.5);
       remove.on('pointerdown', () => {
         playSfx('uiClick');
-        this.updateDraft(withEffectRemoved(this.draft, this.selectedTier, index));
+        this.updateDraft(withEffectRemoved(this.draft, this.selectedTier, index, true));
       });
       y += 24;
       if (!editor) {
@@ -491,19 +712,20 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       for (const field of editableFieldsForEffect(this.draft, this.selectedTier, effect)) {
         const current = typeof effect[field.key] === 'number' ? (effect[field.key] as number) : field.default;
         y += this.renderStepper(innerX + 12, y, innerW - 12, effectFieldLabel(effect.kind, field.key, field.label), current, field.min, field.max, field.step,
-          (next) => this.updateDraft(setEffectField(this.draft, this.selectedTier, index, field.key, next)));
+          (next) => this.updateDraft(setEffectField(this.draft, this.selectedTier, index, field.key, next, true)));
       }
       for (const selector of selectorsFor(effect.kind as Action['kind'], ctx)) {
         const current = typeof effect[selector.key] === 'string' ? (effect[selector.key] as string) : selector.default;
         const optionLabel = selector.key === 'stat' ? statOptionLabel : undefined;
         y += this.renderCycle(innerX + 12, y, innerW - 12, selector.label, current, selector.options,
-          (next) => this.updateDraft(setEffectSelector(this.draft, this.selectedTier, index, selector.key, next)), optionLabel);
+          (next) => this.updateDraft(setEffectSelector(this.draft, this.selectedTier, index, selector.key, next, true)), optionLabel);
       }
       for (const flag of editor.flags) {
         const active = effect[flag.key] === true;
         y += this.renderToggle(innerX + 12, y, innerW - 12, `${flag.label}${active ? ' ✓' : ''}`, active,
-          () => this.updateDraft(toggleEffectFlag(this.draft, this.selectedTier, index, flag.key)));
+          () => this.updateDraft(toggleEffectFlag(this.draft, this.selectedTier, index, flag.key, true)));
       }
+      y += this.renderActionModifiers(innerX + 12, y, innerW - 12, effect, index);
       y += 4;
     };
 
@@ -516,20 +738,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       const matches = effects
         .map((effect, index) => ({ effect, index }))
         .filter(({ effect }) => effect.kind === amount.kind);
-      if (matches.length === 0) {
-        const previewDraft = withEffectAdded(this.draft, this.selectedTier, amount.kind);
-        const previewEffects = effectsAt(previewDraft, this.selectedTier);
-        const previewEffect = previewEffects[previewEffects.length - 1]!;
-        const field = editableFieldsForEffect(previewDraft, this.selectedTier, previewEffect)
-          .find((candidate) => candidate.key === amount.key)!;
-        y += this.renderStepper(innerX + 12, y, innerW - 12, `${amount.label} (off)`, 0, 0, field.max, field.step, (next) => {
-          if (next <= 0) return;
-          let draft = withEffectAdded(this.draft, this.selectedTier, amount.kind);
-          const index = effectsAt(draft, this.selectedTier).length - 1;
-          draft = setEffectField(draft, this.selectedTier, index, amount.key, next);
-          this.updateDraft(draft);
-        });
-      } else {
+      if (matches.length > 0) {
         matches.forEach(({ effect, index }, duplicateIndex) => {
           const field = editableFieldsForEffect(this.draft, this.selectedTier, effect)
             .find((candidate) => candidate.key === amount.key)!;
@@ -537,16 +746,17 @@ export class DesktopCardDesignScene extends Phaser.Scene {
           const label = matches.length > 1 ? `${amount.label} ${duplicateIndex + 1}` : amount.label;
           const rowY = y;
           y += this.renderStepper(innerX + 12, rowY, innerW - 44, label, current, field.min, field.max, field.step,
-            (next) => this.updateDraft(setEffectField(this.draft, this.selectedTier, index, amount.key, next)));
-          const remove = this.add.rectangle(innerX + innerW - 24, rowY, 24, 24, UI.panelMuted, 1)
+            (next) => this.updateDraft(setEffectField(this.draft, this.selectedTier, index, amount.key, next, true)));
+          const remove = this.add.rectangle(innerX + innerW - 28, rowY, 28, 28, UI.panelMuted, 1)
             .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-          this.add.text(innerX + innerW - 12, rowY + 12, '×', {
+          this.add.text(innerX + innerW - 14, rowY + 14, '×', {
             fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8907a',
           }).setOrigin(0.5);
           remove.on('pointerdown', () => {
             playSfx('uiClick');
-            this.updateDraft(withEffectRemoved(this.draft, this.selectedTier, index));
+            this.updateDraft(withEffectRemoved(this.draft, this.selectedTier, index, true));
           });
+          y += this.renderActionModifiers(innerX + 12, y, innerW - 12, effect, index);
         });
       }
       const addY = y;
@@ -622,52 +832,12 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       specialEffects.forEach(({ effect, index }) => renderEffectEditor(effect, index));
     }
 
-    // ---- validation messages ----
-    this.add.text(innerX, y, 'VALIDATION', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent,
-    });
-    y += 18;
-    const problems = validationProblems(this.draft);
-    if (problems.length === 0) {
-      const clean = this.add.text(innerX, y, 'schema valid — tier readiness is shown by PL.', {
-        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textGem,
-      });
-      y += clean.height;
-    } else {
-      const lines = problems.slice(0, 8).map((p) => `${p.where}: ${p.message}`).join('\n');
-      const validation = this.add.text(innerX, y, lines, {
-        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8907a',
-        wordWrap: { width: innerW }, lineSpacing: 4,
-      });
-      y += validation.height;
-    }
-
     const formChildren = this.children.list.slice(contentStart);
     formLayer.add(formChildren);
-    const maskShape = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(x + 2, top + 2, width - 4, bottom - top - 4);
-    formLayer.setMask(maskShape.createGeometryMask());
-    const maxScroll = Math.max(0, y + 10 - bottom);
-    this.formScroll = Phaser.Math.Clamp(this.formScroll, 0, maxScroll);
-    this.add.rectangle(x + width - 5, top + 6, 2, bottom - top - 12, UI.border, maxScroll > 0 ? 0.5 : 0).setOrigin(0.5, 0);
-    const thumbH = maxScroll > 0 ? Math.max(36, (bottom - top - 12) * ((bottom - top) / (bottom - top + maxScroll))) : 0;
-    const scrollThumb = this.add.rectangle(x + width - 5, top + 6, 4, thumbH, UI.chip, maxScroll > 0 ? 0.9 : 0).setOrigin(0.5, 0);
-    const updateScroll = (): void => {
-      formLayer.setY(-this.formScroll);
-      for (const child of formChildren) {
-        const object = child as Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle;
-        const bounds = object.getBounds();
-        const overlaps = bounds.bottom > top + 2 && bounds.top < bottom - 2;
-        object.setVisible(overlaps);
-        if (object.input) object.input.enabled = overlaps && bounds.top >= top + 2 && bounds.bottom <= bottom - 2;
-      }
-      if (maxScroll > 0) scrollThumb.setY(top + 6 + (bottom - top - 12 - thumbH) * (this.formScroll / maxScroll));
-    };
-    updateScroll();
-    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
-      if (this.closeDropdown) return;
-      if (pointer.worldX < x || pointer.worldX > x + width || pointer.worldY < top || pointer.worldY > bottom) return;
-      this.formScroll = Phaser.Math.Clamp(this.formScroll + dy, 0, maxScroll);
-      updateScroll();
+    const area: ScrollArea = { x: x + 2, y: top + 2, w: width - 4, h: bottom - top - 4 };
+    this.wheelScroll(area, formLayer, y + 10 - area.y, this.formScroll, (current) => {
+      this.formScroll = current;
+      this.gateToArea(formChildren, area);
     });
   }
 
@@ -677,19 +847,47 @@ export class DesktopCardDesignScene extends Phaser.Scene {
   // stack rows without hand-tracking every control's height twice.
   // ---------------------------------------------------------------------
 
+  private renderActionModifiers(x: number, y: number, width: number, effect: { kind: string; [key: string]: unknown }, index: number): number {
+    const top = y;
+    const start = this.children.list.length;
+    for (const field of ACTION_MODIFIER_FIELDS) {
+      if (field.key === 'affinity') {
+        const active = effect.affinity === true;
+        y += this.renderToggle(x, y, width, `Affinity: ${active ? 'ON' : 'OFF'}`, active,
+          () => this.updateDraft(toggleEffectFlag(this.draft, this.selectedTier, index, field.key, true)));
+      } else if (field.key === 'minTier' && 'options' in field) {
+        const intrinsic = effectTierFor(this.draft.def.tier, effect.kind);
+        const options = ['', ...field.options.filter((tier) => TIER_ORDER.indexOf(tier as SkillTier) >= TIER_ORDER.indexOf(intrinsic))];
+        const current = typeof effect.minTier === 'string' ? effect.minTier : '';
+        y += this.renderCycle(x, y, width, 'Unlock tier', current, options,
+          (value) => this.updateDraft(setEffectMinTier(this.draft, this.selectedTier, index, value === '' ? undefined : value as SkillTier)),
+          (value) => value === '' ? (intrinsic === this.draft.def.tier ? 'No extra lock' : `Automatic (${intrinsic}+)`) : value.toUpperCase());
+        const lock = typeof effect.minTier === 'string' ? effect.minTier as SkillTier : intrinsic;
+        if (TIER_ORDER.indexOf(lock) > TIER_ORDER.indexOf(this.selectedTier)) {
+          this.add.text(x, y, `Inactive on ${this.selectedTier}; unlocks on ${lock}.`, {
+            fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted, wordWrap: { width },
+          });
+          y += 20;
+        }
+      }
+    }
+    for (const child of this.children.list.slice(start)) child.setData('designerEffectIndex', index);
+    return y - top + 4;
+  }
+
   private renderStepper(
     x: number, y: number, width: number, label: string, value: number,
     min: number, max: number, step: number, onChange: (next: number) => void,
   ): number {
-    const h = 24;
+    const h = 28;
     this.add.text(x, y + h / 2, label, {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
     }).setOrigin(0, 0.5);
-    const ctrlW = 108;
+    const ctrlW = 120;
     const ctrlX = x + width - ctrlW;
-    const seg = 24;
+    const seg = 28;
     const minus = this.add.rectangle(ctrlX, y, seg, h, UI.panelMuted, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', `${label} -`);
     this.add.text(ctrlX + seg / 2, y + h / 2, '−', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textBright,
     }).setOrigin(0.5);
@@ -699,12 +897,20 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textBright,
     }).setOrigin(0.5);
     const plus = this.add.rectangle(ctrlX + ctrlW - seg, y, seg, h, UI.panelMuted, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', `${label} +`);
     this.add.text(ctrlX + ctrlW - seg / 2, y + h / 2, '+', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textBright,
     }).setOrigin(0.5);
-    minus.on('pointerdown', () => { playSfx('uiClick'); onChange(Math.max(min, value - step)); });
-    plus.on('pointerdown', () => { playSfx('uiClick'); onChange(Math.min(max, value + step)); });
+    minus.on('pointerdown', () => {
+      if (value <= min) return;
+      playSfx('uiClick');
+      onChange(Math.max(min, value - step));
+    });
+    plus.on('pointerdown', () => {
+      if (value >= max) return;
+      playSfx('uiClick');
+      onChange(Math.min(max, Math.max(min, value + step)));
+    });
     return h + 4;
   }
 
@@ -713,14 +919,14 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     options: readonly string[], onChange: (next: string) => void,
     optionLabel: (value: string) => string = (option) => option,
   ): number {
-    const h = 24;
+    const h = 28;
     this.add.text(x, y + h / 2, label, {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
     }).setOrigin(0, 0.5);
     const ctrlW = 176;
     const ctrlX = x + width - ctrlW;
     const box = this.add.rectangle(ctrlX, y, ctrlW, h, UI.panelAlt, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6).setInteractive({ useHandCursor: true }).setData('designerControl', label);
     this.add.text(ctrlX + 10, y + h / 2, optionLabel(value), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textBright,
     }).setOrigin(0, 0.5);
@@ -763,7 +969,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         onChange(next);
       }
     };
-    const onKey = (event: KeyboardEvent): void => {
+    const onKey = oncePerKeyEvent((event: KeyboardEvent): void => {
       if (event.key === 'Escape' || event.key === 'Tab') this.closeDropdown?.();
       else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(focused); }
       else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -771,7 +977,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         focused = (focused + (event.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length;
         highlight();
       }
-    };
+    });
     this.closeDropdown = () => {
       this.closeDropdown = undefined;
       this.input.keyboard?.off('keydown', onKey);
@@ -828,20 +1034,28 @@ export class DesktopCardDesignScene extends Phaser.Scene {
     let focused = Math.max(0, filtered.findIndex((entry) => entry.id === this.selectedTemplateId));
     let first = Math.max(0, focused - Math.floor(maxRows / 2));
 
-    const choose = (index: number): void => {
+    const choose = async (index: number): Promise<void> => {
       const template = filtered[index];
       if (!template) return;
       if (template.id === this.selectedTemplateId) {
         this.closeDropdown?.();
         return;
       }
-      if (this.draftEdited && !window.confirm(`Replace the edited draft with ${template.name}?`)) return;
+      if (this.draftEdited) {
+        this.closeDropdown?.();
+        if (!await this.confirmDraft('REPLACE DRAFT?', `Replace your current draft with ${template.name}? Your current draft will be discarded.`, 'REPLACE', 'KEEP DRAFT')) return;
+      }
       this.closeDropdown?.();
       this.draft = draftFromTemplate(template.id);
       this.selectedTemplateId = template.id;
       this.selectedTier = this.draft.def.tier;
       this.draftEdited = false;
+      this.hasSavedDraft = true;
+      this.recoveredDraft = false;
       this.formScroll = 0;
+      this.previewScroll = 0;
+      this.jsonScroll = 0;
+      this.logScroll = 0;
       playSfx('uiClick');
       this.rerender();
     };
@@ -875,7 +1089,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         row.on('pointerover', () => { focused = index; row.setFillStyle(UI.slotHover, 1); });
         row.on('pointerdown', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
           event.stopPropagation();
-          choose(index);
+          void choose(index);
         });
         rowsLayer.add([row, label]);
       });
@@ -890,9 +1104,9 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       first = 0;
       renderRows();
     };
-    const onKey = (event: KeyboardEvent): void => {
+    const onKey = oncePerKeyEvent((event: KeyboardEvent): void => {
       if (event.key === 'Escape' || event.key === 'Tab') this.closeDropdown?.();
-      else if (event.key === 'Enter') { event.preventDefault(); choose(focused); }
+      else if (event.key === 'Enter') { event.preventDefault(); void choose(focused); }
       else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         if (filtered.length > 0) focused = (focused + (event.key === 'ArrowDown' ? 1 : filtered.length - 1)) % filtered.length;
@@ -906,7 +1120,7 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         query += event.key;
         applyQuery();
       }
-    };
+    });
     const onWheel = (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void => {
       if (pointer.worldX < x || pointer.worldX > x + width || pointer.worldY < top || pointer.worldY > top + height) return;
       first = Phaser.Math.Clamp(first + Math.sign(dy), 0, Math.max(0, filtered.length - maxRows));
@@ -931,9 +1145,9 @@ export class DesktopCardDesignScene extends Phaser.Scene {
   }
 
   private renderToggle(x: number, y: number, width: number, label: string, active: boolean, onChange: () => void): number {
-    const h = 22;
+    const h = 28;
     const box = this.add.rectangle(x, y, width, h, active ? UI.chip : UI.panelAlt, active ? 1 : 0.7)
-      .setOrigin(0, 0).setStrokeStyle(1, active ? UI.chip : UI.border, active ? 1 : 0.5).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(1, active ? UI.chip : UI.border, active ? 1 : 0.5).setInteractive({ useHandCursor: true }).setData('designerControl', label);
     this.add.text(x + width / 2, y + h / 2, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim,
     }).setOrigin(0.5);
@@ -1010,36 +1224,43 @@ export class DesktopCardDesignScene extends Phaser.Scene {
 
     const json = exportJsonText(this.draft);
     const gate = exportGate(this.draft);
-    const jsonHeight = this.jsonExpanded ? 118 : 0;
     const gateReasonHeight = gate.ready ? 0 : 28;
-    const controlsHeight = 74 + jsonHeight + gateReasonHeight;
-    const previewTop = Math.max(y + 8, top + 104);
-    const previewHeight = Math.max(260, bottom - previewTop - controlsHeight);
-    const problems = validationProblems(this.draft);
-    if (problems.length === 0) {
+    const toggleHeight = 26;
+    const buttonsTop = bottom - 10 - gateReasonHeight - 30;
+    const modeTop = Math.max(y + 8, top + 104);
+    this.renderPreviewModes(x + 8, modeTop, width - 16, toggleHeight);
+    const previewTop = modeTop + toggleHeight + 8;
+    const stackRoom = buttonsTop - 8 - toggleHeight - 8 - previewTop;
+    const jsonHeight = this.jsonExpanded
+      ? Math.max(0, Math.min(Math.floor(stackRoom * 0.45), stackRoom - 8 - 140))
+      : 0;
+    const previewHeight = stackRoom - (jsonHeight > 0 ? jsonHeight + 8 : 0);
+    const previewArea = { x: x + 8, y: previewTop, w: width - 16, h: previewHeight };
+    if (gate.problems.length > 0) {
+      this.renderProblems(previewArea, gate.problems);
+    } else if (this.previewMode === 'log') {
+      this.renderCombatLog(previewArea);
+    } else {
       try {
-        const previewSkill = resolvedAt(this.draft, this.selectedTier);
-        renderCardDesignerPreview(this, previewSkill, {
-          x: x + 8,
-          y: previewTop,
-          width: width - 16,
-          height: previewHeight,
+        const preview = renderCardDesignerPreview(this, resolvedAt(this.draft, this.selectedTier), {
+          x: previewArea.x,
+          y: previewArea.y,
+          width: previewArea.w,
+          height: previewArea.h,
+        });
+        this.wheelScroll(preview.viewport, preview.content, preview.contentHeight, this.previewScroll, (current) => {
+          this.previewScroll = current;
         });
       } catch (err) {
         this.add.text(x + 12, previewTop + 8, `preview unavailable: ${err instanceof Error ? err.message : String(err)}`, {
           fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8907a', wordWrap: { width: width - 24 },
         });
       }
-    } else {
-      this.add.rectangle(x + 8, previewTop, width - 16, previewHeight, UI.panelMuted, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-      this.add.text(x + 20, previewTop + 16, 'Fix the VALIDATION errors on the left to preview the card.', {
-        fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textMuted, wordWrap: { width: width - 40 },
-      });
     }
 
     const jsonToggleY = previewTop + previewHeight + 8;
-    const jsonToggle = this.add.rectangle(x + 8, jsonToggleY, width - 16, 26, UI.panelAlt, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    const jsonToggle = this.add.rectangle(x + 8, jsonToggleY, width - 16, toggleHeight, UI.panelAlt, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', 'SHOW JSON');
     this.add.text(x + 18, jsonToggleY + 13, `${this.jsonExpanded ? 'HIDE' : 'SHOW'} JSON`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     }).setOrigin(0, 0.5);
@@ -1052,26 +1273,27 @@ export class DesktopCardDesignScene extends Phaser.Scene {
       this.rerender();
     });
 
-    let buttonsY = jsonToggleY + 34;
-    if (this.jsonExpanded) {
-      this.add.rectangle(x + 8, buttonsY, width - 16, jsonHeight, UI.panelMuted, 1)
+    const buttonsY = buttonsTop;
+    if (jsonHeight > 0) {
+      const jsonY = jsonToggleY + toggleHeight + 8;
+      this.add.rectangle(x + 8, jsonY, width - 16, jsonHeight, UI.panelMuted, 1)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6);
-      const jsonMask = this.make.graphics({}, false).fillStyle(0xffffff).fillRect(x + 8, buttonsY, width - 16, jsonHeight);
-      const mask = jsonMask.createGeometryMask();
-      this.add.text(x + 16, buttonsY + 6, json, {
+      const jsonText = this.add.text(0, 0, json, {
         fontFamily: 'Consolas, Menlo, monospace', fontSize: `${F.tiny}px`, color: UI.textDim, lineSpacing: 2,
-      }).setOrigin(0, 0).setMask(mask);
-      buttonsY += jsonHeight + 8;
+      });
+      const jsonContent = this.add.container(x + 16, jsonY + 6, [jsonText]);
+      this.wheelScroll({ x: x + 10, y: jsonY + 2, w: width - 20, h: jsonHeight - 4 }, jsonContent, jsonText.height + 10,
+        this.jsonScroll, (current) => { this.jsonScroll = current; });
     }
 
     const btnW = (width - 16 - 8) / 2;
     const copyBtn = this.add.rectangle(x + 8, buttonsY, btnW, 30, gate.ready ? UI.chip : UI.panelMuted, gate.ready ? 1 : 0.5)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, gate.ready ? 1 : 0.4);
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, gate.ready ? 1 : 0.4).setData('designerControl', 'COPY JSON');
     const copyLabel = this.add.text(x + 8 + btnW / 2, buttonsY + 15, 'COPY JSON', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: gate.ready ? UI.textOnChip : UI.textSoft,
     }).setOrigin(0.5);
     const downloadBtn = this.add.rectangle(x + 8 + btnW + 8, buttonsY, btnW, 30, gate.ready ? UI.chip : UI.panelMuted, gate.ready ? 1 : 0.5)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, gate.ready ? 1 : 0.4);
+      .setOrigin(0, 0).setStrokeStyle(1, UI.border, gate.ready ? 1 : 0.4).setData('designerControl', 'DOWNLOAD JSON');
     const downloadLabel = this.add.text(x + 8 + btnW + 8 + btnW / 2, buttonsY + 15, 'DOWNLOAD .JSON', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: gate.ready ? UI.textOnChip : UI.textSoft,
     }).setOrigin(0.5);
@@ -1095,6 +1317,166 @@ export class DesktopCardDesignScene extends Phaser.Scene {
         fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8907a', wordWrap: { width: width - 16 },
       });
     }
+  }
+
+  private renderPreviewModes(x: number, y: number, width: number, height: number): void {
+    const modes: ReadonlyArray<{ id: PreviewMode; label: string }> = [
+      { id: 'card', label: 'CARD PREVIEW' },
+      { id: 'log', label: 'COMBAT LOG' },
+    ];
+    const segmentW = (width - 8) / modes.length;
+    modes.forEach((mode, index) => {
+      const active = this.previewMode === mode.id;
+      const segmentX = x + index * (segmentW + 8);
+      const box = this.add.rectangle(segmentX, y, segmentW, height, active ? UI.chip : UI.panelAlt, active ? 1 : 0.9)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true }).setData('designerControl', mode.label);
+      this.add.text(segmentX + segmentW / 2, y + height / 2, mode.label, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textAccent,
+      }).setOrigin(0.5);
+      box.on('pointerdown', () => {
+        if (active) return;
+        playSfx('uiClick');
+        this.previewMode = mode.id;
+        this.rerender();
+      });
+    });
+  }
+
+  private renderCombatLog(area: ScrollArea): void {
+    this.add.rectangle(area.x, area.y, area.w, area.h, UI.panelMuted, 0.78).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
+    const request: DesignBattleRequest = { document: cardDesignerDocument(this.draft), tier: this.selectedTier };
+    const key = JSON.stringify(request);
+    this.probeKey = key;
+    const foeCard = skillBook[DESIGN_PROBE_FOE_CARD]?.name ?? DESIGN_PROBE_FOE_CARD;
+    const heading = this.add.text(area.x + 12, area.y + 10,
+      `PRACTICE FIGHT · ${this.selectedTier.toUpperCase()} · ${DESIGN_PROBE_TURNS} turns vs Training Dummy (${DESIGN_PROBE_FOE_HP.toLocaleString()} HP, ${foeCard})`, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent, wordWrap: { width: area.w - 24 },
+      });
+    const body: ScrollArea = { x: area.x + 2, y: area.y + 18 + heading.height, w: area.w - 4, h: area.h - 20 - heading.height };
+    const entry = probeCache.get(key);
+    if (entry === undefined || entry.status === 'pending') {
+      this.add.text(body.x + 12, body.y + 8, 'Running the practice fight…', {
+        fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textMuted,
+      });
+      if (entry === undefined) this.time.delayedCall(250, () => this.requestProbe(key, request));
+      return;
+    }
+    if (entry.status === 'error') {
+      const message = this.add.text(body.x + 12, body.y + 8,
+        `Combat log unavailable: ${entry.message}. The practice fight runs on the battle service (npm run api in development).`, {
+          fontFamily: FONT.body, fontSize: `${F.small}px`, color: '#e8907a', wordWrap: { width: body.w - 24 },
+        });
+      const retryY = message.y + message.height + 10;
+      const retry = this.add.rectangle(body.x + 12, retryY, 96, 26, UI.panelAlt, 1)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      this.add.text(body.x + 60, retryY + 13, 'RETRY', {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+      }).setOrigin(0.5);
+      retry.on('pointerdown', () => {
+        playSfx('uiClick');
+        probeCache.delete(key);
+        this.rerender();
+      });
+      return;
+    }
+
+    const content = this.add.container(0, 0);
+    const turnX = body.x + 12;
+    const tagX = turnX + 30;
+    const textX = tagX + 56;
+    const textWidth = body.x + body.w - textX - 16;
+    const rowH = 17;
+    const bodyStyle = { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.text };
+    const measureText = this.add.text(-10_000, -10_000, '', bodyStyle).setVisible(false);
+    const measure = (text: string): number => { measureText.setText(text); return measureText.width; };
+    const iconTile = statusIconTileSize(F.tiny);
+    const tipZones: Phaser.GameObjects.Rectangle[] = [];
+    let ly = body.y + 8;
+    let prevTurn = -1;
+    let prevGroup: number | undefined;
+    for (const { turn, line } of entry.lines) {
+      const iconW = line.chip ? iconTile + 4 : 0;
+      const rowWidth = textWidth - iconW;
+      const wrapped = wrapBattleLogSegments(line.segments ?? [{ text: line.text, role: 'neutral' }], rowWidth, measure);
+      for (const note of line.notes ?? []) wrapped.push(...wrapBattleLogSegments([{ text: note, role: 'note' }], rowWidth, measure));
+      if (line.detail) wrapped.push(...wrapBattleLogSegments([{ text: line.detail, role: 'note' }], rowWidth, measure));
+      const rowsHeight = wrapped.length * rowH;
+      const sameGroup = line.group !== undefined && line.group.id === prevGroup;
+      prevGroup = line.group?.id;
+      if (line.group) {
+        content.add(this.add.rectangle(body.x + 6, ly - 2, body.w - 18, rowsHeight, LOG_GROUP_BAND[line.group.side], 1).setOrigin(0, 0));
+        content.add(this.add.rectangle(body.x + 6, ly - 2, 3, rowsHeight, LOG_GROUP_STRIPE[line.group.side], 1).setOrigin(0, 0));
+      }
+      if (!sameGroup) content.add(this.add.rectangle(body.x + 10, ly - 2, body.w - 26, 1, UI.border, 0.35).setOrigin(0, 0));
+      if (turn !== prevTurn) {
+        content.add(this.add.text(turnX, ly + 1, `T${turn}`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
+        }));
+      }
+      prevTurn = turn;
+      content.add(this.add.text(tagX, ly + 1, line.tag, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: BATTLE_LOG_TAG_COLOR[line.tag] ?? UI.textDim,
+      }));
+      content.add(drawBattleLogLines(this, textX + iconW, ly, wrapped, bodyStyle, rowH).objects);
+      if (line.chip) {
+        const icon = createStatusIconChip(this, { ...line.chip, value: undefined }, F.tiny);
+        const zone = icon.place(textX, ly, { followTarget: true });
+        content.add(icon.container);
+        if (zone) {
+          content.add(zone);
+          tipZones.push(zone);
+        }
+      }
+      ly += rowsHeight;
+    }
+    measureText.destroy();
+    this.wheelScroll(body, content, ly + 8 - body.y, this.logScroll, (current) => {
+      this.logScroll = current;
+      this.gateToArea(tipZones, body);
+    });
+  }
+
+  private requestProbe(key: string, request: DesignBattleRequest): void {
+    if (probeCache.has(key)) return;
+    probeCache.set(key, { status: 'pending' });
+    while (probeCache.size > PROBE_CACHE_LIMIT) {
+      const oldest = probeCache.keys().next().value;
+      if (oldest === undefined) break;
+      probeCache.delete(oldest);
+    }
+    fetchDesignBattle(request)
+      .then((log) => { probeCache.set(key, { status: 'ready', lines: probeLines(request, log) }); })
+      .catch((err: unknown) => { probeCache.set(key, { status: 'error', message: err instanceof Error ? err.message : String(err) }); })
+      .finally(() => {
+        if (this.scene.isActive() && !this.closeDropdown && this.previewMode === 'log' && this.probeKey === key) this.rerender();
+      });
+  }
+
+  private renderProblems(area: ScrollArea, problems: readonly ContentProblem[]): void {
+    const pad = 12;
+    this.add.rectangle(area.x, area.y, area.w, area.h, UI.panelMuted, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    const content = this.add.container(area.x + pad, area.y + pad);
+    const textWidth = area.w - pad * 2 - 8;
+    let cy = 0;
+    const line = (text: string, size: number, color: string, bold: boolean, gap: number): void => {
+      const item = this.add.text(0, cy, text, {
+        fontFamily: FONT.body, fontStyle: bold ? 'bold' : 'normal', fontSize: `${size}px`, color,
+        wordWrap: { width: textWidth, useAdvancedWrap: true }, lineSpacing: 2,
+      });
+      content.add(item);
+      cy += item.height + gap;
+    };
+    line('NOT READY TO PREVIEW', F.small, UI.textAccent, true, 8);
+    if (this.draft.def.effects.length === 0 && this.draft.def.aura === undefined && this.draft.def.tierUpgrades === undefined) {
+      line('Add an effect to start: + ADD DAMAGE, SHIELD or HEAL in the middle column, or a special effect from the list on the left.',
+        F.small, UI.textBright, false, 12);
+    }
+    for (const problem of problems) {
+      line(problem.where, F.tiny, UI.textMuted, false, 2);
+      line(problem.message, F.small, '#e8907a', false, 10);
+    }
+    this.wheelScroll({ x: area.x + 2, y: area.y + 2, w: area.w - 4, h: area.h - 4 }, content, cy + pad * 2 - 4,
+      this.previewScroll, (current) => { this.previewScroll = current; });
   }
 
   private renderToast(): void {

@@ -23,6 +23,7 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import {
   acceptExtraGhostFightOffer,
   activeChallengeFight,
+  activeExtraGhostFight,
   choices,
   chooseRunBiome,
   clearRun,
@@ -134,8 +135,7 @@ export class MobileRunMapScene extends Phaser.Scene {
       this.scene.start('MobileDraft');
       return;
     }
-    // Resume-safety: a save loaded mid-`challengeFight` restarts that battle.
-    if (activeChallengeFight()) {
+    if (activeChallengeFight() || activeExtraGhostFight()) {
       setBattleContext('run');
       this.scene.start('MobileBattle');
       return;
@@ -443,6 +443,7 @@ export class MobileRunMapScene extends Phaser.Scene {
 
     this.add.rectangle(px, py, panelW, panelH, retired ? 0x1c2430 : 0x352019, 0.98).setOrigin(0, 0)
       .setStrokeStyle(2, retired ? UI.border : UI.bad, 0.9).setInteractive().setDepth(6001);
+    renderPaintedChrome(this, px, py, panelW, panelH, { borderOnly: true, compact: true, tint: retired ? undefined : UI.bad })?.setDepth(6001);
     // THE ONE FIRST THING on this panel — `display` is spent here and nowhere
     // else in the scene, which is what gives the panel a reading order at all.
     this.add.text(cx, titleY, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0).setDepth(6002);
@@ -455,6 +456,7 @@ export class MobileRunMapScene extends Phaser.Scene {
     renderRunStatsGrid(this, px + pad, gridTop, gridW, pairs, { compact: true, depth: 6002 });
     const btn = this.add.rectangle(cx, btnY, 180, btnH, 0xb78a46, 1).setOrigin(0.5, 0)
       .setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+    renderPaintedChrome(this, cx - 90, btnY, 180, btnH, { button: true, borderOnly: true })?.setDepth(6002);
     const btnLabel = this.add.text(cx, btnY + btnH / 2, 'MAIN MENU ›', textRole('label', { ink: 'onAccent' })).setOrigin(0.5).setDepth(6003);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.

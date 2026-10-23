@@ -57,6 +57,10 @@ export function createFileAccountStore(filePath: string = DEFAULT_FILE_PATH): Ac
     async accountIdForSession(tokenHash) {
       return state.sessions.find((session) => session.tokenHash === tokenHash)?.accountId ?? null;
     },
+    async revokeSession(tokenHash) {
+      state.sessions = state.sessions.filter(session => session.tokenHash !== tokenHash);
+      persist();
+    },
     async linksFor(accountId) {
       return state.links.filter((link) => link.accountId === accountId);
     },
@@ -64,8 +68,11 @@ export function createFileAccountStore(filePath: string = DEFAULT_FILE_PATH): Ac
       return state.links.find((link) => link.provider === provider && link.subject === subject) ?? null;
     },
     async addLink(link) {
+      const existing = state.links.find(entry => entry.provider === link.provider && entry.subject === link.subject);
+      if (existing) return existing;
       state.links.push(link);
       persist();
+      return link;
     },
     async putCode(code) {
       state.codes = state.codes.filter((entry) => entry.expiresAt >= code.createdAt);

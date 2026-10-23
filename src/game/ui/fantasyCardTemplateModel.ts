@@ -15,6 +15,7 @@ import {
 import { getFantasyCardTierSkin } from './fantasyCardTierSkins';
 import { tierProgressPips } from './tierProgressDisplay';
 import { fantasyCardRulesRows, type FantasyCardRulesRow } from './fantasyCardRulesRows';
+import {retainedRulesRows,type RetainedCardPresentation} from './retainedCardPresentation';
 
 export type FantasyArtAnchor = 'center' | 'upper-center' | 'lower-center';
 
@@ -62,6 +63,7 @@ export function buildFantasyCardTemplateModel(
     artAnchor?: FantasyArtAnchor;
     progress?: TierProgress;
     template?: FantasyCardTemplateVariant;
+    retainedPresentation?: RetainedCardPresentation;
   } = {},
 ): FantasyCardTemplateModel {
   const tier = options.tier ?? skill.tier;
@@ -70,20 +72,20 @@ export function buildFantasyCardTemplateModel(
   const weight = weightOf(skill);
   // THE FACE BODY IS GENERATED from `effects` (`renderSkillText`) — there is
   // no authored `text` field any more.
-  const body = renderSkillText(skill);
+  const body = options.retainedPresentation?.body ?? renderSkillText(skill);
   // DENSITY reads the POST-MERGE CLAUSE COUNT, not `effects.length`. The
   // generator collapses the piles the engine itself merges (four `thorns`
   // lines into one) and folds a multi-hit into a single counted clause, so the
   // raw action count would over-penalise exactly the cards the merge rule
   // exists to help — `rimebarb_vigil@diamond` prints 2 clauses from 5 actions.
-  const clauseCount = renderSkillClauses(skill).length;
+  const clauseCount = options.retainedPresentation ? (options.retainedPresentation.rows??retainedRulesRows(body)).length : renderSkillClauses(skill).length;
   const template = resolveCardTemplateVariant(options.template);
   const spec = cardTemplateSpec(template);
 
   return {
     template,
     spec,
-    rows: fantasyCardRulesRows(skill),
+    rows: options.retainedPresentation ? options.retainedPresentation.rows??retainedRulesRows(body) : fantasyCardRulesRows(skill),
     size: { width, height },
     tier,
     skin: getFantasyCardTierSkin(tier),

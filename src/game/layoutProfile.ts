@@ -62,6 +62,8 @@ export function detectProfile(search?: string): LayoutProfile {
   const ui = params.get('ui');
   if (ui === 'mobile') return MOBILE_PROFILE;
   if (ui === 'desktop') return DESKTOP_PROFILE;
+  if (['community', 'eligible'].includes(params.get('scene') ?? '')) return DESKTOP_PROFILE;
+  if (['mcommunity', 'meligible'].includes(params.get('scene') ?? '')) return MOBILE_PROFILE;
   if (['desktop-wiki', 'desktop-prep', 'desktop-deck', 'desktop-battle', 'desktop-shop', 'desktop-draft', 'desktop-runmap', 'desktop-runprep', 'desktop-runevent', 'card-design'].includes(params.get('scene') ?? '')) return DESKTOP_PROFILE;
   if (['mprep', 'mdeck', 'mbattle', 'mwiki', 'mobile-shop', 'mobile-draft', 'mrunmap', 'mrunprep', 'mrunevent'].includes(params.get('scene') ?? '')) return MOBILE_PROFILE;
   const screen = window.screen;

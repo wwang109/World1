@@ -1,8 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 import { assertEquipmentDocument } from '../src/data/validateEquipmentContent';
 
-const canonical = new URL('../src/data/content/equipment.v1.json', import.meta.url);
-const target = new URL('../docs/templates/equipment.v1.template.json', import.meta.url);
+const root = process.argv.includes('--root') ? resolve(process.argv[process.argv.indexOf('--root') + 1]!) : undefined;
+const canonical = root ? join(root, 'src/data/content/equipment.v1.json') : new URL('../src/data/content/equipment.v1.json', import.meta.url);
+const target = root ? join(root, 'docs/templates/equipment.v1.template.json') : new URL('../docs/templates/equipment.v1.template.json', import.meta.url);
 const document: unknown = JSON.parse(readFileSync(canonical, 'utf8'));
 assertEquipmentDocument(document);
 const expected = JSON.stringify({ ...document, status: 'generated_template_mirror', notes: ['Generated from src/data/content/equipment.v1.json; edit the canonical catalog, then run npm run content:equipment-template.', ...document.notes] }, null, 2) + '\n';

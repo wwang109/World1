@@ -19,7 +19,7 @@ export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mba
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
   | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
   | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
-  | 'desktop-runevent' | 'mrunevent' | 'card-design' | 'credits' | 'equipment' | 'desktop-equipment' | 'mequipment';
+  | 'desktop-runevent' | 'mrunevent' | 'card-design' | 'credits' | 'equipment' | 'desktop-equipment' | 'mequipment' | 'community' | 'mcommunity' | 'eligible' | 'meligible';
 
 export const DEV_EVENT_FIXTURE_IDS = [
   'bell_beneath_ice',
@@ -129,6 +129,7 @@ function readSearchParam(search: string): URLSearchParams {
 }
 
 function parseScene(value: string | null, view: string | null): LaunchScene {
+  if (['community', 'mcommunity', 'eligible', 'meligible'].includes(view ?? value ?? '')) return (view ?? value) as LaunchScene;
   if (['equipment','desktop-equipment','mequipment'].includes(view ?? value ?? '')) return (view ?? value) as LaunchScene;
   if (view === 'uikit' || value === 'uikit') return 'uikit';
   if (view === 'mprep' || value === 'mprep') return 'mprep';

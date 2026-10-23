@@ -1,3 +1,4 @@
+import { artManifest } from '../../data/artManifest';
 import type { EventArtId, EventTheme } from '../../data/eventTypes';
 
 /**
@@ -9,103 +10,10 @@ import type { EventArtId, EventTheme } from '../../data/eventTypes';
  * `RUN_ART_ASSETS` (the boot-time load list) and `addRunArt` (the actual
  * Phaser-side renderer), both of which DO need Phaser and so stay there.
  */
-export const RUN_ART_KEYS = {
-  enemy: {
-    giant_rat: 'run-art-enemy-giant-rat',
-    stone_beetle: 'run-art-enemy-stone-beetle',
-    ember_imp: 'run-art-enemy-ember-imp',
-    wolf_king: 'run-art-enemy-wolf-king',
-    pike_conscript: 'run-art-enemy-pike-conscript',
-    toxic_druid: 'run-art-enemy-toxic-druid',
-    cleric: 'run-art-enemy-cleric',
-    greenwood_sovereign: 'run-art-enemy-greenwood-sovereign',
-  } as const,
-  shopBanner: 'run-art-shop-banner',
-  runMap: 'run-art-run-map',
-  icon: {
-    choiceCard: 'run-art-icon-choice-card',
-    choiceGamble: 'run-art-icon-choice-gamble',
-    choiceGem: 'run-art-icon-choice-gem',
-    choiceGold: 'run-art-icon-choice-gold',
-    choiceLevel: 'run-art-icon-choice-level',
-    choiceNothing: 'run-art-icon-choice-nothing',
-    coin: 'run-art-icon-coin',
-    lifeHeart: 'run-art-icon-life-heart',
-    bossSkull: 'run-art-icon-boss-skull',
-    storefront: 'run-art-icon-storefront',
-    routeLantern: 'run-art-icon-route-lantern',
-    routeEvent: 'run-art-icon-route-event',
-    routeShop: 'run-art-icon-route-shop',
-    routeBattle: 'run-art-icon-route-battle',
-    routeBoss: 'run-art-icon-route-boss',
-    routeEquipment: 'run-art-icon-route-equipment',
-  } as const,
-  shop: {
-    armory: 'run-art-shop-armory',
-    wildworks: 'run-art-shop-wildworks',
-    arcanum: 'run-art-shop-arcanum',
-    sanctum: 'run-art-shop-sanctum',
-    alchemist: 'run-art-shop-alchemist',
-    gemcutter: 'run-art-shop-gemcutter',
-    caravan: 'run-art-shop-caravan',
-    bulwark: 'run-art-shop-bulwark',
-    assassins_den: 'run-art-shop-assassins-den',
-    relic_vault: 'run-art-shop-relic-vault',
-    emberworks: 'run-art-shop-emberworks',
-    frosthold: 'run-art-shop-frosthold',
-    stormspire: 'run-art-shop-stormspire',
-    grovekeep: 'run-art-shop-grovekeep',
-    reliquary: 'run-art-shop-reliquary',
-    umbral_stall: 'run-art-shop-umbral-stall',
-    swordwright: 'run-art-shop-swordwright',
-    cleaving_yard: 'run-art-shop-cleaving-yard',
-    lancers_rest: 'run-art-shop-lancers-rest',
-    fletchers_loft: 'run-art-shop-fletchers-loft',
-    beastmoot: 'run-art-shop-beastmoot',
-  } as const,
-  biome: {
-    arrowfell: 'run-art-biome-arrowfell',
-    duskbarrow: 'run-art-biome-duskbarrow',
-    emberwaste: 'run-art-biome-emberwaste',
-    frostmarch: 'run-art-biome-frostmarch',
-    hallowfield: 'run-art-biome-hallowfield',
-    howlmoor: 'run-art-biome-howlmoor',
-    ironmoot: 'run-art-biome-ironmoot',
-    pikewold: 'run-art-biome-pikewold',
-    stormreach: 'run-art-biome-stormreach',
-    swornhold: 'run-art-biome-swornhold',
-    thornwild: 'run-art-biome-thornwild',
-  } as const,
-  biomeDesktop: {
-    arrowfell: 'run-art-biome-arrowfell-desktop',
-    duskbarrow: 'run-art-biome-duskbarrow-desktop',
-    emberwaste: 'run-art-biome-emberwaste-desktop',
-    frostmarch: 'run-art-biome-frostmarch-desktop',
-    hallowfield: 'run-art-biome-hallowfield-desktop',
-    howlmoor: 'run-art-biome-howlmoor-desktop',
-    ironmoot: 'run-art-biome-ironmoot-desktop',
-    pikewold: 'run-art-biome-pikewold-desktop',
-    stormreach: 'run-art-biome-stormreach-desktop',
-    swornhold: 'run-art-biome-swornhold-desktop',
-    thornwild: 'run-art-biome-thornwild-desktop',
-  } as const,
-  event: {
-    training: 'run-art-event-training',
-    cache: 'run-art-event-cache',
-    recruit: 'run-art-event-recruit',
-    forge: 'run-art-event-forge',
-    market: 'run-art-event-market',
-    omen: 'run-art-event-omen',
-  } satisfies Record<EventTheme, string>,
-  eventStory: {
-    bell_beneath_ice: 'run-art-event-story-bell-beneath-ice',
-    second_toll: 'run-art-event-story-second-toll',
-    bell_unbound: 'run-art-event-story-bell-unbound',
-  } satisfies Record<EventArtId, string>,
-} as const;
+export const RUN_ART_KEYS = artManifest.runKeys;
 
 export function eventArtKey(theme: EventTheme, artId?: EventArtId): string {
-  return artId === undefined ? RUN_ART_KEYS.event[theme] : RUN_ART_KEYS.eventStory[artId];
+  return artId === undefined ? artManifest.themes[theme]! : artManifest.events[artId]!;
 }
 
 export function enemyPortraitArtKey(enemyId: string): string | undefined {

@@ -68,9 +68,14 @@ export function attachHoverTip(
   target: Phaser.GameObjects.GameObject,
   rect: { x: number; y: number; w: number; h: number },
   entries: readonly HoverTipEntry[],
-  opts: { pinOnClick?: boolean } = {},
+  opts: { pinOnClick?: boolean; followTarget?: boolean } = {},
 ): void {
   if (entries.length === 0) return;
+  const anchor = (): { x: number; y: number; w: number; h: number } => {
+    if (!opts.followTarget) return rect;
+    const bounds = (target as Phaser.GameObjects.Rectangle).getBounds();
+    return { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height };
+  };
   let tip: Phaser.GameObjects.Container | undefined;
   let pinned = false;
   const hide = (): void => {
@@ -86,7 +91,7 @@ export function attachHoverTip(
   const show = (): void => {
     if (tip) return; // already showing — a repeat trigger toggles it off, see `toggle`
     activeTipByScene.get(scene)?.(); // one tip per scene — close whatever else is open first
-    tip = renderHoverTipCard(scene, rect, entries);
+    tip = renderHoverTipCard(scene, anchor(), entries);
     activeTipByScene.set(scene, hide);
   };
   const toggle = (): void => { if (tip) hide(); else show(); };
@@ -179,7 +184,7 @@ export function addHoverTipZone(
    * depth 0 under a modal panel (depth 5000+, itself `setInteractive`) never
    * receives the pointer and its tip can never fire. */
   depth = 0,
-  opts: { pinOnClick?: boolean } = {},
+  opts: { pinOnClick?: boolean; followTarget?: boolean } = {},
 ): Phaser.GameObjects.Rectangle | undefined {
   if (entries.length === 0) return undefined;
   const zone = scene.add.rectangle(rect.x, rect.y, rect.w, rect.h, 0xffffff, 0.001)

@@ -3,7 +3,7 @@ import { skillBook } from '../data/skills';
 import { boardAffinities, boardEffectAffinities, cardType, type BoardIdentity } from '../engine/combat/typeIdentity';
 import type { BonusSource, CombatEvent, DamageCalculation, StatusName } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
-import type { Archetype, BuffableStat, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
+import type { Archetype, BuffableStat, CombatantSetup, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
 import { buildGhostFoeSetup } from '../run/ghostFoeSetup';
 import type { EnemyTitle } from '../run/encounter';
@@ -38,6 +38,7 @@ export interface LogLine {
   group?: { id: number; side: 'player' | 'enemy' };
   notes?: string[];
   card?: PlayedCardRef;
+  chip?: StatusChip;
 }
 /** HP snapshot. The singular `enemy`/`enemyMax` fields are ALWAYS enemy unit 0
  * (mobile's 1v1 view); multi-foe renderers read the parallel `enemies` arrays. */
@@ -436,8 +437,6 @@ export interface BattleTimeline {
   heroStatLine: string;
 }
 
-function skillName(id: string): string { return skillBook[id]?.name ?? id; }
-
 /**
  * Compact per-pool token for a typed shield/blocked-damage line — lets a
  * shielded hit (or a shieldGain) read which pool is in play at a glance
@@ -579,25 +578,43 @@ function propertyWord(p: Property | undefined): string {
  * 2026-08-20) with no count anywhere — `MAX_STUN_PER_CARD` caps it at one
  * performance, so there is nothing honest to count.
  */
-function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
-  let kind: Parameters<typeof ruleEntryByKind>[0];
-  switch (e.status) {
-    case 'poison': kind = 'poison'; break;
-    case 'burn': kind = 'burn'; break;
-    case 'bleed': kind = 'bleed'; break;
-    case 'stun': kind = 'stun'; break;
-    case 'guard': kind = 'guard'; break;
-    case 'negate': kind = 'negate'; break;
-    case 'ward': kind = 'ward'; break;
-    case 'expose': kind = 'expose'; break;
-    case 'buff': kind = 'buffStat'; break;
-    case 'debuff': kind = 'debuffStat'; break;
-    case 'thorns': kind = 'thorns'; break;
-    case 'regen': kind = 'regen'; break;
-    case 'fuse': kind = 'fuse'; break;
+function statusRuleKind(status: StatusName): Parameters<typeof ruleEntryByKind>[0] | undefined {
+  switch (status) {
+    case 'poison': return 'poison';
+    case 'burn': return 'burn';
+    case 'bleed': return 'bleed';
+    case 'stun': return 'stun';
+    case 'guard': return 'guard';
+    case 'negate': return 'negate';
+    case 'ward': return 'ward';
+    case 'expose': return 'expose';
+    case 'buff': return 'buffStat';
+    case 'debuff': return 'debuffStat';
+    case 'thorns': return 'thorns';
+    case 'regen': return 'regen';
+    case 'fuse': return 'fuse';
+    default: return undefined;
   }
-  const entry = ruleEntryByKind(kind);
+}
+
+function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
+  const kind = statusRuleKind(e.status);
+  const entry = kind === undefined ? undefined : ruleEntryByKind(kind);
   return withTermSentences(entry && { ...entry, body: bindStatusSentence(entry.body, e) });
+}
+
+function statModText(kind: 'buff' | 'debuff', stat: BuffableStat, pct: number, flat: number): string {
+  const sign = kind === 'buff' ? '+' : '−';
+  return `${STAT_TOKEN[stat]} ${pct > 0 ? `${sign}${pct}%` : ''}${flat > 0 ? `${sign}${flat}` : ''}`;
+}
+
+function statusRuleTitle(status: StatusName): string | undefined {
+  const kind = statusRuleKind(status);
+  return kind === undefined ? undefined : ruleEntryByKind(kind)?.title;
+}
+
+function turnsClause(turns: number): string {
+  return ` (${turns} turn${turns === 1 ? '' : 's'})`;
 }
 
 function statusValues(e: Extract<CombatEvent, { kind: 'statusApplied' }>): Array<number | undefined> {
@@ -611,7 +628,8 @@ function statusValues(e: Extract<CombatEvent, { kind: 'statusApplied' }>): Array
 }
 
 function bindStatusSentence(body: string, e: Extract<CombatEvent, { kind: 'statusApplied' }>): string {
-  const text = e.status === 'burn' && e.stacks !== undefined ? body.replace('2X', String(2 * e.stacks)) : body;
+  const burnBound = e.status === 'burn' && e.stacks !== undefined ? body.replace('2X', String(2 * e.stacks)) : body;
+  const text = (e.status === 'buff' || e.status === 'debuff') && e.stat ? burnBound.replace('the named stat', STAT_TOKEN[e.stat]) : burnBound;
   const values = statusValues(e);
   const slots = text.match(/\bX\b/g)?.length ?? 0;
   if (slots === 0 || slots !== values.length || values.some((value) => value === undefined)) return text;
@@ -790,6 +808,12 @@ export function formatShield(e: Extract<CombatEvent, { kind: 'shieldGain' }>): s
   return `S: ${terms.join(' ')} = ${e.amount}`;
 }
 
+/** Card Designer probe fights: draft cards outside the catalog, and a foe built without an enemy id. */
+export interface BattleTimelineOverrides {
+  skills?: Readonly<Record<string, SkillDef>>;
+  foeSetups?: readonly CombatantSetup[];
+}
+
 /**
  * Folds a battle into a renderer-agnostic playback model (log lines, per-step
  * HP/shield/status/FX snapshots, and a battle-ledger summary). Pure — no
@@ -799,7 +823,9 @@ export function formatShield(e: Extract<CombatEvent, { kind: 'shieldGain' }>): s
  * to produce one. `input` supplies only what rendering needs: hero/foe setups,
  * names, stats, and boards.
  */
-export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog): BattleTimeline {
+export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog, overrides: BattleTimelineOverrides = {}): BattleTimeline {
+  const skillOf = (id: string): SkillDef | undefined => overrides.skills?.[id] ?? skillBook[id];
+  const skillName = (id: string): string => skillOf(id)?.name ?? id;
   const preparedWeights = new Map<string, number>();
   for (const event of log.events) {
     if (event.kind !== 'preBattleEffect' || !event.active) continue;
@@ -815,7 +841,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     ? input.enemyTeam
     : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, growthLevel: input.enemyGrowthLevel, fightNumber: input.enemyFightNumber, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
   // `cfg.affix`/`cfg.deck`/`cfg.bumped` must resolve the SAME package the service resolved.
-  const foeSetups = teamConfigs.map((cfg) => cfg.ghost
+  const foeSetups = overrides.foeSetups ?? teamConfigs.map((cfg) => cfg.ghost
     ? buildGhostFoeSetup(cfg.ghost)
     : buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, cfg.fightNumber, cfg.deck ?? null, cfg.growthLevel, cfg.bumped ?? false).setup);
   const equipmentSetup = log.events.find(event => event.kind === 'equipmentSetup' && event.side === 'player' && event.unit === 0);
@@ -826,7 +852,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const heroPieces: BattlePiece[] = [];
   const heroSkills: SkillDef[] = [];
   for (const p of input.pieces) {
-    const base = skillBook[p.skillId]; if (!base) continue;
+    const base = skillOf(p.skillId); if (!base) continue;
     // Tier + socketed-gem fold (resolver seam, display-only) — the board
     // rendered mid-battle must show the SAME face (numbers, effects, and
     // therefore targeting scope) as prep/deck-build's owned board, not the
@@ -851,7 +877,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const pieces: BattlePiece[] = [];
     const skills: SkillDef[] = [];
     for (const p of setup.pieces) {
-      const base = skillBook[p.skillId]; if (!base) continue;
+      const base = skillOf(p.skillId); if (!base) continue;
       // ONE display-resolve for both boards (`resolveDisplaySkill`), not two.
       // The foe path used to run `p.tier ? applyTier(base, p.tier) : base`, which
       // differs from the hero path in two ways that are both live defects rather
@@ -1218,7 +1244,6 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const statModChips = (kind: 'buff' | 'debuff', piles: StatModPile[] | undefined, turn: number): StatusChip[] => {
     if (!piles || piles.length === 0) return [];
     const out: StatusChip[] = [];
-    const sign = kind === 'buff' ? '+' : '−';
     for (const stat of STAT_MOD_STAT_ORDER) {
       let pct = 0;
       let flat = 0;
@@ -1226,11 +1251,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (p.stat === stat) { pct += p.pct; flat += p.amount; }
       }
       if (pct <= 0 && flat <= 0) continue;
-      const parts = `${pct > 0 ? `${sign}${pct}%` : ''}${flat > 0 ? `${sign}${flat}` : ''}`;
+      const label = statModText(kind, stat, pct, flat);
       const left = turnsLeft(piles.filter((p) => p.stat === stat), turn);
       out.push({
-        kind, text: `${STAT_TOKEN[stat]} ${parts}`, value: `${STAT_TOKEN[stat]} ${parts}`, polarity: kind,
-        title: `${STAT_TOKEN[stat]} ${parts}${leftSuffix(left)}`,
+        kind, text: label, value: label, polarity: kind,
+        title: `${label}${leftSuffix(left)}`,
         info: ruleText(kind === 'buff' ? 'buffStat' : 'debuffStat', [pct > 0 ? pct : undefined, left]),
       });
     }
@@ -1492,7 +1517,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const push = (turn: number, tag: string, text: string, detail?: string): LogLine => {
     const arr = linesByTurn.get(turn) ?? [];
     const line: LogLine = { tag, text, detail };
-    if (tag !== 'PLAY' && pendingPlayLine?.line.group) line.group = pendingPlayLine.line.group;
+    if (tag !== 'PLAY' && pendingPlayLine?.line.group) {
+      line.group = pendingPlayLine.line.group;
+      if (pendingPlayLine.line.card) line.card = pendingPlayLine.line.card;
+    }
     arr.push(line);
     linesByTurn.set(turn, arr);
     if (tag !== 'PLAY') {
@@ -1533,6 +1561,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // (not a map) is enough; keyed by (side, unit) anyway as a self-check that
   // the `cost` actually matches the play it claims to.
   let pendingPlayLine: { side: 'player' | 'enemy'; unit: number; line: LogLine } | undefined;
+  const expiriesNamed = new Set<string>();
   let logGroupSeq = 0;
   /** Identity fields threaded onto a fx from its source skill — undefined when
    * there's no skill to attribute (e.g. a DoT tick), in which case callers
@@ -1710,7 +1739,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // very cast's own effects create (see `pendingCastFx` above) — a
         // scene reads `kind: 'cast'` to flash the caster's board slot and
         // float its card name per the archetype's motion profile.
-        const castSkill = skillBook[e.skillId];
+        const castSkill = skillOf(e.skillId);
         if (castSkill) {
           pendingCastFx.push({ side: e.side, kind: 'cast', amount: 0, unit: unitOf(e), cardName: skillName(e.skillId), ...fxIdentity(castSkill) });
         }
@@ -1866,7 +1895,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           if (cur !== undefined) holderBucket!.set('thorns', Math.max(0, cur - 1));
         }
         pushFx(e.side, 'damage', dealt, u, e.source !== 'skill' ? e.source : undefined,
-          e.source === 'skill' && e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
+          e.source === 'skill' && e.sourceCard ? skillOf(e.sourceCard.skillId) : undefined);
         break;
       }
       case 'heal': {
@@ -1894,7 +1923,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const left = (regenByUnit.get(k) ?? 0) - 1;
           if (left > 0) regenByUnit.set(k, left); else regenByUnit.delete(k);
         }
-        pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined, e.antiHeal?.pct);
+        pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillOf(e.sourceCard.skillId) : undefined, e.antiHeal?.pct);
         break;
       }
       case 'shieldGain': {
@@ -1926,7 +1955,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         pushSegments(e.turn, 'BUFF', [
           actorSegment(e), neutral(' '), colored(`+${e.amount} ${token}`, 'shield'), neutral(shieldTail + passiveTail),
         ], formatShield(e));
-        pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
+        pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillOf(e.sourceCard.skillId) : undefined);
         break;
       }
       case 'shieldBroken': {
@@ -2259,10 +2288,18 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         } else if (e.stacks) {
           stacksText = ` ${e.stacks}`;
         }
-        // Defensive/support statuses (guard/buff/debuff/expose/negate) carry a
-        // plain-language explanation as the row's expandable detail — tap/click
-        // to expand, same affordance as a HIT's D: math strip, no hover.
-        pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${cap}${stacksText}`, explainStatus(e));
+        let label = `${cap}${stacksText}`;
+        if ((e.status === 'buff' || e.status === 'debuff') && e.stat) label = statModText(e.status, e.stat, e.pct ?? 0, e.amount ?? 0) + turnsClause(e.turns);
+        else if (e.status === 'guard') label = `${cap} ${e.pct ?? 0}%${turnsClause(e.turns)}`;
+        else if (e.status === 'expose') label = `${cap} +${e.pct ?? 0}%${turnsClause(e.turns)}`;
+        else if (e.status === 'negate') label = `${cap} ${e.charges ?? 1} charge${(e.charges ?? 1) === 1 ? '' : 's'}`;
+        else if (e.status === 'fuse') label = `${cap} ${e.amount ?? 0} (in ${e.turns} turn${e.turns === 1 ? '' : 's'})`;
+        const statusLine = pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${label}`);
+        const ruleTitle = statusRuleTitle(e.status) ?? cap;
+        statusLine.chip = {
+          kind: e.status, text: label, polarity: buff ? 'buff' : 'debuff',
+          title: label.toLowerCase().includes(ruleTitle.toLowerCase()) ? label : `${ruleTitle} · ${label}`, info: explainStatus(e),
+        };
         if (e.status === 'fuse') fusesFor(e.side, unitOf(e)).push({ amount: e.amount ?? 0, detonateTurn: e.turn + (e.turns ?? 0) });
         if (e.status === 'regen') {
           const k = unitKey(e.side, unitOf(e));
@@ -2381,15 +2418,24 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         } else {
           bucket.delete(e.status);
         }
+        let ended: string[] = [];
         if (e.status === 'buff' || e.status === 'debuff') {
           // Natural expiry (the only kind this event ever reports — see its
           // doc): prune exactly the pile(s) whose window ends AT this turn,
           // strict `>` for the same reason `effectiveExposePct`'s strict mode
           // exists — `e.turn` IS the expiring pile's own `expiresAtTurn`.
-          const map = e.status === 'buff' ? buffPilesByUnit : debuffPilesByUnit;
+          const statKind = e.status;
+          const map = statKind === 'buff' ? buffPilesByUnit : debuffPilesByUnit;
           const k = unitKey(e.side, unitOf(e));
           const piles = map.get(k);
-          if (piles) map.set(k, piles.filter((p) => p.expiresAtTurn > e.turn));
+          if (piles) {
+            ended = piles.filter((p) => p.expiresAtTurn <= e.turn).map((p) => statModText(statKind, p.stat, p.pct, p.amount));
+            map.set(k, piles.filter((p) => p.expiresAtTurn > e.turn));
+          }
+        } else if (e.status === 'guard') {
+          ended = guardPilesFor(e.side, unitOf(e)).filter((p) => p.expiresAtTurn === e.turn).map((p) => `${guardToken(p.property)} ${p.pct}%`);
+        } else if (e.status === 'expose') {
+          ended = exposePilesFor(e.side, unitOf(e)).filter((p) => p.expiresAtTurn === e.turn).map((p) => `Expose +${p.pct}%`);
         }
         // A row is worth printing only for the statuses that are otherwise
         // INVISIBLE while wearing off: guard/buff/debuff/expose silently
@@ -2418,9 +2464,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         //   tick or HP-bar clear of its own to imply it. Without this row the
         //   pile's end is invisible exactly like thorns' would be.
         if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns' || e.status === 'ward') {
-          const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
-          const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-          pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${cap} wore off`);
+          const expiryKey = `${e.turn}:${e.side}:${unitOf(e)}:${e.status}`;
+          if (!expiriesNamed.has(expiryKey)) {
+            expiriesNamed.add(expiryKey);
+            const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
+            const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
+            const label = ended.length > 0 ? ended.join(', ') : cap;
+            const expiredLine = pushActor(e.turn, buff ? 'BUFF' : 'DEBUFF', e, ` · ${label} wore off`);
+            expiredLine.chip = { kind: e.status, text: label, polarity: buff ? 'buff' : 'debuff' };
+          }
         }
         break;
       }

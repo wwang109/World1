@@ -17,6 +17,7 @@ import { runScreenLayout } from './runScreenLayout';
 import { attachButtonFeel, hoverFillFor } from './motion';
 import { playerHudStatRun, runProgressStatRun } from './statRunModel';
 import { renderStatRun } from './statRunStrip';
+import { renderPaintedChrome } from './paintedChrome';
 
 const DESKTOP_PLAYER_STAT_GLYPH = {
   LV: '★',
@@ -64,6 +65,7 @@ export interface RunProgressSnapshot {
   bankedPL?: number;
   /** Current display totals from the same allocation + hero-gem fold as prep. */
   heroStats?: import('../../engine/types').CombatantStats;
+  heroStatRun?: ReturnType<typeof playerHudStatRun>;
   /** Socketed hero-gem contribution, shown as the shared `◆+N` attribution. */
   heroGemAdds?: Partial<import('../../engine/types').CombatantStats>;
 }
@@ -241,7 +243,7 @@ function drawKickerTitleStats(
   // does move is the title's ink: `UI.text` (#ecd7a4) -> `INK.primary`
   // (#f2e4c0), which is the role's own colour and the same one every other
   // converted screen title now takes. The kicker's accent is byte-identical.
-  const kicker = scene.add.text(t.regions.kicker.x, t.regions.kicker.y, 'WORLD1 / RUN MODE', textRole('kicker'));
+  const kicker = scene.add.text(t.regions.kicker.x, t.regions.kicker.y, 'WANDERING HAND / RUN MODE', textRole('kicker'));
   const title = scene.add.text(t.regions.title.x, t.regions.title.y, screen, textRole('title'));
   track(track_, kicker);
   track(track_, title);
@@ -290,14 +292,14 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
   // capabilities the left side of one shared middle row. LV itself carries
   // the banked-PL cue/action, so Run and Bag use identical cell geometry.
   // Mobile remains on its unchanged compact composition.
-  if (!opts.compact && opts.snapshot.heroStats) {
+  if (!opts.compact && (opts.snapshot.heroStats||opts.snapshot.heroStatRun)) {
     const band = t.regions.badge;
     const bandPlate = scene.add.rectangle(
       band.x, band.y - 4, band.width, band.height + 8, UI.panelAlt, 0.38,
     ).setOrigin(0, 0);
     track(opts.track, bandPlate);
     const banked = opts.snapshot.bankedPL ?? 0;
-    const statRun = playerHudStatRun(opts.snapshot.heroStats, opts.snapshot.heroGemAdds, opts.snapshot.heroLevel, banked);
+    const statRun = opts.snapshot.heroStatRun??playerHudStatRun(opts.snapshot.heroStats!, opts.snapshot.heroGemAdds, opts.snapshot.heroLevel, banked);
     const statAreaX = band.x + 16;
     const statAreaWidth = band.width - 32;
     // LV is short; HP/current-max is the widest fact. Weighted cells keep the
@@ -490,7 +492,7 @@ interface ConfirmDialogOpts {
  * (only the DOM share-code prompts handle Enter/Escape — `ui/codePrompt.ts`);
  * the scrim is the whole-viewport dismiss affordance on both platforms.
  */
-function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void {
+export function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void {
   const localView = scene.data?.get('embeddedRunView') as Rect | undefined;
   if (localView) {
     const pane = (scene.data.get('embeddedEventOutcomeBounds') as Rect | undefined) ?? localView;
@@ -539,6 +541,7 @@ function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void
   const py = originY + (H - ph) / 2;
   scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0)
     .setStrokeStyle(2, danger ? UI.bad : UI.chip, 0.9).setInteractive().setDepth(6001);
+  renderPaintedChrome(scene, px, py, pw, ph, { borderOnly: true, compact: opts.compact, tint: danger ? UI.bad : undefined })?.setDepth(6001);
 
   // A dialog is a `section` heading over `body` copy over two `label` buttons —
   // the same three roles every other panel in the game now takes, so the sizes
@@ -551,6 +554,7 @@ function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void
   const btnY = py + ph - 56;
   const cancelBtn = scene.add.rectangle(px + 24, btnY, btnW, 40, UI.panelMuted, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(6002);
+  renderPaintedChrome(scene, px + 24, btnY, btnW, 40, { button: true, borderOnly: true })?.setDepth(6002);
   scene.add.text(px + 24 + btnW / 2, btnY + 20, opts.cancelLabel, textRole('label'))
     .setOrigin(0.5).setDepth(6002);
   cancelBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
@@ -558,6 +562,7 @@ function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void
   const confirmX = px + 24 + btnW + 12;
   const confirmBtn = scene.add.rectangle(confirmX, btnY, btnW, 40, danger ? UI.bad : UI.chip, 1).setOrigin(0, 0)
     .setStrokeStyle(1, danger ? UI.bad : UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+  renderPaintedChrome(scene, confirmX, btnY, btnW, 40, { button: true, borderOnly: true, tint: danger ? UI.bad : undefined })?.setDepth(6002);
   // Dark ink ON the filled action — `INK.onAlarm` on the danger fill /
   // `INK.onAccent` on the bronze chip (both contrast-checked against exactly
   // those fills in `textRoleAudit.test.ts`).
@@ -590,6 +595,7 @@ function renderEmbeddedConfirm(scene: Phaser.Scene, opts: ConfirmDialogOpts, pan
     .setInteractive().on('pointerdown', (pointer: Phaser.Input.Pointer) => (opts.onScrim ?? opts.onCancel)(pointer));
   scene.add.rectangle(x, y, width, height, UI.panelAlt, 1).setOrigin(0, 0).setDepth(6001)
     .setStrokeStyle(1, danger ? UI.bad : UI.chip, 1).setInteractive();
+  renderPaintedChrome(scene, x, y, width, height, { borderOnly: true, compact: opts.compact, tint: danger ? UI.bad : undefined })?.setDepth(6001);
   title.setPosition(x + width / 2, y + pad);
   const bodyY = title.y + title.height + gap;
   const actionY = y + height - pad - actionsHeight;
@@ -621,6 +627,7 @@ function renderEmbeddedConfirm(scene: Phaser.Scene, opts: ConfirmDialogOpts, pan
     const fill = confirm ? danger ? UI.bad : UI.chip : UI.panelMuted;
     const box = scene.add.rectangle(bx, by, buttonWidth, 40, fill, 1).setOrigin(0, 0).setDepth(6002)
       .setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
+    renderPaintedChrome(scene, bx, by, buttonWidth, 40, { button: true, borderOnly: true, tint: confirm && danger ? UI.bad : undefined })?.setDepth(6002);
     const text = scene.add.text(bx + buttonWidth / 2, by + 20, label,
       textRole('label', confirm ? { ink: danger ? 'onAlarm' : 'onAccent' } : {})).setOrigin(0.5).setDepth(6002);
     auditControlLabel(box, text, { name: 'Embedded event confirmation action', horizontalPadding: 8, verticalPadding: 6, minFontSize: 9 });

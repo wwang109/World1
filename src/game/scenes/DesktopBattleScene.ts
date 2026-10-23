@@ -8,6 +8,7 @@ import { type CursorSlotSnap,
   type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type PlayedCardRef, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
+import { renderPaintedChrome } from '../ui/paintedChrome';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
 import {
@@ -38,15 +39,15 @@ import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
 import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
-import { layoutVisibleBattleLogRows, drawBattleLogLines, LOG_GROUP_BAND, LOG_GROUP_STRIPE } from '../ui/battleLogLine';
-import { createStatusIconChip } from '../ui/statusIcon';
+import { layoutVisibleBattleLogRows, drawBattleLogLines, BATTLE_LOG_TAG_COLOR, LOG_GROUP_BAND, LOG_GROUP_STRIPE } from '../ui/battleLogLine';
+import { createStatusIconChip, statusIconTileSize } from '../ui/statusIcon';
 import { renderCardDetailsDrawer } from '../ui/cardDetailsDrawer';
 import { skillBook } from '../../data/skills';
 import { passiveFxAt, renderBattlePassiveNotice, highlightBattlePassiveTargets, type PassiveBoardBounds } from '../ui/battlePassiveFx';
 import {
   applyMotionProfileEntrance, fadeDefeated, fadeSlideLogRowIn, flashHpBarKind, flashLogPanelFullWidth,
-  flashLogRowHighlight, minimizeButton, phaseStartStep, pinSuddenDeathBanner, popStatusChip, pulseTokenAt, punchLogRowIn,
-  renderSuddenDeathVignette, shakeBar, slidePhaseBanner, spawnFxFloat,
+  flashLogRowHighlight, minimizeButton, outlineBoardToken, phaseStartStep, pinSuddenDeathBanner, popStatusChip, pulseTokenAt, punchLogRowIn,
+  renderSuddenDeathVignette, shakeBar, slidePhaseBanner, spawnFxFloat, tokenAtSlot,
   type HpBarHandles,
 } from '../ui/battlePlaybackFx';
 
@@ -57,23 +58,6 @@ const TURNLINE_ENTRY = { title: 'Turn order', body: 'Each side’s turn score is
 
 const F = DESKTOP_PROFILE.font;
 
-// DEBUFF ("an effect was just APPLIED to you") vs EFFECT ("that effect is
-// DEALING DAMAGE right now") are deliberately split into their own tags AND
-// colors (2026-08 log-clarity pass) — before this they shared one tag/color
-// and a fresh "Poison 5" application read identically to a "Poison -5" tick.
-// EFFECT gets a color in neither the HIT (red/coral) nor the DEBUFF (rose)
-// family, and outside the per-ailment palette below (poison green / burn
-// orange / bleed red / stun tan / expose purple) so the TAG itself never
-// implies one specific ailment — the floating combat numbers already carry
-// that per-ailment color via AILMENT_COLOR.
-const TAG_COLOR: Record<string, string> = {
-  START: '#e8b446', READY: '#5fa8d3', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
-  DEBUFF: '#d8578f', EFFECT: '#3fb6c4', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
-  // A stalemate-breaker phase change (sudden death / fatigue / attrition) is a
-  // boundary in the FIGHT ITSELF, not an action — it reuses the START/RESULT
-  // gold so it reads as the log's third kind of bookend, never as a regular row.
-  PHASE: '#e8b446',
-};
 // Ailment identity colors — HOISTED to `ui/battleStatusPalette.ts` (2026-09-02):
 // this file and MobileBattleScene.ts carried byte-identical hand-maintained
 // copies, and they had already drifted (this one was missing `ward` in the
@@ -152,6 +136,8 @@ export class DesktopBattleScene extends Phaser.Scene {
    * REPLAY (see `footerButtons`) and a fresh fight (`init`). */
   private outcomeSoundStep = -1;
   private expanded = new Set<string>();
+  private boards = new Map<string, { col: BoardColumn; pieces: ColumnPiece[] }>();
+  private logFocus: { card: PlayedCardRef; until: number } | undefined;
   private heroPieces: ColumnPiece[] = [];
   private heroSkills: SkillDef[] = [];
   private foes: FoeModel[] = [];
@@ -195,6 +181,11 @@ export class DesktopBattleScene extends Phaser.Scene {
   private ghostSaveName = '';
   private ghostSaveStatus: 'idle' | 'saving' | 'done' | 'error' = 'idle';
   private ghostSaveErrorReason: string | null = null;
+  private requestGeneration = 0;
+  private fightSnapshot!: BattleTimelineInput;
+  private fightContext: ReturnType<typeof getBattleContext> = 'demo';
+  private settlementStarted = false;
+  private recoveryToMenu = false;
 
   constructor() { super('DesktopBattle'); }
 
@@ -253,22 +244,40 @@ export class DesktopBattleScene extends Phaser.Scene {
   create(): void {
     // The battle service owns combat, so the log is a round trip: show a status
     // line, then render once it lands. No local fallback exists by design.
-    this.renderStatus('RESOLVING BATTLE…');
+    this.fightSnapshot = structuredClone(this.fightInput());
+    this.fightContext = getBattleContext();
+    this.recoveryToMenu = this.fightContext === 'run' && (activeChallengeFight() !== null || activeExtraGhostFight() !== null);
+    this.settlementStarted = false;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.requestGeneration += 1;
+      this.stopPlayback();
+    });
     void this.startFight();
   }
 
   /** Fetches the log, folds it, then starts playback. */
   private async startFight(): Promise<void> {
-    const input = this.fightInput();
+    if (this.settlementStarted) return;
+    const input = this.fightSnapshot;
+    const generation = ++this.requestGeneration;
+    this.renderStatus('RESOLVING BATTLE…');
+    let log: BattleLog;
     try {
-      const log = await fetchBattleLog(input);
-      if (!this.scene.isActive()) return;
+      log = await fetchBattleLog(input);
+    } catch {
+      if (generation === this.requestGeneration && this.scene.isActive()) this.renderRecovery();
+      return;
+    }
+    if (generation !== this.requestGeneration || !this.scene.isActive()) return;
+    try {
       this.buildFight(input, log);
       // Credit exactly once per fetched response — a REPLAY re-renders this
       // SAME log object (no re-fetch), so the identity check skips it.
       if (this.goldCreditedLog !== log) {
         this.goldCreditedLog = log;
-        const runContext = getBattleContext() === 'run';
+        this.settlementStarted = true;
+        const runContext = this.fightContext === 'run';
+        const priorReceipt = runContext ? currentEquipmentDropReceipt()?.id : null;
         this.isExtraGhostFight = runContext && activeExtraGhostFight() !== null;
         this.isChallengeFight = runContext && activeChallengeFight() !== null;
         if (this.isExtraGhostFight) {
@@ -278,13 +287,12 @@ export class DesktopBattleScene extends Phaser.Scene {
           resolveChallengeFightResult(log);
           this.goldPayout = 0;
         } else {
-          const priorReceipt=runContext?currentEquipmentDropReceipt()?.id:null;
           this.goldPayout = runContext ? resolveRunBattleResult(input, log) : creditBattleGold(input, log);
-          const receipt=runContext?currentEquipmentDropReceipt():null;
-          const drop=receipt?.sourceKind==='fight'&&receipt.id!==priorReceipt?receipt.item:null;
-          this.equipmentDropName=drop?equipmentCatalog.item(drop.itemId,drop.itemVersion).name:null;
           playSfx('goldGain');
         }
+        const receipt = runContext ? currentEquipmentDropReceipt() : null;
+        const drop = receipt?.sourceKind === 'fight' && receipt.id !== priorReceipt ? receipt.item : null;
+        this.equipmentDropName = drop ? equipmentCatalog.item(drop.itemId, drop.itemVersion).name : null;
         const offer = runContext ? offerGhostSave() : null;
         if (offer) {
           this.ghostOffer = offer;
@@ -294,22 +302,60 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.idx = 0;
       this.render();
       this.startPlayback();
-    } catch (err) {
-      if (!this.scene.isActive()) return;
-      this.renderStatus(`BATTLE SERVICE UNREACHABLE\n${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      if (generation === this.requestGeneration && this.scene.isActive()) this.renderRecovery();
     }
   }
 
-  /** Centered status/error text — the only thing drawn before the log arrives. */
   private renderStatus(message: string): void {
-    this.children.removeAll();
-    // UI.textMuted the TOKEN, not a pasted copy of it: this literal was a
-    // stale `#8a94a6` that missed the 2026-09-02 ground lift (4.25:1 on the
-    // new panelAlt vs the token's 4.82 worst-ground).
-    this.add.text(SCREEN.width / 2, SCREEN.height / 2, message, {
-      fontSize: '16px', color: UI.textMuted, fontFamily: FONT.body,
-      align: 'center', wordWrap: { width: SCREEN.width - 200 }, lineSpacing: 6,
+    this.renderRecovery(message);
+  }
+
+  private renderRecovery(pendingMessage?: string): void {
+    this.stopPlayback();
+    this.tweens.killAll();
+    this.children.removeAll(true);
+    this.cameras.main.setBackgroundColor(UI.bg);
+    const w = Math.min(this.W - 64, 560);
+    const h = 236;
+    const x = (this.W - w) / 2;
+    const y = (this.H - h) / 2;
+    this.add.rectangle(x, y, w, h, UI.panel).setOrigin(0);
+    renderPaintedChrome(this, x, y, w, h, { borderOnly: true });
+    const title = pendingMessage ?? (this.settlementStarted ? 'BATTLE DISPLAY INTERRUPTED' : 'BATTLE CONNECTION LOST');
+    this.add.text(this.W / 2, y + 44, title, {
+      fontFamily: FONT.body, fontSize: '20px', fontStyle: 'bold',
+      color: pendingMessage ? UI.textAccent : UI.textAlarm,
     }).setOrigin(0.5);
+    const message = pendingMessage ? 'Connecting to the battle service…'
+      : this.settlementStarted ? 'Return to continue your journey.'
+      : this.recoveryToMenu ? 'Your fight is saved. Resume it from the main menu.' : 'We could not load this battle. Try again.';
+    this.add.text(this.W / 2, y + 94, message, {
+      fontFamily: FONT.body, fontSize: '16px', color: UI.textBright,
+      align: 'center', wordWrap: { width: w - 48 },
+    }).setOrigin(0.5);
+    const canRetry = !pendingMessage && !this.settlementStarted;
+    const bw = (w - 56) / 2;
+    const back = () => {
+      this.requestGeneration += 1;
+      const dest = this.fightContext === 'run'
+        ? this.settlementStarted ? 'DesktopRunMap' : 'DesktopRunPrep'
+        : 'DesktopPrep';
+      this.scene.start(!this.settlementStarted && this.recoveryToMenu ? 'Start' : dest);
+    };
+    const buttons = [{ label: 'BACK', fill: UI.panelAlt, press: back },
+      ...(canRetry ? [{ label: 'RETRY', fill: UI.chip, press: () => { void this.startFight(); } }] : [])];
+    for (let i = 0; i < buttons.length; i++) {
+      const button = buttons[i]!;
+      const bx = canRetry ? x + 20 + i * (bw + 16) : this.W / 2 - bw / 2;
+      const by = y + h - 64;
+      this.add.rectangle(bx, by, bw, 44, button.fill).setOrigin(0).setInteractive({ useHandCursor: true })
+        .on('pointerdown', button.press);
+      renderPaintedChrome(this, bx, by, bw, 44, { button: true, borderOnly: true });
+      this.add.text(bx + bw / 2, by + 22, button.label, {
+        fontFamily: FONT.body, fontSize: '14px', fontStyle: 'bold', color: button.label === 'BACK' ? UI.textBright : UI.textOnChip,
+      }).setOrigin(0.5);
+    }
   }
 
   /** The prep info this fight resolves from — demoState in Sandbox, the
@@ -418,6 +464,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     // Destroy (not just remove) the previous frame's objects — removeAll()
     // alone leaks every Text's backing canvas texture across ~30 redraws/fight.
     for (const child of [...this.children.list]) child.destroy();
+    this.boards.clear();
     renderDesktopBackground(this);
 
     // ---- run-stats strip (2026-08-04 decision) — kicker/title('BATTLE')/
@@ -510,6 +557,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       newlyAppliedChipKindsFor('player', 0),
     );
     const heroCol = new BoardColumn(this, { x: leftX, y: boardTop, width: PANEL_W, height: boardH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, 'player', 0, slots.player), deck: this.heroSkills, stats: this.heroStats });
+    this.boards.set('player:0', { col: heroCol, pieces: this.heroPieces });
     if (forwardStep && slots.player !== undefined) {
       const cast = this.castFxFor('player', 0);
       const recipe = pulseTokenAt(this, heroCol, this.heroPieces, slots.player, cast, F.small, this.speedMult);
@@ -557,6 +605,7 @@ export class DesktopBattleScene extends Phaser.Scene {
         x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H, side: 'right',
         pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
+      this.boards.set(`enemy:${u}`, { col: foeCol, pieces: foeModel.pieces });
       passiveBoards.push({ side: 'enemy', unit: u, x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H });
       if (animate && foeSlot !== undefined) {
         const cast = this.castFxFor('enemy', u);
@@ -656,6 +705,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const suddenDeathH = suddenDeath ? 32 : 0;
     const logTop = contentTop + (suddenDeathH ? suddenDeathH + 6 : 0);
     this.renderLog(logX, logTop, logW, contentBottom - logTop - (cueH ? cueH + 8 : 0), turn, step, isOutcomeStep, forwardStep, stepHasTopTierHit);
+    this.applyLogFocus();
     if (passive) highlightBattlePassiveTargets(this, passive, passiveBoards, animatePassive, this.speedMult);
     if (suddenDeath) {
       const at = this.steps[this.suddenDeathStep];
@@ -717,7 +767,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const availableHeight = (y + h - 12) - headerBottom;
     const rows = layoutVisibleBattleLogRows(
       this, feed, ({ line }) => line,
-      ({ line }) => w - (textX - x) - (line.detail || line.card ? 30 : 16),
+      ({ line }) => w - (textX - x) - (line.chip ? statusIconTileSize(F.small) + 4 : 0) - (line.detail || line.tag === 'PLAY' ? 30 : 16),
       bodyStyle, rowH, availableHeight,
     );
     let ly = headerBottom;
@@ -734,11 +784,40 @@ export class DesktopBattleScene extends Phaser.Scene {
       if (!sameGroup) this.add.rectangle(x + 16, ly - 3, w - 32, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.boundedText(turnX, ly + 3, `T${t}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }, tagX - turnX - 8);
       prevTurn = t;
-      const tagText = this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
-      const { objects: bodyObjects, height: rowHeight } = drawBattleLogLines(this, textX, ly, wrapped, bodyStyle, rowH);
+      const tagText = this.boundedText(tagX, ly, line.tag, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: BATTLE_LOG_TAG_COLOR[line.tag] ?? UI.textDim }, textX - tagX - 8);
+      const iconW = line.chip ? statusIconTileSize(F.small) + 4 : 0;
+      const { objects: bodyObjects, height: rowHeight } = drawBattleLogLines(this, textX + iconW, ly, wrapped, bodyStyle, rowH);
+      const card = line.card;
+      if (line.detail) {
+        this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
+        const zone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        zone.on('pointerdown', () => {
+          if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key);
+          this.render();
+          if (card) this.focusBoardCard(card);
+        });
+        // HIT rows ALSO get a hover tip reading the same D: string — a second
+        // affordance for the math strip specifically.
+        if (line.tag === 'HIT') {
+          attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+        }
+        if (card) this.hoverBoardCard(zone, card);
+      } else if (card) {
+        const cardZone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        cardZone.on('pointerdown', () => this.focusBoardCard(card));
+        this.hoverBoardCard(cardZone, card);
+        if (line.tag === 'PLAY') {
+          this.add.text(x + w - 16, ly, '›', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
+          const openZone = this.add.rectangle(x + w - 34, ly - 3, 34, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+          openZone.on('pointerdown', () => this.openPlayedCard(card));
+        }
+      }
+      const icon = line.chip ? createStatusIconChip(this, { ...line.chip, value: undefined }, F.small) : undefined;
+      icon?.place(textX, ly);
       const isNewestRow = forwardStep && t === turn && local === step.lineIndex;
       if (isNewestRow) {
         const newRowTargets = [tagText, ...bodyObjects];
+        if (icon) this.tweens.add({ targets: icon.container, alpha: { from: 0, to: 1 }, duration: 220 / this.speedMult });
         if (line.tag === 'HIT' || line.tag === 'DOWN') {
           punchLogRowIn(this, newRowTargets, this.speedMult);
           if (line.tag === 'HIT' && topTierHit) {
@@ -754,24 +833,6 @@ export class DesktopBattleScene extends Phaser.Scene {
         } else {
           fadeSlideLogRowIn(this, newRowTargets, this.speedMult);
         }
-      }
-      if (line.detail) {
-        this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
-        const zone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
-        // HIT rows ALSO get a hover tip reading the same D: string — a second
-        // affordance for the math strip specifically. Status rows (BUFF/DEBUFF
-        // — guard/buff/debuff/expose/negate) rely on click-to-expand ONLY, no
-        // hover, per the locked both-platforms tap idiom (desktop click = tap).
-        if (line.tag === 'HIT') {
-          attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowHeight }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
-        }
-      }
-      if (line.card && !line.detail) {
-        const card = line.card;
-        this.add.text(x + w - 16, ly, '›', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
-        const cardZone = this.add.rectangle(x, ly - 3, w, rowHeight, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        cardZone.on('pointerdown', () => this.openPlayedCard(card));
       }
       ly += rowHeight;
       if (line.detail && this.expanded.has(key) && ly < y + h - 16) {
@@ -994,6 +1055,28 @@ export class DesktopBattleScene extends Phaser.Scene {
     if (isOutcomeStep && this.ghostOffer) {
       this.renderGhostSavePrompt(px, cy + gridRows * rowH + 8, pw, pad);
     }
+  }
+
+  private outlineBoardCard(card: PlayedCardRef, pulse = false): Phaser.GameObjects.Graphics | undefined {
+    const board = this.boards.get(`${card.side}:${card.unit}`);
+    const token = board ? tokenAtSlot(board.col, board.pieces, card.slot) : undefined;
+    return token ? outlineBoardToken(this, token, pulse ? this.speedMult : undefined) : undefined;
+  }
+
+  private focusBoardCard(card: PlayedCardRef): void {
+    this.logFocus = { card, until: this.time.now + 2000 };
+    this.outlineBoardCard(card, true);
+  }
+
+  private applyLogFocus(): void {
+    if (this.logFocus && this.time.now <= this.logFocus.until) this.outlineBoardCard(this.logFocus.card);
+    else this.logFocus = undefined;
+  }
+
+  private hoverBoardCard(zone: Phaser.GameObjects.Rectangle, card: PlayedCardRef): void {
+    let outline: Phaser.GameObjects.Graphics | undefined;
+    zone.on('pointerover', (pointer: Phaser.Input.Pointer) => { if (!pointer.wasTouch) outline = this.outlineBoardCard(card); });
+    zone.on('pointerout', () => { outline?.destroy(); outline = undefined; });
   }
 
   private openPlayedCard(card: PlayedCardRef): void {
