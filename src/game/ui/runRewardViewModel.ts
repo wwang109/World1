@@ -7,6 +7,7 @@ import { gemBook, type GemDef } from '../../data/gems';
 import { choiceArtKey } from './runArtKeys';
 import { mergeReceiptText, outcomeHeadline } from './eventOutcomeText';
 import type { EquipmentItemPin } from '../../data/equipmentLootSources';
+import { equipmentCatalog } from '../../data/equipmentContent';
 
 /**
  * The reward's own feature visual — the ONE part `RunRewardPanel.ts` branches
@@ -38,6 +39,21 @@ export interface RunRewardViewModel {
   /** Optional second line for fallback/context text. */
   detail?: string;
   feature: RunRewardFeature;
+}
+
+export function withEventEquipmentReward(
+  model: RunRewardViewModel,
+  outcome: EventOutcome | EventOutcomeV3 | null,
+  item: EquipmentItemPin,
+): RunRewardViewModel {
+  const equipment = equipmentCatalog.item(item.itemId, item.itemVersion);
+  const equipmentOnly = outcome?.kind === 'nothing' && !('fellBack' in outcome && outcome.fellBack);
+  return {
+    ...model,
+    headline: equipmentOnly ? `Received ${equipment.name}` : model.headline,
+    detail: [model.detail, `Equipment found: ${equipment.name} · DETAILS ›`].filter(Boolean).join('\n'),
+    feature: model.feature.kind === 'icon' ? { kind: 'equipment', item } : model.feature,
+  };
 }
 
 /** Pure mapping from a resolved `EventOutcome` to the one reward template —

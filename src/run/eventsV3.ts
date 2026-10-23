@@ -882,8 +882,11 @@ export function resolveEventChoiceV3(
     stats: { ...state.stats, goldSpent: state.stats.goldSpent + cost },
   };
   if (lifeCost > 0) working = { ...working, lives: working.lives - lifeCost };
-  const previousWorkshopChoice = existingResolution === undefined ? undefined : allChoices(event).find((candidate) => candidate.id === existingResolution.choiceId);
-  if (previousWorkshopChoice !== undefined && isWorkshopOutcomeKind(previousWorkshopChoice.outcome.kind)) working = clearWorkshopOffers(working, instanceId);
+  const previousChoice = existingResolution === undefined ? undefined : allChoices(event).find((candidate) => candidate.id === existingResolution.choiceId);
+  if (previousChoice !== undefined && isWorkshopOutcomeKind(previousChoice.outcome.kind)) working = clearWorkshopOffers(working, instanceId);
+  if (previousChoice?.outcome.kind === 'buyStatPick' && previousChoice.id !== choiceId) {
+    working = clearEventOffer(working, instanceId, previousChoice.id);
+  }
   if (choice.equipmentCost !== undefined) working = spendEquippedEquipment(working, choice.equipmentCost) ?? working;
   const applied = applyDirectOutcome(working, located.node, instanceId, choiceId, direct);
   if (applied === undefined) return { ok: false, state, reason: 'outcome' };
@@ -968,7 +971,15 @@ export function cancelBuyStatPickV3(state: RunState, instanceId: string): RunSta
   if (resolution?.instanceId !== instanceId || resolution.pending !== true) return state;
   const offer = state.eventMaterializations[instanceId]?.deferredOffersByChoiceId[resolution.choiceId];
   if ((offer?.kind !== 'buyStatPick' && offer?.kind !== 'forgeEquipment' && offer?.kind !== 'upgradeEquipment') || offer.status !== 'pending') return state;
-  return clearPending(state, instanceId);
+  return clearEventOffer(clearPending(state, instanceId), instanceId, resolution.choiceId);
+}
+
+function clearEventOffer(state: RunState, instanceId: string, choiceId: string): RunState {
+  const materialization = state.eventMaterializations[instanceId];
+  if (materialization === undefined) return state;
+  const deferredOffersByChoiceId = { ...materialization.deferredOffersByChoiceId };
+  delete deferredOffersByChoiceId[choiceId];
+  return { ...state, eventMaterializations: { ...state.eventMaterializations, [instanceId]: { ...materialization, deferredOffersByChoiceId } } };
 }
 
 function clearWorkshopOffers(state: RunState, instanceId: string): RunState {

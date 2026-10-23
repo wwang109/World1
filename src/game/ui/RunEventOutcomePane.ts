@@ -1,6 +1,5 @@
 import type Phaser from 'phaser';
 import { currentEquipmentDropReceipt, getActiveRun } from '../runStore';
-import { equipmentCatalog } from '../../data/equipmentContent';
 import { renderEquipmentDetailsDrawer } from './equipmentDetailsDrawer';
 import type { RunRewardViewModel } from './runRewardViewModel';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
@@ -15,7 +14,7 @@ import { layoutRunGemReward } from './runGemRewardLayout';
 import type { RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { runModalLayout } from './runModalLayout';
 import { SCREEN } from '../theme';
-import { buildRunRewardViewModel } from './runRewardViewModel';
+import { buildRunRewardViewModel, withEventEquipmentReward } from './runRewardViewModel';
 import { GEM_RESHAPE_PICK_TITLE, REROLL_PICK_TITLE, RESHAPE_PICK_TITLE } from './eventOutcomeText';
 import {
   presentRunEventOutcome,
@@ -138,16 +137,14 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
   choices: (_state, ctx) => ctx.onChoices(),
   receipt: (state, ctx) => {
     const selected = ctx.presentation.choices.find(choice => choice.taken);
-    const model:RunRewardViewModel = state.outcome
+    let model:RunRewardViewModel = state.outcome
       ? buildRunRewardViewModel(state.outcome, state.mergeReceipt)
       : { headline: selected?.title ?? ctx.presentation.title, detail: selected?.detail,
         iconKey: choiceArtKey(selected?.iconKind ?? 'nothing'), feature: { kind: 'icon' as const } };
     const run=getActiveRun(),instance=run?.currentNodeId?run.eventInstances[run.currentNodeId]:undefined;
     const receipt=currentEquipmentDropReceipt();
     if(receipt?.sourceKind==='event'&&receipt.sourceId===instance?.instanceId&&receipt.item){
-      const item=equipmentCatalog.item(receipt.item.itemId,receipt.item.itemVersion);
-      model.detail=[model.detail,`Equipment found: ${item.name} · DETAILS ›`].filter(Boolean).join('\n');
-      if(model.feature.kind==='icon')model.feature={kind:'equipment',item:receipt.item};
+      model=withEventEquipmentReward(model,state.outcome,receipt.item);
     }
     renderRunRewardPanel(ctx.scene, eventOutcomePaneTemplate(ctx.template, model.feature.kind, ctx.panel, ctx.header), model, {
       font: ctx.font, eventTitle: ctx.presentation.title, onContinue: ctx.onContinue,

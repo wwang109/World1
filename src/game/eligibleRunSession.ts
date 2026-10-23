@@ -6,6 +6,7 @@ export interface PendingRunOperation { accountId: string; path: string; body: { 
 export interface RunOperationStorage { get(key: string): string | null; set(key: string, value: string): void; remove(key: string): void }
 export interface EligibleRunSessionState { view: EligibleRunView | null; busy: boolean; pending: PendingRunOperation | null; error: string | null; lastEncounter: EncounterReceipt | null; accountId: string }
 const keyOf = (accountId: string) => `world1:online-operation:v1:${accountId}`;
+const ACCOUNT_UNAVAILABLE = "Can't reach your game account. Check your connection and select RECONNECT.";
 export class EligibleRunSession {
   state: EligibleRunSessionState = { view: null, busy: false, pending: null, error: null, lastEncounter: null, accountId: '' };
   private generation = 0;
@@ -21,7 +22,8 @@ export class EligibleRunSession {
     this.update({ accountId, view: null, pending, error: null, busy: false, lastEncounter: null });
   }
   async resume(): Promise<void> {
-    if (!this.state.accountId || this.state.busy) return;
+    if (!this.state.accountId) { this.update({ error: ACCOUNT_UNAVAILABLE }); return; }
+    if (this.state.busy) return;
     const generation = this.generation;
     this.update({ busy: true, error: null });
     try { const view = await this.transport.get(); if (generation === this.generation) {
@@ -48,7 +50,8 @@ export class EligibleRunSession {
   }
   dismissEncounter(): void { this.update({ lastEncounter: null }); }
   private begin(path: string, body: PendingRunOperation['body']): Promise<RunReceipt> {
-    if (!this.state.accountId || this.state.busy || this.state.pending) return Promise.reject(new Error('Confirm the previous action before continuing.'));
+    if (!this.state.accountId) return Promise.reject(new Error(ACCOUNT_UNAVAILABLE));
+    if (this.state.busy || this.state.pending) return Promise.reject(new Error('Confirm the previous action before continuing.'));
     const pending = { accountId: this.state.accountId, path, body };
     try { this.storage.set(keyOf(pending.accountId), JSON.stringify(pending)); }
     catch { return Promise.reject(new Error('Enable browser storage before playing online so interrupted actions can be recovered.')); }
