@@ -58,18 +58,22 @@ no call site (no win path to end a run on).
 ## File first, recipe fallback
 
 Every key has a fully procedural recipe (oscillator + envelope + optional
-noise burst), so the game is audible with zero binary assets. Keys listed in
-`SFX_FILES` (`src/game/audio/sfxAssets.ts`) also have a recorded one-shot at
-`public/game-audio/<stem>.ogg` (`<stem>` = the key with `:` → `-`, e.g.
-`hit:fire` → `hit-fire.ogg`, since `:` is not a legal Windows filename).
+noise burst), so the game is audible with zero binary assets. Every key is
+also listed in `SFX_FILES` (`src/game/audio/sfxAssets.ts`) and has a recorded
+one-shot at `public/game-audio/<stem>.ogg` (`<stem>` = the key with `:` → `-`,
+e.g. `hit:fire` → `hit-fire.ogg`, since `:` is not a legal Windows filename).
+All 51 one-shots come from one pack family — Kenney (UI, impacts, statuses,
+economy, jingles) plus lentikula's spell-impact packs (casts, element hits,
+heal) — so the game sounds like one product.
 
 - **Runtime** (`sfxSynth.ts`): on the first user gesture (`onAudioUnlock`)
   every `SFX_FILES` entry is fetched and decoded into an `AudioBuffer` cache
   once. `playSfx(key)` plays the decoded buffer through the same sfx bus when
   it is ready, with the recipe's `pitchJitterPct` applied as a ± playback-rate
-  jitter; otherwise (not decoded yet, 404, decode error) it renders the
-  recipe. Nothing throws; mute, volume and unlock behave exactly as before.
-  Call sites never change.
+  jitter (≤ 2% on combat keys, 0 on UI, economy and stingers, so a sound is
+  recognisable each time); otherwise (not decoded yet, 404, decode error) it
+  renders the recipe. Nothing throws; mute, volume and unlock behave exactly
+  as before. Call sites never change.
 - **Pipeline** (mirrors the art one): masters live in `audio-src/<stem>.flac`
   (or the pack's original `.ogg`; NOT served), lossless and pre-trimmed to the
   window the encoder uses plus ~0.25 s; `npm run audio:encode` (`scripts/encode-audio.ts`, ffmpeg on
@@ -77,51 +81,34 @@ noise burst), so the game is audible with zero binary assets. Keys listed in
   trims leading/trailing silence, level-matches each file to
   `REFERENCE_MEAN_DB + recipe.gainDb` (peak ceiling −1 dBFS, so the recipe's
   relative mix carries over), and caps length at `SFX_MAX_MS`
-  (`STINGER_MAX_MS` for `STINGER_KEYS`) with a fade-out. Masters AND the
-  `.ogg` outputs are both committed; `npm run build` does not encode.
-  Downloaded packs sit in the gitignored `audio-src/_packs/` (untrimmed
-  WAV/AIF originals of the FLAC masters in `_packs/_masters-original/`); only
-  the chosen per-key masters are committed.
-- **Credits/licences**: `audio-src/CREDITS.md` — one row per master (CC0 or
-  CC-BY 3.0 only). The CC-BY lines must ship in the game's credits.
+  (`STINGER_MAX_MS` for `STINGER_KEYS`, or the recipe's optional `maxMs`
+  override — `died` 550, `phase` 600) with a fade-out. Masters AND the `.ogg`
+  outputs are both committed; `npm run build` does not encode. Downloaded
+  packs sit in the gitignored `audio-src/_packs/`; only the chosen per-key
+  masters are committed (Kenney `.ogg` copied verbatim, lentikula WAVs cut to
+  a mono FLAC window — the window is recorded per row in `CREDITS.md`).
+- **Credits/licences**: `audio-src/CREDITS.md` — one row per master. Every
+  master is CC0, so no attribution ships in-game; `SFX_CC_BY_CREDITS` stays
+  empty and the Credits screen hides its attribution block while it is.
 - **In-game Credits screen**: `src/game/audio/sfxCredits.ts` (Phaser-free data)
   rendered by `src/game/scenes/CreditsScene.ts`, reached from the CREDITS
   button on `StartScene` (`?scene=credits` to deep-link).
 
 | Key | File | Source |
 |---|---|---|
-| `uiClick` / `uiBack` | `uiClick.ogg` / `uiBack.ogg` | Kenney Interface Sounds |
-| `cast:offense` | `cast-offense.ogg` | artisticdude RPG Sound Pack (swing) |
-| `cast:defensive` | `cast-defensive.ogg` | Kenney RPG Audio (metalLatch) |
-| `cast:healing` / `heal` | `cast-healing.ogg` / `heal.ogg` | Lentikula Healing Spell Impacts 3 / 1 |
-| `cast:support` / `cast:debuff` | `cast-support.ogg` / `cast-debuff.ogg` | JaggedStone Magic Spell SFX 1 / 4 |
-| `hitPhysical` | `hitPhysical.ogg` | Kenney Impact Sounds (punch) |
-| `hitMagical` | `hitMagical.ogg` | rubberduck 80 CC0 RPG SFX (spell_01) |
-| `hit:fire` / `hit:frost` / `hit:lightning` | `hit-fire.ogg` / `hit-frost.ogg` / `hit-lightning.ogg` | Lentikula Basic Spell Impacts |
-| `hit:nature` | `hit-nature.ogg` | Lentikula Druid Spell Impacts (plant) |
-| `hit:holy` | `hit-holy.ogg` | spookymodem Magic Smite (CC-BY) |
-| `hit:sword` / `hit:axe` | `hit-sword.ogg` / `hit-axe.ogg` | Kenney RPG Audio (knifeSlice / chop) |
-| `hit:lance` | `hit-lance.ogg` | Kenney Impact Sounds (metal heavy) |
-| `hit:bow` | `hit-bow.ogg` | spookymodem Crossbow Shot (CC-BY) |
-| `hit:beast` | `hit-beast.ogg` | artisticdude RPG Sound Pack (growl) |
-| `shieldGain` | `shieldGain.ogg` | spookymodem Magic Shield (CC-BY) |
-| `shieldBreak` | `shieldBreak.ogg` | Kenney Impact Sounds (glass heavy) |
-| `status:poison` | `status-poison.ogg` | spookymodem Bubbling Acid (CC-BY) |
-| `status:burn` | `status-burn.ogg` | rubberduck 80 CC0 RPG SFX (fire spell) |
-| `status:buff` | `status-buff.ogg` | wobbleboxx (Rise01) |
-| `status:debuff` | `status-debuff.ogg` | JaggedStone Magic Spell SFX 5 |
-| `status:guard` | `status-guard.ogg` | Kenney Impact Sounds (plate medium) |
-| `status:ward` | `status-ward.ogg` | Lentikula Druid Spell Impacts (wind) |
-| `died` | `died.ogg` | rubberduck 80 CC0 RPG SFX (creature die) |
-| `phase` | `phase.ogg` | JaggedStone Magic Spell SFX 7 |
-| `negated` | `negated.ogg` | Kenney Interface Sounds (error) |
-| `warded` | `warded.ogg` | StarNinjas 10 Impact/Shield Blocks |
-| `dragPick` / `dragDrop` / `sell` / `purchase` | `dragPick.ogg` / `dragDrop.ogg` / `sell.ogg` / `purchase.ogg` | Kenney Casino Audio |
-| `goldGain` | `goldGain.ogg` | Kenney RPG Audio (handleCoins) |
-| `levelUp` | `levelUp.ogg` | wobbleboxx (Rise03) |
-| `victory` / `defeat` / `runWin` | `victory.ogg` / `defeat.ogg` / `runWin.ogg` | Little Robot Sound Factory Fantasy SFX Library (CC-BY) |
-| `runLose` | `runLose.ogg` | wobbleboxx (Downer01) |
-| `hitTrue`, `hit:dark`, `dotTick`, `status:bleed`, `status:stun`, `status:negate`, `status:expose`, `status:thorns` | — | procedural recipe only |
+| `uiClick` / `uiBack` | `uiClick.ogg` / `uiBack.ogg` | Kenney Interface Sounds (click_001 / back_002) |
+| `cast:offense` / `cast:defensive` / `cast:healing` / `cast:support` / `cast:debuff` | `cast-*.ogg` | lentikula spell-impact build-ups (Fire 3 / Earth 1 / Healing 6 / Wind 4 / Lightning 4) — the swell before the impact |
+| `hitPhysical` / `hitTrue` | `hitPhysical.ogg` / `hitTrue.ogg` | Kenney Impact Sounds (punch medium / metal light 002) |
+| `hitMagical` | `hitMagical.ogg` | lentikula Basic Spell Impacts (Water 2 impact) |
+| `hit:fire` / `hit:frost` / `hit:lightning` | `hit-fire.ogg` / `hit-frost.ogg` / `hit-lightning.ogg` | lentikula Basic Spell Impacts (Fire 4 / Ice 4 / Lightning 5 impacts) |
+| `hit:nature` / `hit:dark` | `hit-nature.ogg` / `hit-dark.ogg` | lentikula Druid Spell Impacts (Plant 1 / Earth 4 impacts) |
+| `hit:holy` / `heal` | `hit-holy.ogg` / `heal.ogg` | lentikula Healing Spell Impacts (11 / 14 impacts) |
+| `hit:sword` / `hit:axe` / `hit:lance` / `hit:bow` / `hit:beast` | `hit-*.ogg` | Kenney Impact Sounds (metal light 001 / plank medium 002 / metal heavy 002 / soft medium 002 / punch heavy 002) |
+| `shieldGain` / `shieldBreak` | `shieldGain.ogg` / `shieldBreak.ogg` | Kenney Impact Sounds (plate light 002 / glass heavy 000) |
+| `negated` / `warded` / `died` | `negated.ogg` / `warded.ogg` / `died.ogg` | Kenney Impact Sounds (tin medium 003 / bell heavy 004 / soft heavy 003) |
+| `status:*` (12) / `dotTick` / `phase` | `status-*.ogg` / `dotTick.ogg` / `phase.ogg` | Kenney Digital Audio (poison lowRandom · burn phaseJump4 · bleed phaseJump3 · stun highDown · buff powerUp7 · debuff phaserDown1 · guard pepSound4 · negate lowDown · expose phaserDown3 · thorns phaseJump5 · regen powerUp8 · ward highUp · dotTick tone1 · phase threeTone2) |
+| `dragPick` / `dragDrop` / `sell` / `purchase` / `goldGain` | `dragPick.ogg` / `dragDrop.ogg` / `sell.ogg` / `purchase.ogg` / `goldGain.ogg` | Kenney Casino Audio (card-slide-1 / card-place-1 / chips-handle-1 / chip-lay-1 / chips-stack-1) |
+| `levelUp` / `victory` / `defeat` / `runWin` / `runLose` | `levelUp.ogg` / `victory.ogg` / `defeat.ogg` / `runWin.ogg` / `runLose.ogg` | Kenney Music Jingles, pizzicato set (PIZZI10 / 02 / 01 / 15 / 14) |
 
 ## Asset wishlist (for a sound pass / generation model)
 

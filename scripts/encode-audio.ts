@@ -49,7 +49,7 @@ function trimmedSeconds(src: string): number {
 }
 
 function shapeFilter(key: SfxKey, trimmed: number): { filter: string; seconds: number; truncated: boolean } {
-  const capSec = (STINGER_KEYS.includes(key) ? STINGER_MAX_MS : SFX_MAX_MS) / 1000;
+  const capSec = (SFX_RECIPES[key].maxMs ?? (STINGER_KEYS.includes(key) ? STINGER_MAX_MS : SFX_MAX_MS)) / 1000;
   const truncated = trimmed > capSec;
   const seconds = Math.min(trimmed, capSec);
   const fade = Math.min(seconds / 2, (truncated ? TRUNCATION_FADE_MS : FADE_OUT_MS) / 1000);

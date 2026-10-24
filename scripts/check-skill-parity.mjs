@@ -87,16 +87,18 @@ function frontmatter(text) {
   return out;
 }
 
-/** Ask git whether a path is ignored, pattern order and later re-ignores included. */
-function gitIgnores(path) {
+/** Ask git which paths are ignored, pattern order and later re-ignores included. */
+function gitIgnored(paths) {
+  if (paths.length === 0) return new Set();
   try {
-    execFileSync('git', ['check-ignore', '-q', path], { stdio: 'ignore' });
-    return true; // exit 0: ignored
+    const out = execFileSync('git', ['check-ignore', ...paths], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+    return new Set(out.split(/\r?\n/).filter(Boolean));
   } catch (err) {
-    if (err.status === 1) return false; // exit 1: not ignored
+    if (err.status === 1) return new Set(); // exit 1: none ignored
     throw err; // 128: git itself failed
   }
 }
+const gitIgnores = (path) => gitIgnored([path]).size > 0;
 
 // Every path this checker holds is POSIX-separated on EVERY platform, the same
 // invariant `check-boundaries.mjs` keeps: a failure line has to read the same
@@ -213,9 +215,12 @@ for (const name of CODEX_ONLY_SKILLS) {
 
 const allowlisted = new Set([...CLAUDE_ONLY_SKILLS, ...CODEX_ONLY_SKILLS]);
 const shared = new Set(SHARED_SKILLS);
-for (const name of [...new Set([...agentsSkills, ...claudeSkills])].sort()) {
+const ignoredSkillDirs = gitIgnored(ROOTS.flatMap((root) => dirNames(root).map((name) => skillDir(root, name))));
+const unignored = (root) => dirNames(root).filter((name) => !ignoredSkillDirs.has(skillDir(root, name)));
+const unignoredByRoot = ROOTS.map(unignored);
+for (const name of [...new Set(unignoredByRoot.flat())].sort()) {
   if (allowlisted.has(name) || shared.has(name)) continue;
-  const where = ROOTS.filter((root) => existsSync(skillDir(root, name))).join(' and ');
+  const where = ROOTS.filter((_, i) => unignoredByRoot[i].includes(name)).join(' and ');
   violations.push(
     `${where}/${name}: skill is neither in SHARED_SKILLS nor an explicit single-root allowlist ` +
     `(CLAUDE_ONLY_SKILLS / CODEX_ONLY_SKILLS) — it would drift unchecked, or hide from the other agent`

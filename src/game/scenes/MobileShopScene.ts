@@ -600,8 +600,8 @@ export class MobileShopScene extends Phaser.Scene {
     const canReroll = !info.fullStock && this.activeGold() >= cost;
     renderShopHeaderAction(this, header.stock, {
       label: info.fullStock ? 'FULL STOCK' : cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`,
-      enabled: canReroll, fill: UI.chip, fontSize: F.tiny,
-      onPress: () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
+      enabled: canReroll, fill: UI.chip, fontSize: F.tiny, sfx: 'purchase',
+      onPress: () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
     });
     this.renderMergeSlotButton(shopId, header.stock.x - 6 - rerollW, rerollY, rerollW, header.stock.height, F.tiny);
 
@@ -756,8 +756,8 @@ export class MobileShopScene extends Phaser.Scene {
     const rerollY = headerContent.y + headerContent.height - rerollH;
     const rerollLabel = info.fullStock ? 'FULL STOCK' : (cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost}G`);
     renderShopHeaderAction(this, { x: rerollX, y: rerollY, width: rerollW, height: rerollH }, {
-      label: rerollLabel, enabled: canReroll, fill: UI.chip, fontSize: F.label,
-      onPress: () => { playSfx('purchase'); this.selectedCardIndex = null; this.runBrowsePage = 0; rerollCurrentShop(); this.rerender(); },
+      label: rerollLabel, enabled: canReroll, fill: UI.chip, fontSize: F.label, sfx: 'purchase',
+      onPress: () => { this.selectedCardIndex = null; this.runBrowsePage = 0; rerollCurrentShop(); this.rerender(); },
     });
     this.renderMergeSlotButton(this.activeShopId(), headerContent.x, rerollY, rerollW, rerollH, F.label);
 
@@ -1733,7 +1733,7 @@ export class MobileShopScene extends Phaser.Scene {
     const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE · ${price}G`;
     renderShopHeaderAction(this, { x, y, width: w, height: h }, {
       label, enabled, fill: UI.good, fontSize,
-      onPress: () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
+      onPress: () => { this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
     });
   }
 

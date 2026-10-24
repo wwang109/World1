@@ -5,6 +5,7 @@ import { renderEquipmentDetailsDrawer } from './equipmentDetailsDrawer';
 import type { RunRewardViewModel } from './runRewardViewModel';
 import type { MergeCardsReceipt, SellGemOption } from '../../run/events';
 import type { RunState } from '../../run/runState';
+import type { OwnedEquipmentItem } from '../../run/equipmentInventory';
 import type { LayoutProfile } from '../layoutProfile';
 import type { RunEventOfferSelection, RunEventOutcome } from '../runStore';
 import { choiceArtKey } from './runArt';
@@ -13,7 +14,7 @@ import { assembleObjects, isFreshRender } from './motion';
 import { eventOutcomePaneTemplate } from './runRewardGeometry';
 import { layoutRunGemReward } from './runGemRewardLayout';
 import type { RunScreenTemplate } from './runScreenTemplate';
-import { buildRunRewardViewModel } from './runRewardViewModel';
+import { buildRunRewardViewModel, withEventEquipment } from './runRewardViewModel';
 import { GEM_RESHAPE_PICK_TITLE, REROLL_PICK_TITLE, RESHAPE_PICK_TITLE } from './eventOutcomeText';
 import {
   presentRunEventOutcome,
@@ -115,27 +116,30 @@ const renderReshape: PickerRegistry['reshapeCard'] = (picker, ctx) => {
   });
 };
 
+function eventEquipmentDrop(): OwnedEquipmentItem | null {
+  const run = getActiveRun(), receipt = currentEquipmentDropReceipt();
+  const instance = run?.currentNodeId ? run.eventInstances[run.currentNodeId] : undefined;
+  return receipt?.sourceKind === 'event' && receipt.sourceId === instance?.instanceId ? receipt.item : null;
+}
+
 export const RUN_EVENT_OUTCOME_RENDERERS = {
   choices: (_state, ctx) => ctx.onChoices(),
   receipt: (state, ctx) => {
     const selected = ctx.presentation.choices.find(choice => choice.taken);
+    const dropped=eventEquipmentDrop();
     const model:RunRewardViewModel = state.outcome
-      ? buildRunRewardViewModel(state.outcome, state.mergeReceipt)
-      : { headline: selected?.title ?? ctx.presentation.title, detail: selected?.detail,
-        iconKey: choiceArtKey(selected?.iconKind ?? 'nothing'), feature: { kind: 'icon' as const } };
-    const run=getActiveRun(),instance=run?.currentNodeId?run.eventInstances[run.currentNodeId]:undefined;
-    const receipt=currentEquipmentDropReceipt();
-    if(receipt?.sourceKind==='event'&&receipt.sourceId===instance?.instanceId&&receipt.item){
-      const item=equipmentCatalog.item(receipt.item.itemId,receipt.item.itemVersion);
-      model.detail=[model.detail,`Equipment found: ${item.name} · DETAILS ›`].filter(Boolean).join('\n');
-      if(model.feature.kind==='icon')model.feature={kind:'equipment',item:receipt.item};
+      ? buildRunRewardViewModel(state.outcome, state.mergeReceipt, dropped??undefined)
+      : withEventEquipment({ headline: selected?.title ?? ctx.presentation.title, detail: selected?.detail,
+        iconKey: choiceArtKey(selected?.iconKind ?? 'nothing'), feature: { kind: 'icon' as const } }, dropped??undefined, selected?.iconKind==='nothing');
+    if(dropped&&(model.feature.kind==='card'||model.feature.kind==='gem')){
+      model.detail=[model.detail,`Equipment found: ${equipmentCatalog.item(dropped.itemId,dropped.itemVersion).name} · DETAILS ›`].filter(Boolean).join('\n');
     }
     renderRunRewardPanel(ctx.scene, eventOutcomePaneTemplate(ctx.template, model.feature.kind, ctx.panel, ctx.header), model, {
       font: ctx.font, eventTitle: ctx.presentation.title, onContinue: ctx.onContinue,
       inspected: ctx.receiptInspection?.expanded,
       onInspect: ctx.receiptInspection?.onInspect, onCloseInspect: ctx.receiptInspection?.onClose,
     });
-    if (receipt?.sourceKind === 'event' && receipt.sourceId === instance?.instanceId && receipt.item && model.feature.kind !== 'equipment') {
+    if (dropped && model.feature.kind !== 'equipment') {
       const stack = [...ctx.scene.children.list];
       while (stack.length) {
         const object = stack.pop()!;
@@ -152,7 +156,7 @@ export const RUN_EVENT_OUTCOME_RENDERERS = {
         hit.on('pointerdown', (pointer: Phaser.Input.Pointer) => { downY = pointer.worldY; });
         hit.on('pointerup', (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
           if (Math.abs(pointer.worldY - downY) > 8) return;
-          event.stopPropagation(); renderEquipmentDetailsDrawer(ctx.scene, ctx.compact, receipt.item!, { run: getActiveRun() ?? undefined });
+          event.stopPropagation(); renderEquipmentDetailsDrawer(ctx.scene, ctx.compact, dropped, { run: getActiveRun() ?? undefined });
         });
         break;
       }
@@ -310,7 +314,7 @@ export class RunEventOutcomePaneController {
     const key = state.kind === 'picker' ? `picker:${state.picker.kind}:${this.page}` : `receipt:${state.outcome ? 'fresh' : 'settled'}`;
     if (!isFreshRender(ctx.scene, key)) return;
     assembleObjects(ctx.scene, ctx.scene.children.list.slice(firstNew), ctx.panel);
-    if (state.kind === 'receipt' && state.outcome && state.outcome.kind !== 'nothing' && state.outcome.kind !== 'loseGold') {
+    if (state.kind === 'receipt' && state.outcome && (state.outcome.kind !== 'nothing' || eventEquipmentDrop() !== null) && state.outcome.kind !== 'loseGold') {
       burstReward(ctx.scene, ctx.panel);
     }
   }

@@ -7,19 +7,10 @@ export interface SfxCreditEntry {
 
 export const CC_BY_LICENSE_URL = 'https://creativecommons.org/licenses/by/3.0/';
 
-export const SFX_CC_BY_CREDITS: readonly SfxCreditEntry[] = [
-  {
-    attribution: 'spookymodem — CC-BY 3.0',
-    detail: 'Magic Smite, Magic Shield, Crossbow Shot, Bubbling Acid',
-  },
-  {
-    attribution: 'Little Robot Sound Factory — www.littlerobotsoundfactory.com — CC-BY 3.0',
-    detail: 'Fantasy Sound Effects Library',
-  },
-];
+export const SFX_CC_BY_CREDITS: readonly SfxCreditEntry[] = [];
 
 export const SFX_CC0_THANKS: readonly string[] = [
-  'Kenney', 'Lentikula', 'rubberduck', 'artisticdude', 'JaggedStone', 'wobbleboxx', 'StarNinjas',
+  'Kenney (www.kenney.nl)', 'lentikula (lentikula.itch.io)',
 ];
 
-export const SFX_CC0_SOURCE_NOTE = 'OpenGameArt / itch.io';
+export const SFX_CC0_SOURCE_NOTE = 'all sound effects are CC0 - no attribution required';
