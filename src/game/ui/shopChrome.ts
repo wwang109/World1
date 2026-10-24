@@ -5,6 +5,7 @@ import { resolveShopChromeTheme, type ShopChromeTheme } from './shopChromeTheme'
 import { FONT, UI } from '../theme';
 import { roundRect } from './roundedRect';
 import { attachButtonFeel } from './motion';
+import type { SfxKey } from '../audio/sfxRecipes';
 import { auditControlLabel } from './controlLayoutAudit';
 
 const sceneThemes = new WeakMap<Phaser.Scene, ShopChromeTheme>();
@@ -91,7 +92,7 @@ export function renderShopChrome(
 }
 
 export function renderShopHeaderAction(scene: Phaser.Scene, box: { x: number; y: number; width: number; height: number },
-  options: { label: string; enabled: boolean; fill: number; fontSize: number; onPress?: () => void; growLeft?: boolean }) {
+  options: { label: string; enabled: boolean; fill: number; fontSize: number; onPress?: () => void; growLeft?: boolean; sfx?: SfxKey | null }) {
   const caption = scene.add.text(0, 0, options.label, {
     fontFamily: FONT.body, fontSize: `${options.fontSize}px`, fontStyle: 'bold', color: options.enabled ? UI.textOnChip : UI.textDisabled,
   }).setOrigin(0.5);
@@ -106,7 +107,7 @@ export function renderShopHeaderAction(scene: Phaser.Scene, box: { x: number; y:
   auditControlLabel(plate, caption, { name: `Shop ${options.label}`, horizontalPadding: 12, verticalPadding: 8, minFontSize: 9 });
   if (options.enabled && options.onPress) {
     plate.setInteractive({ useHandCursor: true });
-    attachButtonFeel(scene, plate, { fill, hover: fill, follow: [caption], onPress: options.onPress });
+    attachButtonFeel(scene, plate, { fill, hover: fill, follow: [caption], sfx: options.sfx, onPress: options.onPress });
   }
   return { plate, caption, x, width };
 }

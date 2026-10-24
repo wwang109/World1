@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { equipmentCatalog } from '../../data/equipmentContent';
 import { equipmentItemText } from '../../engine/equipment/text';
 import { equipmentIcon } from './EquipmentScreen';
+import { equipmentArtKey } from './equipmentArt';
 import { playSfx } from '../audio/sfxSynth';
 import { getActiveRun } from '../runStore';
 import { applyTier } from '../../engine/cards';
@@ -267,12 +268,17 @@ function renderGemChip(
 function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect, colors: RewardColors = UI): void {
   if(feature.kind==='equipment'){
     const item=equipmentCatalog.item(feature.item.itemId,feature.item.itemVersion);
-    const width=Math.min(rect.width,300),height=Math.min(rect.height,180),x=rect.x+(rect.width-width)/2,y=rect.y+(rect.height-height)/2;
-    scene.add.rectangle(x,y,width,height,colors.panelAlt,.95).setOrigin(0).setStrokeStyle(1,colors.chip,.9);
-    equipmentIcon(scene,x+width/2,y+45,item.slot).setScale(1.5);
-    const name=scene.add.text(x+12,y+84,item.name,{fontFamily:FONT.body,fontSize:'16px',fontStyle:'bold',color:colors.textBright,align:'center',wordWrap:{width:width-24}});
-    name.setX(x+(width-name.width)/2);
-    scene.add.text(x+12,y+height-32,equipmentItemText(item),{fontFamily:FONT.body,fontSize:'11px',color:colors.textAccent,align:'center',wordWrap:{width:width-24}});
+    const width=Math.min(rect.width,300),cx=rect.x+rect.width/2,wrap=width-24;
+    const name=scene.add.text(cx,0,item.name,{fontFamily:FONT.body,fontSize:'16px',fontStyle:'bold',color:colors.textBright,align:'center',wordWrap:{width:wrap}}).setOrigin(.5,0);
+    const stats=scene.add.text(cx,0,equipmentItemText(item),{fontFamily:FONT.body,fontSize:'11px',color:colors.textAccent,align:'center',wordWrap:{width:wrap}}).setOrigin(.5,0);
+    const top=rect.y+Math.max(0,(rect.height-(88+name.height+6+stats.height))/2);
+    const artKey=equipmentArtKey(feature.item.itemId);
+    if(scene.textures.exists(artKey)){
+      const art=scene.add.image(cx,top+46,artKey);
+      art.setScale(Math.min(76/art.width,76/art.height));
+    }else equipmentIcon(scene,cx,top+45,item.slot).setScale(1.5);
+    name.setY(top+88);
+    stats.setY(name.y+name.height+6);
     return;
   }
   if (feature.kind === 'card') {

@@ -4,7 +4,7 @@ import type { SkillDef } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import { choiceArtKey } from './runArtKeys';
+import { choiceArtKey, RUN_ART_KEYS } from './runArtKeys';
 import { mergeReceiptText, outcomeHeadline } from './eventOutcomeText';
 import type { EquipmentItemPin } from '../../data/equipmentLootSources';
 import { equipmentCatalog } from '../../data/equipmentContent';
@@ -77,7 +77,7 @@ export function withEventEquipmentReward(
  * Nothing here recomputes any part of the trade (which three cards, which
  * tiers): the receipt is read, never re-derived, exactly as the picker reads
  * `MergeCardsOffer.consumed` rather than working out what would be spent. */
-export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, merged?: MergeCardsReceipt): RunRewardViewModel {
+export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, merged?: MergeCardsReceipt, equipment?: EquipmentItemPin): RunRewardViewModel {
   const grantCardFellBack = outcome.kind === 'grantCard' && 'fellBack' in outcome && outcome.fellBack === true;
   const { headline, detail } = merged && outcome.kind === 'grantCard' && !grantCardFellBack
     ? mergeReceiptText(merged)
@@ -104,5 +104,18 @@ export function buildRunRewardViewModel(outcome: EventOutcome | EventOutcomeV3, 
     if (gem) feature = { kind: 'gem', gem };
   }
 
-  return { iconKey, headline, detail: detail || undefined, feature };
+  return withEventEquipment({ iconKey, headline, detail: detail || undefined, feature }, equipment, outcome.kind === 'nothing');
+}
+
+/** An event's equipment drop is a side effect of the outcome, so it only claims the feature tile
+ * when no card/gem already holds it; it owns the headline only when the outcome itself was nothing. */
+export function withEventEquipment(model: RunRewardViewModel, equipment: EquipmentItemPin | undefined, isNothing: boolean): RunRewardViewModel {
+  if (!equipment || model.feature.kind !== 'icon') return model;
+  const { name } = equipmentCatalog.item(equipment.itemId, equipment.itemVersion);
+  return {
+    iconKey: RUN_ART_KEYS.icon.routeEquipment,
+    headline: isNothing ? `Found ${name}` : model.headline,
+    detail: isNothing ? model.detail : [model.detail, `Equipment found: ${name}`].filter(Boolean).join('\n'),
+    feature: { kind: 'equipment', item: equipment },
+  };
 }

@@ -685,14 +685,14 @@ export class MobilePrepScene extends Phaser.Scene {
       const loadout = state.loadout;
       const canFight = fightItEnabled(loadout);
       renderActionBar(this, this.W, this.H, [
-        { label: 'CANCEL', onPress: () => { playSfx('uiBack'); this.importDialog = null; this.rerender(); } },
+        { label: 'CANCEL', sfx: 'uiBack', onPress: () => { this.importDialog = null; this.rerender(); } },
         {
           // Inert (not hidden) for an empty-board code, so the row keeps its
           // shape and the reason reads on the button itself.
           label: canFight ? 'FIGHT IT' : 'NO BOARD',
+          sfx: canFight ? 'uiClick' : null,
           onPress: () => {
             if (!canFight) return;
-            playSfx('uiClick');
             const lines = applyAsFoe(loadout);
             this.importDialog = { kind: 'applied', title: 'FIGHT IT — FOE DECK SET', lines: lines.length ? lines : ['board mapped 1:1'] };
             this.rerender();
@@ -701,7 +701,6 @@ export class MobilePrepScene extends Phaser.Scene {
         {
           label: 'PLAY IT', primary: true, flex: 1.3,
           onPress: () => {
-            playSfx('uiClick');
             const lines = applyAsHero(loadout);
             this.importDialog = { kind: 'applied', title: 'PLAY IT — BUILD APPLIED', lines: lines.length ? lines : ['applied cleanly'] };
             this.rerender();
@@ -710,7 +709,7 @@ export class MobilePrepScene extends Phaser.Scene {
       ]);
     } else {
       renderActionBar(this, this.W, this.H, [
-        { label: 'CLOSE', primary: true, onPress: () => { playSfx('uiClick'); this.importDialog = null; this.rerender(); } },
+        { label: 'CLOSE', primary: true, onPress: () => { this.importDialog = null; this.rerender(); } },
       ]);
     }
   }

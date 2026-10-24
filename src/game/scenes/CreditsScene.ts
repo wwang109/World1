@@ -34,17 +34,19 @@ export class CreditsScene extends Phaser.Scene {
     draw('WORLD1 / CREDITS', 'kicker', mobile ? 10 : 14);
     draw('AUDIO CREDITS', 'title', sectionGap);
 
-    draw('REQUIRED ATTRIBUTION', 'kicker', mobile ? 10 : 14);
-    for (const entry of SFX_CC_BY_CREDITS) {
-      draw(entry.attribution, 'label', rowGap);
-      draw(entry.detail, 'micro', sectionGap);
+    if (SFX_CC_BY_CREDITS.length > 0) {
+      draw('REQUIRED ATTRIBUTION', 'kicker', mobile ? 10 : 14);
+      for (const entry of SFX_CC_BY_CREDITS) {
+        draw(entry.attribution, 'label', rowGap);
+        draw(entry.detail, 'micro', sectionGap);
+      }
     }
 
     draw('THANK YOU — CC0 SOURCES', 'kicker', mobile ? 10 : 14);
     draw(SFX_CC0_THANKS.join('  ·  '), 'body', rowGap);
-    draw(`via ${SFX_CC0_SOURCE_NOTE}`, 'micro', sectionGap);
+    draw(SFX_CC0_SOURCE_NOTE, 'micro', sectionGap);
 
-    draw(`CC-BY 3.0 license: ${CC_BY_LICENSE_URL}`, 'micro', mobile ? 22 : 28);
+    if (SFX_CC_BY_CREDITS.length > 0) draw(`CC-BY 3.0 license: ${CC_BY_LICENSE_URL}`, 'micro', mobile ? 22 : 28);
 
     this.renderBackButton(centerX, y, mobile);
   }

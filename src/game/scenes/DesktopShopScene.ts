@@ -620,8 +620,8 @@ export class DesktopShopScene extends Phaser.Scene {
     const canReroll = !info.fullStock && this.activeGold() >= cost;
     renderShopHeaderAction(this, rerollControl, {
       label: info.fullStock ? 'FULL STOCK' : cost === 0 ? 'REROLL · FREE' : `REROLL · ${cost} G`,
-      enabled: canReroll, fill: UI.chip, fontSize: F.small,
-      onPress: () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
+      enabled: canReroll, fill: UI.chip, fontSize: F.small, sfx: 'purchase',
+      onPress: () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); },
     });
     const mergeX = this.renderMergeSlotButton(shopId, rerollX - 8, rerollY, rerollW, rerollControl.height);
     const titleWrapW = Math.max(80, mergeX - 16 - (titleX + 8));
@@ -1925,7 +1925,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const label = !available ? 'UPGRADED' : !hasTarget ? 'ALL DIAMOND' : `UPGRADE CARD · ${price} G`;
     return renderShopHeaderAction(this, { x: right - minW, y, width: minW, height: h }, {
       label, enabled, fill: UI.good, fontSize: F.small, growLeft: true,
-      onPress: () => { playSfx('uiClick'); this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
+      onPress: () => { this.mergeSlotChooserOpen = true; this.pickerPage = 0; this.pickerInspectId = null; this.rerender(); },
     }).x;
   }
 
