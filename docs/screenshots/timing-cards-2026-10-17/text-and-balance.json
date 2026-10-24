@@ -1,0 +1,484 @@
+[
+  {
+    "id": "waking_blade",
+    "tiers": [
+      {
+        "tier": "bronze",
+        "effects": [
+          {
+            "kind": "dormant",
+            "turn": 4,
+            "amount": 33
+          },
+          {
+            "kind": "damage",
+            "power": 4
+          }
+        ],
+        "pl": 100,
+        "parts": [
+          {
+            "label": "dormant",
+            "deci": 80
+          },
+          {
+            "label": "damage",
+            "deci": 20
+          }
+        ],
+        "caps": [],
+        "face": "Deal 4 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "fullFace": "Deal 4 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "tokens": [
+          {
+            "text": "DMG 4",
+            "calculated": false
+          },
+          {
+            "text": "T4+ +33 DMG",
+            "keyword": "dormant"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 4 (+ATK) Sword damage"
+            },
+            {
+              "title": "Dormant",
+              "body": "This card deals 33 extra damage from battle turn 4 onward."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "silver",
+        "effects": [
+          {
+            "kind": "dormant",
+            "turn": 4,
+            "amount": 33
+          },
+          {
+            "kind": "damage",
+            "power": 14
+          }
+        ],
+        "pl": 150,
+        "parts": [
+          {
+            "label": "dormant",
+            "deci": 80
+          },
+          {
+            "label": "damage",
+            "deci": 70
+          }
+        ],
+        "caps": [],
+        "face": "Deal 14 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "fullFace": "Deal 14 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "tokens": [
+          {
+            "text": "DMG 14",
+            "calculated": false
+          },
+          {
+            "text": "T4+ +33 DMG",
+            "keyword": "dormant"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 14 (+ATK) Sword damage"
+            },
+            {
+              "title": "Dormant",
+              "body": "This card deals 33 extra damage from battle turn 4 onward."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "gold",
+        "effects": [
+          {
+            "kind": "dormant",
+            "turn": 4,
+            "amount": 33
+          },
+          {
+            "kind": "damage",
+            "power": 24
+          }
+        ],
+        "pl": 200,
+        "parts": [
+          {
+            "label": "dormant",
+            "deci": 80
+          },
+          {
+            "label": "damage",
+            "deci": 120
+          }
+        ],
+        "caps": [],
+        "face": "Deal 24 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "fullFace": "Deal 24 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "tokens": [
+          {
+            "text": "DMG 24",
+            "calculated": false
+          },
+          {
+            "text": "T4+ +33 DMG",
+            "keyword": "dormant"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 24 (+ATK) Sword damage"
+            },
+            {
+              "title": "Dormant",
+              "body": "This card deals 33 extra damage from battle turn 4 onward."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "diamond",
+        "effects": [
+          {
+            "kind": "dormant",
+            "turn": 4,
+            "amount": 33
+          },
+          {
+            "kind": "damage",
+            "power": 34
+          }
+        ],
+        "pl": 250,
+        "parts": [
+          {
+            "label": "dormant",
+            "deci": 80
+          },
+          {
+            "label": "damage",
+            "deci": 170
+          }
+        ],
+        "caps": [],
+        "face": "Deal 34 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "fullFace": "Deal 34 (+ATK) Sword damage · {{Dormant}} +33 damage (turn 4+).",
+        "tokens": [
+          {
+            "text": "DMG 34",
+            "calculated": false
+          },
+          {
+            "text": "T4+ +33 DMG",
+            "keyword": "dormant"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 34 (+ATK) Sword damage"
+            },
+            {
+              "title": "Dormant",
+              "body": "This card deals 33 extra damage from battle turn 4 onward."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "honed_edge",
+    "tiers": [
+      {
+        "tier": "bronze",
+        "effects": [
+          {
+            "kind": "buildUp",
+            "casts": 2,
+            "amount": 28
+          },
+          {
+            "kind": "damage",
+            "power": 14
+          }
+        ],
+        "pl": 100,
+        "parts": [
+          {
+            "label": "buildUp",
+            "deci": 30
+          },
+          {
+            "label": "damage",
+            "deci": 70
+          }
+        ],
+        "caps": [],
+        "face": "Deal 14 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "fullFace": "Deal 14 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "tokens": [
+          {
+            "text": "DMG 14",
+            "calculated": false
+          },
+          {
+            "text": "2ND+ +28 DMG",
+            "keyword": "buildup"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 14 (+ATK) Sword damage"
+            },
+            {
+              "title": "Build-up",
+              "body": "This card deals 28 extra damage on its 2nd play and every later play."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "silver",
+        "effects": [
+          {
+            "kind": "buildUp",
+            "casts": 2,
+            "amount": 28
+          },
+          {
+            "kind": "damage",
+            "power": 24
+          }
+        ],
+        "pl": 150,
+        "parts": [
+          {
+            "label": "buildUp",
+            "deci": 30
+          },
+          {
+            "label": "damage",
+            "deci": 120
+          }
+        ],
+        "caps": [],
+        "face": "Deal 24 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "fullFace": "Deal 24 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "tokens": [
+          {
+            "text": "DMG 24",
+            "calculated": false
+          },
+          {
+            "text": "2ND+ +28 DMG",
+            "keyword": "buildup"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 24 (+ATK) Sword damage"
+            },
+            {
+              "title": "Build-up",
+              "body": "This card deals 28 extra damage on its 2nd play and every later play."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "gold",
+        "effects": [
+          {
+            "kind": "buildUp",
+            "casts": 2,
+            "amount": 28
+          },
+          {
+            "kind": "damage",
+            "power": 34
+          }
+        ],
+        "pl": 200,
+        "parts": [
+          {
+            "label": "buildUp",
+            "deci": 30
+          },
+          {
+            "label": "damage",
+            "deci": 170
+          }
+        ],
+        "caps": [],
+        "face": "Deal 34 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "fullFace": "Deal 34 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "tokens": [
+          {
+            "text": "DMG 34",
+            "calculated": false
+          },
+          {
+            "text": "2ND+ +28 DMG",
+            "keyword": "buildup"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 34 (+ATK) Sword damage"
+            },
+            {
+              "title": "Build-up",
+              "body": "This card deals 28 extra damage on its 2nd play and every later play."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      },
+      {
+        "tier": "diamond",
+        "effects": [
+          {
+            "kind": "buildUp",
+            "casts": 2,
+            "amount": 28
+          },
+          {
+            "kind": "damage",
+            "power": 44
+          }
+        ],
+        "pl": 250,
+        "parts": [
+          {
+            "label": "buildUp",
+            "deci": 30
+          },
+          {
+            "label": "damage",
+            "deci": 220
+          }
+        ],
+        "caps": [],
+        "face": "Deal 44 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "fullFace": "Deal 44 (+ATK) Sword damage · {{Build-up|buildup}} +28 damage (2nd play+).",
+        "tokens": [
+          {
+            "text": "DMG 44",
+            "calculated": false
+          },
+          {
+            "text": "2ND+ +28 DMG",
+            "keyword": "buildup"
+          }
+        ],
+        "drawer": {
+          "weight": 10,
+          "roles": [
+            "Offense"
+          ],
+          "entries": [
+            {
+              "title": "Damage",
+              "body": "Deal 44 (+ATK) Sword damage"
+            },
+            {
+              "title": "Build-up",
+              "body": "This card deals 28 extra damage on its 2nd play and every later play."
+            },
+            {
+              "title": "Sword weapon",
+              "body": "Deals +50% damage against Axe Affinity."
+            }
+          ],
+          "progressLine": null
+        }
+      }
+    ]
+  }
+]

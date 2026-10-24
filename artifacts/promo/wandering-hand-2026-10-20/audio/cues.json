@@ -1,0 +1,63 @@
+{
+  "duration": 40,
+  "rate": 44100,
+  "originalComposition": "Original synthesized pad, bass and plucked instrumental; no sampled melody or voice.",
+  "soundPass": "Editorial reconstructed game sound pass, not captured browser audio.",
+  "cues": [
+    {
+      "file": "cast-offense.flac",
+      "time": 0.7,
+      "gain": 0.12
+    },
+    {
+      "file": "hitPhysical.ogg",
+      "time": 2.4,
+      "gain": 0.16
+    },
+    {
+      "file": "hitPhysical.ogg",
+      "time": 4.6,
+      "gain": 0.12
+    },
+    {
+      "file": "uiClick.ogg",
+      "time": 9.4,
+      "gain": 0.12
+    },
+    {
+      "file": "uiClick.ogg",
+      "time": 11.3,
+      "gain": 0.1
+    },
+    {
+      "file": "dragPick.ogg",
+      "time": 14.9,
+      "gain": 0.13
+    },
+    {
+      "file": "dragDrop.ogg",
+      "time": 16.4,
+      "gain": 0.15
+    },
+    {
+      "file": "uiClick.ogg",
+      "time": 20.6,
+      "gain": 0.1
+    },
+    {
+      "file": "uiClick.ogg",
+      "time": 26.6,
+      "gain": 0.15
+    },
+    {
+      "file": "uiClick.ogg",
+      "time": 30.7,
+      "gain": 0.1
+    },
+    {
+      "file": "goldGain.ogg",
+      "time": 6.4,
+      "gain": 0.14
+    }
+  ]
+}

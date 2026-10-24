@@ -1,0 +1,26 @@
+[
+  {
+    "file": "screenshots/selected/01-battle-desktop.png",
+    "label": "Battle"
+  },
+  {
+    "file": "screenshots/selected/02-draft-mobile.png",
+    "label": "Choose your cards"
+  },
+  {
+    "file": "screenshots/selected/03-route-desktop.png",
+    "label": "Choose your route"
+  },
+  {
+    "file": "screenshots/selected/04-event-desktop.png",
+    "label": "Discover an event"
+  },
+  {
+    "file": "screenshots/selected/05-equipment-desktop.png",
+    "label": "Inspect your equipment"
+  },
+  {
+    "file": "screenshots/selected/06-boss-mobile.png",
+    "label": "Face the region boss"
+  }
+]

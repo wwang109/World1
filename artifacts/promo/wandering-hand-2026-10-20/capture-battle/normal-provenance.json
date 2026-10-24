@@ -1,0 +1,70 @@
+{
+  "seed": 11,
+  "picks": {
+    "offense": "breach_strike",
+    "defense": "renewing_wave",
+    "support": "barbed_rampart",
+    "wildcard": "phalanx_thrust"
+  },
+  "history": [
+    {
+      "nodeId": "d3-0",
+      "kind": "fight",
+      "heroLevel": 1,
+      "result": "win",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          }
+        ],
+        "heroLevel": 1,
+        "heroAllocation": {
+          "attack": 0,
+          "armor": 0
+        },
+        "foes": [
+          {
+            "enemyId": "giant_rat",
+            "level": 1,
+            "title": "normal",
+            "rank": 0,
+            "growthLevel": 1,
+            "fightNumber": 1,
+            "modifiers": [],
+            "affix": null,
+            "bumped": true
+          }
+        ],
+        "seed": 442386011
+      }
+    }
+  ]
+}

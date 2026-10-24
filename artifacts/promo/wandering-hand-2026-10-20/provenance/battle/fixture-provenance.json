@@ -1,0 +1,345 @@
+{
+  "seed": 11,
+  "picks": {
+    "offense": "breach_strike",
+    "defense": "renewing_wave",
+    "support": "barbed_rampart",
+    "wildcard": "phalanx_thrust"
+  },
+  "history": [
+    {
+      "nodeId": "d3-0",
+      "kind": "fight",
+      "heroLevel": 1,
+      "result": "win",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          }
+        ],
+        "heroLevel": 1,
+        "heroAllocation": {
+          "attack": 0,
+          "armor": 0
+        },
+        "foes": [
+          {
+            "enemyId": "giant_rat",
+            "level": 1,
+            "title": "normal",
+            "rank": 0,
+            "growthLevel": 1,
+            "fightNumber": 1,
+            "modifiers": [],
+            "affix": null,
+            "bumped": true
+          }
+        ],
+        "seed": 442386011
+      }
+    },
+    {
+      "nodeId": "d6-0",
+      "kind": "fight",
+      "heroLevel": 2,
+      "result": "loss",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          }
+        ],
+        "heroLevel": 2,
+        "heroAllocation": {
+          "attack": 2,
+          "armor": 1
+        },
+        "foes": [
+          {
+            "enemyId": "stone_beetle",
+            "level": 1,
+            "title": "normal",
+            "rank": 0,
+            "growthLevel": 1,
+            "fightNumber": 2,
+            "modifiers": [],
+            "affix": null,
+            "bumped": true
+          }
+        ],
+        "seed": 1245012314
+      }
+    },
+    {
+      "nodeId": "d9-0",
+      "kind": "fight",
+      "heroLevel": 3,
+      "result": "win",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          }
+        ],
+        "heroLevel": 3,
+        "heroAllocation": {
+          "attack": 3,
+          "armor": 3
+        },
+        "foes": [
+          {
+            "enemyId": "hunter",
+            "level": 2,
+            "title": "normal",
+            "rank": 0,
+            "growthLevel": 2,
+            "fightNumber": 3,
+            "modifiers": [],
+            "affix": null,
+            "bumped": true
+          }
+        ],
+        "seed": 1028969025
+      }
+    },
+    {
+      "nodeId": "d12-0",
+      "kind": "fight",
+      "heroLevel": 4,
+      "result": "win",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          },
+          {
+            "instanceId": "card_006",
+            "skillId": "blight_feast",
+            "tier": "silver",
+            "slot": 6
+          },
+          {
+            "instanceId": "card_007",
+            "skillId": "wildfire_surge",
+            "tier": "bronze",
+            "slot": 7
+          },
+          {
+            "instanceId": "card_008",
+            "skillId": "cinder_dart",
+            "tier": "bronze",
+            "slot": 9
+          }
+        ],
+        "heroLevel": 4,
+        "heroAllocation": {
+          "attack": 5,
+          "armor": 4
+        },
+        "foes": [
+          {
+            "enemyId": "hunter",
+            "level": 3,
+            "title": "normal",
+            "rank": 0,
+            "growthLevel": 3,
+            "fightNumber": 4,
+            "modifiers": [],
+            "affix": null,
+            "bumped": true
+          }
+        ],
+        "seed": 2897236257
+      }
+    },
+    {
+      "nodeId": "d15-0",
+      "kind": "boss",
+      "heroLevel": 5,
+      "result": "loss",
+      "request": {
+        "pieces": [
+          {
+            "instanceId": "card_001",
+            "skillId": "breach_strike",
+            "tier": "bronze",
+            "slot": 0
+          },
+          {
+            "instanceId": "card_002",
+            "skillId": "renewing_wave",
+            "tier": "bronze",
+            "slot": 1
+          },
+          {
+            "instanceId": "card_003",
+            "skillId": "barbed_rampart",
+            "tier": "bronze",
+            "slot": 2
+          },
+          {
+            "instanceId": "card_004",
+            "skillId": "phalanx_thrust",
+            "tier": "bronze",
+            "slot": 3
+          },
+          {
+            "instanceId": "card_005",
+            "skillId": "thermal_shock",
+            "tier": "bronze",
+            "slot": 5
+          },
+          {
+            "instanceId": "card_006",
+            "skillId": "blight_feast",
+            "tier": "silver",
+            "slot": 6
+          },
+          {
+            "instanceId": "card_007",
+            "skillId": "wildfire_surge",
+            "tier": "bronze",
+            "slot": 7
+          },
+          {
+            "instanceId": "card_008",
+            "skillId": "cinder_dart",
+            "tier": "bronze",
+            "slot": 9
+          }
+        ],
+        "heroLevel": 5,
+        "heroAllocation": {
+          "attack": 6,
+          "armor": 6
+        },
+        "foes": [
+          {
+            "enemyId": "glacial_warden",
+            "level": 5,
+            "title": "boss",
+            "rank": 2,
+            "growthLevel": 5,
+            "fightNumber": 5,
+            "modifiers": [
+              "swift"
+            ],
+            "affix": null,
+            "bumped": false
+          }
+        ],
+        "seed": 320924946
+      }
+    }
+  ],
+  "note": "Ephemeral capture save built using real draft offers, chooseBiome/chooseNode, skipped shops/events, API battle logs and recordBattleResult. Allocations respect earned level PL; no duplicate-card fixture, balance edits or user storage."
+}

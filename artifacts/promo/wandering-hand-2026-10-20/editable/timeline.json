@@ -1,0 +1,125 @@
+{
+  "duration": 40,
+  "fps": 25,
+  "shots": [
+    {
+      "id": "battle-hook",
+      "duration": 6,
+      "caption": "BUILD. ADAPT. BATTLE.",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-normal.webm",
+        "in": 11
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-normal.webm",
+        "in": 10
+      }
+    },
+    {
+      "id": "victory",
+      "duration": 3,
+      "caption": "KEEP THE JOURNEY GOING",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-normal.webm",
+        "in": 51
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-normal.webm",
+        "in": 50
+      }
+    },
+    {
+      "id": "draft",
+      "duration": 5,
+      "caption": "CHOOSE YOUR CARDS",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-journey.webm",
+        "in": 3.8
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-journey.webm",
+        "in": 2.9
+      }
+    },
+    {
+      "id": "board",
+      "duration": 5,
+      "caption": "SHAPE YOUR BUILD",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-journey.webm",
+        "in": 21
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-journey.webm",
+        "in": 22
+      }
+    },
+    {
+      "id": "route",
+      "duration": 5,
+      "caption": "CHOOSE YOUR NEXT STOP",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-journey.webm",
+        "in": 31
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-journey.webm",
+        "in": 31
+      }
+    },
+    {
+      "id": "event",
+      "duration": 5,
+      "caption": "TAKE A DIFFERENT PATH",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-event-equipment.webm",
+        "in": 5
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-event.webm",
+        "in": 4.8
+      }
+    },
+    {
+      "id": "equipment",
+      "duration": 4,
+      "caption": "FIND YOUR NEXT ADVANTAGE",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/desktop-event-equipment.webm",
+        "in": 15
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/sources/mobile-equipment.webm",
+        "in": 14.5
+      }
+    },
+    {
+      "id": "boss-challenge",
+      "duration": 3,
+      "caption": "FACE THE REGION BOSS",
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/screenshots/all/06-boss-desktop.png",
+        "in": 13,
+        "still": true
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/screenshots/all/06-boss-mobile.png",
+        "in": 12,
+        "still": true
+      }
+    },
+    {
+      "id": "invitation",
+      "duration": 4,
+      "endcard": true,
+      "desktop": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/screenshots/all/03-route-desktop.png",
+        "in": 0
+      },
+      "mobile": {
+        "file": "artifacts/promo/wandering-hand-2026-10-20/screenshots/all/03-route-mobile.png",
+        "in": 0
+      }
+    }
+  ]
+}

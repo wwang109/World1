@@ -1,0 +1,239 @@
+{
+  "fps": 25,
+  "source": "Real local Phaser UI, localhost5195/API8787, isolated ephemeral practice run, no product edits; video marks seconds from context recording start approximate within1sec.",
+  "shots": [
+    {
+      "profile": "desktop",
+      "kind": "normal",
+      "video": "artifacts/promo/wandering-hand-2026-10-20/capture-battle/desktop-normal.webm",
+      "width": 1440,
+      "height": 900,
+      "marks": {
+        "prepStart": 5.7,
+        "fightClick": 7.6,
+        "playbackStart": 8,
+        "activeCutEnd": 18.7,
+        "outcomeStart": 51.3,
+        "outcomeEnd": 54.1
+      },
+      "errors": [],
+      "stateFile": "recorded-normal-state-seed7.json",
+      "note": "Service-resolved normal victory.",
+      "seed": 7,
+      "heroLevelBeforeFight": 1,
+      "prepStop": 3,
+      "board": [
+        {
+          "id": "thorn_bite",
+          "tier": "bronze",
+          "slot": 0
+        },
+        {
+          "id": "overgrowth",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "id": "blooded_fang",
+          "tier": "bronze",
+          "slot": 3
+        },
+        {
+          "id": "iron_bulwark",
+          "tier": "bronze",
+          "slot": 4
+        }
+      ],
+      "result": "win",
+      "viewedScreenshots": [
+        "desktop-normal-prep.png",
+        "desktop-normal-battle.png",
+        "desktop-normal-victory.png"
+      ]
+    },
+    {
+      "profile": "mobile",
+      "kind": "normal",
+      "video": "artifacts/promo/wandering-hand-2026-10-20/capture-battle/mobile-normal.webm",
+      "width": 412,
+      "height": 892,
+      "marks": {
+        "prepStart": 4.9,
+        "fightClick": 6.7,
+        "playbackStart": 7.1,
+        "activeCutEnd": 17.7,
+        "outcomeStart": 50.4,
+        "outcomeEnd": 53.1
+      },
+      "errors": [],
+      "stateFile": "recorded-normal-state-seed7.json",
+      "note": "Service-resolved normal victory.",
+      "seed": 7,
+      "heroLevelBeforeFight": 1,
+      "prepStop": 3,
+      "board": [
+        {
+          "id": "thorn_bite",
+          "tier": "bronze",
+          "slot": 0
+        },
+        {
+          "id": "overgrowth",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "id": "blooded_fang",
+          "tier": "bronze",
+          "slot": 3
+        },
+        {
+          "id": "iron_bulwark",
+          "tier": "bronze",
+          "slot": 4
+        }
+      ],
+      "result": "win",
+      "viewedScreenshots": [
+        "mobile-normal-prep.png",
+        "mobile-normal-battle.png",
+        "mobile-normal-victory.png"
+      ]
+    },
+    {
+      "profile": "mobile",
+      "kind": "boss",
+      "video": "artifacts/promo/wandering-hand-2026-10-20/capture-battle/mobile-boss.webm",
+      "width": 412,
+      "height": 892,
+      "marks": {
+        "prepStart": 4.4,
+        "fightClick": 6.3,
+        "playbackStart": 6.7,
+        "activeCutEnd": 17.3
+      },
+      "errors": [],
+      "stateFile": "boss-state.json",
+      "note": "Boss active footage; do not imply boss victory.",
+      "seed": 11,
+      "heroLevelBeforeFight": 5,
+      "prepStop": 15,
+      "board": [
+        {
+          "id": "breach_strike",
+          "tier": "bronze",
+          "slot": 0
+        },
+        {
+          "id": "renewing_wave",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "id": "barbed_rampart",
+          "tier": "bronze",
+          "slot": 2
+        },
+        {
+          "id": "phalanx_thrust",
+          "tier": "bronze",
+          "slot": 3
+        },
+        {
+          "id": "thermal_shock",
+          "tier": "bronze",
+          "slot": 5
+        },
+        {
+          "id": "blight_feast",
+          "tier": "silver",
+          "slot": 6
+        },
+        {
+          "id": "wildfire_surge",
+          "tier": "bronze",
+          "slot": 7
+        },
+        {
+          "id": "cinder_dart",
+          "tier": "bronze",
+          "slot": 9
+        }
+      ],
+      "result": "loss (outcome excluded)",
+      "viewedScreenshots": [
+        "mobile-boss-prep.png",
+        "mobile-boss-battle.png"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "kind": "boss",
+      "video": "artifacts/promo/wandering-hand-2026-10-20/capture-battle/desktop-boss.webm",
+      "width": 1440,
+      "height": 900,
+      "marks": {
+        "prepStart": 5.5,
+        "fightClick": 7.5,
+        "playbackStart": 7.9,
+        "activeCutEnd": 18.6
+      },
+      "errors": [],
+      "stateFile": "boss-state.json",
+      "note": "Boss active footage; do not imply boss victory.",
+      "seed": 11,
+      "heroLevelBeforeFight": 5,
+      "prepStop": 15,
+      "board": [
+        {
+          "id": "breach_strike",
+          "tier": "bronze",
+          "slot": 0
+        },
+        {
+          "id": "renewing_wave",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "id": "barbed_rampart",
+          "tier": "bronze",
+          "slot": 2
+        },
+        {
+          "id": "phalanx_thrust",
+          "tier": "bronze",
+          "slot": 3
+        },
+        {
+          "id": "thermal_shock",
+          "tier": "bronze",
+          "slot": 5
+        },
+        {
+          "id": "blight_feast",
+          "tier": "silver",
+          "slot": 6
+        },
+        {
+          "id": "wildfire_surge",
+          "tier": "bronze",
+          "slot": 7
+        },
+        {
+          "id": "cinder_dart",
+          "tier": "bronze",
+          "slot": 9
+        }
+      ],
+      "result": "loss (outcome excluded)",
+      "viewedScreenshots": [
+        "desktop-boss-prep.png",
+        "desktop-boss-battle.png"
+      ]
+    }
+  ],
+  "unused": [
+    "page@18b2516e89a2d2afcf53c2e5e0efe80b.webm (failed early fixture attempt; exclude)"
+  ]
+}

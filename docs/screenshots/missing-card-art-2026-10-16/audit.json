@@ -1,0 +1,28 @@
+[
+  {
+    "compact": false,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "art": [
+      "card-art:honed_edge_anime",
+      "card-art:waking_blade_anime"
+    ],
+    "errors": [],
+    "screenshot": "docs/screenshots/missing-card-art-2026-10-16/desktop.png"
+  },
+  {
+    "compact": true,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "art": [
+      "card-art:honed_edge_anime",
+      "card-art:waking_blade_anime"
+    ],
+    "errors": [],
+    "screenshot": "docs/screenshots/missing-card-art-2026-10-16/mobile.png"
+  }
+]

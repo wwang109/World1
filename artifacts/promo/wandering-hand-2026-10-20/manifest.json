@@ -1,0 +1,121 @@
+{
+  "landscape": {
+    "height": 1080,
+    "width": 1920,
+    "pixelAspect": "1:1",
+    "codec": "H264"
+  },
+  "title": "WANDERING HAND",
+  "fps": 25,
+  "portrait": {
+    "height": 1920,
+    "width": 1080,
+    "pixelAspect": "1:1",
+    "codec": "H264"
+  },
+  "screenshots": {
+    "count": 12,
+    "desktop": {
+      "width": 1440,
+      "height": 900
+    },
+    "mobile": {
+      "width": 412,
+      "height": 892
+    },
+    "selected": 6
+  },
+  "created": "2026-10-20",
+  "audio": {
+    "truePeakDBTP": -3.1,
+    "integratedLUFS": -18.51,
+    "source": "Original instrumental plus editorial CC0 game sound pass; no voiceover",
+    "loudnessRangeLU": 2.1,
+    "sampleRate": 48000,
+    "codec": "AAC",
+    "channels": 2
+  },
+  "provenance": "provenance/",
+  "timeline": "editable/timeline.json",
+  "credits": "CREDITS.md",
+  "quality": {
+    "nativeScreenshots": "inspected",
+    "hudPreserved": true,
+    "fullDecodeBoth": "pass",
+    "visualEveryCut": "pass",
+    "published": false
+  },
+  "durationSeconds": 40,
+  "files": [
+    {
+      "path": "trailers/wandering-hand-landscape-40s.mp4",
+      "bytes": 7540574,
+      "sha256": "48eb90c62ba9fdb78181b6ae32436fab40760f817653c273f66c5f11c314cce9"
+    },
+    {
+      "path": "trailers/wandering-hand-portrait-40s.mp4",
+      "bytes": 6151821,
+      "sha256": "564b357e94ebbe2684dcc09354df27e01e7de8dceef88e1645c7ba5f53d43c1a"
+    },
+    {
+      "path": "screenshots/all/01-battle-desktop.png",
+      "bytes": 287934,
+      "sha256": "af5255ab9f5bbcfa4e02d6ef5750f64d6e2f7e7f36638d98bf4264039887d09a"
+    },
+    {
+      "path": "screenshots/all/01-battle-mobile.png",
+      "bytes": 149260,
+      "sha256": "83b9d8c836646e628d4960a870319dbb7ae1b57147b58d8115f81b2e3b965ba0"
+    },
+    {
+      "path": "screenshots/all/02-draft-desktop.png",
+      "bytes": 1029726,
+      "sha256": "e8552b4a9b018b1dafbeb6dc8c2083bdc3734dc7f623d3713e4e6de7dc9f1b53"
+    },
+    {
+      "path": "screenshots/all/02-draft-mobile.png",
+      "bytes": 314572,
+      "sha256": "836f0fbbfd02e746641442587789d650910b9a6c58b424030b6d084c3bda7714"
+    },
+    {
+      "path": "screenshots/all/03-route-desktop.png",
+      "bytes": 1625204,
+      "sha256": "1040a150a37d4e79708ad601862e9bf38c6deb040bf8af7586c0cb3da1558b14"
+    },
+    {
+      "path": "screenshots/all/03-route-mobile.png",
+      "bytes": 291186,
+      "sha256": "e73b423e86b8f1f34f831c16a35f7310a044b233562f273e3a58d642434a86eb"
+    },
+    {
+      "path": "screenshots/all/04-event-desktop.png",
+      "bytes": 707110,
+      "sha256": "afc6da0be3ae45653a63022413f15a882ad4d31b70f4f83b674af409a5a00b60"
+    },
+    {
+      "path": "screenshots/all/04-event-mobile.png",
+      "bytes": 138691,
+      "sha256": "3c540ed8562a49e562fe888c41bf7782d003023965b8dcf8d6727cd53b43c347"
+    },
+    {
+      "path": "screenshots/all/05-equipment-desktop.png",
+      "bytes": 147324,
+      "sha256": "6adc36db08a5c10df0a59e88f337bb0e2ef910f3dfbb7d1f5a2b287cd50a5867"
+    },
+    {
+      "path": "screenshots/all/05-equipment-mobile.png",
+      "bytes": 48803,
+      "sha256": "6f7e955710dd33b9ade7b859a3904308bd25e1d29d5abe48a966ffaaa8ebdab6"
+    },
+    {
+      "path": "screenshots/all/06-boss-desktop.png",
+      "bytes": 773732,
+      "sha256": "600bd26f4bbba6e51be3bee34abed90c8ef65c8c57f4e98e45c314dac816936d"
+    },
+    {
+      "path": "screenshots/all/06-boss-mobile.png",
+      "bytes": 300241,
+      "sha256": "4633cbbc4aaa8d6b8626ed1e0bb80c05dda78bb9975e8bd8cecf5768abee9f2a"
+    }
+  ]
+}

@@ -1,0 +1,628 @@
+[
+  {
+    "platform": "desktop",
+    "shot": "draft",
+    "from": 3.285,
+    "to": 9.78,
+    "seed": 20261020
+  },
+  {
+    "platform": "desktop",
+    "shot": "route",
+    "from": 12.097,
+    "to": 18.953
+  },
+  {
+    "platform": "desktop",
+    "shot": "board",
+    "from": 20.541,
+    "to": 27.997
+  },
+  {
+    "platform": "desktop",
+    "shot": "route-chosen",
+    "from": 30.872,
+    "to": 37.373
+  },
+  {
+    "platform": "desktop",
+    "runState": {
+      "seed": 20261020,
+      "map": {
+        "seed": 20261020,
+        "depths": [
+          [],
+          [
+            {
+              "id": "d1-0",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3237783913,
+              "eventTheme": "cache"
+            },
+            {
+              "id": "d1-1",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3237931008,
+              "eventTheme": "recruit"
+            },
+            {
+              "id": "d1-2",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 16878423,
+              "eventTheme": "training"
+            }
+          ],
+          [
+            {
+              "id": "d2-0",
+              "depth": 2,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 506030102,
+              "eventTheme": "forge"
+            },
+            {
+              "id": "d2-1",
+              "depth": 2,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3727082687,
+              "eventTheme": "market"
+            },
+            {
+              "id": "d2-2",
+              "depth": 2,
+              "wave": 1,
+              "kind": "shop",
+              "biomeId": "thornwild",
+              "shopId": "grovekeep",
+              "shopSeed": 1570931666
+            }
+          ],
+          [
+            {
+              "id": "d3-0",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 1,
+              "fightOption": "easy",
+              "encounterSeed": 2386113188
+            },
+            {
+              "id": "d3-1",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 1,
+              "fightOption": "standard",
+              "encounterSeed": 2385966093
+            },
+            {
+              "id": "d3-2",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 1,
+              "fightOption": "hard",
+              "encounterSeed": 3460174994
+            }
+          ],
+          [
+            {
+              "id": "d4-0",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 4214414384,
+              "eventTheme": "omen"
+            },
+            {
+              "id": "d4-1",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3140499673,
+              "eventTheme": "cache"
+            },
+            {
+              "id": "d4-2",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 993508894,
+              "eventTheme": "recruit"
+            }
+          ],
+          [
+            {
+              "id": "d5-0",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3031144109,
+              "eventTheme": "market"
+            },
+            {
+              "id": "d5-1",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 3031291204,
+              "eventTheme": "omen"
+            },
+            {
+              "id": "d5-2",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "thornwild",
+              "eventSeed": 4105205915,
+              "eventTheme": "training"
+            }
+          ],
+          [
+            {
+              "id": "d6-0",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 2,
+              "fightOption": "easy",
+              "encounterSeed": 1580908325
+            },
+            {
+              "id": "d6-1",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 2,
+              "fightOption": "standard",
+              "encounterSeed": 2654823036
+            },
+            {
+              "id": "d6-2",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "thornwild",
+              "fightNumber": 2,
+              "fightOption": "hard",
+              "encounterSeed": 2654970131
+            }
+          ]
+        ],
+        "mapGenVersion": 2
+      },
+      "status": "active",
+      "depth": 0,
+      "lives": 3,
+      "bossesCleared": 0,
+      "currentNodeId": null,
+      "pieces": [
+        {
+          "instanceId": "card_002",
+          "skillId": "iron_riposte",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "instanceId": "card_003",
+          "skillId": "bramble_covenant",
+          "tier": "bronze",
+          "slot": 2
+        },
+        {
+          "instanceId": "card_004",
+          "skillId": "piercing_reach",
+          "tier": "bronze",
+          "slot": 3
+        },
+        {
+          "instanceId": "card_001",
+          "skillId": "chain_spark",
+          "tier": "bronze",
+          "slot": 4
+        }
+      ],
+      "bagSlots": [],
+      "held": null,
+      "gemInventory": [],
+      "ownedEquipment": [],
+      "equippedEquipment": [],
+      "equipmentRewardReceipts": [],
+      "nextCardInstanceId": 5,
+      "shopShelves": {},
+      "eventBag": [],
+      "eventBagRefills": 0,
+      "eventThemeBags": {},
+      "eventThemeBagRefills": {},
+      "eventInstances": {},
+      "eventResolutions": {},
+      "eventCallbackQueue": [],
+      "completedStoryIds": [],
+      "eventCallbackResolutionIds": [],
+      "mapIntelByBand": {},
+      "appliedMapInfoSourceIds": [],
+      "combatFactLedger": [],
+      "revengeFactLedger": [],
+      "signatureFactLedger": [],
+      "journeyFactLedger": {
+        "visitedBiomeIds": []
+      },
+      "eventBindingReservations": [],
+      "eventMaterializations": {},
+      "storyStateV3": {
+        "oath_mercy": false,
+        "grave_path": "none",
+        "honorable_choice": false,
+        "reliquary_oath": false,
+        "oath_gate": "none",
+        "venom_bloom": "none",
+        "rival_spared": false,
+        "moon_quarry_released": false
+      },
+      "missedEventOpportunities": [],
+      "eventComebackUsedIds": [],
+      "biomeChoices": {
+        "0": "thornwild"
+      },
+      "gold": 0,
+      "heroLevel": 1,
+      "heroAllocation": {},
+      "wins": 0,
+      "losses": 0,
+      "stats": {
+        "damageDealt": 0,
+        "damageTaken": 0,
+        "healingDone": 0,
+        "goldEarned": 0,
+        "goldSpent": 0,
+        "cardsBought": 0,
+        "gemsBought": 0,
+        "eventsResolved": 0,
+        "deepestWave": 0,
+        "livesLost": 0
+      }
+    },
+    "errors": []
+  },
+  {
+    "platform": "desktop",
+    "video": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\artifacts\\promo\\wandering-hand-2026-10-20\\capture-journey\\page@937cdca5d5530c66ef6f53b68afa6246.webm"
+  },
+  {
+    "platform": "mobile",
+    "shot": "draft",
+    "from": 2.478,
+    "to": 11.094,
+    "seed": 20261020
+  },
+  {
+    "platform": "mobile",
+    "shot": "route",
+    "from": 13.1,
+    "to": 19.962
+  },
+  {
+    "platform": "mobile",
+    "shot": "board",
+    "from": 21.484,
+    "to": 28.343
+  },
+  {
+    "platform": "mobile",
+    "shot": "route-chosen",
+    "from": 30.88,
+    "to": 37.386
+  },
+  {
+    "platform": "mobile",
+    "runState": {
+      "seed": 20261020,
+      "map": {
+        "seed": 20261020,
+        "depths": [
+          [],
+          [
+            {
+              "id": "d1-0",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3237783913,
+              "eventTheme": "training"
+            },
+            {
+              "id": "d1-1",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3237931008,
+              "eventTheme": "forge"
+            },
+            {
+              "id": "d1-2",
+              "depth": 1,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 16878423,
+              "eventTheme": "cache"
+            }
+          ],
+          [
+            {
+              "id": "d2-0",
+              "depth": 2,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 506030102,
+              "eventTheme": "market"
+            },
+            {
+              "id": "d2-1",
+              "depth": 2,
+              "wave": 1,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3727082687,
+              "eventTheme": "recruit"
+            },
+            {
+              "id": "d2-2",
+              "depth": 2,
+              "wave": 1,
+              "kind": "shop",
+              "biomeId": "swornhold",
+              "shopId": "swordwright",
+              "shopSeed": 1570931666
+            }
+          ],
+          [
+            {
+              "id": "d3-0",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 1,
+              "fightOption": "easy",
+              "encounterSeed": 2386113188
+            },
+            {
+              "id": "d3-1",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 1,
+              "fightOption": "standard",
+              "encounterSeed": 2385966093
+            },
+            {
+              "id": "d3-2",
+              "depth": 3,
+              "wave": 1,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 1,
+              "fightOption": "hard",
+              "encounterSeed": 3460174994
+            }
+          ],
+          [
+            {
+              "id": "d4-0",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 4214414384,
+              "eventTheme": "omen"
+            },
+            {
+              "id": "d4-1",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3140499673,
+              "eventTheme": "training"
+            },
+            {
+              "id": "d4-2",
+              "depth": 4,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 993508894,
+              "eventTheme": "forge"
+            }
+          ],
+          [
+            {
+              "id": "d5-0",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3031144109,
+              "eventTheme": "market"
+            },
+            {
+              "id": "d5-1",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 3031291204,
+              "eventTheme": "omen"
+            },
+            {
+              "id": "d5-2",
+              "depth": 5,
+              "wave": 2,
+              "kind": "event",
+              "biomeId": "swornhold",
+              "eventSeed": 4105205915,
+              "eventTheme": "cache"
+            }
+          ],
+          [
+            {
+              "id": "d6-0",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 2,
+              "fightOption": "easy",
+              "encounterSeed": 1580908325
+            },
+            {
+              "id": "d6-1",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 2,
+              "fightOption": "standard",
+              "encounterSeed": 2654823036
+            },
+            {
+              "id": "d6-2",
+              "depth": 6,
+              "wave": 2,
+              "kind": "fight",
+              "biomeId": "swornhold",
+              "fightNumber": 2,
+              "fightOption": "hard",
+              "encounterSeed": 2654970131
+            }
+          ]
+        ],
+        "mapGenVersion": 2
+      },
+      "status": "active",
+      "depth": 0,
+      "lives": 3,
+      "bossesCleared": 0,
+      "currentNodeId": null,
+      "pieces": [
+        {
+          "instanceId": "card_001",
+          "skillId": "chain_spark",
+          "tier": "bronze",
+          "slot": 0
+        },
+        {
+          "instanceId": "card_002",
+          "skillId": "iron_riposte",
+          "tier": "bronze",
+          "slot": 1
+        },
+        {
+          "instanceId": "card_003",
+          "skillId": "bramble_covenant",
+          "tier": "bronze",
+          "slot": 2
+        },
+        {
+          "instanceId": "card_004",
+          "skillId": "piercing_reach",
+          "tier": "bronze",
+          "slot": 3
+        }
+      ],
+      "bagSlots": [],
+      "held": null,
+      "gemInventory": [],
+      "ownedEquipment": [],
+      "equippedEquipment": [],
+      "equipmentRewardReceipts": [],
+      "nextCardInstanceId": 5,
+      "shopShelves": {},
+      "eventBag": [],
+      "eventBagRefills": 0,
+      "eventThemeBags": {},
+      "eventThemeBagRefills": {},
+      "eventInstances": {},
+      "eventResolutions": {},
+      "eventCallbackQueue": [],
+      "completedStoryIds": [],
+      "eventCallbackResolutionIds": [],
+      "mapIntelByBand": {},
+      "appliedMapInfoSourceIds": [],
+      "combatFactLedger": [],
+      "revengeFactLedger": [],
+      "signatureFactLedger": [],
+      "journeyFactLedger": {
+        "visitedBiomeIds": []
+      },
+      "eventBindingReservations": [],
+      "eventMaterializations": {},
+      "storyStateV3": {
+        "oath_mercy": false,
+        "grave_path": "none",
+        "honorable_choice": false,
+        "reliquary_oath": false,
+        "oath_gate": "none",
+        "venom_bloom": "none",
+        "rival_spared": false,
+        "moon_quarry_released": false
+      },
+      "missedEventOpportunities": [],
+      "eventComebackUsedIds": [],
+      "biomeChoices": {
+        "0": "swornhold"
+      },
+      "gold": 0,
+      "heroLevel": 1,
+      "heroAllocation": {},
+      "wins": 0,
+      "losses": 0,
+      "stats": {
+        "damageDealt": 0,
+        "damageTaken": 0,
+        "healingDone": 0,
+        "goldEarned": 0,
+        "goldSpent": 0,
+        "cardsBought": 0,
+        "gemsBought": 0,
+        "eventsResolved": 0,
+        "deepestWave": 0,
+        "livesLost": 0
+      }
+    },
+    "errors": []
+  },
+  {
+    "platform": "mobile",
+    "video": "C:\\Users\\Wen-AI\\Documents\\GitHub\\world1\\artifacts\\promo\\wandering-hand-2026-10-20\\capture-journey\\page@7a25c36f0dca074d9261603db88f59bd.webm"
+  }
+]

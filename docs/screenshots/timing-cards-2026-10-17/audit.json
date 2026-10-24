@@ -1,0 +1,80 @@
+[
+  {
+    "tokenText": [
+      {
+        "id": "waking_blade",
+        "text": [
+          "Waking Blade",
+          "DMG 4 +ATK",
+          " · ",
+          "T4+ +33 DMG",
+          "SWORD",
+          "W10"
+        ]
+      },
+      {
+        "id": "honed_edge",
+        "text": [
+          "Honed Edge",
+          "DMG 14 +ATK",
+          " · ",
+          "2ND+ +28 DMG",
+          "SWORD",
+          "W10"
+        ]
+      }
+    ]
+  },
+  {
+    "compact": false,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "art": [
+      "card-art:honed_edge_anime",
+      "card-art:waking_blade_anime"
+    ],
+    "errors": [],
+    "screenshot": "docs/screenshots/timing-cards-2026-10-17/desktop.png"
+  },
+  {
+    "tokenText": [
+      {
+        "id": "waking_blade",
+        "text": [
+          "Waking Blade",
+          "DMG 4",
+          " · ",
+          "T4+ +33 DMG",
+          "SWORD",
+          "W10"
+        ]
+      },
+      {
+        "id": "honed_edge",
+        "text": [
+          "Honed Edge",
+          "DMG 14",
+          " · ",
+          "2ND+ +28 DMG",
+          "SWORD",
+          "W10"
+        ]
+      }
+    ]
+  },
+  {
+    "compact": true,
+    "viewport": {
+      "width": 412,
+      "height": 892
+    },
+    "art": [
+      "card-art:honed_edge_anime",
+      "card-art:waking_blade_anime"
+    ],
+    "errors": [],
+    "screenshot": "docs/screenshots/timing-cards-2026-10-17/mobile.png"
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "commit": "d949da615bf2fb4253ea7016cf52a6519352cdb9",
+  "deployment": "https://89c6f421.proof-of-concept-ab-deckbuilder.pages.dev",
+  "checks": [
+    {
+      "url": "https://proof-of-concept-ab-deckbuilder.pages.dev",
+      "status": 200,
+      "bundle": "./assets/index-CF9MlFIO.js"
+    },
+    {
+      "url": "https://proof-of-concept-ab-deckbuilder.pages.dev/assets/index-CF9MlFIO.js",
+      "status": 200,
+      "bytes": 3399102,
+      "sha256": "94aa1de8848d2df3dc4c1a5436d6c9ff9bb724c55c9ba05d8648cafb26277c09",
+      "matchesBuiltFile": true
+    },
+    {
+      "url": "https://proof-of-concept-ab-deckbuilder.pages.dev/game-art/cards/waking-blade-anime.webp",
+      "status": 200,
+      "bytes": 89462,
+      "sha256": "68bae9f3e3a26aa972be93cb5a638d2eb34a5bb677b17322516bb77632b1b766",
+      "matchesBuiltFile": true
+    },
+    {
+      "url": "https://proof-of-concept-ab-deckbuilder.pages.dev/game-art/cards/honed-edge-anime.webp",
+      "status": 200,
+      "bytes": 86658,
+      "sha256": "8a8646c7a0f5ff43275d4fe5a9aaa585d85750ac8a1d3045bd3bd5bba027de2d",
+      "matchesBuiltFile": true
+    }
+  ]
+}
